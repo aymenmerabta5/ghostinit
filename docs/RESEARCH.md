@@ -4,46 +4,46 @@ Date: 2026-07-12
 
 ## Toolchain
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Bun | 1.3.14 | Current stable latest; local matches. |
-| Node (target) | 24.18.0 LTS | Local v25.8.0 is EOL; target LTS for generated apps. |
-| TypeScript | 7.0.2 | Stable; no programmatic compiler API until 7.1. Use TS 6.0.3 sidecar only if a tool requires the API. |
+| Tool          | Version     | Notes                                                                                                 |
+| ------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| Bun           | 1.3.14      | Current stable latest; local matches.                                                                 |
+| Node (target) | 24.18.0 LTS | Local v25.8.0 is EOL; target LTS for generated apps.                                                  |
+| TypeScript    | 7.0.2       | Stable; no programmatic compiler API until 7.1. Use TS 6.0.3 sidecar only if a tool requires the API. |
 
 ## Generated Application Stack
 
-| Package | Version | Source |
-|---------|---------|--------|
-| next | 16.2.10 | npm registry |
-| react | 19.2.7 | npm registry |
-| react-dom | 19.2.7 | npm registry |
-| @types/react | 19.2.17 | npm registry |
-| @types/react-dom | 19.2.3 | npm registry |
-| drizzle-orm | 0.45.2 | npm registry |
-| drizzle-kit | 0.31.10 | npm registry |
-| pg | 8.22.0 | npm registry |
-| @types/pg | 8.11.14 | npm registry |
-| better-auth | 1.6.23 | npm registry |
-| @orpc/server | 1.14.7 | npm registry |
-| @orpc/contract | 1.14.7 | npm registry |
-| @orpc/client | 1.14.7 | npm registry |
-| @orpc/openapi | 1.14.7 | npm registry |
-| @orpc/react-query | 1.14.7 | npm registry |
-| zod | 4.4.3 | npm registry |
-| @tanstack/react-query | 5.101.2 | npm registry |
-| @tanstack/react-form | 1.33.1 | npm registry |
-| tailwindcss | 4.3.2 | npm registry |
-| @tailwindcss/postcss | 4.3.2 | npm registry |
-| postcss | 8.5.17 | npm registry |
-| shadcn | 4.13.0 | npm registry |
-| @base-ui/react | 1.6.0 | npm registry |
-| clsx | 2.1.1 | npm registry |
-| tailwind-merge | 3.6.0 | npm registry |
-| class-variance-authority | 0.7.1 | npm registry |
-| @biomejs/biome | 2.5.3 | npm registry |
-| turbo | 2.10.4 | npm registry |
-| @playwright/test | 1.61.1 | npm registry |
-| postgres Docker | 18.4 | Docker Hub / PostgreSQL official |
+| Package                  | Version | Source                           |
+| ------------------------ | ------- | -------------------------------- |
+| next                     | 16.2.10 | npm registry                     |
+| react                    | 19.2.7  | npm registry                     |
+| react-dom                | 19.2.7  | npm registry                     |
+| @types/react             | 19.2.17 | npm registry                     |
+| @types/react-dom         | 19.2.3  | npm registry                     |
+| drizzle-orm              | 0.45.2  | npm registry                     |
+| drizzle-kit              | 0.31.10 | npm registry                     |
+| pg                       | 8.22.0  | npm registry                     |
+| @types/pg                | 8.11.14 | npm registry                     |
+| better-auth              | 1.6.23  | npm registry                     |
+| @orpc/server             | 1.14.7  | npm registry                     |
+| @orpc/contract           | 1.14.7  | npm registry                     |
+| @orpc/client             | 1.14.7  | npm registry                     |
+| @orpc/openapi            | 1.14.7  | npm registry                     |
+| @orpc/react-query        | 1.14.7  | npm registry                     |
+| zod                      | 4.4.3   | npm registry                     |
+| @tanstack/react-query    | 5.101.2 | npm registry                     |
+| @tanstack/react-form     | 1.33.1  | npm registry                     |
+| tailwindcss              | 4.3.2   | npm registry                     |
+| @tailwindcss/postcss     | 4.3.2   | npm registry                     |
+| postcss                  | 8.5.17  | npm registry                     |
+| shadcn                   | 4.13.0  | npm registry                     |
+| @base-ui/react           | 1.6.0   | npm registry                     |
+| clsx                     | 2.1.1   | npm registry                     |
+| tailwind-merge           | 3.6.0   | npm registry                     |
+| class-variance-authority | 0.7.1   | npm registry                     |
+| @biomejs/biome           | 2.5.3   | npm registry                     |
+| turbo                    | 2.10.4  | npm registry                     |
+| @playwright/test         | 1.61.1  | npm registry                     |
+| postgres Docker          | 18.4    | Docker Hub / PostgreSQL official |
 
 ## Important Compatibility Notes
 

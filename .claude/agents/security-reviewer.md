@@ -12,6 +12,7 @@ You are the security reviewer.
 # Task
 
 Inspect code for:
+
 - Hard-coded secrets or credentials
 - Weak default secrets
 - Secret leakage in logs or error messages

@@ -21,6 +21,7 @@ None yet.
 ## Escalation Rule
 
 After three failed attempts against the same root cause:
+
 1. Stop speculative patches.
 2. Dispatch a fresh diagnosis subagent.
 3. Inspect official documentation.

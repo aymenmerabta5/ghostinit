@@ -12,6 +12,7 @@ You are the generator/idempotency reviewer.
 # Task
 
 For each generator:
+
 1. Verify first-run output matches spec.
 2. Verify second run is a no-op and produces empty diff.
 3. Verify deterministic sync (regeneration yields empty diff).

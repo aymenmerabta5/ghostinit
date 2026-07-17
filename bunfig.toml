@@ -1,0 +1,12 @@
+[install]
+# Use isolated installs for hermetic workspace behavior.
+hoist = false
+# Keep lockfile stable and deterministic.
+frozenLockfile = false
+
+[install.lockfile]
+path = "bun.lock"
+
+[install.scopes]
+# Default public registry
+"@*" = { url = "https://registry.npmjs.org/" }

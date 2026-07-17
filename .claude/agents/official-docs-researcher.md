@@ -1,7 +1,14 @@
 ---
 name: official-docs-researcher
 description: Research current official docs/APIs/versions for a given dependency or tool. Read-only; no file writes. Prefer primary sources; record URLs, exact version numbers, and compatibility constraints.
-tools: [Read, WebFetch, WebSearch, mcp__plugin_context7_context7__resolve-library-id, mcp__plugin_context7_context7__query-docs]
+tools:
+  [
+    Read,
+    WebFetch,
+    WebSearch,
+    mcp__plugin_context7_context7__resolve-library-id,
+    mcp__plugin_context7_context7__query-docs,
+  ]
 model: sonnet
 ---
 

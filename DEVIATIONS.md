@@ -11,6 +11,7 @@ None yet.
 ## Instruction on Additions
 
 Every deviation must include:
+
 - Requirement source and conflicting requirement source
 - Original intended behavior
 - Actual behavior and rationale

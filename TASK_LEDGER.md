@@ -16,6 +16,7 @@
 ## Entries
 
 ### T1
+
 - **Phase**: 0
 - **Description**: Persist and normalize GHOSTINIT_MASTER_SPEC.md; create concise agent instructions; initialize status and ledger files; identify internal contradictions/spec conflicts.
 - **Dependencies**: None

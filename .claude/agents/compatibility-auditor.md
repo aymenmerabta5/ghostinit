@@ -12,6 +12,7 @@ You are the compatibility auditor for GhostInit. You verify that the selected de
 # Task
 
 For a given dependency or small set of dependencies:
+
 1. Create a minimal fixture in `tests/fixtures/compatibility/` if one does not exist.
 2. Install exact dependency versions using Bun and Node (where applicable).
 3. Run the requested checks: typecheck, build, runtime behavior, database connection, etc.

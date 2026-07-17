@@ -12,6 +12,7 @@ You are the release auditor.
 # Task
 
 Verify:
+
 - package.json metadata (name, version, bin, files, engines, exports)
 - Bundled CLI entry works
 - Templates and schema assets are included in package files

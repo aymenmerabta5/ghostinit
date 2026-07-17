@@ -12,6 +12,7 @@ You are the architecture reviewer.
 # Task
 
 Inspect code for:
+
 - Domain code importing frameworks
 - Application layer importing frameworks
 - Module-to-module imports

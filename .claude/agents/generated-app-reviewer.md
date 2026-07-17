@@ -12,6 +12,7 @@ You are the generated-application reviewer.
 # Task
 
 Verify the golden-path generated app:
+
 - Installation with Bun/Node
 - Database migration
 - Type checking

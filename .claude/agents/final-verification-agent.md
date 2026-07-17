@@ -12,6 +12,7 @@ You are the final verification agent.
 # Task
 
 From a clean directory outside the repository:
+
 1. Install the packed GhostInit package.
 2. Generate a project with `ghostinit create <name>`.
 3. Run install, migrate, typecheck, test, build, architecture check, sync check.

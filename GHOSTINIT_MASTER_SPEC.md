@@ -20,8 +20,9 @@ Do not stop after Phase 0 unless a genuine non-negotiable compatibility blocker
 makes implementation impossible and requires a human architectural decision.
 
 ======================================================================
+
 1. SOURCE OF TRUTH
-======================================================================
+   \======================================================================
 
 The complete specification following this execution controller is the source
 of truth.
@@ -53,8 +54,7 @@ When an official API requires changing an assumed implementation:
 3. Record the deviation.
 4. Add tests proving the replacement works.
 
-======================================================================
-2. PRIMARY GOAL
+====================================================================== 2. PRIMARY GOAL
 ======================================================================
 
 Implement, test, document, package, and verify GhostInit v0.1 completely.
@@ -112,8 +112,7 @@ The final implementation must include:
 - compatibility reports
 - complete end-to-end verification
 
-======================================================================
-3. AUTONOMOUS COMPLETION RULE
+====================================================================== 3. AUTONOMOUS COMPLETION RULE
 ======================================================================
 
 Continue working until one of these states is reached:
@@ -155,8 +154,7 @@ Do not ask for confirmation between phases.
 
 Do not provide progress-only responses as final completion.
 
-======================================================================
-4. KIMI K2.7 CODE OPERATING RULES
+====================================================================== 4. KIMI K2.7 CODE OPERATING RULES
 ======================================================================
 
 Use an explicit state machine rather than relying on conversational memory.
@@ -205,8 +203,7 @@ Do not hide failures with abbreviated output.
 
 Persist important conclusions before context compaction can occur.
 
-======================================================================
-5. TASK LEDGER
+====================================================================== 5. TASK LEDGER
 ======================================================================
 
 Create TASK_LEDGER.md with structured entries:
@@ -244,8 +241,7 @@ A task may become VERIFIED only after:
 
 Do not mark tasks VERIFIED merely because files exist.
 
-======================================================================
-6. VERIFICATION LEDGER
+====================================================================== 6. VERIFICATION LEDGER
 ======================================================================
 
 Create VERIFICATION_LEDGER.md.
@@ -282,8 +278,7 @@ Examples:
 
 No command may be recorded as passing unless it was actually executed.
 
-======================================================================
-7. FAILURE LOG
+====================================================================== 7. FAILURE LOG
 ======================================================================
 
 Create FAILURE_LOG.md.
@@ -312,8 +307,7 @@ After three failed attempts against the same root cause:
 
 Do not thrash by repeatedly changing unrelated configurations.
 
-======================================================================
-8. SUBAGENT STRATEGY
+====================================================================== 8. SUBAGENT STRATEGY
 ======================================================================
 
 Use subagents proactively.
@@ -342,7 +336,8 @@ Required roles:
 11. fix-agent
 12. final-verification-agent
 
-----------------------------------------------------------------------
+---
+
 8.1 Official documentation researcher
 ----------------------------------------------------------------------
 
@@ -364,7 +359,8 @@ Rules:
 - distinguish verified facts from inference
 - report version publication dates where relevant
 
-----------------------------------------------------------------------
+---
+
 8.2 Implementation agents
 ----------------------------------------------------------------------
 
@@ -385,7 +381,8 @@ Parallel work is allowed only when file ownership does not overlap.
 
 The main agent must integrate and verify every subagent contribution.
 
-----------------------------------------------------------------------
+---
+
 8.3 Review agents
 ----------------------------------------------------------------------
 
@@ -430,7 +427,8 @@ However, a review agent must never approve its own fixes.
 
 After review fixes, dispatch a different fresh verification agent.
 
-----------------------------------------------------------------------
+---
+
 8.4 Fix agents
 ----------------------------------------------------------------------
 
@@ -447,7 +445,8 @@ It must:
 
 After fixes, a fresh verifier must independently rerun the relevant checks.
 
-----------------------------------------------------------------------
+---
+
 8.5 Final adversarial reviewers
 ----------------------------------------------------------------------
 
@@ -484,28 +483,27 @@ They must search for:
 
 Every valid final finding must be fixed and independently reverified.
 
-======================================================================
-9. REVIEW-FIX-VERIFY LOOP
+====================================================================== 9. REVIEW-FIX-VERIFY LOOP
 ======================================================================
 
 For each phase, execute this exact loop:
 
 IMPLEMENT
-    ->
+->
 SELF-TEST
-    ->
+->
 FRESH REVIEW
-    ->
+->
 TRIAGE FINDINGS
-    ->
+->
 FIX ALL ACCEPTED BLOCKER/HIGH/MEDIUM FINDINGS
-    ->
+->
 ADD REGRESSION TESTS
-    ->
+->
 FRESH VERIFICATION
-    ->
+->
 FULL PHASE TEST
-    ->
+->
 MARK VERIFIED
 
 Rules:
@@ -528,13 +526,13 @@ There is no fixed retry limit for ordinary implementation errors.
 The three-attempt escalation rule applies to repeated attempts against the same
 unresolved root cause, not to overall project effort.
 
-======================================================================
-10. PHASE EXECUTION
+====================================================================== 10. PHASE EXECUTION
 ======================================================================
 
 Execute all phases continuously.
 
-----------------------------------------------------------------------
+---
+
 PHASE 0 — Specification normalization and repository memory
 ----------------------------------------------------------------------
 
@@ -556,7 +554,8 @@ Required review:
 Do not implement product code until internal contradictions are resolved or
 documented.
 
-----------------------------------------------------------------------
+---
+
 PHASE 1 — Compatibility spike
 ----------------------------------------------------------------------
 
@@ -620,7 +619,8 @@ If this phase exposes normal integration problems, fix them.
 
 Use BLOCKED only under the strict blocking protocol.
 
-----------------------------------------------------------------------
+---
+
 PHASE 2 — GhostInit monorepo foundation
 ----------------------------------------------------------------------
 
@@ -645,7 +645,8 @@ Required review:
 - tooling reviewer
 - test engineer
 
-----------------------------------------------------------------------
+---
+
 PHASE 3 — Core CLI engine
 ----------------------------------------------------------------------
 
@@ -694,7 +695,8 @@ Required destructive tests:
 - no TTY
 - malformed arguments
 
-----------------------------------------------------------------------
+---
+
 PHASE 4 — Golden-path project templates
 ----------------------------------------------------------------------
 
@@ -732,7 +734,8 @@ Required review:
 - frontend reviewer
 - database reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 5 — Create command
 ----------------------------------------------------------------------
 
@@ -765,7 +768,8 @@ Required review:
 - generated-project reviewer
 - release auditor
 
-----------------------------------------------------------------------
+---
+
 PHASE 6 — Architecture checker
 ----------------------------------------------------------------------
 
@@ -795,7 +799,8 @@ Required review:
 
 Use fixtures proving both allowed and forbidden cases.
 
-----------------------------------------------------------------------
+---
+
 PHASE 7 — Deterministic synchronization
 ----------------------------------------------------------------------
 
@@ -828,7 +833,8 @@ Required review:
 - determinism reviewer
 - idempotency reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 8 — Module generator
 ----------------------------------------------------------------------
 
@@ -857,7 +863,8 @@ Required review:
 - generator reviewer
 - database-cycle reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 9 — Use-case generator
 ----------------------------------------------------------------------
 
@@ -882,7 +889,8 @@ Required review:
 - security reviewer
 - generator reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 10 — Transport generators
 ----------------------------------------------------------------------
 
@@ -917,7 +925,8 @@ Required review:
 - authorization reviewer
 - OpenAPI reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 11 — Status, check, and doctor
 ----------------------------------------------------------------------
 
@@ -953,7 +962,8 @@ Required review:
 - environment reviewer
 - security reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 12 — Generated application functionality
 ----------------------------------------------------------------------
 
@@ -987,7 +997,8 @@ Required review:
 - accessibility reviewer
 - security reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 13 — Test and CI completion
 ----------------------------------------------------------------------
 
@@ -1016,7 +1027,8 @@ Required review:
 
 Do not use sleep-based tests when deterministic synchronization is possible.
 
-----------------------------------------------------------------------
+---
+
 PHASE 14 — Release packaging
 ----------------------------------------------------------------------
 
@@ -1043,7 +1055,8 @@ Required review:
 - supply-chain reviewer
 - clean-environment reviewer
 
-----------------------------------------------------------------------
+---
+
 PHASE 15 — Full adversarial verification
 ----------------------------------------------------------------------
 
@@ -1068,8 +1081,7 @@ After fixes:
 
 Only then mark the project COMPLETE.
 
-======================================================================
-11. MANDATORY IMPLEMENTATION QUALITY
+====================================================================== 11. MANDATORY IMPLEMENTATION QUALITY
 ======================================================================
 
 Never leave:
@@ -1099,8 +1111,7 @@ Search for these before completion.
 Comments containing TODO are allowed only when they describe explicitly
 out-of-scope roadmap work and are linked to a documented roadmap item.
 
-======================================================================
-12. TEST INTEGRITY
+====================================================================== 12. TEST INTEGRITY
 ======================================================================
 
 Tests must prove behavior rather than mirror implementation details.
@@ -1141,8 +1152,7 @@ For generated apps, assert:
 - E2E
 - runtime startup
 
-======================================================================
-13. RESOURCE USAGE
+====================================================================== 13. RESOURCE USAGE
 ======================================================================
 
 Inference and subagent usage are not constrained.
@@ -1161,8 +1171,7 @@ However:
 
 The objective is correctness, not token minimization.
 
-======================================================================
-14. HUMAN INTERRUPTION POLICY
+====================================================================== 14. HUMAN INTERRUPTION POLICY
 ======================================================================
 
 Do not request routine approval.
@@ -1188,8 +1197,7 @@ When human input is required:
 5. State exactly what cannot continue.
 6. Avoid vague questions.
 
-======================================================================
-15. FINAL CLEAN-ENVIRONMENT MATRIX
+====================================================================== 15. FINAL CLEAN-ENVIRONMENT MATRIX
 ======================================================================
 
 Before completion, verify at minimum:
@@ -1232,8 +1240,7 @@ Windows path behavior must be covered through actual Windows CI where available,
 otherwise through path normalization tests and a documented unverified platform
 status. Do not falsely claim native Windows verification without running it.
 
-======================================================================
-16. FINAL DEFINITION OF COMPLETE
+====================================================================== 16. FINAL DEFINITION OF COMPLETE
 ======================================================================
 
 COMPLETE requires all of the following:
@@ -1269,8 +1276,7 @@ COMPLETE requires all of the following:
 29. Full verification was rerun after the final fix.
 30. The final Git diff and repository status were inspected.
 
-======================================================================
-17. FINAL RESPONSE CONTRACT
+====================================================================== 17. FINAL RESPONSE CONTRACT
 ======================================================================
 
 Do not conclude with a generic statement such as "implementation complete."
@@ -1327,8 +1333,7 @@ The final response must include:
 
 Do not claim COMPLETE unless the command evidence supports it.
 
-======================================================================
-18. BEGINNING EXECUTION
+====================================================================== 18. BEGINNING EXECUTION
 ======================================================================
 
 Begin immediately.

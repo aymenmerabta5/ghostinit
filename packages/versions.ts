@@ -14,6 +14,7 @@ export const ghostinitVersion = "0.1.0" as const;
 export const runtime = {
   bun: "1.3.14",
   node: "24.18.0", // LTS target; local has v25.8.0 (EOL) for development only
+  "@types/node": "22.20.1",
 } as const;
 
 export const typescript = {
@@ -21,6 +22,7 @@ export const typescript = {
   // Keep the 6.x line available only for tools that still need the legacy
   // programmatic compiler API. GhostInit itself does not use it by default.
   typescriptLegacy: "6.0.3",
+  "@typescript/native-preview": "7.0.0-dev.20260707.2",
 } as const;
 
 export const nextStack = {
@@ -48,6 +50,7 @@ export const orpc = {
   "@orpc/client": "1.14.7",
   "@orpc/openapi": "1.14.7",
   "@orpc/react-query": "1.14.7",
+  "@orpc/zod": "1.14.7",
   // NOTE: @orpc/next is intentionally omitted. The 0.27.0 release peers with
   // @orpc/server 0.27.0, which conflicts with the stable 1.14.7 core line.
   // GhostInit exposes oRPC via RPCHandler route handlers and keeps Server
@@ -56,6 +59,7 @@ export const orpc = {
 
 export const validation = {
   zod: "4.4.3",
+  "@t3-oss/env-nextjs": "0.13.11",
 } as const;
 
 export const tanstack = {
@@ -80,6 +84,8 @@ export const ui = {
 
 export const tooling = {
   biome: "2.5.3",
+  oxlint: "1.73.0",
+  oxfmt: "0.58.0",
   turbo: "2.10.4",
 } as const;
 

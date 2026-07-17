@@ -10,6 +10,7 @@
 - Related Deviations
 
 ## D1
+
 - **Date**: 2026-07-12
 - **Context**: Repository just initialized; tooling versions pending research.
 - **Decision**: Use Bun as the primary runtime and package manager for GhostInit itself. Generated projects must support both Bun and Node runtimes via `--runtime=node|bun`.
@@ -17,6 +18,7 @@
 - **Related Deviations**: None yet.
 
 ## D2
+
 - **Date**: 2026-07-12
 - **Context**: Spec requires TypeScript 7 but TypeScript 6 sidecar compatibility.
 - **Decision**: Use TypeScript 7 (latest stable `typescript@^7`) for tool-generated configuration. Provide a generated-sidecar package `packages/tsconfig-legacy` only if a generated module explicitly targets a legacy consumer; default generated apps use TS 7 only.
@@ -24,6 +26,7 @@
 - **Related Deviations**: None yet.
 
 ## D3
+
 - **Date**: 2026-07-12
 - **Context**: Tech stack stack (Next.js, Drizzle, Better Auth, oRPC, TanStack Query/Form, shadcn/ui Base UI, Tailwind, Biome, Bun test, Playwright).
 - **Decision**: Research and use current stable major versions for every dependency. Pin exact versions in catalogs. No `latest` or floating tags in generated `package.json` files. Track chosen versions in `packages/versions.ts` registry.
