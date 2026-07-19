@@ -1,0 +1,33 @@
+import type { DbImports } from "./shared.js";
+export function polarTanstackContent(imp: DbImports): string {
+  return [
+    "import { createFileRoute } from '@tanstack/react-router'",
+    "import { eq } from 'drizzle-orm'",
+    `import { db } from '${imp.db}'`,
+    `import { webhook_events, checkouts, subscriptions, invoices } from '${imp.billingSchema}'`,
+    `import { logger } from '${imp.observability}'`,
+    "",
+    "async function POST(request: Request): Promise<Response> {",
+    "  const secret = process.env.POLAR_WEBHOOK_SECRET ?? ''",
+    "  if (!secret || secret.startsWith('REPLACE_WITH')) return Response.json({ ok: false, error: 'POLAR_WEBHOOK_SECRET not configured' }, { status: 400 })",
+    "  const buf = Buffer.from(await request.arrayBuffer())",
+    "  const headers: Record<string, string> = {}; request.headers.forEach((v, k) => { headers[k] = v })",
+    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>;",
+    "  try { const { validateEvent } = await import('@polar-sh/sdk/webhooks'); const validated = validateEvent(buf, headers as any, secret) as any; eventType = validated.type ?? 'unknown'; eventPayload = validated.data ?? validated; eventId = (validated.data as any)?.id ?? validated.id ?? `evt_${Date.now()}`; }",
+    "  catch (err: any) { const name = err?.name ?? ''; const msg = err?.message ?? String(err); const isInvalid = name === 'WebhookVerificationError' || msg.toLowerCase().includes('signature') || msg.toLowerCase().includes('verification') || msg.toLowerCase().includes('whsec'); logger.error(`[webhook:polar] ${isInvalid ? \"invalid signature 403\" : \"webhook error 400\"}: ${msg}`); return Response.json({ ok: false, error: isInvalid ? `Invalid polar signature 403: ${msg}` : `Webhook Error: ${msg}` }, { status: isInvalid ? 403 : 400 }); }",
+    '  try { if (!db.query.webhook_events.findFirst) throw new Error("webhook_events query not available — ensure billing schema is migrated"); const existing = await db.query.webhook_events.findFirst({ where: eq(webhook_events.providerEventId, eventId), }); if (existing?.processed) return Response.json({ ok: true, alreadyProcessed: true, provider: "polar", id: eventId }) } catch (error) { const message = error instanceof Error ? error.message : String(error); if (message.includes("webhook_events query not available")) { logger.error(`[polar webhook] ${message}`); throw error; } logger.error(`[polar webhook] idempotency check failed: ${message}`); }',
+    "  try { const data = eventPayload as any; switch (eventType) {",
+    "      case 'subscription.created': case 'subscription.active': case 'subscription.updated': case 'subscription.uncanceled': { try { const subId = data.id ?? eventId; const statusRaw = data.status ?? (eventType.includes(\"active\") ? \"active\" : \"active\"); await db.insert(subscriptions).values({ userId: data.customerId ?? data.externalCustomerId ?? subId, provider: 'polar', providerSubscriptionId: subId, status: statusRaw, metadata: data.metadata as any }).onConflictDoNothing(); await db.update(subscriptions).set({ status: statusRaw as any }).where(eq(subscriptions.providerSubscriptionId, subId)) } catch (error) { logger.error(`[polar webhook] subscription upsert failed: ${error instanceof Error ? error.message : String(error)}`) } break; }",
+    "      case 'subscription.canceled': case 'subscription.revoked': { try { const subId = data.id ?? eventId; await db.update(subscriptions).set({ status: \"canceled\" as any }).where(eq(subscriptions.providerSubscriptionId, subId)) } catch (error) { logger.error(`[polar webhook] subscription canceled/revoked failed: ${error instanceof Error ? error.message : String(error)}`) } break; }",
+    "      case 'checkout.created': case 'checkout.updated': { try { const checkoutId = data.id ?? eventId; const status = data.status; if (checkoutId) { const mapped = status === 'confirmed' || status === 'succeeded' ? 'completed' : status === 'expired' ? 'expired' : 'pending'; if (eventType === 'checkout.created') await db.insert(checkouts).values({ provider: 'polar', providerCheckoutId: checkoutId, url: data.url, status: 'pending' }).onConflictDoNothing(); else if (status) await db.update(checkouts).set({ status: mapped as any }).where(eq(checkouts.providerCheckoutId, checkoutId)) } } catch (error) { logger.error(`[polar webhook] checkout handling failed: ${error instanceof Error ? error.message : String(error)}`) } break; }",
+    "      case 'order.created': case 'order.paid': { try { const orderId = data.id ?? eventId; const subId = data.subscriptionId ?? data.subscription_id; await db.insert(invoices).values({ provider: 'polar', providerInvoiceId: orderId, paid: eventType === 'order.paid' || data.status === 'paid', amount: data.totalAmount ?? data.amount ?? 0, status: eventType === 'order.paid' ? 'paid' : 'open' }).onConflictDoNothing(); if (eventType === \"order.paid\" && subId) await db.update(subscriptions).set({ status: \"active\" as any }).where(eq(subscriptions.providerSubscriptionId, subId)) } catch (error) { logger.error(`[polar webhook] order handling failed: ${error instanceof Error ? error.message : String(error)}`) } break; }",
+    "      default: break; } } catch (e) { logger.error(`[webhook:polar] handler error ${e instanceof Error ? e.message : String(e)}`) }",
+    "  try { await db.insert(webhook_events).values({ provider: 'polar', providerEventId: eventId, type: eventType, payload: eventPayload as any, processed: true }).onConflictDoNothing() } catch (error) { logger.error(`[polar webhook] failed to record event: ${error instanceof Error ? error.message : String(error)}`) }",
+    "  logger.info(`[webhook:polar] ${eventType} ${eventId} ok`)",
+    "  return Response.json({ ok: true, provider: 'polar', type: eventType, id: eventId })",
+    "}",
+    "",
+    "export const Route = createFileRoute('/api/webhooks/polar')({ server: { handlers: { POST }, },})",
+    "",
+  ].join("\n");
+}

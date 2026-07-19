@@ -5,6 +5,7 @@ import type { RootSecrets } from "../../src/templates/root";
 const secrets: RootSecrets = {
   authSecret: "test_auth_secret_value_at_least_32_chars",
   postgresPassword: "test_postgres_password_value_at_least_32",
+  resendApiKey: "re_test_api_key_value_at_least_32_chars_long",
 };
 
 describe("root template files", () => {

@@ -2,7 +2,7 @@
  * ghostinit check implementation.
  */
 
-import { ExitCode } from "../lib/errors.js";
+import { ExitCode, ProjectStateError } from "../lib/errors.js";
 import { analyzeProject } from "../lib/architecture.js";
 import { envelope, printJson } from "../lib/json.js";
 import { loadState } from "../lib/state.js";
@@ -13,7 +13,10 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
 
   const state = await loadState(options.cwd);
   if (!state) {
-    throw new Error("No GhostInit project found in the current directory");
+    // Fix Issue 16: use GhostinitError subclass instead of generic Error.
+    throw new ProjectStateError("No GhostInit project found in the current directory", {
+      cwd: options.cwd,
+    });
   }
 
   const findings = await analyzeProject(options.cwd);
@@ -22,6 +25,7 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
   const mediums = findings.filter((f) => f.severity === "MEDIUM").length;
 
   const passed = blockers === 0 && highs === 0;
+  const durationMs = Date.now() - start;
 
   if (options.json) {
     printJson(
@@ -30,7 +34,7 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
         exitCode: passed ? ExitCode.OK : ExitCode.GENERAL_ERROR,
         data: { findings, summary: { blockers, highs, mediums } },
         command: "check",
-        durationMs: Date.now() - start,
+        durationMs,
       }),
     );
     return passed ? ExitCode.OK : ExitCode.GENERAL_ERROR;
@@ -42,6 +46,11 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
       { file: finding.file },
     );
   }
+
+  // Fix Issue 17: compute and log duration in text mode too.
+  options.logger.info(
+    `Check ${passed ? "passed" : "failed"} — ${findings.length} findings (${blockers} BLOCKER, ${highs} HIGH, ${mediums} MEDIUM) in ${durationMs}ms`,
+  );
 
   return passed ? ExitCode.OK : ExitCode.GENERAL_ERROR;
 }

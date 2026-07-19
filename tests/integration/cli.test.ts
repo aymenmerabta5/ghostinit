@@ -68,10 +68,10 @@ describe("ghostinit CLI", () => {
       [CLI, "add", "module", "api", "--cwd", projectRoot, "--json"],
       { encoding: "utf-8" },
     );
-    expect(result.status).toBe(2);
+    expect(result.status).toBe(17);
     const parsed = JSON.parse(result.stdout);
     expect(parsed.success).toBe(false);
-    expect(parsed.error?.code).toBe("INVALID_ARGUMENTS");
+    expect(parsed.error?.code).toBe("VALIDATION_ERROR");
   });
 
   it("creates a project with --no-install", () => {
@@ -252,5 +252,81 @@ describe("ghostinit CLI", () => {
       fs.readFileSync(join(projectRoot, "apps", "web", "package.json"), "utf-8"),
     );
     expect(webPackage.scripts.test).toContain("npm run");
+  });
+
+  it("creates agentic files and eve app", () => {
+    const result = spawnSync(
+      "node",
+      [
+        CLI,
+        "create",
+        "agentic-smoke",
+        "--cwd",
+        tmp,
+        "--no-install",
+        "--force",
+        "--json",
+        "--features",
+        "eve",
+      ],
+      { encoding: "utf-8" },
+    );
+    expect(result.status).toBe(0);
+    const projectRoot = join(tmp, "agentic-smoke");
+    const fs = require("node:fs");
+
+    // AGENTS.md + CLAUDE.md (no CURSOR.md per user)
+    expect(existsSync(join(projectRoot, "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(projectRoot, "CLAUDE.md"))).toBe(true);
+    expect(existsSync(join(projectRoot, "CURSOR.md"))).toBe(false);
+
+    const agents = fs.readFileSync(join(projectRoot, "AGENTS.md"), "utf-8");
+    expect(agents).toContain("Package Roles");
+    expect(agents).toContain("Quality Gates");
+    expect(agents).toContain("agentic-smoke");
+    expect(agents).toContain("ghostinit check");
+    expect(agents).toContain("apps/eve");
+
+    // Cursor + windsurf
+    expect(existsSync(join(projectRoot, ".cursor", "rules", "ghostinit.mdc"))).toBe(true);
+    expect(existsSync(join(projectRoot, ".windsurf", "rules", "ghostinit.md"))).toBe(true);
+
+    const cursorMdc = fs.readFileSync(
+      join(projectRoot, ".cursor", "rules", "ghostinit.mdc"),
+      "utf-8",
+    );
+    expect(cursorMdc).toContain("description:");
+    expect(cursorMdc).toContain("globs:");
+    expect(cursorMdc).toContain("alwaysApply:");
+
+    // start-database.sh
+    expect(existsSync(join(projectRoot, "start-database.sh"))).toBe(true);
+    const startDb = fs.readFileSync(join(projectRoot, "start-database.sh"), "utf-8");
+    expect(startDb).toContain("#!/usr/bin/env bash");
+    expect(startDb).toContain("docker");
+
+    // Eve app — real framework apps/eve/ not packages/eve
+    expect(existsSync(join(projectRoot, "apps", "eve", "package.json"))).toBe(true);
+    expect(existsSync(join(projectRoot, "apps", "eve", "agent", "agent.ts"))).toBe(true);
+    expect(existsSync(join(projectRoot, "apps", "eve", "agent", "instructions.md"))).toBe(true);
+    expect(
+      existsSync(join(projectRoot, "apps", "eve", "agent", "tools", "scaffold_module.ts")),
+    ).toBe(true);
+    expect(
+      existsSync(join(projectRoot, "apps", "eve", "agent", "skills", "ghostinit-workflow.md")),
+    ).toBe(true);
+    expect(existsSync(join(projectRoot, "apps", "eve", "agent", "channels", "eve.ts"))).toBe(true);
+    expect(
+      existsSync(join(projectRoot, "apps", "eve", "agent", "schedules", "sync-check.md")),
+    ).toBe(true);
+
+    const evePkg = JSON.parse(
+      fs.readFileSync(join(projectRoot, "apps", "eve", "package.json"), "utf-8"),
+    );
+    expect(evePkg.dependencies.eve).toContain("0.24.6");
+
+    const agentTs = fs.readFileSync(join(projectRoot, "apps", "eve", "agent", "agent.ts"), "utf-8");
+    expect(agentTs).toContain("defineAgent");
+    expect(agentTs).toContain("claude-sonnet-5");
   });
 });

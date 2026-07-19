@@ -35,7 +35,11 @@ export async function generateUseCase(
   const newExport = `export { ${functionName} } from "./${useCaseName}.${kind}";`;
   const newTypeExport = `export type { ${pascalUseCase}Input, ${pascalUseCase}Output, ${pascalUseCase}Deps, ${pascalUseCase}UseCase } from "./${useCaseName}.${kind}";`;
 
-  if (existingFile && existingIndex.includes(newExport) && existingIndex.includes(newTypeExport)) {
+  if (
+    existingFile &&
+    hasNormalizedExport(existingIndex, newExport) &&
+    hasNormalizedExport(existingIndex, newTypeExport)
+  ) {
     return true; // noop
   }
 
@@ -67,32 +71,69 @@ export async function ${functionName}(
     );
   }
 
-  const addValueExports = !existingIndex.includes(newExport);
-  const addTypeExports = !existingIndex.includes(newTypeExport);
+  const addValueExports = !hasNormalizedExport(existingIndex, newExport);
+  const addTypeExports = !hasNormalizedExport(existingIndex, newTypeExport);
   if (addValueExports || addTypeExports) {
     const suffix = [addValueExports ? newExport : "", addTypeExports ? newTypeExport : ""]
       .filter(Boolean)
       .join("\n");
-    await ctx.tx.write(
-      indexPath,
-      existingIndex
-        ? dedupeExports(`${existingIndex.replace(/\n+$/, "")}\n${suffix}\n`)
-        : `// Application use-cases for ${moduleName}\n${suffix}\n`,
+    const base = existingIndex ? existingIndex.trimEnd() : "";
+    const combined = base
+      ? `${base}\n${suffix}\n`
+      : `// Application use-cases for ${moduleName}\n${suffix}\n`;
+    await ctx.tx.write(indexPath, dedupeExports(combined));
+  }
+
+  function normalizeExportLine(line: string): string {
+    // Trim, remove trailing semicolon (with optional surrounding whitespace), collapse interior whitespace
+    const withoutSemi = line.trim().replace(/\s*;\s*$/, "");
+    return withoutSemi.replace(/\s+/g, " ").trim();
+  }
+
+  function hasNormalizedExport(content: string, target: string): boolean {
+    const normTarget = normalizeExportLine(target);
+    if (!normTarget) return false;
+    const lines = content.split("\n");
+    for (const l of lines) {
+      if (normalizeExportLine(l) === normTarget) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isExportLine(trimmedLine: string): boolean {
+    return (
+      trimmedLine.startsWith("export {") ||
+      trimmedLine.startsWith("export type {") ||
+      trimmedLine.startsWith("export type{") ||
+      trimmedLine.startsWith("export{") ||
+      trimmedLine.startsWith("export { ") ||
+      trimmedLine.startsWith("export type ")
     );
   }
 
   function dedupeExports(content: string): string {
     const lines = content.split("\n");
     const seen = new Set<string>();
-    const out = [];
+    const out: string[] = [];
     for (const line of lines) {
-      if (line.startsWith("export { ") || line.startsWith("export type ")) {
-        if (seen.has(line)) continue;
-        seen.add(line);
+      const trimmed = line.trim();
+      if (isExportLine(trimmed)) {
+        const norm = normalizeExportLine(line);
+        if (seen.has(norm)) continue;
+        seen.add(norm);
       }
       out.push(line);
     }
-    return out.join("\n") + "\n";
+    let result = out.join("\n");
+    // Ensure file ends with exactly one newline, no extra blank lines stacking
+    if (!result.endsWith("\n")) {
+      result += "\n";
+    } else {
+      result = result.replace(/\n+$/, "\n");
+    }
+    return result;
   }
 
   await commitGeneration(ctx);

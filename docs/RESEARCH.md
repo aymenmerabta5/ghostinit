@@ -63,6 +63,51 @@ Date: 2026-07-12
 - **Next.js 16** defaults to Turbopack and removes `next lint`. Generated apps
   use Biome for linting/formatting instead.
 
+## Pure oRPC Only - Elysia Removed Decision (2026-07-18)
+
+### Context7 Verification URLs
+
+- **oRPC contract-first RPCHandler fetch adapter**: `/dinwwwh/orpc` (ID resolved via context7_resolve-library-id) — docs:
+  - `https://github.com/dinwwwh/orpc/blob/main/apps/content/docs/rpc/handler.md` — RPCHandler with fetch adapter `new RPCHandler(router)` + `handler.handle(request, {prefix, context})` returning `{response}`
+  - `https://github.com/dinwwwh/orpc/blob/main/apps/content/docs/migrations/from-trpc.md` — client setup `createORPCClient` + `RPCLink` origin url `/api/orpc` interceptors onError
+  - `https://github.com/dinwwwh/orpc/blob/main/apps/content/docs/contract/implementation.md` — `implement(contract).$context<...>()`
+  - `https://github.com/dinwwwh/orpc/blob/main/apps/content/docs/openapi/specification.md` — `OpenAPIGenerator` with `converters: [new ZodToJsonSchemaConverter()]` generates spec
+  - `https://github.com/dinwwwh/orpc/blob/main/apps/content/docs/openapi/routing.md` — `os.prefix("/api")` + `os.meta(openapi({prefix}))`
+- **Next.js Route Handlers raw body Buffer webhook**: `/vercel/next.js` (ID resolved) — docs:
+  - `https://github.com/vercel/next.js/blob/canary/docs/01-app/03-api-reference/03-file-conventions/route.mdx` — webhook POST handler example `await request.text()` try catch 400 success 200
+  - Next.js App Router does NOT require bodyParser config unlike Pages Router — raw body accessible via `request.arrayBuffer()` / `request.text()`
+  - Pattern `Buffer.from(await request.arrayBuffer())` is native Web API, avoids `req.json()` which consumes stream and breaks signature verification causing 403
+  - Stripe: header `stripe-signature` missing 400, `constructEvent(buf, sig, secret)` 400 Webhook Error, idempotent `onConflictDoNothing`
+  - Chargily: header `signature` HMAC-SHA256 `verifySignature(payload Buffer, sig, secret)` timingSafeEqual throws, 400 missing 403 invalid 200 ok server-only
+  - Paddle: header `paddle-signature` raw string `unmarshal(buf.toString(), secret, sig)` EventName TransactionCompleted, 400 missing 403 invalid
+  - Polar: whsec base64 secret `validateEvent(buf, headers, secret)` WebhookVerificationError 403, `@polar-sh/nextjs` internally `Buffer.from(await req.arrayBuffer())`
+- **Elysia Eden Treaty duplication**: `/elysiajs/elysia` and `/elysiajs/eden` (IDs resolved):
+  - `treaty<App>('localhost:3000')` creates proxy client `{data, error, status}` chain per segment, path params as function call
+  - Duplication rationale: Elysia + Eden + oRPC = double RPC, double type client, double port (3000 Next + 3001 Elysia), websocket not needed, spec non-negotiable oRPC contract-first
+  - Raw body can be done in Next.js single port via `request.arrayBuffer()` — no need for separate Elysia backend for webhooks
+
+### Rationale
+
+- Spec non-negotiable oRPC contract-first — oRPC already provides RPCHandler fetch adapter + OpenAPI generation + typed client `@orpc/client`
+- Eden Treaty `treaty<App>` duplicates oRPC client functionality — two typed clients for same services layer violates single abstraction
+- Double RPC: Next.js oRPC + Elysia Elysia — double maintenance, double deploy, double port
+- No websocket requirement — Elysia websocket not used in spec
+- Raw body handling for webhooks verified can be done in Next.js Route Handlers via `Buffer.from(await request.arrayBuffer())` per `/vercel/next.js` docs — no need for Elysia separate backend
+- Single port 3000 simplifies deployment, auth cookie sharing (Better Auth), and DX
+- Pure oRPC architecture: `apps/web` Next.js ONLY + oRPC contract-first — Elysia removed pure oRPC — webhooks via Next routes raw Buffer
+
+### Implementation
+
+- `src/templates/modes/monorepo.ts`: removed import backendFiles, removed files.push(...backendFiles), added comment Elysia removed pure oRPC only webhooks via Next routes raw Buffer, removed apps/api tsconfig, transpilePackages only @repo/*, updated AGENTS.md text from "apps/api MUST Elysia" to "apps/web Next.js ONLY + oRPC contract-first - Elysia removed pure oRPC - webhooks via Next routes raw Buffer"
+- `src/templates/backend/elysia.ts`: DELETED entirely on 2026-07-18 fix — file no longer exists. Previously kept for historical reference with deprecation comment, now removed per DEPRECATED_ELYSIA_CODEGEN_STILL_PRESENT. No file in src/templates may import backend/elysia.
+- `src/templates/apps/core.ts`: ensured NO elysia deps, only @orpc/*, comment pure oRPC. Fixed WEB_PACKAGE_UNCONDITIONAL_EVE_DEP: webPackage now takes hasEve boolean and conditionally includes eve dep only when hasEve true. appsFilesWithConditionalEve passes hasEve.
+- `src/templates/apps/api.ts`: webhook routes use raw body `Buffer.from(await request.arrayBuffer())` NOT `req.json()` for 4 providers, each 400 missing 403 invalid 200 ok idempotent onConflictDoNothing, no elysia eden import
+- `src/templates/api.ts`: healthContract meContract contract uses oc.route router uses os.prefix("/api") implement openapi OpenAPIGenerator ZodToJsonSchemaConverter per Context7, NO treaty
+- `src/templates/apps/components.ts`: removed treaty<App> createApiClient, replaced with @orpc/client usage `createORPCClient` + `RPCLink`
+- `packages/versions.ts`: added DEPRECATED comment Elysia removed pure oRPC kept for reference not used
+- `src/templates/default.ts`: updated comment line 8 from "backendFiles Elysia must" to "pure oRPC only webhooks via Next.js routes" — file deletion documented
+- `src/lib/addons.ts`: fixed FEATURES_PARSER_SILENT_FALLBACK — parseFeaturesInput now throws ValidationError on fully unknown tokens mirroring parseBillingInput logic
+
 ## Documents Consulted
 
 - https://registry.npmjs.org/ (live package metadata)
@@ -79,3 +124,8 @@ Date: 2026-07-12
 - https://orm.drizzle.team/docs
 - https://www.better-auth.com/docs/introduction
 - https://github.com/dinwwwh/orpc
+- Context7 MCP verification:
+  - /dinwwwh/orpc — contract-first RPCHandler fetch adapter OpenAPI generation
+  - /vercel/next.js — Route Handlers request.arrayBuffer raw body webhook Stripe signature
+  - /elysiajs/elysia — raw body webhook Buffer.from await request.arrayBuffer() Eden Treaty
+  - /elysiajs/eden — treaty<App> typed client duplication

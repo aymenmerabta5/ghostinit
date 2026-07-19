@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.map
+*.tsbuildinfo
 .turbo/
 *.tgz
 .env
@@ -11,3 +12,11 @@ dist/
 coverage/
 playwright-report/
 test-results/
+
+# Dev orchestration / local tooling
+.opencode/
+.claude/settings.local.json
+
+# Local package builds (prevent stale artifacts)
+tooling/typescript-config/dist/
+packages/versions/dist/

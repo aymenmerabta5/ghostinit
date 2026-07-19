@@ -1,4 +1,16 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["node_modules", "dist", ".next"]
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    ".next",
+    ".output",
+    ".vinxi",
+    ".tanstack",
+    ".vercel",
+    ".turbo",
+    ".opencode",
+    "my-app",
+    "tests/fixtures"
+  ]
 }

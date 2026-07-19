@@ -1,7 +1,15 @@
+# Host (ghostinit CLI itself) uses isolated installs for hermetic reproducibility
+# Generated projects use hoist=true (default) because Next.js 16.2.10 TS resolution breaks with isolated linker
+# See src/templates/root.ts bunfig() comment
+
 [install]
-# Use isolated installs for hermetic workspace behavior.
+# Explicit linker strategy per Bun best practices (Context7: /oven-sh/bun docs/pm/isolated-installs.mdx)
+# isolated = each package gets its own node_modules, hermetic workspace behavior
+linker = "isolated"
+# Disable hoisting at host level - ghostinit CLI depends on strict isolated resolution
+# Generated projects omit this (default hoist=true) for Next.js compatibility
 hoist = false
-# Keep lockfile stable and deterministic.
+# Keep lockfile stable and deterministic - allow updates during development
 frozenLockfile = false
 
 [install.lockfile]

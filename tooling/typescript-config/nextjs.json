@@ -1,0 +1,10 @@
+{
+  "extends": "./base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "lib": ["ES2024", "DOM"],
+    "plugins": [{ "name": "next" }],
+    "incremental": true
+  },
+  "exclude": ["node_modules"]
+}

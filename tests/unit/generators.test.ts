@@ -85,6 +85,23 @@ describe("generators", () => {
     expect(
       existsSync(join(root, "packages", "modules", "src", "billing", "domain", "types.ts")),
     ).toBe(true);
+    expect(existsSync(join(root, "packages", "database", "src", "schema", "billing.ts"))).toBe(
+      true,
+    );
+    expect(
+      existsSync(
+        join(
+          root,
+          "packages",
+          "modules",
+          "src",
+          "billing",
+          "infrastructure",
+          "database",
+          "schema.ts",
+        ),
+      ),
+    ).toBe(false);
   });
 
   it("generateModule is idempotent and preserves existing files", async () => {

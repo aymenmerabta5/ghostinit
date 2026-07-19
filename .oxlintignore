@@ -1,5 +1,12 @@
 node_modules
 dist
 .next
-*.d.ts
+.output
+.vinxi
+.tanstack
+.vercel
+.turbo
+.opencode
+my-app
 tests/fixtures
+*.d.ts

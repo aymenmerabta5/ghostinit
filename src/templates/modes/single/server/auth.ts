@@ -1,0 +1,78 @@
+export function authClientSingle(): string {
+  return [
+    "import { createAuthClient } from 'better-auth/react';",
+    "import { adminClient, twoFactorClient } from 'better-auth/client/plugins';",
+    "",
+    "export const authClient = createAuthClient({",
+    "  plugins: [",
+    "    twoFactorClient({",
+    "      onTwoFactorRedirect(context) {",
+    "        if (context.twoFactorMethods?.includes('totp') && typeof window !== 'undefined') {",
+    "          window.location.href = '/2fa';",
+    "        }",
+    "      },",
+    "    }),",
+    "    adminClient(),",
+    "  ],",
+    "});",
+    "",
+  ].join("\n");
+}
+
+export function serverAuthSingle(): string {
+  return [
+    "import { betterAuth } from 'better-auth';",
+    "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
+    "import { nextCookies } from 'better-auth/next-js';",
+    "import { admin, twoFactor } from 'better-auth/plugins';",
+    "import { db } from '@/server/db';",
+    "import * as schema from '@/server/db/schema/auth';",
+    "import { sendEmail } from '@/server/email';",
+    "import { forgotPasswordTemplate } from '@/server/email/templates/forgot-password';",
+    "",
+    "export const auth = betterAuth({",
+    "  appName: process.env.APP_NAME ?? 'GhostInit',",
+    "  secret: process.env.BETTER_AUTH_SECRET!,",
+    "  baseURL: process.env.BETTER_AUTH_URL!,",
+    "  database: drizzleAdapter(db, { provider: 'pg', schema }),",
+    "  emailAndPassword: {",
+    "    enabled: true,",
+    "    autoSignInAfterRegistration: false,",
+    "    sendResetPassword: async ({ user, url, token }) => {",
+    "      await sendEmail({ to: user.email, subject: 'Reset password', html: forgotPasswordTemplate({ url, token, email: user.email }) });",
+    "    },",
+    "  },",
+    "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), nextCookies()],",
+    "});",
+    "",
+  ].join("\n");
+}
+
+export function serverAuthTanstackSingle(): string {
+  return [
+    "import { betterAuth } from 'better-auth';",
+    "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
+    "import { tanstackStartCookies } from 'better-auth/tanstack-start';",
+    "import { admin, twoFactor } from 'better-auth/plugins';",
+    "import { db } from '@/server/db';",
+    "import * as schema from '@/server/db/schema/auth';",
+    "import { sendEmail } from '@/server/email';",
+    "import { forgotPasswordTemplate } from '@/server/email/templates/forgot-password';",
+    "",
+    "export const auth = betterAuth({",
+    "  appName: process.env.APP_NAME ?? 'GhostInit',",
+    "  secret: process.env.BETTER_AUTH_SECRET!,",
+    "  baseURL: process.env.BETTER_AUTH_URL!,",
+    "  database: drizzleAdapter(db, { provider: 'pg', schema }),",
+    "  emailAndPassword: {",
+    "    enabled: true,",
+    "    autoSignInAfterRegistration: false,",
+    "    sendResetPassword: async ({ user, url, token }) => {",
+    "      await sendEmail({ to: user.email, subject: 'Reset password', html: forgotPasswordTemplate({ url, token, email: user.email }) });",
+    "    },",
+    "  },",
+    "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), tanstackStartCookies()],",
+    "});",
+    "",
+  ].join("\n");
+}

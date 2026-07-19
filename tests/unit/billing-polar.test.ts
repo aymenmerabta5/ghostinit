@@ -1,0 +1,145 @@
+import { describe, it, expect } from "bun:test";
+import { billingFiles } from "../../src/templates/billing-generator";
+
+function aggProvider(files: any[], name: string) {
+  return files
+    .filter(
+      (f: any) => f.path.includes(`providers/${name}.ts`) || f.path.includes(`providers/${name}/`),
+    )
+    .map((f: any) => f.content)
+    .join("\n");
+}
+
+describe("billing provider — polar (MoR 4% metering license keys) — Context7 verified full E2E", () => {
+  it("polar.ts exists when polar selected", () => {
+    const addonMap = {
+      stripe: { inUse: false },
+      chargily: { inUse: false },
+      paddle: { inUse: false },
+      polar: { inUse: true },
+      billing: { inUse: true },
+    };
+    const files = billingFiles({ mode: "monorepo", addons: addonMap as never });
+    const polar = files.find((f) => f.path.endsWith("providers/polar.ts"));
+    expect(polar).toBeDefined();
+    const content = aggProvider(files, "polar");
+    expect(content).toContain("checkouts.create");
+    expect(content.length).toBeGreaterThan(500);
+  });
+
+  it("file contains checkout url + full SDK patterns — Context7 polar checkout subscription", () => {
+    const files = billingFiles("monorepo");
+    const content = aggProvider(files, "polar");
+    expect(content).toContain("Polar");
+    expect(content).toContain("accessToken");
+    expect(content).toContain("POLAR_ACCESS_TOKEN");
+    expect(content).toContain("checkouts.create");
+    expect(content).toContain("products");
+    expect(content).toContain("customerName");
+    expect(content).toContain("customerBillingAddress");
+    expect(content).toContain("country");
+    expect(content).toContain("locale");
+    expect(content.toLowerCase()).toContain("checkout");
+    expect(content).toContain("url");
+    expect(content).toContain("Buffer");
+    expect(content.includes("arrayBuffer") || content.includes("rawBody")).toBe(true);
+  });
+
+  it("subscriptions.create productId customerId free + scope subscriptions:write", () => {
+    const content = aggProvider(billingFiles("monorepo"), "polar");
+    expect(content).toContain("subscriptions.create");
+    expect(content).toContain("productId");
+    expect(content).toContain("customerId");
+    expect(content.toLowerCase()).toContain("free");
+    expect(content).toContain("subscriptions:write");
+  });
+
+  it("webhooks.createWebhookEndpoint url format slack? events subscription.uncanceled organizationId", () => {
+    const content = aggProvider(billingFiles("monorepo"), "polar");
+    expect(content).toContain("createWebhookEndpoint");
+    expect(content).toContain("url");
+    expect(content).toContain("format");
+    expect(content).toContain("events");
+    expect(content).toContain("subscription.uncanceled");
+    expect(content).toContain("organizationId");
+  });
+
+  it("eventsIngest meter events name organizationId externalCustomerId externalId metadata credits idempotency", () => {
+    const content = aggProvider(billingFiles("monorepo"), "polar");
+    expect(content).toContain("ingest");
+    expect(content).toContain("externalCustomerId");
+    expect(content).toContain("externalId");
+    expect(content).toContain("credits");
+    expect(content.toLowerCase()).toContain("idempotency");
+  });
+
+  it("nextjs helper @polar-sh/nextjs + license keys seats", () => {
+    const files = billingFiles("monorepo");
+    // also check webhook routes mention nextjs helpers
+    const all = files.map((f: any) => f.content).join("\n") + aggProvider(files, "polar");
+    expect(all).toContain("@polar-sh/nextjs");
+    expect(all).toContain("license");
+    expect(all.toLowerCase()).toContain("seats");
+  });
+
+  it("versions pinned 0.48.1 + 0.9.6 + stripe 19.x + chargily 2.1.0 + paddle 3.8.0 + paddle-js 1.6.4", async () => {
+    const { billing } = await import("../../packages/versions");
+    expect(billing["@polar-sh/sdk"]).toBe("0.48.1");
+    expect(billing["@polar-sh/nextjs"]).toBe("0.9.6");
+    expect(billing.stripe).toBe("19.1.0");
+    expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
+    expect(billing["@paddle/paddle-node-sdk"]).toBe("3.8.0");
+    expect(billing["@paddle/paddle-js"]).toBe("1.6.4");
+  });
+
+  it("env: .env.example REPLACE_WITH_POLAR placeholders + .env.local secret() gitignored + t3env server-only", async () => {
+    const { rootFiles } = await import("../../src/templates/root");
+    const { secret } = await import("../../src/templates/shared");
+    const secrets = {
+      authSecret: secret(),
+      postgresPassword: secret(),
+      resendApiKey: secret(),
+      stripeSecretKey: secret(),
+      stripeWebhookSecret: secret(),
+      stripePublishableKey: secret(),
+      chargilyApiKey: secret(),
+      chargilySecretKey: secret(),
+      paddleApiKey: secret(),
+      paddleWebhookSecret: secret(),
+      paddleClientToken: secret(),
+      polarAccessToken: secret(),
+      polarWebhookSecret: secret(),
+      polarOrgId: secret(),
+    };
+    const files = rootFiles("demo", secrets as never, { dryRun: true });
+    const example = files.find((f) => f.path === ".env.example")?.content ?? "";
+    expect(example).toContain("REPLACE_WITH_POLAR_ACCESS_TOKEN");
+    expect(example).toContain("REPLACE_WITH_POLAR_WEBHOOK_SECRET");
+    expect(example).toContain("REPLACE_WITH_POLAR_ORG_ID");
+    expect(example).toContain("NEXT_PUBLIC_");
+    const local =
+      rootFiles("demo", secrets as never, { dryRun: false }).find((f) => f.path === ".env.local")
+        ?.content ?? "";
+    expect(local).toContain(secrets.polarAccessToken);
+    expect(local).toContain(secrets.polarWebhookSecret);
+    const gitignore =
+      rootFiles("demo", secrets as never, { dryRun: false }).find((f) => f.path === ".gitignore")
+        ?.content ?? "";
+    expect(gitignore).toContain(".env.local");
+  });
+
+  it("t3env validation server-only for polar + paddle + chargily + stripe NEVER client except NEXT_PUBLIC_", async () => {
+    const { packageFiles } = await import("../../src/templates/packages");
+    const envTs =
+      packageFiles("bun").find((f) => f.path === "packages/config/src/env.ts")?.content ?? "";
+    expect(envTs).toContain("POLAR_ACCESS_TOKEN");
+    expect(envTs).toContain("POLAR_WEBHOOK_SECRET");
+    expect(envTs).toContain("POLAR_ORG_ID");
+    const serverIdx = envTs.indexOf("server:");
+    const clientIdx = envTs.indexOf("client:");
+    const polarIdx = envTs.indexOf("POLAR_ACCESS_TOKEN");
+    expect(polarIdx > serverIdx && polarIdx < clientIdx).toBe(true);
+    expect(envTs).toContain("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+    expect(envTs).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
+  });
+});

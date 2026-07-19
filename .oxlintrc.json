@@ -4,9 +4,45 @@
   "categories": {
     "correctness": "error"
   },
-  "rules": {},
+  "rules": {
+    "oxc/no-barrel-file": ["error", { "threshold": 0 }]
+  },
   "env": {
     "builtin": true
   },
-  "ignorePatterns": ["node_modules", "dist", ".next", "tests/fixtures", "*.d.ts"]
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    ".next",
+    ".output",
+    ".vinxi",
+    ".tanstack",
+    ".vercel",
+    ".turbo",
+    ".opencode",
+    "my-app",
+    "tests/fixtures",
+    "*.d.ts"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "src/templates/analytics.ts",
+        "src/templates/ui.ts",
+        "src/templates/root.ts",
+        "src/templates/versions.ts",
+        "src/templates/shared/env.ts",
+        "src/templates/apps/fragments/api.ts",
+        "src/templates/apps/fragments/auth.ts",
+        "src/templates/apps/fragments/core.ts",
+        "src/templates/apps/fragments/marketing.ts",
+        "src/templates/apps/fragments/header.ts",
+        "src/templates/modes/monorepo.ts",
+        "src/templates/modes/single.ts"
+      ],
+      "rules": {
+        "oxc/no-barrel-file": "off"
+      }
+    }
+  ]
 }

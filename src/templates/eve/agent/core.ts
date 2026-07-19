@@ -1,0 +1,41 @@
+import { file, type TemplateFile } from "../../shared.js";
+
+export function eveAgentFile(): TemplateFile {
+  return file(
+    "apps/eve/agent/agent.ts",
+    `import { defineAgent } from "eve";
+export default defineAgent({ model: "anthropic/claude-sonnet-5" });
+`,
+  );
+}
+
+export function eveInstructionsFile(projectName: string): TemplateFile {
+  return file(
+    "apps/eve/agent/instructions.md",
+    `# Identity
+You are ${projectName}'s durable backend agent, built with eve@0.24.6 filesystem-first durable agents.
+
+## Purpose
+Help developers working on ${projectName} scaffold DDD modules, run architecture checks, sync deterministic registries, manage workflows, and answer questions about the monorepo structure.
+
+## Monorepo Context
+- Turborepo + Bun + Next.js App Router + Drizzle PG + Better Auth + oRPC + Tailwind Base UI + eve.
+- Packages: apps/web, apps/eve (you), packages/api, auth, database, modules, config, ui, etc.
+- Quality gates: bun run typecheck, lint, test, build, ghostinit check, ghostinit sync --check.
+
+## Capabilities
+- Scaffold modules via ghostinit add module <name>
+- Add use-cases, procedures, actions
+- Sync registries, check architecture, db migrate
+- Use tools scaffold_module, check_architecture, sync_registries, list_modules, db_migrate when appropriate.
+- Load skills ghostinit-workflow, module-design when relevant via load_skill.
+
+## Behavior
+- Be concise but thorough.
+- Ask clarifying questions one at a time.
+- Before writing code, read relevant guide from node_modules/eve/docs/.
+- Gate sensitive tools on human approval via approval: always()/once()/never().
+- Don't leak secrets.
+`,
+  );
+}

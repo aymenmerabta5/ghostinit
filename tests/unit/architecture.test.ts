@@ -132,6 +132,72 @@ describe("architecture checker fixtures", () => {
     expect(violation?.message).toContain("billing");
   });
 
+  it("detects relative cross-module imports", async () => {
+    pkg("modules");
+
+    fixture(
+      "packages/modules/src/billing/domain/types.ts",
+      `export interface BillingAccount { id: string; }`,
+    );
+    fixture(
+      "packages/modules/src/identity/application/use-case.ts",
+      `import { BillingAccount } from "../../billing/domain/types";\nexport const a = 1;`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "module-to-module-import");
+    expect(violation).toBeDefined();
+    expect(violation?.message).toContain("identity");
+    expect(violation?.message).toContain("billing");
+  });
+
+  it("does not flag relative imports within the same module", async () => {
+    pkg("modules");
+
+    fixture(
+      "packages/modules/src/identity/domain/types.ts",
+      `export interface User { id: string; }`,
+    );
+    fixture(
+      "packages/modules/src/identity/application/use-case.ts",
+      `import { User } from "../domain/types";\nexport const a = 1;`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "module-to-module-import");
+    expect(violation).toBeUndefined();
+  });
+
+  it("flags public index files importing database packages", async () => {
+    pkg("modules", {});
+    pkg("database");
+
+    fixture(
+      "packages/modules/src/identity/index.ts",
+      `import { db } from "@repo/database";\nexport const a = 1;`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "database-import-outside-infrastructure");
+    expect(violation).toBeDefined();
+    expect(violation?.file).toContain("identity/index.ts");
+  });
+
+  it("detects client components importing @repo/api", async () => {
+    webPkg();
+    pkg("api");
+
+    fixture(
+      "apps/web/src/components/ApiConsumer.tsx",
+      `"use client";\nimport { api } from "@repo/api";\nexport function ApiConsumer() { return <div />; }`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "client-imports-server-only");
+    expect(violation).toBeDefined();
+    expect(violation?.message).toContain("@repo/api");
+  });
+
   it("detects domain layer importing framework packages", async () => {
     pkg("modules", { react: "^18" });
 
@@ -232,5 +298,169 @@ describe("architecture checker fixtures", () => {
     const findings = await analyzeProject(root);
     const undeclared = findings.find((f) => f.id === "undeclared-dependency");
     expect(undeclared?.file).toContain("tests/smoke.test.tsx");
+  });
+
+  // --- New tests for layered-dependency, vendor, capability, entrypoint skips ---
+
+  it("detects layered violation Supporting->UI upward (packages/database importing apps/web)", async () => {
+    // Supporting level 6 importing UI level 1 is forbidden (source.level > target.level)
+    // UI->Supporting allowed (1->6 downward), Supporting->UI forbidden
+    webPkg({ react: "^18" });
+    pkg("database");
+
+    fixture(
+      "apps/web/src/components/Button.tsx",
+      `export function Button() { return null as any; }`,
+    );
+    // From packages/database/src/index.ts, go up 3 levels to root then into apps/web
+    fixture(
+      "packages/database/src/index.ts",
+      `import { Button } from "../../../apps/web/src/components/Button";\nexport const db = { Button };`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "layered-dependency-violation");
+    expect(violation).toBeDefined();
+    expect(violation?.file).toContain("packages/database/src/index.ts");
+    expect(violation?.message).toContain("Supporting");
+    expect(violation?.message).toContain("UI");
+    expect(violation?.severity).toBe("HIGH");
+  });
+
+  it("allows UI importing Transport and Domain downwards", async () => {
+    webPkg({ "@repo/api": "workspace:*", "@repo/modules": "workspace:*" });
+    pkg("api");
+    pkg("modules");
+    pkg("core");
+
+    fixture(
+      "packages/modules/src/identity/domain/types.ts",
+      `export interface User { id: string; }`,
+    );
+    // UI file importing Transport (@repo/api) and Domain via modules domain path
+    fixture(
+      "apps/web/src/routes/page.tsx",
+      `import { api } from "@repo/api";\nimport { User } from "@repo/modules/identity/domain/types";\nexport function Page() { return api; }`,
+    );
+
+    const findings = await analyzeProject(root);
+    const layered = findings.filter((f) => f.id === "layered-dependency-violation");
+    // UI (1) -> Transport (2) and Domain (3) is downward allowed, should be no violation
+    expect(layered).toEqual([]);
+  });
+
+  it("detects vendor direct import from UI - stripe should flag vendor-isolation", async () => {
+    webPkg({ stripe: "^19.1.0", react: "^18" });
+    fixture(
+      "apps/web/src/components/Payment.tsx",
+      `import Stripe from "stripe";\nexport function Pay() { return Stripe; }`,
+    );
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "ui-imports-vendor");
+    expect(violation).toBeDefined();
+    expect(violation?.file).toContain("Payment.tsx");
+    expect(violation?.message).toContain("stripe");
+    expect(violation?.rule).toBe("vendor-isolation");
+    expect(violation?.severity).toBe("HIGH");
+  });
+
+  it("detects capability cross-import billing -> email should flag capability-isolation HIGH", async () => {
+    // packages/services/src/billing importing @repo/services/email
+    pkg("services", { "@repo/services": "workspace:*" });
+    // also need email package to avoid undeclared dep noise? not required but create
+    pkg("email");
+
+    fixture(
+      "packages/services/src/billing/index.ts",
+      `import { send } from "@repo/services/email";\nexport function bill() { return send; }`,
+    );
+    fixture("packages/services/src/email/index.ts", `export function send() {}`);
+
+    const findings = await analyzeProject(root);
+    const violation = findings.find((f) => f.id === "capability-cross-import");
+    expect(violation).toBeDefined();
+    expect(violation?.message).toContain("billing");
+    expect(violation?.message).toContain("email");
+    expect(violation?.severity).toBe("HIGH");
+    expect(violation?.rule).toBe("capability-isolation");
+  });
+
+  it("skips framework entrypoint __root.tsx and router.tsx for layered check", async () => {
+    webPkg({ "@repo/database": "workspace:*" });
+    pkg("database");
+
+    // __root.tsx is treated as framework entrypoint - even if it imports supporting, layered check is skipped
+    // router.tsx likewise. UI normally cannot trigger upward violation (top layer), but we test skip logic:
+    // The entrypoint should not produce layered-dependency-violation even when importing anything.
+    fixture(
+      "apps/web/src/routes/__root.tsx",
+      `import { db } from "@repo/database";\nexport const root = db;`,
+    );
+    fixture(
+      "apps/web/src/routes/router.tsx",
+      `import { db } from "@repo/database";\nexport const r = db;`,
+    );
+    // Also place a __root.tsx under supporting path to prove Supporting->UI skip when file name matches entrypoint pattern
+    fixture(
+      "packages/database/src/__root.tsx",
+      `import { Button } from "../../../apps/web/src/routes/__root";\nexport const x = Button;`,
+    );
+
+    const findings = await analyzeProject(root);
+    const layered = findings.filter((f) => f.id === "layered-dependency-violation");
+    // All three entrypoint files should be skipped => no layered violation
+    expect(layered).toEqual([]);
+  });
+
+  it("skips intra-module same BC domain<-application for layered check", async () => {
+    pkg("modules");
+
+    fixture(
+      "packages/modules/src/identity/domain/types.ts",
+      `export interface User { id: string; }`,
+    );
+    // Same bounded context identity: application importing ../domain/types should be allowed for layered
+    fixture(
+      "packages/modules/src/identity/application/get-user.ts",
+      `import { User } from "../domain/types";\nexport function getUser(): User { return { id: "1" } as any; }`,
+    );
+
+    const findings = await analyzeProject(root);
+    const layered = findings.filter((f) => f.id === "layered-dependency-violation");
+    const crossModule = findings.filter((f) => f.id === "module-to-module-import");
+    // Intra-module same BC should not flag layered nor module-to-module
+    expect(layered).toEqual([]);
+    expect(crossModule).toEqual([]);
+  });
+
+  it("detects tanstack createServerFn exclusion for client boundary", async () => {
+    // File contains "use client" but also createServerFn -> should be excluded from client-imports-server-only
+    webPkg({ "@repo/database": "workspace:*", "@tanstack/react-start": "workspace:*" });
+    pkg("database");
+    // Package mock for tanstack start to avoid undeclared dep
+    mkdirSync(join(root, "packages", "tanstack"), { recursive: true });
+
+    fixture(
+      "apps/web/src/components/ServerFnGuard.tsx",
+      `"use client";\nimport { createServerFn } from "@tanstack/react-start";\nimport { db } from "@repo/database";\nexport const myFn = createServerFn(() => { return db; });`,
+    );
+
+    const findings = await analyzeProject(root);
+    const clientViolations = findings.filter((f) => f.id === "client-imports-server-only");
+
+    // Because file contains createServerFn, isServerRouteWithServerFn returns early => no client violation
+    expect(clientViolations).toEqual([]);
+
+    // Sanity: same file without createServerFn SHOULD flag
+    fixture(
+      "apps/web/src/components/ShouldFlag.tsx",
+      `"use client";\nimport { db } from "@repo/database";\nexport function Comp() { return db; }`,
+    );
+    const findings2 = await analyzeProject(root);
+    const shouldFlag = findings2.filter(
+      (f) => f.id === "client-imports-server-only" && f.file.includes("ShouldFlag.tsx"),
+    );
+    expect(shouldFlag.length).toBeGreaterThan(0);
   });
 });

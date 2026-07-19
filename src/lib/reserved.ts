@@ -7,33 +7,16 @@
  */
 
 // Workspace package names that already exist in generated projects.
-const WORKSPACE_PACKAGES = new Set([
-  "api",
-  "auth",
-  "config",
-  "contracts",
-  "database",
-  "kernel",
-  "modules",
-  "observability",
-  "testing",
-  "typescript-config",
-  "ui",
-  "web",
-  "workflows",
-]);
+// Single source imported from constants.ts (canonical definition).
+import { RESERVED_WORKSPACE_PACKAGES } from "./constants.js";
+
+const WORKSPACE_PACKAGES = new Set<string>(RESERVED_WORKSPACE_PACKAGES as readonly string[]);
+
+// Re-export for external single-source usage (constants is canonical, reserved re-exports for compat)
+export { RESERVED_WORKSPACE_PACKAGES } from "./constants.js";
 
 // Names reserved by generated infrastructure.
-const GENERATED_NAMES = new Set([
-  "identity",
-  "health",
-  "me",
-  "openapi",
-  "contract",
-  "router",
-  "context",
-  "index",
-]);
+const GENERATED_NAMES = new Set(["openapi", "contract", "router", "context", "index"]);
 
 // Literal JavaScript/TypeScript reserved words plus ambient globals to avoid.
 const LANGUAGE_RESERVED = new Set([

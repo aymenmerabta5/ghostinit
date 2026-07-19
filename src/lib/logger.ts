@@ -7,6 +7,12 @@
  */
 
 import type { Writable } from "node:stream";
+import {
+  SECRET_SUBSTRINGS,
+  SECRET_PATTERN,
+  URL_SECRET_PARAM_PATTERN,
+  looksLikeSecret as looksLikeSecretFromConstants,
+} from "./constants.js";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
@@ -26,52 +32,22 @@ export interface LoggerOptions {
   out?: Writable["write"];
 }
 
-const SECRET_KEYS = new Set([
-  "secret",
-  "password",
-  "token",
-  "authsecret",
-  "auth_secret",
-  "better_auth_secret",
-  "database_url",
-  "db_url",
-  "jwt_secret",
-  "api_key",
-  "apikey",
-  "private_key",
-]);
+// Re-export for backwards compat and for tests that import from logger
+export { SECRET_SUBSTRINGS };
+export const SECRET_REGEX = SECRET_PATTERN;
 
 export function looksLikeSecret(key: string): boolean {
-  const lower = key.toLowerCase().replace(/[-_]/g, "_");
-  const secretSubstrings = [
-    "secret",
-    "password",
-    "token",
-    "auth",
-    "bearer",
-    "cookie",
-    "credential",
-    "key",
-  ];
-  for (const needle of secretSubstrings) {
-    if (lower.includes(needle)) return true;
-  }
-  return (
-    SECRET_KEYS.has(lower) ||
-    SECRET_KEYS.has(lower.replace(/_$/, "")) ||
-    /\b(apikey|api_key|jwt|private_key|database_url|db_url)\b/.test(lower)
-  );
+  return looksLikeSecretFromConstants(key);
 }
 
 function redactUrlToken(value: string): string {
   try {
     const url = new URL(value);
     const needsRedaction =
-      url.password ||
-      (url.searchParams.toString() && /token|key|secret|password|auth|api/i.test(url.search));
+      url.password || (url.searchParams.toString() && URL_SECRET_PARAM_PATTERN.test(url.search));
     if (!needsRedaction) return value;
     for (const param of Array.from(url.searchParams.keys())) {
-      if (looksLikeSecret(param)) {
+      if (looksLikeSecretFromConstants(param)) {
         url.searchParams.set(param, "***");
       }
     }

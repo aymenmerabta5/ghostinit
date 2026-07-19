@@ -1,0 +1,15 @@
+﻿{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../tooling/typescript-config/base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["../src/*"],
+      "@repo/versions": ["../packages/versions/src/index.ts"],
+      "@repo/typescript-config/*": ["../tooling/typescript-config/*"]
+    }
+  },
+  "include": ["**/*"],
+  "exclude": ["../node_modules", "fixtures", "../dist"]
+}

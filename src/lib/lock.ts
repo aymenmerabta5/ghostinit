@@ -5,6 +5,7 @@
  * is considered stale and can be overwritten (unless force is disabled).
  */
 
+import { hostname } from "node:os";
 import { mkdir, open, readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { LockError } from "./errors.js";
@@ -28,6 +29,14 @@ export function lockPath(root: string): string {
   return join(root, LOCK_FILE_NAME);
 }
 
+function resolveHost(): string {
+  try {
+    return process.env.COMPUTERNAME ?? process.env.HOSTNAME ?? hostname();
+  } catch {
+    return process.env.COMPUTERNAME ?? process.env.HOSTNAME ?? "unknown";
+  }
+}
+
 export async function acquireLock(
   root: string,
   logger: Logger,
@@ -39,7 +48,7 @@ export async function acquireLock(
   const owner: LockOwner = {
     pid: process.pid,
     startTime: new Date().toISOString(),
-    host: typeof process.env.COMPUTERNAME === "string" ? process.env.COMPUTERNAME : undefined,
+    host: resolveHost(),
   };
 
   const content = JSON.stringify(owner, null, 2);
@@ -78,7 +87,8 @@ export async function acquireLock(
     try {
       const current = await readFile(file, "utf-8");
       const parsed = JSON.parse(current) as LockOwner;
-      if (parsed.pid === owner.pid) {
+      const sameHost = parsed.host === owner.host || (!parsed.host && !owner.host);
+      if (parsed.pid === owner.pid && sameHost) {
         await rm(file, { force: true });
       }
     } catch {

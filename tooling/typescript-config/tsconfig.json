@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "_comment": "Config-only package: provides base.json/nextjs.json/react-library.json for extends. No TS source to emit, so NOT a project reference. Root tsconfig must not reference this. Keep include empty and noEmit true to make intent explicit.",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true
+  },
+  "include": [],
+  "files": []
+}

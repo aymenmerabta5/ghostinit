@@ -1,86 +1,116 @@
-import { file, type TemplateFile } from "../shared.js";
+/**
+ * oRPC contract-first, webhooks via Next.js Route Handlers raw Buffer
+ * Deduplicated via fragments/api – Buffer.from(await request.arrayBuffer()) NOT req.json() stripe-signature 400 403 etc shared
+ */
 
-export function apiFiles(): TemplateFile[] {
-  return [authApiRoute(), orpcApiRoute(), healthApiRoute(), openapiApiRoute()];
+import { file, type TemplateFile } from "../shared.js";
+import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { billingProviders } from "../../lib/addons.js";
+import {
+  authFileContent,
+  orpcFileContent,
+  healthFileContent,
+  openapiFileContent,
+  stripeWebhookFileContent,
+  chargilyWebhookFileContent,
+  paddleWebhookFileContent,
+  polarWebhookFileContent,
+} from "./fragments/api.js";
+
+function selectedBillingFromAddons(
+  map?: AddonInstallerMap | Record<string, { inUse: boolean }> | BillingProviderName[],
+): BillingProviderName[] {
+  if (!map) return [];
+  if (Array.isArray(map)) {
+    return map as BillingProviderName[];
+  }
+  const sel: BillingProviderName[] = [];
+  for (const p of billingProviders) {
+    if ((map as any)[p]?.inUse) sel.push(p as BillingProviderName);
+  }
+  if ((map as any).billing?.inUse && sel.length === 0) {
+    return [...billingProviders] as BillingProviderName[];
+  }
+  return sel;
+}
+
+function shouldEmitProvider(
+  provider: BillingProviderName,
+  selected: BillingProviderName[],
+  addonsPresent: boolean,
+  map?: AddonInstallerMap | Record<string, { inUse: boolean }>,
+): boolean {
+  if (!addonsPresent) {
+    return false;
+  }
+  if (selected.length === 0) {
+    const legacy = (map as any)?.billing?.inUse;
+    return Boolean(legacy);
+  }
+  return selected.includes(provider);
+}
+
+export function apiFiles(
+  addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
+): TemplateFile[] {
+  const addonsPresent = addons !== undefined;
+  const selected = selectedBillingFromAddons(
+    addons as AddonInstallerMap | Record<string, { inUse: boolean }> | BillingProviderName[],
+  );
+  const include = (p: BillingProviderName) =>
+    shouldEmitProvider(
+      p,
+      selected,
+      addonsPresent,
+      addons as AddonInstallerMap | Record<string, { inUse: boolean }>,
+    );
+
+  const base: TemplateFile[] = [
+    authApiRoute(),
+    orpcApiRoute(),
+    healthApiRoute(),
+    openapiApiRoute(),
+  ];
+
+  if (include("stripe")) base.push(stripeWebhookRoute());
+  if (include("chargily")) base.push(chargilyWebhookRoute());
+  if (include("paddle")) base.push(paddleWebhookRoute());
+  if (include("polar")) base.push(polarWebhookRoute());
+
+  return base;
 }
 
 function authApiRoute(): TemplateFile {
-  return file(
-    "apps/web/src/app/api/auth/[...all]/route.ts",
-    `import { auth } from "@repo/auth";
-
-async function handle(request: Request): Promise<Response> {
-  return auth.handler(request);
-}
-
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;
-`,
-  );
+  return file("apps/web/src/app/api/auth/[...all]/route.ts", authFileContent("next"));
 }
 
 function orpcApiRoute(): TemplateFile {
-  return file(
-    "apps/web/src/app/api/[...path]/route.ts",
-    `import { type NextRequest } from "next/server";
-import { RPCHandler } from "@orpc/server/fetch";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { appRouter, createContext } from "@repo/api";
-
-const rpcHandler = new RPCHandler(appRouter);
-const openapiHandler = new OpenAPIHandler(appRouter);
-
-async function handle(request: NextRequest): Promise<Response> {
-  const context = await createContext(request.headers);
-  const matchOptions = { context };
-
-  const rpcResult = await rpcHandler.handle(request, matchOptions);
-  if (rpcResult.matched && rpcResult.response) {
-    return rpcResult.response;
-  }
-
-  const openApiResult = await openapiHandler.handle(request, matchOptions);
-  if (openApiResult.matched && openApiResult.response) {
-    return openApiResult.response;
-  }
-
-  return new Response("Not found", { status: 404 });
-}
-
-export const GET = handle;
-export const POST = handle;
-export const PUT = handle;
-export const PATCH = handle;
-export const DELETE = handle;
-`,
-  );
+  return file("apps/web/src/app/api/[...path]/route.ts", orpcFileContent("next"));
 }
 
 function healthApiRoute(): TemplateFile {
-  return file(
-    "apps/web/src/app/api/health/route.ts",
-    `import { NextResponse } from "next/server";
-
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({ status: "ok", time: new Date().toISOString() });
-}
-`,
-  );
+  return file("apps/web/src/app/api/health/route.ts", healthFileContent("next"));
 }
 
 function openapiApiRoute(): TemplateFile {
-  return file(
-    "apps/web/src/app/api/openapi/route.ts",
-    `import { NextResponse } from "next/server";
-import { generateOpenAPISpec } from "@repo/api/openapi";
-
-export async function GET(): Promise<NextResponse> {
-  const spec = await generateOpenAPISpec();
-  return NextResponse.json(spec);
+  return file("apps/web/src/app/api/openapi/route.ts", openapiFileContent("next"));
 }
-`,
+
+function stripeWebhookRoute(): TemplateFile {
+  return file("apps/web/src/app/api/webhooks/stripe/route.ts", stripeWebhookFileContent("next"));
+}
+
+function chargilyWebhookRoute(): TemplateFile {
+  return file(
+    "apps/web/src/app/api/webhooks/chargily/route.ts",
+    chargilyWebhookFileContent("next"),
   );
+}
+
+function paddleWebhookRoute(): TemplateFile {
+  return file("apps/web/src/app/api/webhooks/paddle/route.ts", paddleWebhookFileContent("next"));
+}
+
+function polarWebhookRoute(): TemplateFile {
+  return file("apps/web/src/app/api/webhooks/polar/route.ts", polarWebhookFileContent("next"));
 }

@@ -83,4 +83,58 @@ describe("doctor command", () => {
     );
     expect(secretCheck?.ok).toBe(true);
   });
+
+  it("database check passes when POSTGRES_* variables are provided instead of DATABASE_URL", async () => {
+    writeFileSync(
+      join(root, ".env"),
+      [
+        "BETTER_AUTH_SECRET=super_secret_value_12345_super_secret_value_12345",
+        "POSTGRES_USER=pguser",
+        "POSTGRES_PASSWORD=super_secret_pg_pass",
+        "POSTGRES_HOST=localhost",
+        "POSTGRES_PORT=5432",
+        "POSTGRES_DB=testdb",
+        "BETTER_AUTH_URL=http://localhost:3000",
+        "NEXT_PUBLIC_APP_URL=http://localhost:3000",
+      ].join("\n") + "\n",
+    );
+    delete process.env.DATABASE_URL;
+    process.env.BETTER_AUTH_SECRET = "super_secret_value_12345_super_secret_value_12345";
+    process.env.POSTGRES_USER = "pguser";
+    process.env.POSTGRES_PASSWORD = "super_secret_pg_pass";
+    process.env.POSTGRES_HOST = "localhost";
+    process.env.POSTGRES_PORT = "5432";
+    process.env.POSTGRES_DB = "testdb";
+    process.env.BETTER_AUTH_URL = "http://localhost:3000";
+    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
+
+    let stdout = "";
+    const originalWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = ((chunk: string) => {
+      stdout += chunk;
+      return true;
+    }) as typeof process.stdout.write;
+
+    try {
+      await doctorCommand([], makeOptions(root));
+    } finally {
+      process.stdout.write = originalWrite;
+      delete process.env.BETTER_AUTH_SECRET;
+      delete process.env.DATABASE_URL;
+      delete process.env.POSTGRES_USER;
+      delete process.env.POSTGRES_PASSWORD;
+      delete process.env.POSTGRES_HOST;
+      delete process.env.POSTGRES_PORT;
+      delete process.env.POSTGRES_DB;
+      delete process.env.BETTER_AUTH_URL;
+      delete process.env.NEXT_PUBLIC_APP_URL;
+    }
+
+    expect(stdout).not.toContain("super_secret_pg_pass");
+    const parsed = JSON.parse(stdout);
+    const databaseCheck = parsed.data.checks.find(
+      (c: { name: string }) => c.name === "database-url",
+    );
+    expect(databaseCheck?.ok).toBe(true);
+  });
 });

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { pascalCase, prepareGeneration, commitGeneration } from "./shared.js";
+import { pascalCase, prepareGeneration, commitGeneration, toSafeIdentifier } from "./shared.js";
 import { validateArtifactName } from "../lib/reserved.js";
 import type { GlobalOptions } from "../commands/types.js";
 
@@ -47,10 +47,22 @@ export interface ${pascal}Port {
 }
 `,
   );
+  const tableNameSql = name.endsWith("s") ? name : `${name}s`;
+  const tableVarName = toSafeIdentifier(tableNameSql);
   await ctx.tx.write(
-    `${moduleDir}/infrastructure/database/schema.ts`,
-    `// ${name} module database schema (registered in packages/database/src/schema/index.ts on sync)
-export const ${pascal}SchemaVersion = 1;
+    `packages/database/src/schema/${name}.ts`,
+    `import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { users } from "./auth";
+
+export const ${tableVarName} = pgTable("${tableNameSql}", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 `,
   );
   await ctx.tx.write(

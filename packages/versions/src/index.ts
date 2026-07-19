@@ -1,0 +1,195 @@
+/**
+ * GhostInit Dependency Version Registry
+ *
+ * Single source of truth for exact dependency versions used in generated
+ * projects. CLI code must import from this registry when writing package.json
+ * and config files so we never accidentally publish floating versions.
+ *
+ * Versions were researched from official npm registry, project docs, and the
+ * Context7 MCP on 2026-07-12. See `docs/RESEARCH.md` for details.
+ */
+
+export const ghostinitVersion = "0.1.0" as const;
+
+export const runtime = {
+  bun: "1.3.14",
+  node: "24.18.0", // LTS target; local has v25.8.0 (EOL) for development only
+  "@types/node": "22.20.1",
+} as const;
+
+export const typescript = {
+  // Fix: TS7 Go port breaks Next 16.2.10 (no lib/typescript.js) -> "It looks like you're trying to use TypeScript but do not have required package(s) installed"
+  // + npm fallback fails on workspace:* -> "Unsupported URL Type workspace:*"
+  // Use TS6 for stable bun dev. TS7 can be opt-in via @typescript/native + useTypeScriptCli when Next stable supports it (PR #95639)
+  // User requested bun not npm - root cause is TS7 detection failure triggers npm install path
+  typescript: "6.0.3",
+  typescriptLegacy: "5.9.2",
+  "@typescript/native-preview": "7.0.0-dev.20260707.2",
+} as const;
+
+export const nextStack = {
+  // Fix: Downgrade to TS6 compatible Next for bun dev to work
+  // TS7 native Go port lacks lib/typescript.js -> Next 16.2.10 can't find TS and tries npm install workspace:* fails
+  // Use 16.2.10 stable + TS6.0.3 for now. TS7 support requires Next >=16.3.0-canary.81 + experimental.useTypeScriptCli
+  // See https://github.com/vercel/next.js/pull/95639 - canary.81+ has flag but dev still needs JS API
+  // For bun dev to work with TS7, need dual TS setup or wait for stable with TS7 API
+  next: "16.2.10",
+  react: "19.2.7",
+  "react-dom": "19.2.7",
+  "@types/react": "19.2.17",
+  "@types/react-dom": "19.2.3",
+} as const;
+
+export const database = {
+  "drizzle-orm": "0.45.2",
+  "drizzle-kit": "0.31.10",
+  pg: "8.22.0",
+  "@types/pg": "8.11.14", // latest stable at research time; verify in spike
+} as const;
+
+export const auth = {
+  "better-auth": "1.6.23",
+} as const;
+
+export const orpc = {
+  "@orpc/server": "1.14.7",
+  "@orpc/contract": "1.14.7",
+  "@orpc/client": "1.14.7",
+  "@orpc/openapi": "1.14.7",
+  "@orpc/react-query": "1.14.7",
+  "@orpc/zod": "1.14.7",
+  // NOTE: @orpc/next is intentionally omitted. The 0.27.0 release peers with
+  // @orpc/server 0.27.0, which conflicts with the stable 1.14.7 core line.
+  // GhostInit exposes oRPC via RPCHandler route handlers and keeps Server
+  // Actions as plain Next.js actions.
+} as const;
+
+export const validation = {
+  zod: "4.4.3",
+  "@t3-oss/env-nextjs": "0.13.11",
+} as const;
+
+export const tanstack = {
+  "@tanstack/react-query": "5.101.2",
+  "@tanstack/react-form": "1.33.1",
+} as const;
+
+export const tanstackStart = {
+  "@tanstack/react-start": "1.168.30",
+  "@tanstack/react-router": "1.170.18",
+  "@tanstack/router-plugin": "1.168.22",
+  "@tanstack/react-router-devtools": "1.167.0",
+  vite: "7.3.6",
+  "@vitejs/plugin-react": "5.2.0",
+  nitro: "3.0.0",
+  "@tailwindcss/vite": "4.3.2",
+} as const;
+
+export const styling = {
+  tailwindcss: "4.3.2",
+  "@tailwindcss/postcss": "4.3.2",
+  postcss: "8.5.17",
+  autoprefixer: "10.5.2", // only used if legacy pipeline required
+} as const;
+
+export const ui = {
+  shadcn: "4.13.0",
+  "@base-ui/react": "1.6.0",
+  clsx: "2.1.1",
+  "tailwind-merge": "3.6.0",
+  "class-variance-authority": "0.7.1",
+  sonner: "1.7.0",
+  recharts: "2.12.0",
+  "next-themes": "0.4.6",
+} as const;
+
+export const tooling = {
+  biome: "2.5.3",
+  oxlint: "1.73.0",
+  oxfmt: "0.58.0",
+  turbo: "2.10.4",
+  // oxc-parser is breaking-change-prone (AST shape changes across minor).
+  // Pin to exact version, no ^. Parser extraction in src/lib/architecture/parsers/imports.ts
+  // must tolerate shape changes via defensive checks; only that file needs update on bump.
+  "oxc-parser": "0.139.0",
+} as const;
+
+export const testing = {
+  playwright: "1.61.1",
+} as const;
+
+export const eve = {
+  eve: "0.24.6",
+  ai: "7.0.26",
+  "@vercel/connect": "0.2.2",
+} as const;
+
+export const billing = {
+  stripe: "19.1.0",
+  "@chargily/chargily-pay": "2.1.0",
+  "@paddle/paddle-node-sdk": "3.8.0",
+  "@paddle/paddle-js": "1.6.4",
+  "@polar-sh/sdk": "0.48.1",
+  "@polar-sh/nextjs": "0.9.6",
+} as const;
+
+export const analytics = {
+  "posthog-js": "1.233.2",
+  "posthog-node": "4.20.1",
+} as const;
+
+export const email = {
+  resend: "4.0.1",
+} as const;
+
+/**
+ * @deprecated - DEPRECATED: Elysia removed, pure oRPC only.
+ * Kept for backwards compatibility / reference, not emitted in templates.
+ * File src/templates/backend/elysia.ts returns [] and is not used by monorepoFiles/singleFiles.
+ * Spec non-negotiable oRPC contract-first, no websocket double RPC duplication treaty<App> vs @orpc/client.
+ * Raw body webhooks handled via Next.js route handlers (single port) Buffer.from(await request.arrayBuffer()).
+ * Catalog still spreads ...backend for backwards compat but consumers should NOT use elysia.
+ * If you need to remove from bundle size, filter backend out of catalog in your own fork.
+ * See docs/RESEARCH.md Pure oRPC Only - Elysia Removed Decision (2026-07-18).
+ */
+export const backend = {
+  elysia: "1.2.0",
+  "@elysiajs/cors": "1.2.0",
+  "@elysiajs/swagger": "1.2.0",
+} as const;
+
+export const i18n = {
+  "next-intl": "4.0.0",
+} as const;
+
+export const interactive = {
+  "@clack/prompts": "0.8.3",
+} as const;
+
+export const postgresDocker = {
+  image: "postgres:18.4",
+} as const;
+
+export const catalog = {
+  ...runtime,
+  ...typescript,
+  ...nextStack,
+  ...database,
+  ...auth,
+  ...orpc,
+  ...validation,
+  ...tanstack,
+  ...tanstackStart,
+  ...styling,
+  ...ui,
+  ...tooling,
+  ...testing,
+  ...billing,
+  ...analytics,
+  ...email,
+  ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
+  ...i18n,
+  ...interactive,
+} as const;
+
+export type CatalogPackage = keyof typeof catalog;

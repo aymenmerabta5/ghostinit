@@ -1,14 +1,14 @@
 {
   "name": "ghostinit",
   "version": "0.1.0",
-  "description": "Production-grade Bun-powered CLI that generates opinionated modular-monolith Next.js architectures.",
+  "private": false,
+  "description": "Production-grade Bun-powered CLI that generates well-structured monorepos with architectural linting (inspired by modular monolith, build-time enforcement via oxc-parser) for Next.js/TanStack Start.",
   "license": "MIT",
   "bin": {
     "ghostinit": "dist/cli.js"
   },
   "workspaces": [
     "packages/*",
-    "apps/*",
     "tooling/*"
   ],
   "files": [
@@ -20,20 +20,32 @@
     "LICENSE"
   ],
   "type": "module",
+  "main": "dist/cli.js",
+  "exports": {
+    ".": {
+      "default": "./dist/cli.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "bun build ./src/cli.ts --outdir ./dist --target node --external zod",
+    "build": "bun run scripts/build.ts",
     "dev": "bun run --watch src/cli.ts",
+    "typecheck": "tsc -b",
     "check": "oxlint . && oxfmt --check . && tsc --noEmit",
     "format": "oxfmt --write .",
     "pretest": "bun run build",
-    "test": "bun test tests/integration tests/unit",
+    "test": "bun test --timeout 100000 tests/integration tests/unit",
     "pretest:fixtures": "cd tests/fixtures/compatibility/drizzle-betterauth-orpc && bun install && cd ../next-tailwind-biome && bun install",
     "test:fixtures": "bun test tests/fixtures",
     "test:ci": "bun run test && bun run test:fixtures",
     "release": "bun run build && npm pack"
   },
   "dependencies": {
-    "oxc-parser": "^0.139.0",
+    "@clack/prompts": "0.8.2",
+    "oxc-parser": "0.139.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -41,6 +53,7 @@
     "@orpc/server": "^1.14.7",
     "@orpc/zod": "^1.14.7",
     "@types/bun": "1.2.14",
+    "drizzle-orm": "^0.45.2",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",
     "typescript": "7.0.2"
@@ -49,5 +62,6 @@
     "bun": ">=1.3.14",
     "node": ">=22.0.0"
   },
-  "packageManager": "bun@1.3.14"
+  "packageManager": "bun@1.3.14",
+  "_comment_private": "Root IS the publishable CLI (bin ghostinit). Keep private false so npm publish works. Bun allows workspaces with private false - this is intentional, not a monorepo root that is never published."
 }

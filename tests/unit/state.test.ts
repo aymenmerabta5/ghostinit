@@ -11,6 +11,11 @@ describe("state", () => {
     name: "demo",
     runtime: "bun",
     version: "0.1.0",
+    mode: "monorepo",
+    billing: [],
+    features: [],
+    database: "postgres",
+    framework: "nextjs",
     generatedAt: new Date().toISOString(),
   };
 

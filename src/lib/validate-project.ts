@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadState } from "./state.js";
 import { hashContent } from "./checksum.js";
+import { ExitCode } from "./errors.js";
 import type { State } from "./config.js";
 
 export interface ValidatedProject {
@@ -36,7 +37,7 @@ export async function validateProjectForMutation(
     } catch (err) {
       return {
         valid: false,
-        exitCodeSuggestion: 23, // INVALID_STATE
+        exitCodeSuggestion: ExitCode.INVALID_STATE,
         message: `package.json is corrupt: ${err instanceof Error ? err.message : String(err)}`,
         error: err instanceof Error ? err : new Error(String(err)),
       };
@@ -47,7 +48,7 @@ export async function validateProjectForMutation(
   if (!state) {
     return {
       valid: false,
-      exitCodeSuggestion: 1, // GENERAL_ERROR
+      exitCodeSuggestion: ExitCode.GENERAL_ERROR,
       message: "No GhostInit project found in the current directory",
     };
   }
@@ -73,7 +74,7 @@ export async function validateProjectForMutation(
   if (drift.length > 0) {
     return {
       valid: false,
-      exitCodeSuggestion: 23, // INVALID_STATE
+      exitCodeSuggestion: ExitCode.INVALID_STATE,
       message: `State file does not match filesystem. Regenerate with ghostinit sync or restore tracked files. Drift: ${drift.join("; ")}`,
       details: { drift },
     };

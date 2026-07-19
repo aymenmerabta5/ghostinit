@@ -1,22 +1,21 @@
-{
+﻿{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2024",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2024"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "jsx": "preserve",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "rootDir": ".",
     "outDir": "./dist",
-    "types": ["bun-types"]
+    "composite": false,
+    "noEmit": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo/root.tsbuildinfo"
   },
-  "include": ["src/**/*", "packages/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist", "tests/fixtures"]
+  "include": ["src/**/*", "packages/**/src/**/*", "tooling/**/*"],
+  "exclude": ["node_modules", "dist", "tests/fixtures"],
+  "references": [
+    {
+      "path": "./packages/versions"
+    },
+    {
+      "path": "./src"
+    }
+  ]
 }

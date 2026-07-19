@@ -3,6 +3,13 @@
  */
 
 import { z } from "zod";
+import {
+  availableModes,
+  billingProviders,
+  availableFeatures,
+  availableDatabases,
+  availableFrameworks,
+} from "./addons.js";
 
 export const projectConfigSchema = z.object({
   name: z
@@ -15,6 +22,11 @@ export const projectConfigSchema = z.object({
   runtime: z.enum(["node", "bun"]).default("bun"),
   version: z.string().default("0.1.0"),
   generatedAt: z.string().datetime().optional(),
+  mode: z.enum(availableModes).default("monorepo"),
+  billing: z.array(z.enum(billingProviders)).default([]),
+  features: z.array(z.enum(availableFeatures)).default([]),
+  database: z.enum(availableDatabases).default("postgres"),
+  framework: z.enum(availableFrameworks).default("nextjs"),
 });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;

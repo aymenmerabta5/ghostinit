@@ -1,22 +1,55 @@
+/**
+ * oRPC contract-first, single port 3000, webhooks via Next.js routes raw Buffer
+ * Deduplicated via fragments/css (OKLCH tokens) + fragments/core (security headers)
+ */
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
+import type { AddonInstallerMap } from "../../lib/addons.js";
+import { globalCssContent } from "./fragments/css.js";
+import {
+  nextConfigHeadersFunction,
+  postcssConfigContent,
+  transpilePackagesList,
+  posthogRewritesBlock,
+} from "./fragments/core.js";
 
-export function coreFiles(runtime: "node" | "bun" = "bun"): TemplateFile[] {
+type FeatureInput = boolean | AddonInstallerMap | Record<string, { inUse: boolean }>;
+
+function resolveHasFeature(input: FeatureInput = false, feature: string): boolean {
+  if (typeof input === "boolean") return input;
+  return Boolean((input as any)?.[feature]?.inUse);
+}
+
+function resolveHasEve(input: FeatureInput = false): boolean {
+  return resolveHasFeature(input, "eve");
+}
+
+function resolveHasI18n(input: FeatureInput = false): boolean {
+  return resolveHasFeature(input, "i18n");
+}
+
+export function coreFiles(
+  runtime: "node" | "bun" = "bun",
+  hasEveInput: FeatureInput = false,
+  hasI18nInput: FeatureInput = false,
+): TemplateFile[] {
+  const hasEve = resolveHasEve(hasEveInput);
+  const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
+  const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
   return [
-    webPackage(runtime),
-    nextConfig(),
+    webPackage(runtime, hasEve, effectiveHasI18n),
+    nextConfig(hasEve, effectiveHasI18n),
     postcssConfig(),
     globalCss(runtime),
-    webTsconfig(runtime),
   ];
 }
 
-function webPackage(runtime: "node" | "bun"): TemplateFile {
+function webPackage(runtime: "node" | "bun", hasEve = false, hasI18n = false): TemplateFile {
   return file(
     "apps/web/package.json",
     packageJson({
       name: "web",
-      packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10`,
+      packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
       scripts: {
         dev: "next dev",
         build: "next build",
@@ -31,16 +64,27 @@ function webPackage(runtime: "node" | "bun"): TemplateFile {
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
+        "@repo/analytics": "workspace:*",
         "@repo/api": "workspace:*",
         "@repo/auth": "workspace:*",
+        "@repo/billing": "workspace:*",
         "@repo/config": "workspace:*",
         "@repo/contracts": "workspace:*",
         "@repo/database": "workspace:*",
+        "@repo/email": "workspace:*",
+        "@repo/kernel": "workspace:*",
         "@repo/modules": "workspace:*",
         "@repo/observability": "workspace:*",
+        "@repo/services": "workspace:*",
         "@repo/ui": "workspace:*",
+        "@repo/workflows": "workspace:*",
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
+        sonner: `^${v.ui.sonner}`,
+        recharts: `^${v.ui.recharts}`,
+        "next-themes": `^${v.ui["next-themes"]}`,
+        ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
+        ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),
         next: `^${v.nextStack.next}`,
         react: `^${v.nextStack.react}`,
         "react-dom": `^${v.nextStack["react-dom"]}`,
@@ -54,7 +98,6 @@ function webPackage(runtime: "node" | "bun"): TemplateFile {
         "@types/node": `^${v.runtime["@types/node"]}`,
         "@types/react": `^${v.nextStack["@types/react"]}`,
         "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
-        "@typescript/native-preview": `^${v.typescript["@typescript/native-preview"]}`,
         "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
         postcss: `^${v.styling.postcss}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
@@ -64,25 +107,110 @@ function webPackage(runtime: "node" | "bun"): TemplateFile {
   );
 }
 
-function nextConfig(): TemplateFile {
+function nextConfig(hasEve = false, hasI18n = false): TemplateFile {
+  const baseHeaders = nextConfigHeadersFunction();
+  const transpile = transpilePackagesList;
+  const rewritesBlock = posthogRewritesBlock();
+
+  if (hasEve && hasI18n) {
+    return file(
+      "apps/web/next.config.ts",
+      `import type { NextConfig } from "next";
+import { withEve } from "eve/next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const config: NextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+${baseHeaders}
+${rewritesBlock}
+${transpile}
+};
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+const nextConfig = withEve(withNextIntl(config), {
+  eveRoot: "../eve",
+});
+
+// Fix: withEve may add experimental.turbo which is invalid in Next 16
+if ((nextConfig as any).experimental?.turbo) {
+  delete (nextConfig as any).experimental.turbo;
+}
+
+export default nextConfig;
+`,
+    );
+  }
+  if (hasEve) {
+    return file(
+      "apps/web/next.config.ts",
+      `import type { NextConfig } from "next";
+import { withEve } from "eve/next";
+
+const config: NextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+${baseHeaders}
+${rewritesBlock}
+${transpile}
+};
+
+const nextConfig = withEve(config, {
+  eveRoot: "../eve",
+});
+
+if ((nextConfig as any).experimental?.turbo) {
+  delete (nextConfig as any).experimental.turbo;
+}
+
+export default nextConfig;
+`,
+    );
+  }
+  if (hasI18n) {
+    return file(
+      "apps/web/next.config.ts",
+      `import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const config: NextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+${baseHeaders}
+${rewritesBlock}
+${transpile}
+};
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+
+export default withNextIntl(config);
+`,
+    );
+  }
   return file(
     "apps/web/next.config.ts",
-    `import type { NextConfig } from "next";\n\nconst config: NextConfig = {\n  reactStrictMode: true,\n\n  transpilePackages: ["@repo/api", "@repo/auth", "@repo/config", "@repo/database", "@repo/ui", "@repo/observability", "@repo/modules"],\n};\n\nexport default config;\n`,
+    `import type { NextConfig } from "next";
+
+const config: NextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+${baseHeaders}
+${rewritesBlock}
+${transpile}
+};
+
+export default config;
+`,
   );
 }
 
 function postcssConfig(): TemplateFile {
-  return file(
-    "apps/web/postcss.config.mjs",
-    `/** @type {import('postcss-load-config').Config} */\nconst config = {\n  plugins: {\n    "@tailwindcss/postcss": {},\n  },\n};\n\nexport default config;\n`,
-  );
+  return file("apps/web/postcss.config.mjs", postcssConfigContent());
 }
 
 function globalCss(_runtime: "node" | "bun"): TemplateFile {
-  return file(
-    "apps/web/src/app/globals.css",
-    `@import "tailwindcss";\n\n:root {\n  --background: #ffffff;\n  --foreground: #0f172a;\n}\n\nbody {\n  color: var(--foreground);\n  background: var(--background);\n}\n`,
-  );
+  return file("apps/web/src/app/globals.css", globalCssContent());
 }
 
 function webTsconfig(_runtime: "node" | "bun"): TemplateFile {
@@ -92,7 +220,11 @@ function webTsconfig(_runtime: "node" | "bun"): TemplateFile {
       {
         extends: "@repo/typescript-config/nextjs.json",
         compilerOptions: {
-          paths: { "@/*": ["./src/*"] },
+          baseUrl: ".",
+          paths: {
+            "@/*": ["./src/*"],
+            "@repo/*": ["../../packages/*/src"],
+          },
           noEmit: true,
         },
         include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
@@ -103,3 +235,5 @@ function webTsconfig(_runtime: "node" | "bun"): TemplateFile {
     ) + "\n",
   );
 }
+
+export { webTsconfig };

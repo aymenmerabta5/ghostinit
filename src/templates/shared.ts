@@ -4,7 +4,71 @@
 
 import { randomBytes } from "node:crypto";
 import type { ProjectConfig } from "../lib/config.js";
+import type { AddonInstallerMap, ProjectMode } from "../lib/addons.js";
 import * as v from "./versions.js";
+
+export type TemplateRuntime = "node" | "bun";
+
+/* ------------------------------------------------------------------ */
+/* normalizeArgs — shared across email, billing-generator, services  */
+/* ------------------------------------------------------------------ */
+
+function isProjectMode(value: unknown): value is ProjectMode {
+  return value === "monorepo" || value === "single";
+}
+
+function isRuntime(value: unknown): value is TemplateRuntime {
+  return value === "node" || value === "bun";
+}
+
+export function normalizeTemplateArgs(
+  modeOrOpts: ProjectMode | string | Record<string, unknown> | undefined,
+  runtimeOrAddons:
+    | TemplateRuntime
+    | string
+    | AddonInstallerMap
+    | Record<string, unknown>
+    | undefined,
+  maybeAddons: AddonInstallerMap | Record<string, unknown> | undefined,
+): { mode: ProjectMode; runtime: TemplateRuntime; addons: AddonInstallerMap | undefined } {
+  let mode: ProjectMode = "monorepo";
+  let runtime: TemplateRuntime = "bun";
+  let addons: AddonInstallerMap | undefined;
+
+  if (typeof modeOrOpts === "string") {
+    if (isProjectMode(modeOrOpts)) {
+      mode = modeOrOpts;
+    } else if (isRuntime(modeOrOpts)) {
+      runtime = modeOrOpts;
+    }
+  } else if (modeOrOpts && typeof modeOrOpts === "object") {
+    const obj = modeOrOpts as Record<string, unknown>;
+    if (isProjectMode(obj.mode)) mode = obj.mode as ProjectMode;
+    if (obj.runtime === "node" || obj.runtime === "bun") runtime = obj.runtime as TemplateRuntime;
+    if (obj.addons && typeof obj.addons === "object") addons = obj.addons as AddonInstallerMap;
+    if (obj.addonRegistry && typeof obj.addonRegistry === "object")
+      addons = obj.addonRegistry as AddonInstallerMap;
+  }
+
+  if (typeof runtimeOrAddons === "string") {
+    if (isRuntime(runtimeOrAddons)) {
+      runtime = runtimeOrAddons as TemplateRuntime;
+    } else if (isProjectMode(runtimeOrAddons)) {
+      mode = runtimeOrAddons as ProjectMode;
+    }
+  } else if (runtimeOrAddons && typeof runtimeOrAddons === "object") {
+    addons = runtimeOrAddons as AddonInstallerMap;
+  }
+
+  if (maybeAddons && typeof maybeAddons === "object") {
+    addons = maybeAddons as AddonInstallerMap;
+  }
+
+  return { mode, runtime, addons };
+}
+
+/** Backwards compat alias — some generators used `normalizeArgs` name */
+export const normalizeArgs = normalizeTemplateArgs;
 
 export interface TemplateFile {
   path: string;
@@ -16,7 +80,58 @@ export interface GenerateContext {
 }
 
 export function file(path: string, content: string): TemplateFile {
-  return { path, content: normalizeSourceImports(content) };
+  if (!path || typeof path !== "string") {
+    throw new Error(`[ghostinit] file() path must be non-empty string, got: ${String(path)}`);
+  }
+  // Disallow absolute paths (POSIX / or Windows C:\ or \\)
+  if (
+    path.startsWith("/") ||
+    path.startsWith("\\") ||
+    /^[a-zA-Z]:[\\/]/.test(path) ||
+    path.startsWith("\\\\")
+  ) {
+    throw new Error(`[ghostinit] file() path must be relative, got absolute: ${path}`);
+  }
+  // Normalize backslashes to forward for check
+  const forward = path.replace(/\\/g, "/");
+  // Disallow traversal segments
+  const segments = forward.split("/");
+  for (const seg of segments) {
+    if (seg === "..") {
+      throw new Error(`[ghostinit] file() path must not contain traversal '..', got: ${path}`);
+    }
+  }
+  // Disallow double slash // and trailing slash
+  if (forward.includes("//")) {
+    throw new Error(`[ghostinit] file() path must not contain double slash '//', got: ${path}`);
+  }
+  if (forward.endsWith("/")) {
+    throw new Error(`[ghostinit] file() path must not have trailing slash, got: ${path}`);
+  }
+  // Also disallow "." as whole path or empty segments that could be suspicious, but allow "." inside filename? Simpler: disallow "/./" normalization via regex
+  if (
+    forward.includes("/./") ||
+    forward.startsWith("./") ||
+    forward === "." ||
+    forward === "./" ||
+    forward.startsWith("../")
+  ) {
+    // "./" at start is okay? Common to use "./"? In our templates we never use "./". Disallow to enforce canonical relative without ./ prefix and no ./ in middle.
+    // However allow if path === "./"? We disallow, but we have check for "./" prefix.
+    if (forward !== "." && forward.startsWith("./")) {
+      throw new Error(
+        `[ghostinit] file() path must not start with './', got: ${path}. Use canonical relative path without ./ prefix.`,
+      );
+    }
+    if (forward.includes("/./")) {
+      throw new Error(`[ghostinit] file() path must not contain '/./', got: ${path}`);
+    }
+  }
+  // Disallow null bytes
+  if (path.includes("\0")) {
+    throw new Error(`[ghostinit] file() path must not contain null byte`);
+  }
+  return { path: forward, content: normalizeSourceImports(content) };
 }
 
 function normalizeSourceImports(content: string): string {

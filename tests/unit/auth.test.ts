@@ -6,7 +6,7 @@ describe("auth package template", () => {
     const files = authPackage();
     const index = files.find((f) => f.path === "packages/auth/src/index.ts")?.content ?? "";
     expect(index).toContain("httpOnly: true");
-    expect(index).toContain('secure: process.env.NODE_ENV === "production"');
+    expect(index).toContain("secure: isHttps");
     expect(index).toContain('sameSite: "lax"');
   });
 
@@ -19,7 +19,8 @@ describe("auth package template", () => {
   it("warns about trusted proxy headers", () => {
     const files = authPackage();
     const index = files.find((f) => f.path === "packages/auth/src/index.ts")?.content ?? "";
-    expect(index).toContain("trusted proxy");
+    const lower = index.toLowerCase();
+    expect(lower.includes("trusted proxy") || lower.includes("trusted_proxy")).toBe(true);
     expect(index).toContain("disableIpTracking: true");
   });
 

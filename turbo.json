@@ -1,23 +1,118 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env.*local"],
-  "globalEnv": ["NODE_ENV", "DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL"],
+  "globalEnv": [
+    "NODE_ENV",
+    "RUNTIME",
+    "APP_NAME",
+    "TRUSTED_PROXY",
+    "DATABASE_URL",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+    "POSTGRES_DB",
+    "DATABASE_SSL",
+    "DATABASE_SSL_CA",
+    "DATABASE_POOL_SIZE",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "VITE_APP_URL",
+    "RESEND_API_KEY",
+    "RESEND_FROM",
+    "EMAIL_FROM",
+    "EMAIL_FROM_NAME",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "VITE_STRIPE_PUBLISHABLE_KEY",
+    "CHARGILY_API_KEY",
+    "CHARGILY_SECRET_KEY",
+    "CHARGILY_MODE",
+    "CHARGILY_WEBHOOK_SECRET",
+    "PADDLE_API_KEY",
+    "PADDLE_WEBHOOK_SECRET",
+    "PADDLE_CLIENT_TOKEN",
+    "PADDLE_ENVIRONMENT",
+    "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
+    "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
+    "VITE_PADDLE_CLIENT_TOKEN",
+    "VITE_PADDLE_ENVIRONMENT",
+    "POLAR_ACCESS_TOKEN",
+    "POLAR_WEBHOOK_SECRET",
+    "POLAR_ORG_ID",
+    "POLAR_ENVIRONMENT",
+    "POLAR_CLIENT_ID",
+    "POSTHOG_HOST",
+    "POSTHOG_API_KEY",
+    "NEXT_PUBLIC_POSTHOG_KEY",
+    "NEXT_PUBLIC_POSTHOG_HOST",
+    "NEXT_PUBLIC_POSTHOG_SESSION_RECORDING",
+    "NEXT_PUBLIC_POSTHOG_AUTOCAPTURE",
+    "VITE_POSTHOG_KEY",
+    "VITE_POSTHOG_HOST",
+    "VITE_POSTHOG_SESSION_RECORDING",
+    "VITE_POSTHOG_AUTOCAPTURE",
+    "ANALYTICS_DISABLED",
+    "NEXT_PUBLIC_ANALYTICS_DISABLED",
+    "VITE_ANALYTICS_DISABLED",
+    "NEXT_PUBLIC_*",
+    "VITE_*"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!.env.*local"],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        ".vinxi/**",
+        ".output/**",
+        ".vercel/**",
+        ".tanstack/**"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!.env.*local"]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "check": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*", "!.env.*local"]
     },
-    "lint": {},
+    "format": {
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "format:check": {
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true
+    },
     "db:generate": {
-      "cache": false
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "db:migrate": {
+      "cache": false
+    },
+    "db:push": {
       "cache": false
     }
   }

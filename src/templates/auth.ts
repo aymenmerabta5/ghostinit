@@ -6,7 +6,50 @@ export interface AuthSecrets {
   postgresPassword: string;
 }
 
-export function authPackage(): TemplateFile[] {
+export type AuthFramework = "nextjs" | "tanstack-start";
+
+type AuthFrameworkInput =
+  | AuthFramework
+  | { framework?: AuthFramework; addons?: Record<string, { inUse: boolean } | boolean> }
+  | Record<string, { inUse: boolean } | boolean>
+  | undefined;
+
+function resolveAuthFramework(input: AuthFrameworkInput): AuthFramework {
+  if (!input) return "nextjs";
+  if (typeof input === "string") {
+    if (input === "tanstack-start" || input === "nextjs") return input;
+    return "nextjs";
+  }
+  if (typeof input === "object") {
+    const obj = input as Record<string, unknown>;
+    // direct { framework }
+    if (
+      typeof obj.framework === "string" &&
+      (obj.framework === "tanstack-start" || obj.framework === "nextjs")
+    ) {
+      return obj.framework as AuthFramework;
+    }
+    // addon map detection
+    const anyObj = obj as Record<string, any>;
+    const addons =
+      (anyObj.addons as Record<string, any> | undefined) ?? (anyObj as Record<string, any>);
+    if (addons) {
+      if (addons["tanstack-start"]?.inUse === true || addons["tanstack-start"] === true)
+        return "tanstack-start";
+      if (addons["nextjs"]?.inUse === true || addons["nextjs"] === true) return "nextjs";
+    }
+  }
+  return "nextjs";
+}
+
+export function authPackage(frameworkOrAddons?: AuthFrameworkInput): TemplateFile[] {
+  const framework = resolveAuthFramework(frameworkOrAddons);
+  const isTanstack = framework === "tanstack-start";
+  const cookieImport = isTanstack
+    ? `import { tanstackStartCookies } from "better-auth/tanstack-start";`
+    : `import { nextCookies } from "better-auth/next-js";`;
+  const cookiePlugin = isTanstack ? "tanstackStartCookies()" : "nextCookies()";
+
   return [
     file(
       "packages/auth/package.json",
@@ -21,6 +64,7 @@ export function authPackage(): TemplateFile[] {
           "better-auth": `^${v.auth["better-auth"]}`,
           "@repo/config": "workspace:*",
           "@repo/database": "workspace:*",
+          "@repo/email": "workspace:*",
         },
         devDependencies: {
           "@types/node": `^${v.runtime["@types/node"]}`,
@@ -32,8 +76,14 @@ export function authPackage(): TemplateFile[] {
     file(
       "packages/auth/src/index.ts",
       `import { betterAuth } from "better-auth";
+
+declare global {
+  // eslint-disable-next-line no-var
+  var waitUntil: ((promise: Promise<unknown>) => void) | undefined;
+}
+
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { nextCookies } from "better-auth/next-js";
+${cookieImport}
 import { admin, twoFactor } from "better-auth/plugins";
 import { env } from "@repo/config";
 import {
@@ -44,12 +94,19 @@ import {
   verifications,
   twoFactor as twoFactorTable,
 } from "@repo/database";
+import { forgotPasswordTemplate } from "@repo/email";
 
 if (env.BETTER_AUTH_URL.includes("localhost")) {
   console.warn(
     "[ghostinit] BETTER_AUTH_URL is still set to localhost. Change it to your production URL before deploying.",
   );
 }
+
+if (env.BETTER_AUTH_SECRET.length < 32) {
+  throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
+}
+
+const isHttps = env.BETTER_AUTH_URL.startsWith("https://");
 
 export const auth = betterAuth({
   appName: env.APP_NAME,
@@ -67,7 +124,24 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    autoSignInAfterRegistration: true,
+    // SECURITY: do not auto-sign-in after registration. Require explicit
+    // credential verification to reduce session-fixation and redirect risks.
+    autoSignInAfterRegistration: false,
+    // Better Auth handles token generation: short expiry (1h), single use, hashed storage
+    // Resend delivers via server-only RESEND_API_KEY + EMAIL_FROM - verified via Context7 /better-auth/better-auth + /websites/resend
+    sendResetPassword: async ({ user, url, token }) => {
+      const { sendEmail } = await import("@repo/email");
+      await sendEmail({
+        to: user.email,
+        subject: \`Reset your password - \${env.APP_NAME}\`,
+        html: forgotPasswordTemplate({
+          url,
+          token,
+          appName: env.APP_NAME,
+          email: user.email,
+        }),
+      });
+    },
   },
   user: {
     deleteUser: {
@@ -84,7 +158,7 @@ export const auth = betterAuth({
   // SECURITY: review these flags before going to production.
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttps,
     sameSite: "lax",
   },
   rateLimit: {
@@ -95,23 +169,26 @@ export const auth = betterAuth({
   },
   advanced: {
     ipAddress: {
-      // WARNING: ipAddressHeaders trusts the listed headers. Only enable this
-      // when your app is behind a trusted proxy (e.g. Vercel, Cloudflare, nginx).
-      // In untrusted environments these headers can be spoofed by clients.
-      // disableIpTracking is true by default for safety; set to false only when
-      // you have verified the proxy chain.
-      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
-      disableIpTracking: true,
+      // SECURITY: IP tracking is disabled by default. Header-based IP extraction
+      // is only enabled when TRUSTED_PROXY=true (set in .env.local). In
+      // untrusted environments these headers are trivially spoofed and can be
+      // used to bypass rate limits.
+      ...(env.TRUSTED_PROXY === "true"
+        ? {
+            ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+            disableIpTracking: false,
+          }
+        : { disableIpTracking: true }),
     },
     backgroundTasks: {
       handler: (promise) => {
-        if ("waitUntil" in globalThis && typeof (globalThis as unknown as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil === "function") {
-          (globalThis as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(promise);
+        if (typeof globalThis.waitUntil === "function") {
+          globalThis.waitUntil(promise);
         }
       },
     },
   },
-  plugins: [admin(), twoFactor({ issuer: env.BETTER_AUTH_URL }), nextCookies()],
+  plugins: [admin(), twoFactor({ issuer: env.BETTER_AUTH_URL }), ${cookiePlugin}],
 });
 
 export type Auth = typeof auth;
