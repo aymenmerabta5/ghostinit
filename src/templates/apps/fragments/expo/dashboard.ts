@@ -99,7 +99,18 @@ export default function SettingsScreen(): React.JSX.Element {
   const [saved, setSaved] = useState<string | null>(null);
 
   async function handleSave(): Promise<void> {
-    setSaved("Profile save not wired yet – wire authClient.updateUser.");
+    setSaved(null);
+    try {
+      const res = await (authClient as unknown as { updateUser?: (data: { name: string }) => Promise<{ error?: { message?: string } | null }> }).updateUser?.({ name });
+      const r = res as unknown as { error?: { message?: string } | null } | undefined;
+      if (r?.error) {
+        setSaved(r.error.message ?? "Failed to save");
+      } else {
+        setSaved("Saved");
+      }
+    } catch (e) {
+      setSaved(e instanceof Error ? e.message : "Failed to save");
+    }
   }
 
   return (

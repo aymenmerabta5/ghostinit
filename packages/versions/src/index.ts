@@ -171,28 +171,33 @@ export const postgresDocker = {
 } as const;
 
 export const expo = {
-  expo: "52.0.0",
-  "@expo/metro-runtime": "4.0.0",
-  "expo-constants": "17.0.0",
-  "expo-linking": "7.0.0",
-  "expo-router": "4.0.0",
-  "expo-secure-store": "13.0.0",
-  "expo-status-bar": "2.0.0",
-  "expo-web-browser": "14.0.0",
+  expo: "54.0.13",
+  "@expo/metro-runtime": "6.1.2",
+  "expo-constants": "18.0.9",
+  "expo-linking": "8.0.8",
+  "expo-router": "6.0.24",
+  "expo-secure-store": "15.0.8",
+  "expo-status-bar": "3.0.9",
+  "expo-web-browser": "15.0.7",
+  "expo-clipboard": "8.0.6",
   "react-native": "0.81.4",
-  "react-native-safe-area-context": "5.0.0",
-  "react-native-web": "0.20.0",
-  "babel-preset-expo": "12.0.0",
+  "react-native-safe-area-context": "5.4.0",
+  "react-native-web": "0.21.1",
+  "babel-preset-expo": "54.0.12",
 } as const;
 
 export const reanimated = {
-  "react-native-reanimated": "3.17.0",
+  "react-native-reanimated": "4.1.1",
+} as const;
+
+export const worklets = {
+  "react-native-worklets": "0.5.1",
 } as const;
 
 export const uniwind = {
-  uniwind: "0.2.0",
-  "tailwind-variants": "1.0.0",
-  "tw-animate-css": "1.2.0",
+  uniwind: "1.10.0",
+  "tailwind-variants": "3.2.2",
+  "tw-animate-css": "1.4.0",
 } as const;
 
 export const catalog = {
@@ -217,6 +222,7 @@ export const catalog = {
   ...interactive,
   ...expo,
   ...reanimated,
+  ...worklets,
   ...uniwind,
 } as const;
 

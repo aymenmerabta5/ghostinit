@@ -1,5 +1,8 @@
 import { secret, type TemplateFile } from "../../shared.js";
-import { filteredEnvExample as sharedFilteredEnvExample } from "../../shared/billing-env.js";
+import {
+  filteredEnvExample as sharedFilteredEnvExample,
+  filteredEnvLocal as sharedFilteredEnvLocal,
+} from "../../shared/billing-env.js";
 import type { RootSecrets } from "../../root.js";
 import {
   billingProviders,
@@ -53,4 +56,13 @@ export function filteredEnvExample(
     runtime,
     "monorepo",
   );
+}
+
+export function filteredEnvLocal(
+  projectName: string,
+  secrets: RootSecrets,
+  selectedBilling: BillingProviderName[],
+  runtime: string,
+): TemplateFile {
+  return sharedFilteredEnvLocal(projectName, secrets, selectedBilling, runtime, "monorepo");
 }

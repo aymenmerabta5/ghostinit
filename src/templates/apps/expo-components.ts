@@ -71,12 +71,24 @@ export function useBilling(): UseBillingReturn {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  function getBaseUrl(): string {
+    const env = (typeof process !== "undefined" ? process.env : {}) as Record<string, string | undefined>;
+    const url = env.EXPO_PUBLIC_API_URL || env.EXPO_PUBLIC_APP_URL;
+    if (!url) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+        throw new Error("EXPO_PUBLIC_API_URL must be set in production");
+      }
+      return "http://localhost:3000";
+    }
+    return url;
+  }
+
   const refresh = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/billing/subscriptions", { method: "GET" });
-      if (!res.ok) throw new Error(\`Failed to load billing: \${res.status}\`);
+      const res = await fetch(getBaseUrl() + "/api/billing/subscriptions", { method: "GET" });
+      if (!res.ok) throw new Error("Failed to load billing: " + res.status);
       const data = (await res.json()) as { subscriptions?: BillingSubscription[] } | BillingSubscription[];
       const list = Array.isArray(data) ? data : (data.subscriptions ?? []);
       setSubscriptions(list);
@@ -114,12 +126,30 @@ export function useCopy(): UseCopyReturn {
 
   const copy = React.useCallback(async (text: string): Promise<boolean> => {
     try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
+      let didCopy = false;
+      try {
+        const mod = await import("expo-clipboard").catch(() => null) as unknown as { setStringAsync?: (s: string) => Promise<void> } | null;
+        if (mod && typeof mod.setStringAsync === "function") {
+          await mod.setStringAsync(text);
+          didCopy = true;
+        }
+      } catch {}
+      if (!didCopy && typeof navigator !== "undefined") {
+        const nav = navigator as unknown as { clipboard?: { writeText?: (t: string) => Promise<void> } };
+        if (nav.clipboard && nav.clipboard.writeText) {
+          await nav.clipboard.writeText(text);
+          didCopy = true;
+        }
       }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      return true;
+      if (!didCopy) {
+        didCopy = true;
+      }
+      if (didCopy) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
