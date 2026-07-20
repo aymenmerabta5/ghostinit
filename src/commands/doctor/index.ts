@@ -74,8 +74,9 @@ export async function doctorCommand(_args: string[], options: GlobalOptions): Pr
 
   const requiredChecks = checks.filter((c) => {
     if (c.name === "database-connectivity") {
-      if ((c.meta as any)?.skipped) return false;
-      if ((c.meta as any)?.optional) return false;
+      const meta = c.meta as Record<string, unknown> | undefined;
+      if (meta?.skipped) return false;
+      if (meta?.optional) return false;
     }
     return true;
   });

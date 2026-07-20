@@ -1,0 +1,509 @@
+// @allow-long 540: expo single flat maps 20+ RN fragments + api +api.ts routes + server billing/env/eve
+import { file, type TemplateFile } from "../../../shared.js";
+import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
+import type { RootSecrets } from "../../../root.js";
+import { servicesFiles } from "../../../services.js";
+import { billingFiles } from "../../../billing-generator.js";
+import { emailFiles } from "../../../email.js";
+import { analyticsFiles } from "../../../analytics.js";
+import { eveFiles as genEveFiles } from "../../../eve.js";
+
+import { singlePackageJsonExpo } from "../package.js";
+import { filteredEnvExample, filteredEnvLocal } from "../config.js";
+import { singleEnvFile } from "../fragments/env.js";
+import {
+  expoAppJsonContent,
+  babelConfigContent,
+  metroConfigContent,
+  expoEnvDtsContent,
+} from "../../../apps/expo-core.js";
+import { expoRootLayoutContent } from "../../../apps/fragments/expo/layout.js";
+import { buildExpoMarketingContent } from "../../../apps/fragments/expo/marketing.js";
+import {
+  expoSignInContent,
+  expoSignUpContent,
+  expoForgotPasswordContent,
+  expoResetPasswordContent,
+  expoTwoFactorContent,
+} from "../../../apps/fragments/expo/auth.js";
+import {
+  expoDashboardContent,
+  expoSettingsContent,
+  expoBillingContent,
+  expoNotFoundContent,
+} from "../../../apps/fragments/expo/dashboard.js";
+import { expoAuthClientContent } from "../../../apps/fragments/expo/orpc.js";
+import {
+  expoHeaderContent,
+  expoSignOutButtonContent,
+} from "../../../apps/fragments/expo/header.js";
+import { webhookContent } from "../../../billing/webhooks/factory.js";
+
+import { serverAuthSingle } from "../server/auth.js";
+import {
+  serverDbIndexSingle,
+  serverDbAuthSchemaStub,
+  serverObservabilitySingle,
+  libUtils,
+} from "../server/db.js";
+import {
+  singleApiContextContent,
+  singleApiHealthProcedureContent,
+  singleApiMeProcedureContent,
+  singleApiContractContent,
+  singleApiRouterContent,
+  singleApiIndexContent,
+  singleApiOpenapiContent,
+} from "../api/routes.js";
+import { gitignoreSingle, readmeSingle } from "../fragments/docs.js";
+
+function singleExpoTsConfigContent(): string {
+  return (
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: "ES2024",
+          lib: ["ES2024", "DOM", "DOM.Iterable"],
+          jsx: "react-native",
+          module: "ESNext",
+          moduleResolution: "bundler",
+          strict: true,
+          esModuleInterop: true,
+          skipLibCheck: true,
+          forceConsistentCasingInFileNames: true,
+          resolveJsonModule: true,
+          incremental: true,
+          baseUrl: ".",
+          paths: {
+            "@/*": ["./src/*"],
+            "@/server/*": ["./src/server/*"],
+            "@/components/*": ["./src/components/*"],
+            "@/lib/*": ["./src/lib/*"],
+            "@/hooks/*": ["./src/hooks/*"],
+          },
+          types: ["expo/types"],
+        },
+        include: [
+          "**/*.ts",
+          "**/*.tsx",
+          ".expo/types/**/*.ts",
+          "expo-env.d.ts",
+          "app/**/*",
+          "src/**/*",
+        ],
+        exclude: ["node_modules", ".expo", "dist"],
+      },
+      null,
+      2,
+    ) + "\n"
+  );
+}
+
+function singleExpoOrpcClientContent(): string {
+  return `import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { RouterClient } from "@orpc/server";
+import type { appRouter } from "@/server/api";
+import { authClient } from "./auth-client";
+
+function getBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
+  if (process.env.EXPO_PUBLIC_APP_URL) return process.env.EXPO_PUBLIC_APP_URL;
+  return "http://localhost:3000";
+}
+
+const link = new RPCLink({
+  url: \`\${getBaseUrl()}/api/rpc\`,
+  headers: async () => {
+    type AuthClientWithCookie = typeof authClient & { getCookie?: () => string | undefined }; const ac = authClient as AuthClientWithCookie; const cookies = ac.getCookie?.() ? { cookie: ac.getCookie() } : {};
+    return { ...cookies } as Record<string, string>;
+  },
+});
+
+export const orpc: RouterClient<typeof appRouter> = createORPCClient(link);
+
+export function createApiClient() {
+  return orpc;
+}
+export type ApiClient = typeof orpc;
+`;
+}
+
+function expoAuthApiContent(): string {
+  return [
+    'import { auth } from "@/server/auth";',
+    "",
+    'const allowedAuthMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);',
+    "",
+    "async function handle(request: Request): Promise<Response> {",
+    "  if (!allowedAuthMethods.has(request.method)) {",
+    '    return new Response("Method not allowed", { status: 405 });',
+    "  }",
+    "  return auth.handler(request);",
+    "}",
+    "",
+    "export const GET = handle;",
+    "export const POST = handle;",
+    "export const PUT = handle;",
+    "export const PATCH = handle;",
+    "export const DELETE = handle;",
+    "",
+  ].join("\n");
+}
+
+function expoRpcApiContent(): string {
+  return [
+    'import { RPCHandler } from "@orpc/server/fetch";',
+    'import { OpenAPIHandler } from "@orpc/openapi/fetch";',
+    'import { appRouter, createContext } from "@/server/api";',
+    "",
+    "const rpcHandler = new RPCHandler(appRouter);",
+    "const openapiHandler = new OpenAPIHandler(appRouter);",
+    "",
+    "async function handle(request: Request): Promise<Response> {",
+    "  const context = await createContext(request.headers);",
+    "  const opts = { context };",
+    "  const rpcResult = await rpcHandler.handle(request, opts as unknown as { context: Record<string, unknown> });",
+    "  if ((rpcResult as unknown as { matched: boolean; response?: Response }).matched && (rpcResult as unknown as { response?: Response }).response) {",
+    "    const response = (rpcResult as unknown as { response: Response }).response;",
+    '    response.headers.set("X-Content-Type-Options", "nosniff");',
+    '    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");',
+    "    return response;",
+    "  }",
+    "  const openApiResult = await openapiHandler.handle(request, opts as unknown as { context: Record<string, unknown> });",
+    "  if ((openApiResult as unknown as { matched: boolean; response?: Response }).matched && (openApiResult as unknown as { response?: Response }).response) {",
+    "    const response = (openApiResult as unknown as { response: Response }).response;",
+    '    response.headers.set("X-Content-Type-Options", "nosniff");',
+    '    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");',
+    "    return response;",
+    "  }",
+    '  return new Response("Not found", { status: 404 });',
+    "}",
+    "",
+    "export async function GET(req: Request): Promise<Response> { return handle(req); }",
+    "export async function POST(req: Request): Promise<Response> { return handle(req); }",
+    "export async function PUT(req: Request): Promise<Response> { return handle(req); }",
+    "export async function PATCH(req: Request): Promise<Response> { return handle(req); }",
+    "export async function DELETE(req: Request): Promise<Response> { return handle(req); }",
+    "",
+  ].join("\n");
+}
+
+function expoHealthApiContent(): string {
+  return [
+    "export async function GET(): Promise<Response> {",
+    '  const body = JSON.stringify({ status: "ok", ok: true, time: new Date().toISOString() });',
+    "  return new Response(body, {",
+    "    status: 200,",
+    "    headers: {",
+    '      "Content-Type": "application/json",',
+    '      "X-Content-Type-Options": "nosniff",',
+    '      "Referrer-Policy": "strict-origin-when-cross-origin",',
+    "    },",
+    "  });",
+    "}",
+    "",
+  ].join("\n");
+}
+
+function expoOpenapiApiContent(): string {
+  return [
+    'import { generateOpenAPISpec } from "@/server/api/openapi";',
+    "",
+    "export async function GET(): Promise<Response> {",
+    '  if (process.env.NODE_ENV === "production") {',
+    '    return new Response("Not found", { status: 404 });',
+    "  }",
+    "  const spec = await generateOpenAPISpec();",
+    '  return new Response(JSON.stringify(spec), { headers: { "Content-Type": "application/json" } });',
+    "}",
+    "",
+  ].join("\n");
+}
+
+function expoStripeWebhook(): string {
+  return webhookContent("stripe", "next", "single").content;
+}
+function expoChargilyWebhook(): string {
+  return webhookContent("chargily", "next", "single").content;
+}
+function expoPaddleWebhook(): string {
+  return webhookContent("paddle", "next", "single").content;
+}
+function expoPolarWebhook(): string {
+  return webhookContent("polar", "next", "single").content;
+}
+
+function expoUseAuthHook(): string {
+  return `import { authClient } from "../lib/auth-client";
+
+export function useAuth() {
+  const { data: session, isPending, error, refetch } = authClient.useSession();
+
+  return {
+    session: session ?? null,
+    user: session?.user ?? null,
+    isPending,
+    isAuthenticated: !!session?.user,
+    error: error ?? null,
+    refetch,
+  };
+}
+`;
+}
+
+function expoUseBillingHook(): string {
+  return `import * as React from "react";
+
+export interface BillingSubscription {
+  id: string;
+  provider: string;
+  status: string;
+  currentPeriodEnd?: string | null;
+  priceId?: string | null;
+  customerId?: string | null;
+}
+
+export interface UseBillingReturn {
+  subscriptions: BillingSubscription[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  hasActiveSubscription: boolean;
+  isLoading: boolean;
+}
+
+export function useBilling(): UseBillingReturn {
+  const [subscriptions, setSubscriptions] = React.useState<BillingSubscription[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const refresh = React.useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/subscriptions", { method: "GET" });
+      if (!res.ok) throw new Error(\`Failed to load billing: \${res.status}\`);
+      const data = (await res.json()) as { subscriptions?: BillingSubscription[] } | BillingSubscription[];
+      const list = Array.isArray(data) ? data : (data.subscriptions ?? []);
+      setSubscriptions(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load billing");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const hasActiveSubscription = React.useMemo(
+    () => subscriptions.some((s) => s.status === "active" || s.status === "trialing"),
+    [subscriptions],
+  );
+
+  return { subscriptions, loading, error, refresh, hasActiveSubscription, isLoading: loading };
+}
+`;
+}
+
+function expoUseCopyHook(): string {
+  return `import * as React from "react";
+
+export interface UseCopyReturn {
+  copy: (text: string) => Promise<boolean>;
+  copied: boolean;
+}
+
+export function useCopy(): UseCopyReturn {
+  const [copied, setCopied] = React.useState(false);
+
+  const copy = React.useCallback(async (text: string): Promise<boolean> => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  return { copy, copied };
+}
+`;
+}
+
+export function buildExpoFiles(
+  projectName: string,
+  runtime: "node" | "bun",
+  effectiveBilling: BillingProviderName[],
+  hasEve: boolean,
+  hasI18n: boolean,
+  secrets: RootSecrets,
+  addonMap: AddonInstallerMap,
+): TemplateFile[] {
+  const files: TemplateFile[] = [];
+
+  files.push(
+    file(
+      "package.json",
+      singlePackageJsonExpo(projectName, runtime, effectiveBilling, hasEve, hasI18n),
+    ),
+  );
+  files.push(file("app.json", expoAppJsonContent()));
+  files.push(file("babel.config.js", babelConfigContent()));
+  files.push(file("metro.config.js", metroConfigContent()));
+  files.push(file("expo-env.d.ts", expoEnvDtsContent()));
+  files.push(file("tsconfig.json", singleExpoTsConfigContent()));
+
+  files.push(file("app/_layout.tsx", expoRootLayoutContent()));
+  files.push(file("app/index.tsx", buildExpoMarketingContent()));
+  files.push(file("app/(auth)/sign-in.tsx", expoSignInContent()));
+  files.push(file("app/(auth)/sign-up.tsx", expoSignUpContent()));
+  files.push(file("app/(auth)/forgot-password.tsx", expoForgotPasswordContent()));
+  files.push(file("app/(auth)/reset-password.tsx", expoResetPasswordContent()));
+  files.push(file("app/2fa.tsx", expoTwoFactorContent()));
+  files.push(file("app/dashboard.tsx", expoDashboardContent()));
+  files.push(file("app/settings.tsx", expoSettingsContent()));
+  files.push(file("app/billing.tsx", expoBillingContent()));
+  files.push(file("app/+not-found.tsx", expoNotFoundContent()));
+
+  files.push(file("src/lib/auth-client.ts", expoAuthClientContent()));
+  files.push(file("src/lib/orpc.ts", singleExpoOrpcClientContent()));
+  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/components/header.tsx", expoHeaderContent()));
+  files.push(file("src/components/sign-out-button.tsx", expoSignOutButtonContent()));
+  files.push(file("src/hooks/use-auth.ts", expoUseAuthHook()));
+  files.push(file("src/hooks/use-billing.ts", expoUseBillingHook()));
+  files.push(file("src/hooks/use-copy.ts", expoUseCopyHook()));
+
+  files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+  files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+  files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
+  files.push(file("src/server/api/context.ts", singleApiContextContent()));
+  files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
+  files.push(file("src/server/api/procedures/me.ts", singleApiMeProcedureContent()));
+  files.push(file("src/server/api/contract.ts", singleApiContractContent()));
+  files.push(file("src/server/api/router.ts", singleApiRouterContent()));
+  files.push(file("src/server/api/index.ts", singleApiIndexContent()));
+  files.push(file("src/server/api/openapi.ts", singleApiOpenapiContent()));
+
+  files.push(file("app/api/auth/[...auth]+api.ts", expoAuthApiContent()));
+  files.push(file("app/api/rpc/[...path]+api.ts", expoRpcApiContent()));
+  files.push(file("app/api/health+api.ts", expoHealthApiContent()));
+  files.push(file("app/api/openapi+api.ts", expoOpenapiApiContent()));
+
+  if (effectiveBilling.includes("stripe"))
+    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook()));
+  if (effectiveBilling.includes("chargily"))
+    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook()));
+  if (effectiveBilling.includes("paddle"))
+    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook()));
+  if (effectiveBilling.includes("polar"))
+    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook()));
+  if (
+    effectiveBilling.length === 0 &&
+    (addonMap as never as { billing?: { inUse: boolean } }).billing?.inUse
+  ) {
+    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook()));
+    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook()));
+    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook()));
+    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook()));
+  }
+
+  files.push(gitignoreSingle());
+  files.push(readmeSingle(projectName));
+  files.push(filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime));
+  files.push(filteredEnvLocal(projectName, secrets, effectiveBilling, runtime));
+  files.push(singleEnvFile());
+
+  files.push(
+    ...(servicesFiles(
+      { mode: "single", runtime: runtime as never, addons: addonMap } as never,
+      runtime as never,
+    ) as TemplateFile[]),
+  );
+
+  const billingRaw =
+    effectiveBilling.length > 0
+      ? (billingFiles(
+          { mode: "single", runtime: runtime as never, addons: addonMap } as never,
+          runtime as never,
+        ) as TemplateFile[])
+      : (billingFiles(
+          {
+            mode: "single",
+            runtime: runtime as never,
+            addons: {
+              stripe: { inUse: false },
+              chargily: { inUse: false },
+              paddle: { inUse: false },
+              polar: { inUse: false },
+              billing: { inUse: false },
+            } as never,
+          } as never,
+          runtime as never,
+        ) as TemplateFile[]);
+  const billingServerOnly = billingRaw.filter(
+    (f) => f.path.startsWith("src/server/") || f.path.startsWith("src/server/db/"),
+  );
+  files.push(...billingServerOnly);
+
+  files.push(
+    ...(emailFiles(
+      { mode: "single", runtime: runtime as never } as never,
+      runtime as never,
+    ) as TemplateFile[]),
+  );
+  files.push(
+    ...(analyticsFiles({ mode: "single", runtime } as never, runtime as never) as TemplateFile[]),
+  );
+
+  if (hasEve) {
+    const eveRaw = genEveFiles(projectName, runtime as never);
+    const eveMapped = eveRaw.map((f) => ({
+      path: f.path.replace(/^apps\/eve\//, "agent/"),
+      content: f.content,
+    }));
+    const filtered = eveMapped.filter((f) => f.path !== "agent/tsconfig.json");
+    filtered.push(
+      file(
+        "agent/tsconfig.json",
+        JSON.stringify(
+          {
+            compilerOptions: {
+              target: "ES2024",
+              module: "ESNext",
+              moduleResolution: "bundler",
+              lib: ["ES2024"],
+              strict: true,
+              esModuleInterop: true,
+              skipLibCheck: true,
+              forceConsistentCasingInFileNames: true,
+              resolveJsonModule: true,
+              types: ["node"],
+              baseUrl: ".",
+              paths: { "#*": ["./agent/*"], "#evals/*": ["./evals/*"] },
+              outDir: "./dist",
+              rootDir: ".",
+            },
+            include: ["agent/**/*", "lib/**/*"],
+            exclude: ["node_modules", "dist", ".eve"],
+          },
+          null,
+          2,
+        ) + "\n",
+      ),
+    );
+    files.push(...filtered);
+  }
+
+  return files;
+}
+
+export default buildExpoFiles;

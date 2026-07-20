@@ -109,7 +109,7 @@ export function PostHogToolbar() {
         onClick={(e) => {
           e.preventDefault();
           try {
-            const c = (window as any).posthog;
+            const c = (window as unknown as { posthog?: { debug?: (v: boolean) => void; getFeatureFlags?: () => Record<string, string | boolean>; opt_in_capturing?: () => void; opt_out_capturing?: () => void; get_distinct_id?: () => string } }).posthog;
             c?.debug?.(true);
             console.log("[analytics] flags", c?.getFeatureFlags?.());
           } catch {}
@@ -170,7 +170,7 @@ export function ConsentBanner({
                     timestamp: new Date().toISOString(),
                   }),
                 );
-                (window as any).posthog?.opt_in_capturing?.();
+                (window as unknown as { posthog?: { opt_in_capturing?: () => void } }).posthog?.opt_in_capturing?.();
               } catch {}
             }
             setVisible(false);
@@ -195,7 +195,7 @@ export function ConsentBanner({
                     timestamp: new Date().toISOString(),
                   }),
                 );
-                (window as any).posthog?.opt_out_capturing?.();
+                (window as unknown as { posthog?: { opt_out_capturing?: () => void } }).posthog?.opt_out_capturing?.();
               } catch {}
             }
             setVisible(false);
@@ -218,7 +218,7 @@ export function FeatureFlagsDebug() {
 
   return (
     <pre className="max-h-[200px] overflow-auto rounded-lg border border-border bg-muted p-2 font-mono text-[11px] text-foreground">
-      {JSON.stringify({ flags, distinctId: (posthog as any)?.get_distinct_id?.() }, null, 2)}
+      {JSON.stringify({ flags, distinctId: (posthog as unknown as { get_distinct_id?: () => string })?.get_distinct_id?.() }, null, 2)}
     </pre>
   );
 }

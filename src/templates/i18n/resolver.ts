@@ -30,7 +30,11 @@ export function resolveI18nParams(
   let addons: AddonInstallerMap | undefined;
 
   try {
-    const normalized = normalizeTemplateArgs(a as any, b as any, c as any);
+    const normalized = normalizeTemplateArgs(
+      a as Record<string, unknown>,
+      b as Record<string, unknown>,
+      c as Record<string, unknown>,
+    );
     if (normalized.mode) mode = normalized.mode as ProjectMode;
     if (normalized.runtime) runtime = normalized.runtime as Runtime;
     if (normalized.addons) addons = normalized.addons as AddonInstallerMap;
@@ -53,7 +57,9 @@ export function resolveI18nParams(
       if (!addons) {
         const values = Object.values(obj);
         const looksLikeAddonMap = values.some(
-          (v) => typeof v === "boolean" || (v && typeof v === "object" && "inUse" in (v as any)),
+          (v) =>
+            typeof v === "boolean" ||
+            (v && typeof v === "object" && "inUse" in (v as Record<string, unknown>)),
         );
         const hasFrameworkOrFeatureKeys = Object.keys(obj).some((k) =>
           ["i18n", "eve", "tanstack-start", "nextjs", "monorepo", "single"].includes(k),
@@ -68,10 +74,17 @@ export function resolveI18nParams(
   }
 
   if (addons) {
-    const anyAddons = addons as Record<string, any>;
+    const anyAddons = addons as Record<string, { inUse?: boolean } | boolean>;
+    const tanstackEntry = anyAddons["tanstack-start"];
+    const nextEntry = anyAddons["nextjs"];
     const tanstackInUse =
-      anyAddons["tanstack-start"]?.inUse === true || anyAddons["tanstack-start"] === true;
-    const nextInUse = anyAddons["nextjs"]?.inUse === true || anyAddons["nextjs"] === true;
+      (typeof tanstackEntry === "object" && tanstackEntry !== null
+        ? (tanstackEntry as { inUse?: boolean }).inUse === true
+        : false) || tanstackEntry === true;
+    const nextInUse =
+      (typeof nextEntry === "object" && nextEntry !== null
+        ? (nextEntry as { inUse?: boolean }).inUse === true
+        : false) || nextEntry === true;
     const frameworkExplicitInArgs = allArgs.some(
       (arg) => typeof arg === "string" && isFrameworkName(arg),
     );
@@ -79,8 +92,8 @@ export function resolveI18nParams(
       (arg) =>
         arg &&
         typeof arg === "object" &&
-        (arg as any).framework &&
-        isFrameworkName((arg as any).framework),
+        (arg as Record<string, unknown>).framework &&
+        isFrameworkName((arg as Record<string, unknown>).framework as string),
     );
     if (!frameworkExplicitInArgs && !frameworkExplicitInObj) {
       if (tanstackInUse) framework = "tanstack-start";

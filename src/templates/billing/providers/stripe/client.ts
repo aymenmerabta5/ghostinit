@@ -52,5 +52,8 @@ export function getStripeClient(secretKey: string): Stripe {
       "STRIPE_SECRET_KEY is not configured - set STRIPE_SECRET_KEY env var server-only",
     );
   }
-  return new Stripe(secretKey, { apiVersion: STRIPE_API_VERSION as any });
+  // vendor untyped: Stripe apiVersion literal requires string assert, SDK type is string union
+  return new Stripe(secretKey, {
+    apiVersion: STRIPE_API_VERSION as unknown as Stripe.StripeConfig["apiVersion"],
+  });
 }

@@ -64,6 +64,16 @@ export function getLayerFromFilePath(p: string): LayerInfo | null {
   }
 
   if (
+    file.includes("apps/mobile/src/") ||
+    file.includes("apps/mobile/app/") ||
+    file.includes("apps/mobile/") ||
+    file.includes("/apps/mobile/") ||
+    file.startsWith("apps/mobile")
+  ) {
+    return { level: 1, name: "UI" };
+  }
+
+  if (
     file.includes("apps/web/src/routes") ||
     file.includes("apps/web/src/components") ||
     file.includes("apps/web/") ||

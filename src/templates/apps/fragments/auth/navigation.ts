@@ -3,7 +3,7 @@ export type { RouterType } from "./imports.js";
 
 export function signInNavigateLogic(router: RouterType): string {
   if (router === "tanstack") {
-    return `      if ('twoFactorRedirect' in result.data && (result.data as any).twoFactorRedirect) {
+    return `      if ('twoFactorRedirect' in result.data && (result.data as unknown as { twoFactorRedirect?: boolean }).twoFactorRedirect) {
         void navigate({ to: '/2fa' })
         return
       }

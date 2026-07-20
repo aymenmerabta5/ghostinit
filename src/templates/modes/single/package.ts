@@ -175,3 +175,13 @@ export function singlePackageJsonTanstack(
     },
   });
 }
+
+export function singlePackageJsonExpo(
+  projectName: string,
+  runtime: "node" | "bun",
+  selectedBilling: BillingProviderName[],
+  hasEve: boolean,
+  hasI18n: boolean,
+): string {
+  return singlePackageJson(projectName, runtime, selectedBilling, hasEve, hasI18n);
+}

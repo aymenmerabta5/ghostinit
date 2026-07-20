@@ -64,7 +64,7 @@ export function extractDistinctId(opts: {
   if (opts.userId) return opts.userId;
   if (opts.anonymousId) return opts.anonymousId;
   try {
-    const cookieStore = opts.cookies as any;
+    const cookieStore = opts.cookies as { get?: (name: string) => { value: string } | undefined } & (Map<string, string> | Record<string, unknown>);
     if (cookieStore) {
       if (typeof cookieStore.get === "function") {
         const v = cookieStore.get("posthog_distinct_id")?.value ?? cookieStore.get("distinct_id")?.value;
@@ -101,7 +101,7 @@ export function maskPII<T extends Record<string, unknown>>(props: T): T {
   for (const key of Object.keys(masked)) {
     if (piiKeys.some((pii) => key.toLowerCase().includes(pii))) {
       const v = masked[key];
-      if (typeof v === "string") (masked as any)[key] = "***";
+      if (typeof v === "string") (masked as Record<string, unknown>)[key] = "***";
     }
   }
   return masked;

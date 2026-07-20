@@ -30,11 +30,13 @@ export function isFrameworkEntryPoint(file: string): boolean {
   const normalized = file.replace(/\\/g, "/");
   return (
     normalized.includes("__root.tsx") ||
+    normalized.includes("_layout.tsx") ||
     normalized.endsWith("/router.tsx") ||
     normalized.endsWith("router.tsx") ||
     normalized.includes("/router.tsx") ||
     normalized === "router.tsx" ||
-    normalized.endsWith("/__root.tsx")
+    normalized.endsWith("/__root.tsx") ||
+    normalized.endsWith("/_layout.tsx")
   );
 }
 

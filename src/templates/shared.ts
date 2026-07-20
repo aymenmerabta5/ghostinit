@@ -160,6 +160,7 @@ export function packageJson(opts: {
   private?: boolean;
   packageManager?: string;
   workspaces?: string[];
+  main?: string;
   scripts: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -172,6 +173,7 @@ export function packageJson(opts: {
   };
   if (opts.private) obj.private = true;
   if (opts.type) obj.type = opts.type;
+  if (opts.main) obj.main = opts.main;
   if (opts.packageManager) obj.packageManager = opts.packageManager;
   if (opts.workspaces) obj.workspaces = opts.workspaces;
   obj.scripts = opts.scripts;

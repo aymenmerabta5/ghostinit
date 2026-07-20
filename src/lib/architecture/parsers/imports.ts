@@ -1,51 +1,61 @@
 /**
  * Import/directive extraction via oxc-parser.
  * Single responsibility: parse TS/JS source into imports + directives.
- *
- * Handles:
- * - static ImportDeclaration / ExportAll/Named with source
- * - dynamic import('pkg') via CallExpression[callee.type=Import] and ImportExpression
- * - require('pkg') via CallExpression[callee=Identifier(require)]
- *
- * Limitations (by design, keep simple):
- * - Only literal string arguments are tracked; dynamic/template imports like import(`./${x}`) are ignored
- * - require with non-literal or destructured is ignored (can't statically resolve)
- * - oxc-parser version pinned in packages/versions to avoid breaking changes in AST shape
  */
 
 import { parseSync } from "oxc-parser";
 import type { ParsedFile } from "../types.js";
 
+type LiteralNode = { type: string; value: unknown };
+type SourceNode = { value: unknown };
+type ImportDeclLike = { type: string; source?: SourceNode };
+type CalleeNode = { type?: string; name?: string };
+type ArgNode = { type: string; value?: unknown };
+type CallExprLike = { type: string; callee?: CalleeNode; arguments?: ArgNode[] };
+type ImportExprLike = { type: string; source?: LiteralNode };
+type ExprStmtLike = { type: string; expression: { type: string; value?: unknown } };
+type ProgramLike = { body: unknown[] };
+type ParseResultLike = { program: ProgramLike };
+
+function getStringValue(node: unknown): string | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const n = node as { type?: string; source?: { value?: unknown } };
+  const src = n.source;
+  if (src && typeof src.value === "string") return src.value;
+  return undefined;
+}
+
 export function parseFile(source: string, ext: string): ParsedFile {
   const imports = new Set<string>();
   const directives = new Set<string>();
   const lang = ext.endsWith("x") ? (ext.endsWith("jsx") ? "jsx" : "tsx") : undefined;
-  const result = parseSync("source" + ext, source, { sourceType: "module", lang });
+  const result = parseSync("source" + ext, source, {
+    sourceType: "module",
+    lang,
+  }) as unknown as ParseResultLike;
 
-  // Top-level directive + static import collection (fast path)
   for (const stmt of result.program.body) {
+    const s = stmt as unknown as ExprStmtLike & ImportDeclLike;
     if (
-      stmt.type === "ExpressionStatement" &&
-      stmt.expression.type === "Literal" &&
-      typeof stmt.expression.value === "string" &&
-      (stmt.expression.value === "use client" || stmt.expression.value === "use server")
+      s.type === "ExpressionStatement" &&
+      s.expression?.type === "Literal" &&
+      typeof s.expression.value === "string" &&
+      (s.expression.value === "use client" || s.expression.value === "use server")
     ) {
-      directives.add(stmt.expression.value);
+      directives.add(s.expression.value);
     }
-    if (stmt.type === "ImportDeclaration" && typeof (stmt as any).source?.value === "string") {
-      imports.add((stmt as any).source.value);
+    if (s.type === "ImportDeclaration") {
+      const val = getStringValue(s);
+      if (val) imports.add(val);
     }
-    if (stmt.type === "ExportAllDeclaration" || stmt.type === "ExportNamedDeclaration") {
-      if ((stmt as any).source && typeof (stmt as any).source.value === "string") {
-        imports.add((stmt as any).source.value);
-      }
+    if (s.type === "ExportAllDeclaration" || s.type === "ExportNamedDeclaration") {
+      const val = getStringValue(s);
+      if (val) imports.add(val);
     }
   }
 
-  // Recursive walk for dynamic import() and require()
-  // oxc-parser may emit ImportExpression or CallExpression with callee.type === "Import"
-  const stack: any[] = [result.program];
-  const seen = new Set<any>();
+  const stack: unknown[] = [result.program];
+  const seen = new Set<unknown>();
   while (stack.length > 0) {
     const node = stack.pop();
     if (!node || typeof node !== "object") continue;
@@ -57,22 +67,18 @@ export function parseFile(source: string, ext: string): ParsedFile {
       continue;
     }
 
-    const t = node.type as string | undefined;
+    const t = (node as { type?: string }).type;
 
     if (t === "CallExpression") {
-      const callee = (node as any).callee;
-      const args = (node as any).arguments as any[] | undefined;
-
-      // require('pkg')
+      const ce = node as CallExprLike;
+      const callee = ce.callee;
+      const args = ce.arguments;
       if (callee?.type === "Identifier" && callee.name === "require" && args && args[0]) {
         const first = args[0];
         if (first.type === "Literal" && typeof first.value === "string") {
           imports.add(first.value);
         }
-        // allow require("pkg") inside nested expressions
       }
-
-      // dynamic import('pkg') — oxc often models as CallExpression with callee.type === "Import"
       if (callee?.type === "Import" && args && args[0]) {
         const first = args[0];
         if (first.type === "Literal" && typeof first.value === "string") {
@@ -82,17 +88,16 @@ export function parseFile(source: string, ext: string): ParsedFile {
     }
 
     if (t === "ImportExpression") {
-      const src = (node as any).source;
+      const ie = node as ImportExprLike;
+      const src = ie.source;
       if (src?.type === "Literal" && typeof src.value === "string") {
         imports.add(src.value);
       }
-      // ImportExpression with options second arg ignored
     }
 
-    // Push child nodes onto stack for traversal
-    for (const key of Object.keys(node)) {
+    for (const key of Object.keys(node as Record<string, unknown>)) {
       if (key === "range" || key === "loc" || key === "start" || key === "end") continue;
-      const child = (node as any)[key];
+      const child = (node as Record<string, unknown>)[key];
       if (child && typeof child === "object") {
         stack.push(child);
       }

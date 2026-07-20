@@ -1,8 +1,17 @@
 import { type TemplateFile } from "../../shared.js";
 import type { ProjectConfig } from "../../../lib/config.js";
 import type { RootSecrets } from "../../root.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../../lib/addons.js";
-import { buildAddonInstallerMap } from "../../../lib/addons.js";
+import {
+  type AddonInstallerMap,
+  type BillingProviderName,
+  type AppName,
+  type ProjectMode,
+  type DatabaseProvider,
+  type FrameworkName,
+  type FeatureName,
+  buildAddonInstallerMap,
+  hasAddon,
+} from "../../../lib/addons.js";
 import { buildSecrets, selectedBillingFromAddons } from "./config.js";
 import {
   updatedAgentsMd,
@@ -12,10 +21,13 @@ import {
 } from "./fragments/docs.js";
 import { buildNextFiles } from "./composers/next.js";
 import { buildTanstackFiles } from "./composers/tanstack.js";
+import { buildExpoFiles } from "./composers/expo.js";
 
 export interface SingleContext {
   dryRun?: boolean;
 }
+
+type Runtime = "node" | "bun";
 
 export function singleFiles(
   config: ProjectConfig,
@@ -23,35 +35,47 @@ export function singleFiles(
   ctx: SingleContext = { dryRun: false },
   addons?: AddonInstallerMap,
 ): TemplateFile[] {
-  const runtime = (config.runtime ?? "bun") as "node" | "bun";
-  const mode = (config.mode ?? "single") as "monorepo" | "single";
+  const runtime = (config.runtime ?? "bun") as Runtime;
+  const mode = (config.mode ?? "single") as ProjectMode;
   const addonMap: AddonInstallerMap =
-    (addons as AddonInstallerMap) ??
+    addons ??
     buildAddonInstallerMap({
-      billing: (config.billing ?? []) as any,
-      features: (config.features ?? []) as any,
-      database: (config.database ?? "postgres") as any,
-      mode: mode as any,
-      framework: (config.framework ?? "nextjs") as any,
+      billing: (config.billing ?? []) as BillingProviderName[],
+      features: (config.features ?? []) as FeatureName[],
+      database: (config.database ?? "postgres") as DatabaseProvider,
+      mode,
+      framework: (config.framework ?? "nextjs") as FrameworkName,
+      apps: (config.apps ?? ["web"]) as AppName[],
     });
 
   const hasEve = Boolean(
-    (addonMap as any).eve?.inUse ?? (config.features ?? []).includes("eve" as any),
+    hasAddon(addonMap, "eve") || (config.features ?? []).includes("eve" as FeatureName),
   );
   const hasI18n = Boolean(
-    (addonMap as any).i18n?.inUse ?? (config.features ?? []).includes("i18n" as any),
+    hasAddon(addonMap, "i18n") || (config.features ?? []).includes("i18n" as FeatureName),
   );
   const selectedBilling = selectedBillingFromAddons(addonMap);
   const effectiveBilling: BillingProviderName[] =
     selectedBilling.length > 0
       ? selectedBilling
       : ((config.billing ?? []) as BillingProviderName[]);
-  const framework =
-    (config as any).framework ??
-    ((addonMap as any)["tanstack-start"]?.inUse ? "tanstack-start" : "nextjs");
 
-  const files =
-    framework === "tanstack-start"
+  const effectiveApps: string[] = ((): string[] => {
+    const cfgApps = config.apps as string[] | undefined;
+    if (cfgApps && cfgApps.length > 0) return cfgApps;
+    if (hasAddon(addonMap, "mobile")) return ["mobile"];
+    return ["web"];
+  })();
+
+  const cfgFramework = config.framework as FrameworkName | undefined;
+  const framework = (cfgFramework ??
+    (hasAddon(addonMap, "tanstack-start") ? "tanstack-start" : "nextjs")) as FrameworkName;
+
+  const isMobileOnly = effectiveApps.includes("mobile") && !effectiveApps.includes("web");
+
+  const files = isMobileOnly
+    ? buildExpoFiles(config.name, runtime, effectiveBilling, hasEve, hasI18n, secrets, addonMap)
+    : framework === "tanstack-start"
       ? buildTanstackFiles(
           config.name,
           runtime,

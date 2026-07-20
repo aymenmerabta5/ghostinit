@@ -215,9 +215,9 @@ export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefine
   useEffect(() => {
     if (!ctx.client) return;
     try {
-      const v = (ctx.client as any).getFeatureFlag?.(key);
+      const v = (ctx.client as unknown as { getFeatureFlag?: (k: string) => string | boolean | undefined }).getFeatureFlag?.(key);
       setValue(v);
-      const unsub = (ctx.client as any).onFeatureFlags?.((flags: Record<string, string | boolean>) => setValue(flags[key]));
+      const unsub = (ctx.client as unknown as { onFeatureFlags?: (cb: (flags: Record<string, string | boolean>) => void) => () => void }).onFeatureFlags?.((flags: Record<string, string | boolean>) => setValue(flags[key]));
       return () => {
         try {
           unsub?.();
@@ -240,7 +240,7 @@ export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | und
   useEffect(() => {
     if (!ctx.client) return;
     try {
-      const p = (ctx.client as any).getFeatureFlagPayload?.(key) as T | undefined;
+      const p = (ctx.client as unknown as { getFeatureFlagPayload?: (k: string) => T | undefined }).getFeatureFlagPayload?.(key) as T | undefined;
       setPayload(p);
     } catch {}
   }, [ctx.client, key]);
@@ -250,7 +250,7 @@ export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | und
 function subscribe(cb: () => void) {
   if (typeof window === "undefined") return () => {};
   try {
-    const ph = (window as any).posthog;
+    const ph = (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog;
     if (!ph?.onFeatureFlags) return () => {};
     const unsub = ph.onFeatureFlags(cb);
     return () => {
@@ -264,7 +264,7 @@ function subscribe(cb: () => void) {
 }
 function getSnap(): Record<string, string | boolean> {
   try {
-    return (window as any).posthog?.getFeatureFlags?.() ?? {};
+    return (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog?.getFeatureFlags?.() ?? {};
   } catch {
     return {};
   }

@@ -76,11 +76,20 @@ export function resolveStripeStatusFilter(
   return mapDomainStatusToStripe(inputStatus as SubscriptionStatus | "all");
 }
 
+type StripeSubscriptionWithLegacy = Stripe.Subscription & {
+  items?: { data?: Stripe.SubscriptionItem[] };
+  current_period_end?: number;
+  trial_end?: number;
+  created?: number;
+};
+
 export function mapStripeSubscriptionToDomain(
   sub: Stripe.Subscription,
   fallbackUserId?: string,
 ): Subscription {
-  const items = (sub as any).items?.data as Stripe.SubscriptionItem[] | undefined;
+  // vendor untyped: Stripe Subscription items field optional in older types, but present at runtime
+  const legacy = sub as unknown as StripeSubscriptionWithLegacy;
+  const items = legacy.items?.data as Stripe.SubscriptionItem[] | undefined;
   const firstItem = items?.[0];
   const priceId = firstItem?.price?.id ?? null;
   const productId =
@@ -103,15 +112,13 @@ export function mapStripeSubscriptionToDomain(
     providerSubscriptionId: sub.id,
     userId: metaUserId,
     status: mapStripeStatusToDomain(sub.status),
-    currentPeriodEnd: (sub as any).current_period_end
-      ? new Date((sub as any).current_period_end * 1000)
-      : null,
-    trialEnd: (sub as any).trial_end ? new Date((sub as any).trial_end * 1000) : null,
+    currentPeriodEnd: legacy.current_period_end ? new Date(legacy.current_period_end * 1000) : null,
+    trialEnd: legacy.trial_end ? new Date(legacy.trial_end * 1000) : null,
     priceId,
     productId,
     metadata: sub.metadata as Record<string, unknown> | null,
     customerId,
-    createdAt: (sub as any).created ? new Date((sub as any).created * 1000) : undefined,
+    createdAt: legacy.created ? new Date(legacy.created * 1000) : undefined,
     updatedAt: undefined,
   };
 }

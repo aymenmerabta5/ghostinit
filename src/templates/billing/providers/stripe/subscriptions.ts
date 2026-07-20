@@ -27,7 +27,8 @@ export async function listStripeSubscriptions(
 
   if (Array.isArray(input.status) && input.status.length > 1) {
     const wanted = new Set(input.status);
-    if (!wanted.has("all" as any)) {
+    // vendor untyped: SubscriptionStatus union doesn't include "all" but input may
+    if (!wanted.has("all" as unknown as typeof input.status extends (infer U)[] ? U : never)) {
       subs = subs.filter((s: Subscription) => wanted.has(s.status));
     }
   }

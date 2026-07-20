@@ -1,5 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
-import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
+import { type BillingProviderName, type AddonInstallerMap } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
@@ -156,17 +156,25 @@ export function buildNextFiles(
 
   files.push(
     ...(servicesFiles(
-      { mode: "single", runtime: runtime as any, addons: addonMap } as any,
-      runtime as any,
+      { mode: "single", runtime, addons: addonMap } as {
+        mode: "single";
+        runtime: "node" | "bun";
+        addons: typeof addonMap;
+      },
+      runtime,
     ) as TemplateFile[]),
   );
 
   const billingArg =
     effectiveBilling.length > 0
-      ? ({ mode: "single" as const, runtime: runtime as any, addons: addonMap } as any)
+      ? ({ mode: "single" as const, runtime, addons: addonMap } as {
+          mode: "single";
+          runtime: "node" | "bun";
+          addons: typeof addonMap;
+        })
       : ({
           mode: "single" as const,
-          runtime: runtime as any,
+          runtime,
           addons: {
             stripe: { inUse: false },
             chargily: { inUse: false },
@@ -176,19 +184,22 @@ export function buildNextFiles(
           } as never,
         } as never);
 
-  files.push(...(billingFiles(billingArg, runtime as any) as TemplateFile[]));
+  files.push(...(billingFiles(billingArg, runtime) as TemplateFile[]));
   files.push(
     ...(emailFiles(
-      { mode: "single", runtime: runtime as any } as any,
-      runtime as any,
+      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      runtime,
     ) as TemplateFile[]),
   );
   files.push(
-    ...(analyticsFiles({ mode: "single", runtime } as any, runtime as any) as TemplateFile[]),
+    ...(analyticsFiles(
+      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      runtime,
+    ) as TemplateFile[]),
   );
 
   if (hasEve) {
-    const eveRaw = genEveFiles(projectName, runtime as any);
+    const eveRaw = genEveFiles(projectName, runtime);
     const eveMapped = eveRaw.map((f) => ({
       path: f.path.replace(/^apps\/eve\//, "agent/"),
       content: f.content,

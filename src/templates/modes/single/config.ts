@@ -3,9 +3,13 @@ import {
   filteredEnvExample as unifiedFilteredEnvExample,
   filteredEnvLocal as unifiedFilteredEnvLocal,
 } from "../../shared/env.js";
-import { billingProviders } from "../../../lib/addons.js";
+import {
+  billingProviders,
+  hasAddon,
+  type AddonInstallerMap,
+  type BillingProviderName,
+} from "../../../lib/addons.js";
 import type { RootSecrets } from "../../root.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../../lib/addons.js";
 
 export interface SingleSecrets extends RootSecrets {}
 export interface SingleContext {
@@ -63,7 +67,7 @@ export function selectedBillingFromAddons(
   if (!addons) return [];
   const sel: BillingProviderName[] = [];
   for (const p of billingProviders) {
-    if ((addons as any)[p]?.inUse) sel.push(p as BillingProviderName);
+    if (hasAddon(addons as AddonInstallerMap, p)) sel.push(p as BillingProviderName);
   }
   return sel;
 }

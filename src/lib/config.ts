@@ -9,6 +9,7 @@ import {
   availableFeatures,
   availableDatabases,
   availableFrameworks,
+  availableApps,
 } from "./addons.js";
 
 export const projectConfigSchema = z.object({
@@ -27,6 +28,7 @@ export const projectConfigSchema = z.object({
   features: z.array(z.enum(availableFeatures)).default([]),
   database: z.enum(availableDatabases).default("postgres"),
   framework: z.enum(availableFrameworks).default("nextjs"),
+  apps: z.array(z.enum(availableApps)).default(["web"]),
 });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;

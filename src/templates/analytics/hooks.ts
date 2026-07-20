@@ -36,7 +36,7 @@ export function useAnalytics() {
   const alias = useCallback(
     (aliasId: string) => {
       try {
-        (ctx.client as any)?.alias?.(aliasId);
+        (ctx.client as unknown as { alias?: (id: string) => void })?.alias?.(aliasId);
       } catch {}
     },
     [ctx.client],
@@ -66,9 +66,9 @@ export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefine
   useEffect(() => {
     if (!client) return;
     try {
-      const v = (client as any).getFeatureFlag?.(key);
+      const v = (client as unknown as { getFeatureFlag?: (k: string) => string | boolean | undefined }).getFeatureFlag?.(key);
       setValue(v);
-      const unsub = (client as any).onFeatureFlags?.((flags: Record<string, string | boolean>) => {
+      const unsub = (client as unknown as { onFeatureFlags?: (cb: (flags: Record<string, string | boolean>) => void) => () => void }).onFeatureFlags?.((flags: Record<string, string | boolean>) => {
         setValue(flags[key]);
       });
       return () => {
@@ -97,7 +97,7 @@ export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | und
   useEffect(() => {
     if (!client) return;
     try {
-      const p = (client as any).getFeatureFlagPayload?.(key) as T | undefined;
+      const p = (client as unknown as { getFeatureFlagPayload?: (k: string) => T | undefined }).getFeatureFlagPayload?.(key) as T | undefined;
       setPayload(p);
     } catch {}
   }, [client, key]);
@@ -108,7 +108,7 @@ export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | und
 function subscribeToFlags(cb: () => void) {
   if (typeof window === "undefined") return () => {};
   try {
-    const ph = (window as any).posthog;
+    const ph = (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog;
     if (!ph?.onFeatureFlags) return () => {};
     const unsub = ph.onFeatureFlags(cb);
     return () => {
@@ -123,7 +123,7 @@ function subscribeToFlags(cb: () => void) {
 
 function getFlagsSnapshot(): Record<string, string | boolean> {
   try {
-    const ph = typeof window !== "undefined" ? (window as any).posthog : null;
+    const ph = typeof window !== "undefined" ? (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog : null;
     return ph?.getFeatureFlags?.() ?? {};
   } catch {
     return {};

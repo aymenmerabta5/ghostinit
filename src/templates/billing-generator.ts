@@ -22,7 +22,7 @@ import {
 } from "./shared.js";
 import * as v from "./versions.js";
 import type { AddonInstallerMap, ProjectMode, FrameworkName } from "../lib/addons.js";
-import { billingProviders as allBillingProviders } from "../lib/addons.js";
+import { billingProviders as allBillingProviders, hasAddon } from "../lib/addons.js";
 
 import {
   webhookContent,
@@ -110,9 +110,9 @@ function selectedBilling(map?: AddonInstallerMap): string[] {
   if (!map) return [...allBillingProviders];
   const sel: string[] = [];
   for (const p of allBillingProviders) {
-    if ((map as Record<string, { inUse: boolean }>)[p]?.inUse) sel.push(p);
+    if (hasAddon(map, p)) sel.push(p);
   }
-  if ((map as Record<string, { inUse: boolean }>)["billing"]?.inUse && sel.length === 0) {
+  if (hasAddon(map, "billing") && sel.length === 0) {
     return [...allBillingProviders];
   }
   return sel;
@@ -122,8 +122,8 @@ function detectFramework(
   map?: AddonInstallerMap | Record<string, { inUse: boolean }>,
 ): FrameworkName {
   if (!map) return "nextjs";
-  if ((map as any)["tanstack-start"]?.inUse) return "tanstack-start";
-  if ((map as any)["nextjs"]?.inUse) return "nextjs";
+  if (hasAddon(map as AddonInstallerMap | undefined, "tanstack-start")) return "tanstack-start";
+  if (hasAddon(map as AddonInstallerMap | undefined, "nextjs")) return "nextjs";
   // Also check if map has explicit framework field? addon map doesn't, but config framework passed via map detection in modes
   // Default to nextjs for backward compat
   return "nextjs";
@@ -173,7 +173,7 @@ function shouldEmitProvider(
 ): boolean {
   if (!addonsPresent) return true;
   if (selected.length === 0) {
-    const legacy = (map as Record<string, { inUse: boolean }> | undefined)?.["billing"]?.inUse;
+    const legacy = hasAddon(map, "billing");
     return Boolean(legacy);
   }
   return selected.includes(provider);
@@ -316,7 +316,7 @@ function webhookRoutes(
   mode: ProjectMode,
 ): TemplateFile[] {
   const out: TemplateFile[] = [];
-  const framework = detectFramework(map as any);
+  const framework = detectFramework(map);
   const isMonorepo = mode === "monorepo";
   const isTanstack = framework === "tanstack-start";
 
@@ -358,10 +358,7 @@ export function billingFiles(
   const { mode, runtime, addons } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
   const selected = selectedBilling(addons);
   const addonsPresent = addons !== undefined;
-  const explicitNone =
-    addonsPresent &&
-    selected.length === 0 &&
-    !(addons as Record<string, { inUse: boolean }> | undefined)?.["billing"]?.inUse;
+  const explicitNone = addonsPresent && selected.length === 0 && !hasAddon(addons, "billing");
   if (explicitNone) {
     return billingUiFiles({ mode, addons } as never, "bun" as Runtime);
   }

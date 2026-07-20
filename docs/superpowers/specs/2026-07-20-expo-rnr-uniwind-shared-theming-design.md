@@ -9,6 +9,7 @@
 ## 1. Overview
 
 ### Problem
+
 - Current Expo app uses raw `StyleSheet.create` with hardcoded colors, no shared theming with web
 - Web uses Tailwind v4 + OKLCH tokens in `apps/web/src/app/globals.css`, but mobile has its own palette
 - Editing colors requires touching two places; no single source of truth
@@ -17,6 +18,7 @@
 - Mobile app not structured with explicit 6-layer compliance (currently all `apps/mobile/` = UI L1, but no explicit package separation)
 
 ### Goal
+
 - Expo uses **React Native Reusables (RNR) + Uniwind** (CSS-first Tailwind for RN, ~10x faster than NativeWind)
 - **One token edit → both web + mobile updated** in monorepo (`--apps web,mobile`)
 - Both web and mobile use same 6-layer architecture: UI (L1) importing shared packages (L2-L6)
@@ -32,6 +34,7 @@
 **Chosen:** Full refactor — `@repo/ui` becomes tokens-only package.
 
 **Before:**
+
 ```
 packages/ui/src/
   components/  (Button, Card, Badge, ... 15+ primitives) — web-only Radix/Base-UI
@@ -39,6 +42,7 @@ packages/ui/src/
 ```
 
 **After:**
+
 ```
 packages/ui/src/
   theme.css    — OKLCH tokens (light + dark) with @theme inline mapping
@@ -48,15 +52,18 @@ packages/ui/src/
 ```
 
 Web primitives relocation:
+
 - `apps/web/src/components/ui/` contains Button, Card, Badge, Input, Label, etc. (previously in `@repo/ui`)
 - Template `core.ts` webPackage adds local ui primitives instead of importing from `@repo/ui`
 - `@repo/ui` dependency kept for theme + cn()
 
 Mobile primitives:
+
 - `apps/mobile/src/components/ui/` contains RNR-based primitives using Uniwind className
 - Full parity: Text, Button, Card, CardHeader/Content/Footer, Input, Label, Badge, Avatar, Tabs, Dialog (future), Sheet (future)
 
 **Token single-source mechanism:**
+
 - `packages/ui/src/theme.css` contains all OKLCH variables + `@theme inline` → Tailwind v4 magic
 - Web: `apps/web/src/app/globals.css` does `@import "@repo/ui/theme.css";` + `@import "tailwindcss";`
 - Mobile: `apps/mobile/global.css` (new file) contains `@import "tailwindcss"; @import "@repo/ui/theme.css"; @source` entries for Expo files + RNR component discovery, plus `@custom-variant dark`
@@ -71,8 +78,8 @@ Editing `packages/ui/src/theme.css` updates both.
 
 ```ts
 export const uniwind = {
-  uniwind: "0.5.x",          // research latest
-  tailwindcss: "4.3.2",      // already in catalog
+  uniwind: "0.5.x", // research latest
+  tailwindcss: "4.3.2", // already in catalog
   "tailwind-merge": "3.6.0", // already exists via ui.billing
   clsx: "2.1.1",
   "class-variance-authority": "0.7.1", // already via ui
@@ -88,6 +95,7 @@ export const rnr = {
 ```
 
 Actual Expo dependencies researched from RNR+Uniwind docs:
+
 - `uniwind` (CSS runtime for RN)
 - `react-native-reanimated` (required by Uniwind + many animations)
 - `tailwind-merge`, `clsx`, `class-variance-authority` (already in catalog, reuse)
@@ -96,38 +104,38 @@ Actual Expo dependencies researched from RNR+Uniwind docs:
 **Babel/Metro config updates:**
 
 `apps/mobile/babel.config.js`:
+
 ```js
-module.exports = function(api){
+module.exports = function (api) {
   api.cache(true);
   return {
-    presets: [
-      ['uniwind/babel', { cssEntryFile: './global.css' }],
-      'babel-preset-expo'
-    ]
+    presets: [["uniwind/babel", { cssEntryFile: "./global.css" }], "babel-preset-expo"],
   };
 };
 ```
 
 `apps/mobile/metro.config.js`:
+
 ```js
-const { getDefaultConfig } = require('expo/metro-config');
-const { withUniwind } = require('uniwind/metro');
+const { getDefaultConfig } = require("expo/metro-config");
+const { withUniwind } = require("uniwind/metro");
 const config = getDefaultConfig(__dirname);
 module.exports = withUniwind(config, {
-  cssEntryFile: './global.css',
-  dtsFile: './uniwind-types.d.ts'
+  cssEntryFile: "./global.css",
+  dtsFile: "./uniwind-types.d.ts",
 });
 ```
 
 New file `apps/mobile/global.css`:
+
 ```css
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@repo/ui/theme.css";  /* single source OKLCH tokens */
+@import "@repo/ui/theme.css"; /* single source OKLCH tokens */
 @source "./app/**/*.{js,jsx,ts,tsx}";
 @source "./src/**/*.{js,jsx,ts,tsx}";
 @custom-variant dark (&:is(.dark *));
-@theme inline already in @repo/ui/theme.css
+@theme inline already in @repo/ui/theme.css;
 ```
 
 Entry: `apps/mobile/app/_layout.tsx` imports `../global.css` and `uniwind/global`.
@@ -137,6 +145,7 @@ Entry: `apps/mobile/app/_layout.tsx` imports `../global.css` and `uniwind/global
 **No `npx @react-native-reusables/cli init` at runtime** — all RNR primitive files are deterministic string templates in host.
 
 Structure:
+
 ```
 src/templates/apps/fragments/expo/
   rnr/
@@ -153,12 +162,14 @@ src/templates/apps/fragments/expo/
 ```
 
 Each RNR component template:
+
 - Uses `import { cn } from "@/lib/utils"` (new file `apps/mobile/src/lib/utils.ts`)
 - Uses Uniwind `className` prop instead of `StyleSheet.create`
 - Uses `class-variance-authority` for variant system matching web API
 - Fully typed, no `as any`
 
 Example RNR Button deterministic template:
+
 ```tsx
 import * as React from "react";
 import { Pressable } from "react-native";
@@ -171,6 +182,7 @@ const buttonVariants = cva("...tailwind classes via uniwind...", { variants: {..
 ```
 
 **Lib files:**
+
 - `apps/mobile/src/lib/utils.ts` → `cn()` using `clsx + tailwind-merge` (same as `@repo/ui` but native import path)
 - `apps/mobile/src/lib/theme.ts` → optional, re-exports or constants for JS-side theme access
 
@@ -181,6 +193,7 @@ const buttonVariants = cva("...tailwind classes via uniwind...", { variants: {..
 **New:** All pages use RNR primitives + Uniwind Tailwind classes + OKLCH via `bg-background`, `text-foreground` etc. (from shared tokens)
 
 Pages to rewrite:
+
 - `marketing.ts` → use RNR Button, Text, Card with `className="bg-primary text-primary-foreground"`
 - `auth.ts` (sign-in, sign-up, forgot, reset, 2fa) → RNR Input, Label, Button, Card, Text
 - `dashboard.ts` → Card, Button, Badge, Avatar
@@ -192,6 +205,7 @@ Zero `StyleSheet.create` for colors/borders — only for truly non-Tailwind need
 ### 2.5 6-Layer Architecture — Mobile Same as Web
 
 **Current state:**
+
 - `apps/mobile/*` → all L1 UI (correct already per layered.ts)
 - `apps/mobile/` imports `@repo/api`, `@repo/auth`, etc. = L1 → L2/L4/L6 (allowed, downward)
 
@@ -209,6 +223,7 @@ Zero `StyleSheet.create` for colors/borders — only for truly non-Tailwind need
    - Could optionally create `packages/mobile-transport/` but YAGNI — for now `src/lib/orpc.ts` inside apps/mobile is fine as L1 importing downward via @repo packages.
 
 4. **Generated project structure monorepo `web+mobile`:**
+
    ```
    apps/web/       → L1 UI (React DOM)
    apps/mobile/    → L1 UI (React Native)
@@ -239,12 +254,14 @@ Zero `StyleSheet.create` for colors/borders — only for truly non-Tailwind need
 - **Error handling:** `(error as any)?.code` → `NodeJS.ErrnoException` or typed error interface
 
 **Rules for new code (all Expo/RNR templates):**
+
 - No `any` in template string builders (host) — all helpers typed
 - Generated RNR components fully typed: explicit prop interfaces, `VariantProps` from CVA properly used
 - Auth client typing: `authClient.useSession()` return type handled via Better Auth types, not `as any`
 - User type: `session?.user` has proper type from Better Auth, not `as { name?: string }`
 
 **Implementation approach:**
+
 - Add `oxlint` rule: forbid `any` (enable `@typescript-eslint/no-explicit-any` via oxlint config)
 - Or add custom architecture rule `no-any-in-template-builders` (LOW severity initially, then escalate)
 - Replace each `any` with typed alternative, documented in PR
@@ -273,10 +290,12 @@ Current: Exports `tailwindImports`, `oklchLightTokens`, `oklchDarkTokens`, `them
 **Change:** Split tokens into `@repo/ui` theme package:
 
 New `src/templates/ui/theme.ts`:
+
 - `themeCssContent()` → the full OKLCH light+dark+@theme inline as a file content generator
 - Returns `packages/ui/src/theme.css` content
 
 Updated `css.ts`:
+
 - `globalCssContent()` for web does `@import "@repo/ui/theme.css"; @import "tailwindcss"; + baseLayer`
 - Add `mobileGlobalCssContent()` returning content for `apps/mobile/global.css` (tailwind + tw-animate-css + @repo/ui/theme.css import + @source)
 
@@ -285,6 +304,7 @@ Updated `css.ts`:
 Current split: `config.ts`, `theme.ts`, `primitives.ts`, `feedback.ts`, `forms.ts`, `layout.ts`, `overlays.ts`, `dropdown.ts`, `data.ts`, `all.ts`, `index.ts`
 
 **After:**
+
 - `theme.ts` (new content): Only `theme.css` file generator — OKLCH tokens + @theme inline (single source)
 - `config.ts`: `packages/ui/package.json` — now only exports `cn` + theme, no radix deps (or minimal)
 - `primitives.ts` REMOVED from ui package — moved to new `apps/web-ui/` or `apps/fragments/web-ui/` templates
@@ -292,11 +312,13 @@ Current split: `config.ts`, `theme.ts`, `primitives.ts`, `feedback.ts`, `forms.t
 - `all.ts`: Now only aggregates theme + config + utils + barrel (cn + theme export)
 
 **New:** `src/templates/apps/fragments/web-ui/` folder:
+
 - `primitives.ts` — web Button, Card, Badge, Input, Label (same content moved from `src/templates/ui/`)
 - Similar for other component categories
 - `index.ts` — aggregates into TemplateFile array for `apps/web/src/components/ui/*`
 
 **Updated:** `src/templates/apps/core.ts`:
+
 - `coreFiles()` now includes `webUiFiles()` — generates `apps/web/src/components/ui/*.tsx`
 - Web `package.json` no longer depends on heavy `@base-ui/react` via `@repo/ui`, instead direct dep on `@base-ui/react` in app + local ui files
 
@@ -313,6 +335,7 @@ Current split: `config.ts`, `theme.ts`, `primitives.ts`, `feedback.ts`, `forms.t
 ### 3.5 Expo UI Components — New `src/templates/apps/fragments/expo/rnr/`
 
 Folder: `rnr/`
+
 - `utils.ts` → cn() + optional theme constants reference
 - `text.tsx` → RNR Text wrapping RN Text with Uniwind variants
 - `button.tsx` → RNR Button with CVA
@@ -326,6 +349,7 @@ Folder: `rnr/`
 - `ui-components.ts` (or fold into existing `expo-components.ts`)
 
 Updated `expo-components.ts`:
+
 - Imports from `rnr/` folder for new primitives
 - Adds `utils.ts` lib file
 - Removes old placeholder hooks that used fetch directly (or keeps but typed)
@@ -333,6 +357,7 @@ Updated `expo-components.ts`:
 ### 3.6 Expo Pages — `src/templates/apps/fragments/expo/*.ts`
 
 All files rewritten:
+
 - `marketing.ts`: Use RNR Button, Card, Text, View with Tailwind classes `className="bg-background text-foreground ..."`
 - `auth.ts`: Sign-in, sign-up, forgot, reset, 2fa — use RNR Input, Label, Button, Card, Text
 - `dashboard.ts`: Card, Button, Badge, Avatar with Tailwind
@@ -351,6 +376,7 @@ All files rewritten:
 Files with most `as any` / `: any` to clean:
 
 Priority 1 (addon parsing — core templates):
+
 - `src/templates/apps/core.ts` — `(input as any)?.[feature]`
 - `src/templates/apps/expo-core.ts` — same
 - `src/templates/apps/tanstack-core.ts` — same
@@ -361,14 +387,17 @@ Priority 1 (addon parsing — core templates):
 - `src/lib/addons.ts` — parsing logic
 
 Priority 2 (analytics — PostHog):
+
 - `src/templates/analytics/*.ts` — `(window as any).posthog`, `(ctx.client as any)`, `(env as any)`
 
 Priority 3 (CLI):
+
 - `src/cli.ts` — `(error as any)?.code`
 - `src/cli/main.ts` — `(values as any).json`
 - `src/commands/create/index.ts` — `prompted.mode as any`
 
 Solution: Introduce proper typed utilities:
+
 - `src/lib/addons.ts`: `type FeatureInput` discriminated union + `isAddonInstallerMap` guard + `hasFeature(map, name: string): boolean`
 - `src/templates/shared.ts`: Typed helpers for addon map access
 - Analytics: `PostHogWindow` global interface, typed env accessor
@@ -384,6 +413,7 @@ Solution: Introduce proper typed utilities:
 ## 4. Data Flow
 
 ### Web Theming Flow
+
 ```
 packages/ui/src/theme.css (OKLCH tokens + @theme inline)
   ↑ imported by
@@ -393,6 +423,7 @@ apps/web/src/components/ui/* (web primitives using bg-background etc)
 ```
 
 ### Mobile Theming Flow
+
 ```
 packages/ui/src/theme.css (same OKLCH tokens)
   ↑ imported by
@@ -410,17 +441,17 @@ Edit `packages/ui/src/theme.css` → both apps update on next build/dev restart.
 
 ## 5. Component Design (Web/Mobile Parity)
 
-| Web (`apps/web/src/components/ui/`) | Mobile (`apps/mobile/src/components/ui/`) | Shared Props API |
-|--------------------------------------|--------------------------------------------|-----------------|
-| Button (Base UI + CVA) | Button (RNR + CVA + RN Pressable) | variant, size, className, children |
-| Card family | Card family (RNR + Uniwind) | className, children |
-| Input + Label | Input + Label (RNR TextInput) | standard RN TextInput props + label |
-| Text (single primitive) | Text (RNR) | variant (h1-h4, p, muted, small) + className |
-| Badge | Badge | variant |
-| Avatar family | Avatar family | src, fallback, size |
-| Tabs | Tabs | defaultValue, className |
-| Dialog (future) | Dialog (future) | open, onOpenChange |
-| Sheet (future) | Sheet (future) | |
+| Web (`apps/web/src/components/ui/`) | Mobile (`apps/mobile/src/components/ui/`) | Shared Props API                             |
+| ----------------------------------- | ----------------------------------------- | -------------------------------------------- |
+| Button (Base UI + CVA)              | Button (RNR + CVA + RN Pressable)         | variant, size, className, children           |
+| Card family                         | Card family (RNR + Uniwind)               | className, children                          |
+| Input + Label                       | Input + Label (RNR TextInput)             | standard RN TextInput props + label          |
+| Text (single primitive)             | Text (RNR)                                | variant (h1-h4, p, muted, small) + className |
+| Badge                               | Badge                                     | variant                                      |
+| Avatar family                       | Avatar family                             | src, fallback, size                          |
+| Tabs                                | Tabs                                      | defaultValue, className                      |
+| Dialog (future)                     | Dialog (future)                           | open, onOpenChange                           |
+| Sheet (future)                      | Sheet (future)                            |                                              |
 
 All use Tailwind className for styling, same variant names, same color tokens.
 
@@ -439,6 +470,7 @@ All use Tailwind className for styling, same variant names, same color tokens.
 ## 7. Testing Strategy
 
 ### Host Tests
+
 - `tests/unit/expo-uniwind-*.test.ts` — new unit tests for template content generation
   - Verify `mobileGlobalCssContent()` includes `@import "@repo/ui/theme.css"`
   - Verify `babelConfigContent()` includes Uniwind preset
@@ -449,6 +481,7 @@ All use Tailwind className for styling, same variant names, same color tokens.
 - `bun run check` — oxlint rule forbids `any` in `src/templates/` — new code fails if `any` introduced
 
 ### Fixture/Generated Project Tests
+
 - `tests/fixtures/compatibility/expo-uniwind/` — smoke generates `web,mobile` project, checks:
   - `apps/mobile/global.css` exists and imports `@repo/ui/theme.css`
   - `packages/ui/src/theme.css` exists with OKLCH tokens
@@ -464,6 +497,7 @@ All use Tailwind className for styling, same variant names, same color tokens.
   - Web build: `cd apps/web && next build` works (Tailwind v4 + @repo/ui/theme.css import)
 
 ### Manual QA Checklist
+
 - [ ] Create project `--apps web,mobile`, verify both apps see same primary color when editing `packages/ui/src/theme.css`
 - [ ] Change `--primary` OKLCH value, restart dev for both, verify both apps update
 - [ ] Expo Go: QR scan, verify RNR Button, Card render with correct theme colors
@@ -476,16 +510,16 @@ All use Tailwind className for styling, same variant names, same color tokens.
 
 ## 8. Open Questions Resolved
 
-| Question | Resolution |
-|----------|-----------|
-| Theme single source | `@repo/ui/src/theme.css` — web and mobile both `@import` it |
-| @repo/ui refactor breaking? | Approved — full refactor to tokens-only, web primitives move to apps/web/src/components/ui |
-| RNR component sourcing | Deterministic templates in host, no runtime CLI |
-| RNR component scope | Full parity with web primitives |
-| 6-layer mobile | Stays L1 UI, already correct in checker, shares same L2-L6 packages |
-| Any removal | Remove all unnecessary any, keep only where truly dynamic (vendor SDK untyped returns etc). Typed wrappers + type guards |
-| Expo pages StyleSheet | Full rewrite to RNR + Uniwind className |
-| Babel preset order | Uniwind before expo, documented |
+| Question                    | Resolution                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Theme single source         | `@repo/ui/src/theme.css` — web and mobile both `@import` it                                                              |
+| @repo/ui refactor breaking? | Approved — full refactor to tokens-only, web primitives move to apps/web/src/components/ui                               |
+| RNR component sourcing      | Deterministic templates in host, no runtime CLI                                                                          |
+| RNR component scope         | Full parity with web primitives                                                                                          |
+| 6-layer mobile              | Stays L1 UI, already correct in checker, shares same L2-L6 packages                                                      |
+| Any removal                 | Remove all unnecessary any, keep only where truly dynamic (vendor SDK untyped returns etc). Typed wrappers + type guards |
+| Expo pages StyleSheet       | Full rewrite to RNR + Uniwind className                                                                                  |
+| Babel preset order          | Uniwind before expo, documented                                                                                          |
 
 ---
 
@@ -497,7 +531,7 @@ All use Tailwind className for styling, same variant names, same color tokens.
    - Create `src/templates/apps/fragments/css.ts` → `mobileGlobalCssContent()`
 
 2. **Phase 1 — Web UI Local Primitives**
-   - Move all `src/templates/ui/primitives.ts` etc components to new `src/templates/apps/fragments/web-ui/` 
+   - Move all `src/templates/ui/primitives.ts` etc components to new `src/templates/apps/fragments/web-ui/`
    - Update `apps/core.ts` to generate web UI locally at `apps/web/src/components/ui/*`
    - Update `apps-composer` to wire new fragments
 
@@ -540,14 +574,14 @@ All use Tailwind className for styling, same variant names, same color tokens.
 
 ## 11. Risks & Mitigations
 
-| Risk | Mitigation |
-|------|-----------|
-| Uniwind breaking Next.js Tailwind build | Separate configs: web uses `@tailwindcss/postcss`, mobile uses Uniwind; no cross-contamination via package isolation (isolated bunfig in host, hoist=true in generated but files in different apps) |
-| OKLCH tokens incompatible with RN | Uniwind supports CSS vars + OKLCH natively; validated in docs. Fallback: hex equivalents in theme.css if needed |
-| Web moving primitives to app breaks sync checker | `sync` command rebuilds deterministic files — new location still deterministic; update sync manifest |
-| `any` removal breaks typed helper inference for template addons | Introduce proper `FeatureInput` discriminator already exists in most files — tighten; add overloads if needed |
-| RNR component API drift from shadcn/web | Maintain variant name parity table; use same CVA configuration values |
-| Generated Expo app Metro breaks with withUniwind | Pin Uniwind to known working version; add smoke test exporting web bundle |
+| Risk                                                            | Mitigation                                                                                                                                                                                          |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Uniwind breaking Next.js Tailwind build                         | Separate configs: web uses `@tailwindcss/postcss`, mobile uses Uniwind; no cross-contamination via package isolation (isolated bunfig in host, hoist=true in generated but files in different apps) |
+| OKLCH tokens incompatible with RN                               | Uniwind supports CSS vars + OKLCH natively; validated in docs. Fallback: hex equivalents in theme.css if needed                                                                                     |
+| Web moving primitives to app breaks sync checker                | `sync` command rebuilds deterministic files — new location still deterministic; update sync manifest                                                                                                |
+| `any` removal breaks typed helper inference for template addons | Introduce proper `FeatureInput` discriminator already exists in most files — tighten; add overloads if needed                                                                                       |
+| RNR component API drift from shadcn/web                         | Maintain variant name parity table; use same CVA configuration values                                                                                                                               |
+| Generated Expo app Metro breaks with withUniwind                | Pin Uniwind to known working version; add smoke test exporting web bundle                                                                                                                           |
 
 ---
 
@@ -580,5 +614,6 @@ All use Tailwind className for styling, same variant names, same color tokens.
 - RNR components source: GitHub `foundations-labs/react-native-reusables` (study Button, Text, Card implementations with CVA + className)
 
 Sources:
+
 - [RNR Docs - Uniwind Installation](https://rnr-docs.vercel.app/getting-started/uniwind/)
 - [Uniwind Docs - Getting Started](https://uniwind.dev/getting-started)

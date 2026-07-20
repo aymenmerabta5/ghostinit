@@ -47,8 +47,8 @@ export function isAnalyticsEnabled(): boolean {
   try {
     const parsed = configSchema.safeParse(env as unknown as Record<string, unknown>);
     if (!parsed.success) return false;
-    const e = parsed.data as any;
-    const rawEnv = env as any;
+    const e = parsed.data as Record<string, string | undefined>;
+    const rawEnv = env as Record<string, string | undefined>;
     const disabledFlag =
       e.ANALYTICS_DISABLED ??
       e.NEXT_PUBLIC_ANALYTICS_DISABLED ??
@@ -65,7 +65,7 @@ export function isAnalyticsEnabled(): boolean {
 }
 
 export function getAnalyticsConfig(): AnalyticsConfig {
-  const e = env as any;
+  const e = env as Record<string, string | undefined>;
   const rawHost =
     e.NEXT_PUBLIC_POSTHOG_HOST ??
     e.POSTHOG_HOST ??

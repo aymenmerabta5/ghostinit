@@ -144,7 +144,7 @@ export function resetConsent(): void {
 function trySyncPostHogConsent(state: ConsentState): void {
   if (typeof window === "undefined") return;
   try {
-    const w = window as any;
+    const w = window as unknown as { posthog?: { opt_in_capturing?: () => void; opt_out_capturing?: () => void } };
     const ph = w.posthog;
     if (!ph) return;
     if (state.categories.analytics) {

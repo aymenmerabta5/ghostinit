@@ -9,7 +9,7 @@ export function clientPosthogClientContent(mode: ProjectMode): string {
     mode === "monorepo" ? 'import { hasConsent } from "../shared/consent.js";\n' : "";
   return `"use client";
 
-import posthog, { type PostHog } from "posthog-js";
+import posthog, { type PostHog, type PostHogConfig } from "posthog-js";
 ${envImport}${consentImport}
 let clientInstance: PostHog | null = null;
 let initPromise: Promise<PostHog | null> | null = null;
@@ -59,12 +59,12 @@ export async function initPostHogClient(options?: {
         autocapture: cfg.autocapture,
         capture_pageview: cfg.capturePageview,
         capture_pageleave: cfg.capturePageleave,
-        persistence: cfg.persistence as any,
-        person_profiles: cfg.personProfiles as any,
+        persistence: cfg.persistence as PostHogConfig["persistence"],
+        person_profiles: cfg.personProfiles as PostHogConfig["person_profiles"],
         loaded: (ph) => {
           if (!canUseWindow()) return;
           try {
-            (window as any).posthog = ph;
+            (window as unknown as { posthog?: PostHog }).posthog = ph;
             if (!hasConsent("analytics")) ph.opt_out_capturing();
           } catch {}
         },

@@ -7,7 +7,7 @@
 export function tanstackGetSessionFnContent(): string {
   return `const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
   const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as any).api.getSession({ headers })
+  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<unknown> } }).api.getSession({ headers })
   return session ?? null
 })`;
 }

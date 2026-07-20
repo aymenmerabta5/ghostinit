@@ -5,10 +5,10 @@ function envAccessSnippet(mode: ProjectMode): string {
     ? `import { env } from "@repo/config";
 
 function getPostHogHost(): string {
-  return (env as any).POSTHOG_HOST ?? (env as any).NEXT_PUBLIC_POSTHOG_HOST ?? (env as any).POSTHOG_API_HOST ?? (env as any).POSTHOG_HOST;
+  return (env as Record<string, string | undefined>).POSTHOG_HOST ?? (env as Record<string, string | undefined>).NEXT_PUBLIC_POSTHOG_HOST ?? (env as Record<string, string | undefined>).POSTHOG_API_HOST ?? (env as Record<string, string | undefined>).POSTHOG_HOST ?? "";
 }
 function getPostHogKey(): string {
-  return (env as any).POSTHOG_KEY ?? (env as any).NEXT_PUBLIC_POSTHOG_KEY ?? (env as any).POSTHOG_KEY;
+  return (env as Record<string, string | undefined>).POSTHOG_KEY ?? (env as Record<string, string | undefined>).NEXT_PUBLIC_POSTHOG_KEY ?? (env as Record<string, string | undefined>).POSTHOG_KEY ?? "";
 }`
     : `function getPostHogHost(): string {
   return process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST ?? process.env.POSTHOG_API_HOST ?? process.env.POSTHOG_HOST;
@@ -130,7 +130,7 @@ async function proxyRequest(request: NextRequest, extraPath?: string): Promise<N
       if (v) headers[h] = v;
     }
 
-    const originalIp = request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? (request as any).ip;
+    const originalIp = request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? (request as unknown as { ip?: string }).ip;
     if (originalIp && !headers["x-forwarded-for"]) {
       headers["x-forwarded-for"] = originalIp;
     }

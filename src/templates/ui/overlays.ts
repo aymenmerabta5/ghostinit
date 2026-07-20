@@ -231,7 +231,7 @@ export const BreadcrumbLink = React.forwardRef<HTMLAnchorElement, React.AnchorHT
     const Comp = asChild ? "span" : "a";
     return (
       <Comp
-        ref={ref as any}
+        ref={ref as unknown as React.Ref<HTMLAnchorElement>}
         data-slot="breadcrumb-link"
         className={cn("transition-colors hover:text-foreground", className)}
         {...props}

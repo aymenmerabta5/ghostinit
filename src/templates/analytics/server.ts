@@ -194,7 +194,7 @@ export async function getFeatureFlagPayload(key: string, distinctId: string, opt
     return await client.getFeatureFlagPayload(key, distinctId, undefined, {
       groups: options?.groups,
       personProperties: options?.personProperties,
-    } as any);
+    } as unknown as { groups?: Record<string, string>; personProperties?: Record<string, string> });
   } catch (err) {
     console.warn("[analytics:server] getFeatureFlagPayload failed", { key, err });
     return undefined;
@@ -209,7 +209,7 @@ export async function flush(): Promise<void> {
   const client = getPostHogServer();
   if (!client) return;
   try {
-    await (client as any).flush?.();
+    await (client as unknown as { flush?: () => Promise<void> }).flush?.();
   } catch {}
 }
 

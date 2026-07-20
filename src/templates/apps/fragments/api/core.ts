@@ -5,13 +5,13 @@ export const billingHelperCode = `function selectedBillingFromAddons(map?: Addon
   if (!map) return [];
   if (Array.isArray(map)) return map as BillingProviderName[];
   const sel: BillingProviderName[] = [];
-  for (const p of billingProviders) { if ((map as any)[p]?.inUse) sel.push(p as BillingProviderName); }
-  if ((map as any).billing?.inUse && sel.length === 0) return [...billingProviders] as BillingProviderName[];
+  for (const p of billingProviders) { if ((map as Record<string, { inUse?: boolean }>)[p]?.inUse) sel.push(p as BillingProviderName); }
+  if ((map as Record<string, { inUse?: boolean }>).billing?.inUse && sel.length === 0) return [...billingProviders] as BillingProviderName[];
   return sel;
 }
 function shouldEmitProvider(provider: BillingProviderName, selected: BillingProviderName[], addonsPresent: boolean, map?: AddonInstallerMap | Record<string, { inUse: boolean }>): boolean {
   if (!addonsPresent) return false;
-  if (selected.length === 0) { const legacy = (map as any)?.billing?.inUse; return Boolean(legacy); }
+  if (selected.length === 0) { const legacy = (map as Record<string, { inUse?: boolean }>)?.billing?.inUse; return Boolean(legacy); }
   return selected.includes(provider);
 }`;
 
@@ -28,7 +28,7 @@ import { auth } from '@repo/auth'
 const allowed = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 async function handle(request: Request): Promise<Response> {
   if (!allowed.has(request.method)) return new Response('Method not allowed', { status: 405 })
-  return (auth as any).handler(request)
+  return (auth as unknown as { handler: (req: Request) => Promise<Response> }).handler(request)
 }
 export const Route = createFileRoute('/api/auth/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
 `;

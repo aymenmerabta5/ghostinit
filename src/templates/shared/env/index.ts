@@ -12,7 +12,9 @@ export {
   filteredEnvExample,
   filteredEnvLocal,
 } from "./builders.js";
-export const Placeholders = { BETTER_AUTH_SECRET: "REPLACE_WITH_BETTER_AUTH_SECRET" } as any;
+export const Placeholders: Record<string, string> = {
+  BETTER_AUTH_SECRET: "REPLACE_WITH_BETTER_AUTH_SECRET",
+};
 import { ENV_PLACEHOLDERS } from "../../../lib/constants.js";
 export { ENV_PLACEHOLDERS };
 export const PlaceholdersCompat = ENV_PLACEHOLDERS;

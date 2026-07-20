@@ -1,23 +1,18 @@
 // Default GhostInit project template.
-// Manifest is single source of truth for generated v0.1 monorepo.
-// No timestamps or machine paths; CLI injects those into external state files only.
-// When mode = monorepo delegates to monorepoFiles assembler in modes/monorepo.ts
-// which implements 12+ groups: rootFiles packageFiles databasePackage startDatabaseFiles
-// authPackage with Resend hook apiPackage uiPackage modulesPackage appsFiles with withEve hybrid
-// if eve feature toolingFiles agenticFiles eveFiles conditional if eve billingFiles conditional
-// if billing not none emailFiles default resend servicesFiles oRPC contract-first webhooks via Next routes i18nFiles conditional.
-// oRPC contract-first — webhooks via Next.js routes raw Buffer, single port 3000.
-// Workspaces apps-star packages-star tooling-star cover packages-services billing email via packages-star glob.
-// Env example conditional billing keys RESEND POLAR PADDLE STRIPE CHARGILY only if chosen else placeholder comment.
-// Import alias at always at-slash-star -> dot-slash-src-star + at-repo-star -> packages-star-src via typescript-config paths.
-// AGENTS.md updated with billing flexible + services + layered 6 layers + oRPC contract-first + dual modes.
-// Bun only.
 
 import type { ProjectConfig } from "../lib/config.js";
 import type { GenerateContext, TemplateFile } from "./shared.js";
 import { secret } from "./shared.js";
 import type { RootSecrets } from "./root.js";
-import { buildAddonInstallerMap } from "../lib/addons.js";
+import {
+  buildAddonInstallerMap,
+  type BillingProviderName,
+  type FeatureName,
+  type DatabaseProvider,
+  type FrameworkName,
+  type ProjectMode,
+  type AppName,
+} from "../lib/addons.js";
 import { monorepoFiles } from "./modes/monorepo.js";
 import { singleFiles } from "./modes/single.js";
 
@@ -25,11 +20,7 @@ export function generateProjectFiles(
   config: ProjectConfig,
   ctx: GenerateContext = { dryRun: false },
 ): TemplateFile[] {
-  if (ctx.dryRun) {
-    // Treat external dry-run the same as project dry-run; template code only uses ctx.
-  }
-
-  const mode = (config.mode ?? "monorepo") as "monorepo" | "single";
+  const mode = (config.mode ?? "monorepo") as ProjectMode;
 
   if (mode === "monorepo") {
     return monorepoFiles(config, undefined, { dryRun: ctx.dryRun });
@@ -54,14 +45,15 @@ export function generateProjectFiles(
   };
 
   const addonMap = buildAddonInstallerMap({
-    billing: config.billing ?? [],
-    features: config.features ?? [],
-    database: config.database ?? "postgres",
-    mode: (config.mode ?? "monorepo") as any,
-    framework: (config.framework ?? "nextjs") as any,
+    billing: (config.billing ?? []) as BillingProviderName[],
+    features: (config.features ?? []) as FeatureName[],
+    database: (config.database ?? "postgres") as DatabaseProvider,
+    mode,
+    framework: (config.framework ?? "nextjs") as FrameworkName,
+    apps: (config.apps ?? ["web"]) as AppName[],
   });
 
-  return singleFiles(config, secrets, { dryRun: ctx.dryRun } as any, addonMap as any).map((f) => ({
+  return singleFiles(config, secrets, { dryRun: ctx.dryRun }, addonMap).map((f) => ({
     path: f.path.replace(/__PROJECT_NAME__/g, config.name),
     content: f.content.replace(/__PROJECT_NAME__/g, config.name),
   }));

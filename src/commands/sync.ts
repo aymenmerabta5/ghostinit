@@ -26,8 +26,9 @@ import type { GlobalOptions } from "./types.js";
 async function readFileSafe(filePath: string): Promise<string> {
   try {
     return await readFile(filePath, "utf-8");
-  } catch (err: any) {
-    if (err?.code === "ENOENT") {
+  } catch (err: unknown) {
+    const maybeErr = err as { code?: string };
+    if (maybeErr?.code === "ENOENT") {
       return "";
     }
     throw new GhostinitError(
@@ -35,7 +36,7 @@ async function readFileSafe(filePath: string): Promise<string> {
       ExitCode.GENERAL_ERROR,
       {
         path: filePath,
-        code: err?.code ?? "UNKNOWN",
+        code: (err as { code?: string })?.code ?? "UNKNOWN",
         cause: err instanceof Error ? err.message : String(err),
       },
     );
@@ -155,8 +156,9 @@ async function detectFileDrift(
           return `${relPath}: modified externally`;
         }
         return null;
-      } catch (err: any) {
-        if (err?.code === "ENOENT") {
+      } catch (err: unknown) {
+        const maybeErr = err as { code?: string };
+        if (maybeErr?.code === "ENOENT") {
           return `${relPath}: missing`;
         }
         return `${relPath}: unreadable (${err instanceof Error ? err.message : String(err)})`;

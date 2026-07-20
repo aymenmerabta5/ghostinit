@@ -28,7 +28,8 @@ main(process.argv).then(
     } else {
       process.stderr.write(msg + "\n");
     }
-    const codeProp = (error as any)?.code;
+    const maybeErr = error as { code?: string; message?: string };
+    const codeProp = maybeErr?.code;
     if (
       codeProp === "ERR_PARSE_ARGS_UNKNOWN_OPTION" ||
       codeProp === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE"

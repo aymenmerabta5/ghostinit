@@ -5,6 +5,24 @@ import type { ListSubscriptionsInput, Subscription } from "../interface.js";
 import { getPaddleClient, type PaddleConfig } from "./client.js";
 import { mapSubscriptionStatus } from "./mappers.js";
 
+type PaddleRaw = {
+  id: string;
+  customData?: Record<string, unknown> | null;
+  status?: string;
+  currentBillingPeriod?: { endsAt?: string };
+  nextBilledAt?: string;
+  items?: Array<{ price?: { id?: string; productId?: string } }>;
+  customerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+function extractUserId(customData: Record<string, unknown> | null | undefined): string {
+  if (!customData) return "";
+  const rec = customData as Record<string, unknown>;
+  return (rec.userId as string | undefined) ?? (rec.user_id as string | undefined) ?? "";
+}
+
 export async function listPaddleSubscriptions(
   paddleConfig: PaddleConfig,
   input: ListSubscriptionsInput,
@@ -44,14 +62,14 @@ export async function listPaddleSubscriptions(
 
     if (hasAsyncIterator) {
       let count = 0;
-      for await (const raw of collection as AsyncIterable<any>) {
-        const s = raw as any;
+      for await (const raw of collection as AsyncIterable<PaddleRaw>) {
+        const s = raw as PaddleRaw;
         result.push({
           id: s.id,
           provider: "paddle",
           providerSubscriptionId: s.id,
-          userId: (s.customData as any)?.userId ?? (s.customData as any)?.user_id ?? "",
-          status: mapSubscriptionStatus(s.status),
+          userId: extractUserId(s.customData),
+          status: mapSubscriptionStatus(s.status ?? "active"),
           currentPeriodEnd: s.currentBillingPeriod?.endsAt
             ? new Date(s.currentBillingPeriod.endsAt)
             : s.nextBilledAt
@@ -69,7 +87,7 @@ export async function listPaddleSubscriptions(
         if (count >= limit) break;
       }
     } else {
-      const col = collection as unknown as { next: () => Promise<any[]>; hasMore: boolean };
+      const col = collection as unknown as { next: () => Promise<PaddleRaw[]>; hasMore: boolean };
       let fetched = 0;
       let safety = 0;
       while (fetched < limit && safety < 20) {
@@ -80,8 +98,8 @@ export async function listPaddleSubscriptions(
             id: s.id,
             provider: "paddle",
             providerSubscriptionId: s.id,
-            userId: (s.customData as any)?.userId ?? (s.customData as any)?.user_id ?? "",
-            status: mapSubscriptionStatus(s.status),
+            userId: extractUserId(s.customData),
+            status: mapSubscriptionStatus(s.status ?? "active"),
             currentPeriodEnd: s.currentBillingPeriod?.endsAt
               ? new Date(s.currentBillingPeriod.endsAt)
               : s.nextBilledAt

@@ -1,22 +1,25 @@
 /**
  * Polar provider barrel — split for <300 compliance.
- * Original 943 lines now modular.
- *
- * Context7 polarsource/polar-js MoR 4%+40c metering license keys seats
- * Polar class Polar({accessToken}) POLAR_ACCESS_TOKEN accessToken
- * checkouts.create products[] customerName customerBillingAddress country locale customerId customerEmail metadata url checkout url
- * subscriptions.create productId customerId free scope subscriptions:write
- * webhooks.createWebhookEndpoint url format slack raw events subscription.uncanceled organizationId
- * events.ingest name organizationId externalCustomerId externalId metadata credits idempotent externalId idempotency metering AI tokens
- * SDK webhook verification validateEvent body Buffer|string headers Record<string,string> secret Standard Webhooks whsec base64 WebhookVerificationError 403
- * Next.js helper @polar-sh/nextjs Webhooks({webhookSecret onPayload}) Checkout CustomerPortal
- * license keys seats limit_activations validate seats customerSeats listSeats benefitGrants
- * Buffer.from(await req.arrayBuffer()) NOT req.json() rawBody webhook secret
- * MoR 4%+40c tax MoR metering license keys Paddle
- * Explicit named re-exports (no export * anti-pattern).
  */
 
-import type { BillingProvider, BillingProviderFactory } from "./interface.js";
+import type {
+  BillingProvider,
+  BillingProviderFactory,
+  CreateCheckoutInput,
+  CreateCheckoutOutput,
+  CreateCustomerInput,
+  CreateCustomerOutput,
+  CreatePortalSessionInput,
+  CreatePortalSessionOutput,
+  VerifyWebhookInput,
+  VerifyWebhookOutput,
+  ListSubscriptionsInput,
+  CreateLicenseKeyInput,
+  CreateLicenseKeyOutput,
+  IngestUsageEventInput,
+  IngestUsageEventOutput,
+  Subscription,
+} from "./interface.js";
 import { createPolarCheckout } from "./polar/checkout.js";
 import { createPolarCustomer } from "./polar/customer.js";
 import { createPolarPortalSession } from "./polar/portal.js";
@@ -34,7 +37,7 @@ export { createPolarCheckout } from "./polar/checkout.js";
 export { createPolarCustomer } from "./polar/customer.js";
 export { createPolarPortalSession } from "./polar/portal.js";
 export { verifyPolarWebhook } from "./polar/webhook.js";
-export { listPolarSubscriptions } from "./polar/subscriptions.js";
+export { listPolarSubscriptions, createPolarSubscription } from "./polar/subscriptions.js";
 export { createPolarLicenseKey } from "./polar/license.js";
 export { ingestPolarUsageEvent } from "./polar/usage.js";
 export { POLAR_WEBHOOK_EVENTS } from "./polar/constants.js";
@@ -47,26 +50,26 @@ class PolarProviderImpl implements BillingProvider {
     this.config = config;
   }
 
-  createCheckout(input: any) {
-    return createPolarCheckout(this.config as any, input);
+  createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutOutput> {
+    return createPolarCheckout(this.config, input);
   }
-  createCustomer(input: any) {
-    return createPolarCustomer(this.config as any, input);
+  createCustomer(input: CreateCustomerInput): Promise<CreateCustomerOutput> {
+    return createPolarCustomer(this.config, input);
   }
-  createPortalSession(input: any) {
-    return createPolarPortalSession(this.config as any, input);
+  createPortalSession(input: CreatePortalSessionInput): Promise<CreatePortalSessionOutput> {
+    return createPolarPortalSession(this.config, input);
   }
-  verifyWebhook(input: any) {
-    return verifyPolarWebhook(this.config as any, input);
+  verifyWebhook(input: VerifyWebhookInput): Promise<VerifyWebhookOutput> {
+    return verifyPolarWebhook(this.config, input);
   }
-  listSubscriptions(input: any) {
-    return listPolarSubscriptions(this.config as any, input);
+  listSubscriptions(input: ListSubscriptionsInput): Promise<Subscription[]> {
+    return listPolarSubscriptions(this.config, input);
   }
-  createLicenseKey(input: any) {
-    return createPolarLicenseKey(this.config as any, input);
+  createLicenseKey(input: CreateLicenseKeyInput): Promise<CreateLicenseKeyOutput> {
+    return createPolarLicenseKey(this.config, input);
   }
-  ingestUsageEvent(input: any) {
-    return ingestPolarUsageEvent(this.config as any, input);
+  ingestUsageEvent(input: IngestUsageEventInput): Promise<IngestUsageEventOutput> {
+    return ingestPolarUsageEvent(this.config, input);
   }
 }
 

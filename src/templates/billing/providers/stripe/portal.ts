@@ -12,7 +12,10 @@ export async function createStripePortalSession(
   const session = await stripe.billingPortal.sessions.create({
     customer: input.customerId,
     return_url: input.returnUrl,
-    flow_data: { type: "subscription_update" } as any,
+    // vendor untyped: flow_data type open union
+    flow_data: {
+      type: "subscription_update",
+    } as unknown as Stripe.BillingPortal.SessionCreateParams.FlowData,
   });
   return { url: session.url };
 }

@@ -1,5 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
-import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
+import { type BillingProviderName, type AddonInstallerMap } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
@@ -119,7 +119,10 @@ export function buildTanstackFiles(
     files.push(file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent()));
   if (effectiveBilling.includes("polar"))
     files.push(file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent()));
-  if (effectiveBilling.length === 0 && (addonMap as any).billing?.inUse) {
+  if (
+    effectiveBilling.length === 0 &&
+    (addonMap as Record<string, { inUse?: boolean }>)["billing"]?.inUse
+  ) {
     files.push(file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent()));
     files.push(file("src/routes/api/webhooks/chargily.ts", singleChargilyWebhookTanstackContent()));
     files.push(file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent()));
@@ -156,21 +159,29 @@ export function buildTanstackFiles(
 
   files.push(
     ...(servicesFiles(
-      { mode: "single", runtime: runtime as any, addons: addonMap } as any,
-      runtime as any,
+      { mode: "single", runtime, addons: addonMap } as {
+        mode: "single";
+        runtime: "node" | "bun";
+        addons: typeof addonMap;
+      },
+      runtime,
     ) as TemplateFile[]),
   );
 
   const billingRaw =
     effectiveBilling.length > 0
       ? (billingFiles(
-          { mode: "single", runtime: runtime as any, addons: addonMap } as any,
-          runtime as any,
+          { mode: "single", runtime, addons: addonMap } as {
+            mode: "single";
+            runtime: "node" | "bun";
+            addons: typeof addonMap;
+          },
+          runtime,
         ) as TemplateFile[])
       : (billingFiles(
           {
             mode: "single",
-            runtime: runtime as any,
+            runtime,
             addons: {
               stripe: { inUse: false },
               chargily: { inUse: false },
@@ -179,7 +190,7 @@ export function buildTanstackFiles(
               billing: { inUse: false },
             } as never,
           } as never,
-          runtime as any,
+          runtime,
         ) as TemplateFile[]);
   const billingServerOnly = billingRaw.filter(
     (f) => f.path.startsWith("src/server/") || f.path.startsWith("src/server/db/"),
@@ -188,16 +199,19 @@ export function buildTanstackFiles(
 
   files.push(
     ...(emailFiles(
-      { mode: "single", runtime: runtime as any } as any,
-      runtime as any,
+      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      runtime,
     ) as TemplateFile[]),
   );
   files.push(
-    ...(analyticsFiles({ mode: "single", runtime } as any, runtime as any) as TemplateFile[]),
+    ...(analyticsFiles(
+      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      runtime,
+    ) as TemplateFile[]),
   );
 
   if (hasEve) {
-    const eveRaw = genEveFiles(projectName, runtime as any);
+    const eveRaw = genEveFiles(projectName, runtime);
     const eveMapped = eveRaw.map((f) => ({
       path: f.path.replace(/^apps\/eve\//, "agent/"),
       content: f.content,

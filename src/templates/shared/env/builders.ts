@@ -11,12 +11,14 @@ import {
   resendLocalLines,
 } from "./core.js";
 
+type EnvMode = "monorepo" | "single";
+
 export function envExampleContent(
   projectName: string,
   billingProviders: BillingProviderName[] = [],
   includeResend = true,
   runtime = "bun",
-  mode: "monorepo" | "single" = "monorepo",
+  mode: EnvMode = "monorepo",
 ): string {
   const lines: string[] = [];
   lines.push(...coreEnvExampleLines(projectName));
@@ -49,6 +51,11 @@ export function envPlaceholderContent(projectName: string): string {
   );
 }
 
+function parseEnvMode(value: unknown): EnvMode | undefined {
+  if (value === "monorepo" || value === "single") return value;
+  return undefined;
+}
+
 export function envLocalContent(
   projectNameOrSecrets: string | RootSecrets,
   secretsOrBilling: RootSecrets | BillingProviderName[],
@@ -59,22 +66,27 @@ export function envLocalContent(
   let projectName: string;
   let secrets: RootSecrets;
   let billingProviders: BillingProviderName[] = [];
-  let _effectiveMode: "monorepo" | "single" = "monorepo";
+  let _effectiveMode: EnvMode = "monorepo";
   let effectiveRuntime = "bun";
   if (typeof projectNameOrSecrets === "string") {
     projectName = projectNameOrSecrets;
     secrets = secretsOrBilling as RootSecrets;
     if (Array.isArray(billingProvidersOrMode))
       billingProviders = billingProvidersOrMode as BillingProviderName[];
-    if (typeof mode === "string") _effectiveMode = mode as any;
-    else if (typeof billingProvidersOrMode === "string")
-      _effectiveMode = billingProvidersOrMode as any;
+    const parsedMode = parseEnvMode(mode);
+    if (parsedMode) _effectiveMode = parsedMode;
+    else {
+      const parsedAlt = parseEnvMode(billingProvidersOrMode);
+      if (parsedAlt) _effectiveMode = parsedAlt;
+    }
     if (typeof runtime === "string") effectiveRuntime = runtime;
   } else {
     secrets = projectNameOrSecrets as RootSecrets;
     billingProviders = (secretsOrBilling as BillingProviderName[]) ?? [];
-    projectName = (secrets as any).appName ?? "ghostinit-app";
-    if (typeof billingProvidersOrMode === "string") _effectiveMode = billingProvidersOrMode as any;
+    const rec = secrets as unknown as { appName?: string };
+    projectName = rec.appName ?? "ghostinit-app";
+    const parsed = parseEnvMode(billingProvidersOrMode);
+    if (parsed) _effectiveMode = parsed;
   }
   if (!projectName) projectName = "ghostinit-app";
   const lines: string[] = [];
@@ -88,14 +100,19 @@ export function envLocalContent(
   lines.push("NEXT_PUBLIC_POSTHOG_HOST=/ingest");
   lines.push(`VITE_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
   lines.push("VITE_POSTHOG_HOST=/ingest");
+  lines.push(`EXPO_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
+  lines.push("EXPO_PUBLIC_POSTHOG_HOST=/ingest");
   lines.push("POSTHOG_HOST=https://us.i.posthog.com");
   lines.push(`POSTHOG_API_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
   lines.push("NEXT_PUBLIC_POSTHOG_SESSION_RECORDING=false");
   lines.push("NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true");
   lines.push("VITE_POSTHOG_SESSION_RECORDING=false");
   lines.push("VITE_POSTHOG_AUTOCAPTURE=true");
+  lines.push("EXPO_PUBLIC_POSTHOG_SESSION_RECORDING=false");
+  lines.push("EXPO_PUBLIC_POSTHOG_AUTOCAPTURE=true");
   lines.push("NEXT_PUBLIC_ANALYTICS_DISABLED=false");
   lines.push("VITE_ANALYTICS_DISABLED=false");
+  lines.push("EXPO_PUBLIC_ANALYTICS_DISABLED=false");
   lines.push("");
   lines.push(`# Runtime ${effectiveRuntime}`);
   lines.push(`RUNTIME=${effectiveRuntime}`);
@@ -109,7 +126,7 @@ export function filteredEnvExample(
   selectedBilling: BillingProviderName[],
   includeResend: boolean,
   runtime: string,
-  mode: "monorepo" | "single" = "monorepo",
+  mode: EnvMode = "monorepo",
 ): TemplateFile {
   const content = envExampleContent(projectName, selectedBilling, includeResend, runtime, mode);
   return file(".env.example", content);
@@ -120,7 +137,7 @@ export function filteredEnvLocal(
   secrets: RootSecrets,
   selectedBilling: BillingProviderName[],
   runtime = "bun",
-  mode: "monorepo" | "single" = "monorepo",
+  mode: EnvMode = "monorepo",
 ): TemplateFile {
   const lines: string[] = [];
   lines.push(...coreEnvLocalLines(projectName, secrets));
@@ -132,14 +149,19 @@ export function filteredEnvLocal(
   lines.push("NEXT_PUBLIC_POSTHOG_HOST=/ingest");
   lines.push(`VITE_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
   lines.push("VITE_POSTHOG_HOST=/ingest");
+  lines.push(`EXPO_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
+  lines.push("EXPO_PUBLIC_POSTHOG_HOST=/ingest");
   lines.push("POSTHOG_HOST=https://us.i.posthog.com");
   lines.push(`POSTHOG_API_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
   lines.push("NEXT_PUBLIC_POSTHOG_SESSION_RECORDING=false");
   lines.push("NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true");
   lines.push("VITE_POSTHOG_SESSION_RECORDING=false");
   lines.push("VITE_POSTHOG_AUTOCAPTURE=true");
+  lines.push("EXPO_PUBLIC_POSTHOG_SESSION_RECORDING=false");
+  lines.push("EXPO_PUBLIC_POSTHOG_AUTOCAPTURE=true");
   lines.push("NEXT_PUBLIC_ANALYTICS_DISABLED=false");
   lines.push("VITE_ANALYTICS_DISABLED=false");
+  lines.push("EXPO_PUBLIC_ANALYTICS_DISABLED=false");
   lines.push("");
   if (mode === "monorepo") {
     lines.push("# oRPC contract-first, single port 3000");

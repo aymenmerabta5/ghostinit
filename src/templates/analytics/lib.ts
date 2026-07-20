@@ -1,7 +1,7 @@
 export function singleLibAnalyticsContent(): string {
   return `"use client";
 
-import posthog, { type PostHog } from "posthog-js";
+import posthog, { type PostHog, type PostHogConfig } from "posthog-js";
 
 export interface AnalyticsConfig {
   key: string;
@@ -124,7 +124,7 @@ function getConsentState(): LocalConsentState {
 
 function hasConsent(category = "analytics"): boolean {
   const state = getConsentState();
-  if (state.status === "granted") return Boolean((state.categories as any)[category]);
+  if (state.status === "granted") return Boolean((state.categories as Record<string, boolean>)[category]);
   if (state.status === "denied") return false;
   return false;
 }
@@ -160,8 +160,8 @@ export async function initPostHogClient(options?: {
         autocapture: cfg.autocapture,
         capture_pageview: cfg.capturePageview,
         capture_pageleave: cfg.capturePageleave,
-        persistence: cfg.persistence as any,
-        person_profiles: cfg.personProfiles as any,
+        persistence: cfg.persistence as PostHogConfig["persistence"],
+        person_profiles: cfg.personProfiles as PostHogConfig["person_profiles"],
         bootstrap: options?.bootstrapFlags
           ? {
               distinctID: "bootstrap",
@@ -172,7 +172,7 @@ export async function initPostHogClient(options?: {
         loaded: (ph) => {
           try {
             if (!canUseWindow()) return;
-            (window as any).posthog = ph;
+            (window as unknown as { posthog?: PostHog }).posthog = ph;
             if (!hasConsent("analytics")) ph.opt_out_capturing();
           } catch {}
         },

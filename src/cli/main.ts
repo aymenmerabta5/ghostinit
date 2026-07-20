@@ -41,12 +41,12 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
       level: debugFlag ? "debug" : "info",
     });
 
-    if ((values as any).version || command === "version") {
+    if (Boolean(values.version) || command === "version") {
       printVersion(jsonFlag, start);
       return ExitCode.OK;
     }
 
-    if ((values as any).help || (values as any).h || command === "help") {
+    if (Boolean(values.help) || Boolean(values.h) || command === "help") {
       printHelpOutput(jsonFlag, start);
       return ExitCode.OK;
     }
@@ -194,13 +194,16 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
     return exitCode;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    const codeProp = (error as any)?.code as string | undefined;
+    const maybeErr = error as { code?: string; message?: string };
+    const codeProp = maybeErr?.code as string | undefined;
     const isParseError =
       codeProp === "ERR_PARSE_ARGS_UNKNOWN_OPTION" ||
       codeProp === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE";
 
     const effectiveJsonFlag =
-      jsonFlag || (values && getBoolean((values as any).json)) || argv.slice(2).includes("--json");
+      jsonFlag ||
+      (values && getBoolean((values as Record<string, unknown>).json)) ||
+      argv.slice(2).includes("--json");
 
     const effectiveCommand = positionals[0] ? String(positionals[0]) : "unknown";
     const effectiveLogger =

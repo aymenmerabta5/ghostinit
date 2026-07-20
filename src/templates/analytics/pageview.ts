@@ -38,7 +38,7 @@ function getSanitizedUrl(raw: string): string {
 function canCapture(): boolean {
   try {
     if (typeof window === "undefined") return false;
-    const w = window as any;
+    const w = window as unknown as { __GHOSTINIT_CONSENT__?: boolean };
     if (w.__GHOSTINIT_CONSENT__ === false) return false;
     return true;
   } catch {
