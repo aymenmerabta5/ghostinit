@@ -10,7 +10,7 @@ export function signOutButtonContent(router: RouterType): string {
 import * as React from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { authClient } from '../lib/auth-client.js'
-import { Button } from '@repo/ui'
+import { Button } from "@/components/ui/button";
 
 export function SignOutButton(): React.JSX.Element {
   const router = useRouter()
@@ -33,7 +33,7 @@ export function SignOutButton(): React.JSX.Element {
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "../lib/auth-client.js";
-import { Button } from "@repo/ui";
+import { Button } from "@/components/ui/button";
 
 export function SignOutButton(): React.JSX.Element {
   const router = useRouter();

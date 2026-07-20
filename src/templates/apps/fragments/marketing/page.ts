@@ -20,7 +20,10 @@ export function buildMarketingPageContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import * as React from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Separator } from '@repo/ui'
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from '../components/theme-toggle.js'
 
 export const Route = createFileRoute('/')({
@@ -53,7 +56,10 @@ ${footer}
 
   return `import * as React from "react";
 import Link from "next/link";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Separator } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "../components/theme-toggle.js";
 
 export default function HomePage(): React.JSX.Element {

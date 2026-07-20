@@ -8,9 +8,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { authClient } from "../../lib/auth-client.js";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Alert, AlertTitle, AlertDescription } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@repo/ui/form";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
 interface ResetPasswordForm { newPassword: string; confirmPassword: string; }
 function ResetPasswordInner(): React.JSX.Element {
   const router = useRouter();
@@ -69,8 +72,11 @@ import * as React from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '../lib/auth-client.js'
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Input, Alert, AlertTitle, AlertDescription } from '@repo/ui'
-import { FieldGroup, Field, FieldLabel, FieldDescription } from '@repo/ui'
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 
 export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordPage,

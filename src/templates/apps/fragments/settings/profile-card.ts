@@ -6,9 +6,11 @@ export function settingsProfileCard(): TemplateFile {
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { authClient } from "../../../lib/auth-client.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Input, Alert, AlertTitle, AlertDescription } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@repo/ui/form";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
 interface ProfileForm { name: string; }
 export function ProfileCard(): React.JSX.Element {
   const { data: session } = authClient.useSession();

@@ -66,12 +66,12 @@ export function getChargilyClient(
 ): ChargilyClient {
   ensureServerOnly();
   const { apiKey, mode } = resolveChargilyConfig(config);
-  if (!apiKey || apiKey.startsWith("REPLACE_WITH")) {
-    if (getEnvValue("NODE_ENV") === "production") {
-      throw new Error("CHARGILY_API_KEY missing. Set in .env.local server-only.");
-    }
+  if (!apiKey || apiKey.startsWith("REPLACE_WITH") || apiKey === "test_placeholder_key") {
+    throw new Error(
+      "CHARGILY_API_KEY missing or placeholder. Set a real key in .env.local server-only.",
+    );
   }
-  return new ChargilyClient({ api_key: apiKey || "test_placeholder_key", mode });
+  return new ChargilyClient({ api_key: apiKey, mode });
 }
 
 export function genId(prefix: string): string {

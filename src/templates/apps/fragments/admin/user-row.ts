@@ -5,7 +5,9 @@ export function adminUserRow(): TemplateFile {
     `"use client";
 import * as React from "react";
 import { useState } from "react";
-import { Badge, Button, Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@repo/ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import type { AdminUser } from "../hooks/use-admin-users.js";
 interface UserRowProps { user: AdminUser; onToggleBan: (id: string, banned: boolean) => void; onSetRole: (id: string, role: string) => void; }
 export function UserRow({ user, onToggleBan, onSetRole }: UserRowProps): React.JSX.Element {

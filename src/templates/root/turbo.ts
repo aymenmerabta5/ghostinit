@@ -60,6 +60,17 @@ export function turbo(runtime: "node" | "bun"): TemplateFile {
     "VITE_ANALYTICS_DISABLED",
     "NEXT_PUBLIC_*",
     "VITE_*",
+    "EXPO_PUBLIC_*",
+    "EXPO_PUBLIC_APP_URL",
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_POSTHOG_KEY",
+    "EXPO_PUBLIC_POSTHOG_HOST",
+    "EXPO_PUBLIC_POSTHOG_SESSION_RECORDING",
+    "EXPO_PUBLIC_POSTHOG_AUTOCAPTURE",
+    "EXPO_PUBLIC_ANALYTICS_DISABLED",
+    "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "EXPO_PUBLIC_PADDLE_CLIENT_TOKEN",
+    "EXPO_PUBLIC_PADDLE_ENVIRONMENT",
   ];
   if (runtime === "node") envList.push("npm_config_user_agent");
   return file(

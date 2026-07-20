@@ -1,10 +1,17 @@
 export type RouterType = "next" | "tanstack";
 
 export const sharedAuthImports = {
-  ui: `import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Alert, AlertTitle, AlertDescription, Badge } from "@repo/ui";`,
-  uiNext: `import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Alert, AlertTitle, AlertDescription } from "@repo/ui";`,
-  field: `import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";`,
-  form: `import { Form, Field as TanStackField, SubmitButton, useForm } from "@repo/ui/form";`,
+  ui: `import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";`,
+  uiNext: `import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";`,
+  field: `import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";`,
+  form: `import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`,
 };
 
 export function routerImports(router: RouterType): string {

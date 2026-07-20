@@ -99,18 +99,17 @@ import { useRouter } from "next/navigation";`
 
 import * as React from "react";
 ${linkImport}
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Badge,
-  Button,
-  Avatar,
-  AvatarFallback,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-} from "@repo/ui";
+} from "@/components/ui/dropdown-menu";
 import { ThemeToggle } from "./theme-toggle.js";
 import { useAuth } from "../hooks/use-auth.js";
 import { authClient } from "../lib/auth-client.js";

@@ -10,7 +10,12 @@ import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '@repo/auth'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input, Badge, Separator, Alert, AlertTitle, AlertDescription } from '@repo/ui'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 ${tanstackGetSessionFnContent()}
 

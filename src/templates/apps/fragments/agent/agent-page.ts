@@ -6,7 +6,12 @@ export function agentPage(): TemplateFile {
 import * as React from "react";
 import { useState } from "react";
 import { useEveAgent } from "eve/react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Input, Separator, Alert, AlertTitle, AlertDescription } from "@repo/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 export default function AgentPage(): React.JSX.Element {
   const agent = useEveAgent();
   const [input, setInput] = useState("");

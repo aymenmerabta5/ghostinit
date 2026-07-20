@@ -7,8 +7,8 @@ export function settingsLayout(): TemplateFile {
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@repo/ui";
-import { Separator } from "@repo/ui";
+import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 const nav = [
   { label: "Settings", href: "/settings" },
   { label: "Billing", href: "/billing" },

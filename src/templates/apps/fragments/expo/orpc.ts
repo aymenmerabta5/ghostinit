@@ -3,17 +3,34 @@
  * Typed, no any, RNR + Uniwind compatible
  */
 
-export function expoAuthClientContent(): string {
+function sanitizeSchemeInternal(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+}
+
+export function expoAuthClientContent(projectName = "__PROJECT_NAME__"): string {
+  const isPlaceholder = projectName === "__PROJECT_NAME__";
+  const scheme = isPlaceholder ? "myapp" : sanitizeSchemeInternal(projectName);
   return `import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import * as SecureStore from "expo-secure-store";
 
+function getBaseUrl(): string {
+  const url = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL;
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("EXPO_PUBLIC_API_URL must be set in production");
+    }
+    return "http://localhost:3000";
+  }
+  return url;
+}
+
 export const authClient = createAuthClient({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL || "http://localhost:3000",
+  baseURL: getBaseUrl(),
   plugins: [
     expoClient({
-      scheme: "__PROJECT_NAME__",
-      storagePrefix: "__PROJECT_NAME__",
+      scheme: "${scheme}",
+      storagePrefix: "${projectName}",
       storage: SecureStore,
     }),
   ],
@@ -29,9 +46,14 @@ import type { appRouter } from "@repo/api";
 import { authClient } from "./auth-client";
 
 function getBaseUrl(): string {
-  if (process.env.EXPO_PUBLIC_API_URL) return process.env.EXPO_PUBLIC_API_URL;
-  if (process.env.EXPO_PUBLIC_APP_URL) return process.env.EXPO_PUBLIC_APP_URL;
-  return "http://localhost:3000";
+  const url = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL;
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("EXPO_PUBLIC_API_URL must be set in production");
+    }
+    return "http://localhost:3000";
+  }
+  return url;
 }
 
 type AuthClientWithCookie = typeof authClient & { getCookie?: () => string | undefined };

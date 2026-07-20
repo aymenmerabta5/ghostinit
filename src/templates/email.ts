@@ -100,6 +100,15 @@ const forgotPasswordTemplateContent = `export interface ForgotPasswordEmailProps
   email?: string;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function forgotPasswordTemplate(props: ForgotPasswordEmailProps): string;
 export function forgotPasswordTemplate(url: string, appName?: string): string;
 export function forgotPasswordTemplate(
@@ -109,6 +118,7 @@ export function forgotPasswordTemplate(
   const props: ForgotPasswordEmailProps =
     typeof arg1 === "string" ? { url: arg1, appName: arg2 } : arg1;
   const { url, appName = "GhostInit" } = props;
+  const safeAppName = escapeHtml(appName);
 
   return \`<!DOCTYPE html>
 <html lang="en">
@@ -125,7 +135,7 @@ export function forgotPasswordTemplate(
             <tr>
               <td style="padding:32px 32px 8px 32px;">
                 <h1 style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#0f172a;line-height:28px;">Reset your password</h1>
-                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">You requested a password reset for \${appName}. Click the button below to choose a new password. This link expires in 1 hour and can only be used once.</p>
+                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">You requested a password reset for \${safeAppName}. Click the button below to choose a new password. This link expires in 1 hour and can only be used once.</p>
               </td>
             </tr>
             <tr>
@@ -145,7 +155,7 @@ export function forgotPasswordTemplate(
               </td>
             </tr>
           </table>
-          <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">\${appName}</p>
+          <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">\${safeAppName}</p>
         </td>
       </tr>
     </table>
@@ -161,10 +171,20 @@ const resetPasswordTemplateContent = `export interface ResetPasswordConfirmation
   email?: string;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function resetPasswordConfirmationTemplate(
   props: ResetPasswordConfirmationProps = {},
 ): string {
   const { appName = "GhostInit" } = props;
+  const safeAppName = escapeHtml(appName);
   return \`<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -180,13 +200,13 @@ export function resetPasswordConfirmationTemplate(
             <tr>
               <td style="padding:32px;">
                 <h1 style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#0f172a;">Password reset successful</h1>
-                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">Your password for \${appName} has been changed successfully. You can now sign in with your new password.</p>
+                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">Your password for \${safeAppName} has been changed successfully. You can now sign in with your new password.</p>
                 <p style="margin:16px 0 0 0;font-size:13px;color:#64748b;">If you did not perform this action, please contact support immediately and secure your account.</p>
               </td>
             </tr>
             <tr>
               <td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-                <p style="margin:0;font-size:12px;color:#94a3b8;">This is an automated message from \${appName}, please do not reply.</p>
+                <p style="margin:0;font-size:12px;color:#94a3b8;">This is an automated message from \${safeAppName}, please do not reply.</p>
               </td>
             </tr>
           </table>

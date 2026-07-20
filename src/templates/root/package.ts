@@ -35,5 +35,5 @@ export function rootPackageJson(projectName: string, runtime: "node" | "bun"): T
 }
 
 export function bunfig(): TemplateFile {
-  return file("bunfig.toml", `[install]\n[install.lockfile]\npath = "bun.lock"\n`);
+  return file("bunfig.toml", `[install]\nhoist = true\n\n[install.lockfile]\npath = "bun.lock"\n`);
 }

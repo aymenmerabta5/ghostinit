@@ -8,9 +8,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { authClient } from "../../../../lib/auth-client.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Input, Button, Alert, AlertTitle, AlertDescription, Separator } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@repo/ui/form";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
 interface CreateUserForm { name: string; email: string; password: string; role: "admin" | "user"; }
 export default function AdminCreateUserPage(): React.JSX.Element {
   const router = useRouter();

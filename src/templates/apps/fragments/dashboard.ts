@@ -131,7 +131,10 @@ import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '@repo/auth'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Separator } from '@repo/ui'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { SignOutButton } from '../components/sign-out-button.js'
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
@@ -171,7 +174,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@repo/auth";
 import { SignOutButton } from "../../components/sign-out-button.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Separator } from "@repo/ui";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 export default async function DashboardPage(): Promise<React.JSX.Element> {
   const session = await auth.api.getSession({ headers: await headers() });

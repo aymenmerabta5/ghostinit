@@ -102,8 +102,12 @@ if (env.BETTER_AUTH_URL.includes("localhost")) {
   );
 }
 
-if (env.BETTER_AUTH_SECRET.length < 32) {
-  throw new Error("BETTER_AUTH_SECRET must be at least 32 characters");
+if (
+  env.BETTER_AUTH_SECRET.length < 32 ||
+  env.BETTER_AUTH_SECRET.startsWith("REPLACE_WITH") ||
+  env.BETTER_AUTH_SECRET === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS"
+) {
+  throw new Error("BETTER_AUTH_SECRET must be set to a strong random value, not placeholder, at least 32 characters");
 }
 
 const isHttps = env.BETTER_AUTH_URL.startsWith("https://");

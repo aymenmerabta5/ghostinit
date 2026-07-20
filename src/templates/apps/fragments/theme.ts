@@ -62,7 +62,7 @@ export function themeToggleFileContent(): string {
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { Button } from "@repo/ui";
+import { Button } from "@/components/ui/button";
 
 ${sunIconSvg}
 
@@ -113,7 +113,7 @@ export function providersFileContent(router: RouterType): string {
 import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./theme-provider.js";
-import { Toaster } from "@repo/ui";
+import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
 
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -140,7 +140,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
 import { useState, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./theme-provider.js";
-import { Toaster } from "@repo/ui";
+import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
 
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {

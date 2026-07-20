@@ -6,8 +6,12 @@ export function settingsTwoFactorCard(): TemplateFile {
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { authClient } from "../../../lib/auth-client.js";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Input, Badge, Alert, AlertTitle, AlertDescription } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 export function TwoFactorCard(): React.JSX.Element {
   const { data: session } = authClient.useSession();
   const user = session?.user as any;

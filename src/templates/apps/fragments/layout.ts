@@ -65,7 +65,7 @@ import {
 import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from '../components/theme-provider.js'
-import { Toaster } from '@repo/ui'
+import { Toaster } from "@/components/ui/sonner";
 import appCss from '../styles/app.css?url'
 
 export const Route = createRootRouteWithContext<{
@@ -136,7 +136,8 @@ export function notFoundFileContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import * as React from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent } from '@repo/ui'
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 export const Route = createFileRoute('/$notFound')({
   component: NotFoundPage,
@@ -160,7 +161,8 @@ function NotFoundPage(): React.JSX.Element {
 `;
   }
   return `import Link from "next/link";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 export default function NotFound(): React.JSX.Element {
   return (
@@ -191,7 +193,9 @@ export function errorFileContent(router: RouterType): string {
 
 import * as React from "react";
 import { useEffect } from "react";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Alert, AlertTitle, AlertDescription } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 export default function Error({
   error,
@@ -227,7 +231,7 @@ export default function Error({
 
 export function loadingFileContent(): string {
   return `import * as React from "react";
-import { Skeleton } from "@repo/ui";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading(): React.JSX.Element {
   return (

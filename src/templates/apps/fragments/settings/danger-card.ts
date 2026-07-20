@@ -7,8 +7,13 @@ import * as React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "../../../lib/auth-client.js";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Input, Alert, AlertTitle, AlertDescription, Separator, Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 export function DangerZoneCard(): React.JSX.Element {
   const router = useRouter();
   const [deletePassword, setDeletePassword] = useState("");

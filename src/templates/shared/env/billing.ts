@@ -27,6 +27,7 @@ export function billingEnvLines(selected: BillingProviderName[]): string[] {
     out.push(`STRIPE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`);
     out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
     out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
+    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
     out.push("");
   }
   if (has("chargily")) {
@@ -45,6 +46,8 @@ export function billingEnvLines(selected: BillingProviderName[]): string[] {
     out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
     out.push(`VITE_PADDLE_CLIENT_TOKEN=${ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN}`);
     out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
+    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN}`);
+    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
     out.push("");
   }
   if (has("polar")) {
@@ -67,14 +70,12 @@ export function billingEnvLocalLines(
   const emitAllWhenEmpty = selected.length === 0;
   const shouldEmit = (provider: BillingProviderName) => emitAllWhenEmpty || has(provider);
   if (shouldEmit("stripe")) {
+    const pk = secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32);
     out.push(`STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? genSecret()}`);
     out.push(`STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? genSecret()}`);
-    out.push(
-      `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32)}`,
-    );
-    out.push(
-      `VITE_STRIPE_PUBLISHABLE_KEY=${secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32)}`,
-    );
+    out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk}`);
+    out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${pk}`);
+    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk}`);
     out.push("");
   }
   if (shouldEmit("chargily")) {
@@ -84,17 +85,16 @@ export function billingEnvLocalLines(
     out.push("");
   }
   if (shouldEmit("paddle")) {
+    const clientToken = secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24);
     out.push(`PADDLE_API_KEY=${secrets.paddleApiKey ?? genSecret()}`);
     out.push(`PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? genSecret()}`);
     out.push("PADDLE_ENVIRONMENT=sandbox");
-    out.push(
-      `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24)}`,
-    );
+    out.push(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${clientToken}`);
     out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push(
-      `VITE_PADDLE_CLIENT_TOKEN=${secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24)}`,
-    );
+    out.push(`VITE_PADDLE_CLIENT_TOKEN=${clientToken}`);
     out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
+    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${clientToken}`);
+    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
     out.push("");
   }
   if (shouldEmit("polar")) {
@@ -115,14 +115,12 @@ export function billingEnvLocalLinesFiltered(
   const out: string[] = [];
   const has = (n: BillingProviderName) => selected.includes(n);
   if (has("stripe")) {
+    const pk2 = secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32);
     out.push(`STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? genSecret()}`);
     out.push(`STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? genSecret()}`);
-    out.push(
-      `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32)}`,
-    );
-    out.push(
-      `VITE_STRIPE_PUBLISHABLE_KEY=${secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32)}`,
-    );
+    out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk2}`);
+    out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${pk2}`);
+    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk2}`);
     out.push("");
   }
   if (has("chargily")) {
@@ -132,17 +130,16 @@ export function billingEnvLocalLinesFiltered(
     out.push("");
   }
   if (has("paddle")) {
+    const ct = secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24);
     out.push(`PADDLE_API_KEY=${secrets.paddleApiKey ?? genSecret()}`);
     out.push(`PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? genSecret()}`);
     out.push("PADDLE_ENVIRONMENT=sandbox");
-    out.push(
-      `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24)}`,
-    );
+    out.push(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${ct}`);
     out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push(
-      `VITE_PADDLE_CLIENT_TOKEN=${secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24)}`,
-    );
+    out.push(`VITE_PADDLE_CLIENT_TOKEN=${ct}`);
     out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
+    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${ct}`);
+    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
     out.push("");
   }
   if (has("polar")) {

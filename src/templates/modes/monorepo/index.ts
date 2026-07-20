@@ -149,10 +149,25 @@ export function monorepoFiles(
     a.path.localeCompare(b.path),
   );
 
-  return finalFiles.map((f: TemplateFile) => ({
-    path: f.path.replace(/__PROJECT_NAME__/g, config.name),
-    content: f.content.replace(/__PROJECT_NAME__/g, config.name),
-  }));
+  return finalFiles.map((f: TemplateFile) => {
+    let fileContent = f.content.replace(/__PROJECT_NAME__/g, config.name);
+    let filePath = f.path.replace(/__PROJECT_NAME__/g, config.name);
+    if (filePath.endsWith("app.json")) {
+      try {
+        const parsed = JSON.parse(fileContent) as { expo?: Record<string, unknown> };
+        if (parsed.expo) {
+          const sanitized = config.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+          (parsed.expo as { scheme?: string }).scheme = sanitized;
+          fileContent = `${JSON.stringify(parsed, null, 2)}\n`;
+        }
+      } catch {}
+    }
+    if (filePath.endsWith("auth-client.ts") && fileContent.includes("scheme:")) {
+      const sanitized = config.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+      fileContent = fileContent.replace(/scheme:\s*"[^"]*"/, `scheme: "${sanitized}"`);
+    }
+    return { path: filePath, content: fileContent };
+  });
 }
 
 export const monorepoTemplateFiles = monorepoFiles;

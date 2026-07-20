@@ -36,12 +36,14 @@ export async function getPaddleClient(paddleConfig: PaddleConfig) {
   const { Paddle, Environment } = await import("@paddle/paddle-node-sdk");
   const env =
     paddleConfig.environment === "production" ? Environment.production : Environment.sandbox;
-  if (!paddleConfig.apiKey || paddleConfig.apiKey.startsWith("REPLACE_WITH")) {
-    if (getEnv("NODE_ENV") === "production") {
-      throw new Error("Paddle: PADDLE_API_KEY missing or placeholder.");
-    }
+  if (
+    !paddleConfig.apiKey ||
+    paddleConfig.apiKey.startsWith("REPLACE_WITH") ||
+    paddleConfig.apiKey === "pdl_test_apikey_placeholder"
+  ) {
+    throw new Error("Paddle: PADDLE_API_KEY missing or placeholder. Set a real key.");
   }
-  return new Paddle(paddleConfig.apiKey || "pdl_test_apikey_placeholder", { environment: env });
+  return new Paddle(paddleConfig.apiKey, { environment: env });
 }
 
 export { getEnv };

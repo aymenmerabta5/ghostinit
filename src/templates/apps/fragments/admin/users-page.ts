@@ -5,7 +5,9 @@ export function adminUsersPage(): TemplateFile {
     `"use client";
 import * as React from "react";
 import Link from "next/link";
-import { Button, Alert, AlertTitle, AlertDescription, Separator } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import { useAdminUsers } from "./hooks/use-admin-users.js";
 import { UserRow } from "./components/user-row.js";
 export default function AdminUsersPage(): React.JSX.Element {

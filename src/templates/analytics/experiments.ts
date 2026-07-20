@@ -111,7 +111,7 @@ export function PostHogToolbar() {
           try {
             const c = (window as unknown as { posthog?: { debug?: (v: boolean) => void; getFeatureFlags?: () => Record<string, string | boolean>; opt_in_capturing?: () => void; opt_out_capturing?: () => void; get_distinct_id?: () => string } }).posthog;
             c?.debug?.(true);
-            console.log("[analytics] flags", c?.getFeatureFlags?.());
+            // [analytics] flags logged via debug only in dev - avoid console.log in prod
           } catch {}
         }}
         className="text-primary-foreground underline underline-offset-2 hover:opacity-80"

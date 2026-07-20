@@ -6,8 +6,11 @@ export function settingsPasswordCard(): TemplateFile {
 import * as React from "react";
 import { useState } from "react";
 import { authClient } from "../../../lib/auth-client.js";
-import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent, Input, Alert, AlertTitle, AlertDescription } from "@repo/ui";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@repo/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 export function PasswordCard(): React.JSX.Element {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

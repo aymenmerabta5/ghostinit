@@ -8,7 +8,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "../../../lib/auth-client.js";
-import { useForm } from "@repo/ui/form";
+import { useForm } from "@/components/ui/form";
 interface ProfileForm { name: string; }
 export interface UseSettingsReturn {
   session: ReturnType<typeof authClient.useSession>["data"];

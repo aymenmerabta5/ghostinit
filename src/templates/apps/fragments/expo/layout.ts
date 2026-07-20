@@ -32,7 +32,7 @@ export function expoTabsLayoutContent(): string {
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarStyle: { backgroundColor: 'hsl(var(--background))' } }}>
+    <Tabs screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />

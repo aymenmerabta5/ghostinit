@@ -40,6 +40,7 @@ export function rootTsConfig(): TemplateFile {
           { path: "packages/services" },
           { path: "packages/ui" },
           { path: "apps/web" },
+          { path: "apps/mobile" },
         ],
       },
       null,

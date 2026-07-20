@@ -8,7 +8,10 @@ export type RouterType = "next" | "tanstack";
 
 const nextBillingContent = `"use client";
 import * as React from "react";
-import { Separator, Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@repo/ui";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 export default function BillingPage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">
@@ -52,7 +55,11 @@ import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '@repo/auth'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge, Button, Separator, Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from '@repo/ui'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 
 ${tanstackGetSessionFnContent()}
 
