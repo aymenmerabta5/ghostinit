@@ -170,7 +170,7 @@ export default function BillingScreen(): React.JSX.Element {
         <View className="flex-row justify-between items-center">
           <View className="gap-1">
             <Text className="text-2xl font-bold tracking-tight">Billing</Text>
-            <Text className="text-sm text-muted-foreground">Flexible billing — stripe, chargily, paddle, polar.</Text>
+            <Text className="text-sm text-muted-foreground">Manage your subscriptions.</Text>
           </View>
           <Link href="/dashboard" asChild><Button variant="outline"><Text>Dashboard</Text></Button></Link>
         </View>
@@ -182,14 +182,9 @@ export default function BillingScreen(): React.JSX.Element {
           </CardHeader>
           <CardContent className="gap-3">
             <View className="bg-secondary/50 border border-border rounded-xl p-4 items-center gap-2">
-              <Text className="font-semibold text-sm">No billing configured</Text>
+              <Text className="font-semibold text-sm">Billing</Text>
               <Text className="text-xs text-muted-foreground text-center">Open web billing portal to manage subscriptions.</Text>
-              <View className="flex-row flex-wrap gap-2 mt-2">
-                <Badge variant="secondary"><Text className="text-xs">stripe</Text></Badge>
-                <Badge variant="secondary"><Text className="text-xs">chargily</Text></Badge>
-                <Badge variant="secondary"><Text className="text-xs">paddle</Text></Badge>
-                <Badge variant="secondary"><Text className="text-xs">polar</Text></Badge>
-              </View>
+              <Badge variant="secondary"><Text className="text-xs">active</Text></Badge>
             </View>
           </CardContent>
         </Card>
