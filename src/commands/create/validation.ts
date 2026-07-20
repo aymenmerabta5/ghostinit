@@ -1,6 +1,13 @@
 import { ValidationError } from "../../lib/errors.js";
 import { validateArtifactName } from "../../lib/reserved.js";
-import { isValidAddonCombo as checkAddonCombo } from "../../lib/addons.js";
+import {
+  isValidAddonCombo as checkAddonCombo,
+  type BillingProviderName,
+  type DatabaseProvider,
+  type ProjectMode,
+  type AppName,
+  type FrameworkName,
+} from "../../lib/addons.js";
 
 export { checkAddonCombo as isValidAddonCombo };
 
@@ -15,10 +22,17 @@ export function validateProjectName(name: string): void {
 }
 
 export function assertValidAddonCombo(opts: {
-  billing: string[];
-  database: "postgres" | "convex" | "none";
-  mode: "monorepo" | "single";
-  framework: string;
+  billing: BillingProviderName[] | string[];
+  database: DatabaseProvider;
+  mode: ProjectMode;
+  framework: FrameworkName | string;
+  apps?: AppName[] | string[];
 }): { valid: boolean; message?: string } {
-  return checkAddonCombo(opts as any);
+  return checkAddonCombo({
+    billing: opts.billing as BillingProviderName[],
+    database: opts.database,
+    mode: opts.mode,
+    framework: opts.framework as FrameworkName,
+    apps: opts.apps as AppName[],
+  });
 }

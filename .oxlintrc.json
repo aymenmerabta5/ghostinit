@@ -43,6 +43,17 @@
       "rules": {
         "oxc/no-barrel-file": "off"
       }
+    },
+    {
+      "files": [
+        "src/lib/**/*.ts",
+        "src/templates/**/*.ts",
+        "src/cli/**/*.ts",
+        "src/commands/**/*.ts"
+      ],
+      "rules": {
+        "typescript/no-explicit-any": "warn"
+      }
     }
   ]
 }

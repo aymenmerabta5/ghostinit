@@ -13,11 +13,13 @@ import {
   parseDatabaseInput,
   parseFrameworkInput,
   parseModeInput,
+  parseAppsInput,
   type ProjectMode,
   type BillingProviderName,
   type FeatureName,
   type DatabaseProvider,
   type FrameworkName,
+  type AppName,
 } from "./addons.js";
 
 export const PROJECT_NAME_RE = /^[a-z][a-z0-9-]*$/;
@@ -51,6 +53,7 @@ export interface CreateFlagBag {
   features?: string | string[];
   database?: string | string[];
   framework?: string | string[];
+  apps?: string | string[];
 }
 
 export interface ParsedCreateArgs {
@@ -59,6 +62,7 @@ export interface ParsedCreateArgs {
   features: FeatureName[];
   database: DatabaseProvider;
   framework: FrameworkName;
+  apps: AppName[];
 }
 
 function lastOrUndefined(value?: string | string[]): string | undefined {
@@ -83,6 +87,7 @@ function combineToSingleString(value?: string | string[]): string {
  * - features: comma-separated
  * - database: postgres|convex|none (single value, last wins)
  * - framework: nextjs|tanstack-start (single value, last wins)
+ * - apps: web,mobile|both|all (comma-separated, repeatable)
  */
 export function parseCreateArgs(
   flags: Record<string, string | string[] | boolean | undefined> | CreateFlagBag,
@@ -95,14 +100,16 @@ export function parseCreateArgs(
 
   const billingCombined = combineToSingleString(bag.billing);
   const featuresCombined = combineToSingleString(bag.features);
+  const appsCombined = combineToSingleString(bag.apps);
 
   const mode = parseModeInput(modeRaw);
   const billing = parseBillingInput(billingCombined);
   const features = parseFeaturesInput(featuresCombined);
   const database = parseDatabaseInput(databaseRaw);
   const framework = parseFrameworkInput(frameworkRaw);
+  const apps = parseAppsInput(appsCombined);
 
-  return { mode, billing, features, database, framework };
+  return { mode, billing, features, database, framework, apps };
 }
 
 /**
@@ -122,6 +129,14 @@ export function normalizeFeaturesSelection(selection: string[]): FeatureName[] {
   if (!selection || selection.length === 0) return [];
   const input = selection.join(",");
   return parseFeaturesInput(input);
+}
+
+export function normalizeAppsSelection(selection: string[]): AppName[] {
+  if (!selection || selection.length === 0) return ["web"];
+  const lower = selection.map((s) => s.trim().toLowerCase());
+  if (lower.includes("none")) return [];
+  const input = lower.join(",");
+  return parseAppsInput(input);
 }
 
 export function validateProjectName(

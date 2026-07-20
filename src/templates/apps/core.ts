@@ -4,7 +4,7 @@
  */
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
-import type { AddonInstallerMap } from "../../lib/addons.js";
+import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import {
   nextConfigHeadersFunction,
@@ -12,12 +12,20 @@ import {
   transpilePackagesList,
   posthogRewritesBlock,
 } from "./fragments/core.js";
+import { webUiFiles } from "./fragments/web-ui/index.js";
 
-type FeatureInput = boolean | AddonInstallerMap | Record<string, { inUse: boolean }>;
+type FeatureInput =
+  | boolean
+  | AddonInstallerMap
+  | Record<string, { inUse: boolean }>
+  | BillingProviderName[];
+type InUseRecord = Record<string, { inUse?: boolean }>;
 
 function resolveHasFeature(input: FeatureInput = false, feature: string): boolean {
   if (typeof input === "boolean") return input;
-  return Boolean((input as any)?.[feature]?.inUse);
+  if (Array.isArray(input)) return false;
+  const record = input as InUseRecord;
+  return Boolean(record[feature]?.inUse);
 }
 
 function resolveHasEve(input: FeatureInput = false): boolean {
@@ -41,6 +49,7 @@ export function coreFiles(
     nextConfig(hasEve, effectiveHasI18n),
     postcssConfig(),
     globalCss(runtime),
+    ...webUiFiles(),
   ];
 }
 
@@ -60,6 +69,7 @@ function webPackage(runtime: "node" | "bun", hasEve = false, hasI18n = false): T
         }),
       },
       dependencies: {
+        "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "@orpc/client": `^${v.orpc["@orpc/client"]}`,
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
@@ -80,8 +90,11 @@ function webPackage(runtime: "node" | "bun", hasEve = false, hasI18n = false): T
         "@repo/workflows": "workspace:*",
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
+        "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
+        clsx: `^${v.ui.clsx}`,
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
+        "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),
@@ -134,8 +147,8 @@ const nextConfig = withEve(withNextIntl(config), {
 });
 
 // Fix: withEve may add experimental.turbo which is invalid in Next 16
-if ((nextConfig as any).experimental?.turbo) {
-  delete (nextConfig as any).experimental.turbo;
+if ((nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental?.turbo) {
+  delete (nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental.turbo;
 }
 
 export default nextConfig;
@@ -160,8 +173,8 @@ const nextConfig = withEve(config, {
   eveRoot: "../eve",
 });
 
-if ((nextConfig as any).experimental?.turbo) {
-  delete (nextConfig as any).experimental.turbo;
+if ((nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental?.turbo) {
+  delete (nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental.turbo;
 }
 
 export default nextConfig;

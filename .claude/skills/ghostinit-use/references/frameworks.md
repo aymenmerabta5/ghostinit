@@ -1,0 +1,168 @@
+# Frameworks & Features — Usage Guide
+
+## Frameworks
+
+### nextjs (default)
+
+- App Router 16.2.10 React 19, RSC, Tailwind v4 + Base UI + shadcn, oRPC via route handlers `apps/web/src/app/api/`, client via `@orpc/client` + `@orpc/react-query`, env `NEXT_PUBLIC_*` client, output `.next/**`, turbo tasks Next.
+- `bunfig.toml` hoist=true required (TS7 Go port lacks lib/typescript.js + breaks workspace:*). Scaffold handles.
+
+### tanstack-start
+
+- Vite 7 + Nitro 3, file-based router `src/routes`, server functions `createServerFn`, `getRequestHeaders`, outputs `.vinxi/** .output/** dist/**`, env `VITE_*` client, auth `tanstackStartCookies()` Better Auth plugin vs Next `nextCookies()`, same oRPC contract-first, same webhook `request.arrayBuffer()` standard Fetch API, single port 3000, no Elysia.
+- Router `router.tsx` + `__root.tsx` exempt from architecture checker (isFrameworkEntryPoint).
+
+Choose via:
+
+```bash
+ghostinit create my-app --framework nextjs
+ghostinit create my-app --framework tanstack-start
+```
+
+Both emit dual env prefixes (`NEXT_PUBLIC_*` + `VITE_*`) for client tokens so switching framework later easier.
+
+## App Targets
+
+Expo is **not** a framework — it is an app target selected via `--apps`. Web target uses `--framework` (nextjs/tanstack-start). Mobile target is Expo.
+
+### expo (via --apps web,mobile|both|all)
+
+- Expo SDK 54, Expo Router file-based `app/` directory (`app/_layout.tsx`, `app/index.tsx`, `app/(auth)/*`, `app/+not-found.tsx`), `expo-router/entry` main, typedRoutes experiment enabled.
+- `metro.config.js` auto monorepo support from SDK 52+ — `getDefaultConfig(__dirname)` auto-detects workspace root, no manual watchFolders needed. `babel-preset-expo` preset.
+- `app.json`: scheme `__PROJECT_NAME__`, slug/name templated, orientation portrait, platforms ios/android/web, plugins `["expo-router","expo-secure-store"]`, assetBundlePatterns, icons.
+- Storage/Auth: `expo-secure-store` for Better Auth token persistence, `expo-linking` for deep links + OAuth redirects, `expo-constants` + `expo-web-browser` for auth flow, scheme handling for `__PROJECT_NAME__://` links, `typedRoutes: true` typed linking.
+- Better Auth: server plugin `expo()` added in `auth` config, client uses `expoClient()` with SecureStore adapter — `authClient.getCookie()` returns cookie header for oRPC forwarding.
+- oRPC: client constructs base URL from `EXPO_PUBLIC_API_URL` preferred else `EXPO_PUBLIC_APP_URL` fallback else `http://localhost:3000`. `RPCLink` with `headers: async () => cookie via getCookie()`. Shares backend single port 3000 same contract/router as web, no Elysia extra server.
+- Backend: when both web+mobile, single DB + same `packages/api` + same auth server. Mobile calls `/api/rpc` and `/api/auth/*` via `EXPO_PUBLIC_API_URL`.
+- Env: client prefix `EXPO_PUBLIC_*` (Expo convention). Scaffold emits triple prefixes for client-safe tokens: `NEXT_PUBLIC_*` + `VITE_*` + `EXPO_PUBLIC_*`.
+
+Choose via:
+
+```bash
+ghostinit create my-app --apps web              # default, web only
+ghostinit create my-app --apps mobile           # mobile only → apps/mobile
+ghostinit create my-app --apps both             # monorepo apps/web + apps/mobile
+ghostinit create my-app --apps all              # alias for both
+ghostinit create my-app --apps web,mobile       # same as both, comma repeatable
+ghostinit create my-app --mode single --apps mobile  # flat Expo app/ + src/server/
+ghostinit create my-app --apps web,mobile --framework tanstack-start  # web tanstack + mobile expo
+```
+
+Validation:
+
+- `single` mode supports only one target: `--apps web` or `--apps mobile`, not both. Use `monorepo` for `web+mobile`.
+- `billing + database=none` still blocked regardless of apps.
+- At least one app required (`none` alone invalid).
+
+Dev workflows:
+
+```bash
+# monorepo both: web :3000 + mobile :19000
+bun run dev              # web
+cd apps/mobile && bun run dev  # expo start --port 19000
+
+# single mobile flat
+bun run dev              # expo start (single expo mode)
+```
+
+## Databases
+
+- `postgres` default — Drizzle ORM 0.45.2 + pg 8.22.0 + drizzle-kit 0.31.10, postgres:18.4 docker image in start-database.sh, pool config connectionString from `DATABASE_URL` preferred else `POSTGRES_USER/PASSWORD/HOST/PORT/DB` individual, SSL support via `DATABASE_SSL=true` optionally `DATABASE_SSL_CA`.
+- `convex` — realtime serverless alternative, scaffold uses Convex packages (check versions catalog).
+- `none` — no database, invalid if billing selected (needs subscriptions table).
+
+```bash
+ghostinit create my-app --database postgres
+ghostinit create my-app --database convex
+ghostinit create my-app --database none   # only if --billing none
+```
+
+## Features
+
+### eve
+
+Durable AI agent hybrid via `withEve()` in apps/web. `eve` 0.24.6 + `ai` 7.0.26 + `@vercel/connect` 0.2.2. Adds extra apps/packages toolingFiles + agenticFiles + eveFiles conditional. Agent definitions in `apps/web/src/agent/` or similar.
+
+```bash
+ghostinit create my-app --features eve
+```
+
+### i18n
+
+next-intl 4.0.0 internationalization routing.
+
+```bash
+ghostinit create my-app --features i18n
+```
+
+Combo:
+
+```bash
+ghostinit create my-app --features eve,i18n
+```
+
+Both features optional, false default, parsed case-insensitive deduped via `parseFeaturesInput()`. Unknown partially tolerated forward-compat (`eve,unknown` → `eve`), fully unknown (`unknownOnly`) throws ValidationError.
+
+## Modes
+
+- `monorepo` default — workspaces `apps/*, packages/*, tooling/*`, turbo tasks, root composer 12+ groups, recommended for AI/codebase split bounded contexts. Supports `apps web, mobile, both`.
+- `single` — flat Next.js all-in-one `src/app + server/ + agent/` via `modes/single.ts`, no workspaces, simpler for small apps. Single Expo variant via `modes/single/composers/expo.ts`: flat `app/ + src/server/ + app.json` when `--apps mobile`.
+
+```bash
+ghostinit create my-app --mode monorepo
+ghostinit create my-app --mode single
+ghostinit create my-app --mode monorepo --apps both
+ghostinit create my-app --mode single --apps mobile
+```
+
+## Combinations Examples
+
+- Algeria SaaS local: `chargily + postgres + nextjs + monorepo + apps web`
+- Algeria+Global dual: `chargily,stripe + postgres + nextjs + monorepo + eve + apps web`
+- Global open-source MoR: `polar + postgres + nextjs + eve + apps web`
+- Global full: `all billing + postgres + nextjs + monorepo + eve,i18n + apps web`
+- TanStack edge: `tanstack-start + postgres + stripe + monorepo + apps web`
+- Minimal: `none billing + postgres + nextjs + single + apps web` or `none + none DB + nextjs + single`
+- Mobile-only: `postgres + monorepo + apps mobile` → `apps/mobile` Expo SDK 54
+- Both apps: `postgres + monorepo + apps both` → `apps/web + apps/mobile` shared backend port 3000
+- Both + TanStack web: `tanstack-start + postgres + monorepo + apps both`
+- Single mobile: `single + apps mobile` → flat Expo app.json + app/ + src/server/
+- Cross-platform SaaS: `stripe + postgres + monorepo + apps both + eve`
+
+Only blocked combos:
+
+- `billing + database=none`
+- `single + apps both|all|web,mobile` (use monorepo for dual)
+
+## Env Prefixes
+
+- Next client: `NEXT_PUBLIC_*`
+- TanStack/Vite client: `VITE_*`
+- Expo client: `EXPO_PUBLIC_*`
+- Scaffold emits all three for client-safe tokens (stripe publishable, paddle client token, posthog key, app URL). Server secrets never client. Triple emit eases switching framework/app target.
+- Mobile additionally needs `EXPO_PUBLIC_API_URL` (API base) and `EXPO_PUBLIC_APP_URL` (app origin for deep links).
+
+## Turbo Outputs
+
+- `dist/**` bun build + expo export static
+- `.next/**` Next
+- `.vinxi/** .output/** dist/**` TanStack Vite/Nitro
+- `.vercel/**` Vercel
+- `.expo/**` Expo cache, `apps/mobile/dist/**` expo export
+- `globalEnv` 50+ vars exhaustive including `EXPO_PUBLIC_*`
+
+If you add new client var manually, add to turbo globalEnv too to invalidate cache on change.
+
+## Choosing Guidance
+
+- Starting new production app → `monorepo + nextjs + postgres + chosen billing + apps web`
+- Need realtime sync → consider `convex` (or postgres + realtime addon later)
+- Algeria market → include `chargily` + `stripe` dual
+- Global SaaS → `stripe` or `paddle` or `polar` or combo
+- Need AI durable agents → `eve`
+- Need multi-language → `i18n`
+- Experiment quickly → `single + postgres + nextjs + none billing + apps web`
+- Mobile app needed → `apps mobile` alone or `apps both` for web+mobile monorepo
+- Cross-platform (web dashboard + mobile app sharing same backend) → `monorepo + apps both`, backend single port 3000 via `EXPO_PUBLIC_API_URL`
+- Expo only, no web → `monorepo + apps mobile` or `single + apps mobile` flat
+- When both: web via `--framework nextjs|tanstack-start`, mobile always Expo SDK 54 regardless of framework

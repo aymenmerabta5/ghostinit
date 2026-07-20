@@ -9,24 +9,20 @@ export function billingComposerFiles(
   effectiveBilling: BillingProviderName[],
 ): TemplateFile[] {
   if (effectiveBilling.length > 0) {
-    return billingFiles(
-      { mode, runtime: runtime as any, addons } as any,
-      runtime as any,
-    ) as TemplateFile[];
+    return billingFiles({ mode, runtime, addons }, runtime) as TemplateFile[];
   }
-  // Empty billing still emits shared schema + empty UI
   return billingFiles(
     {
       mode,
-      runtime: runtime as any,
+      runtime,
       addons: {
         stripe: { inUse: false },
         chargily: { inUse: false },
         paddle: { inUse: false },
         polar: { inUse: false },
         billing: { inUse: false },
-      } as never,
-    } as never,
-    runtime as any,
+      } as unknown as AddonInstallerMap,
+    },
+    runtime,
   ) as TemplateFile[];
 }

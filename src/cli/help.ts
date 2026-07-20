@@ -38,6 +38,7 @@ Create options:
   --billing <providers>      Billing: stripe,chargily,paddle,polar|both|all|none (repeatable or comma-separated)
   --features <list>          Features: eve,i18n (repeatable or comma-separated)
   --database postgres|convex|none (default: postgres)
+  --apps web,mobile|both|all Apps: web, mobile, or both/all (repeatable or comma-separated, default: web)
 `;
 }
 

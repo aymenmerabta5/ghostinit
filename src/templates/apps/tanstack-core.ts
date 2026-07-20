@@ -6,15 +6,21 @@
 
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
-import type { AddonInstallerMap } from "../../lib/addons.js";
+import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import { viteSecurityHeaders, postcssConfigContent } from "./fragments/core.js";
 
-type FeatureInput = boolean | AddonInstallerMap | Record<string, { inUse: boolean }>;
+type FeatureInput =
+  | boolean
+  | AddonInstallerMap
+  | Record<string, { inUse: boolean }>
+  | BillingProviderName[];
 
 function resolveHasFeature(input: FeatureInput = false, feature: string): boolean {
   if (typeof input === "boolean") return input;
-  return Boolean((input as any)?.[feature]?.inUse);
+  if (Array.isArray(input)) return false;
+  const rec = input as Record<string, { inUse?: boolean }>;
+  return Boolean(rec[feature]?.inUse);
 }
 
 function resolveHasEve(input: FeatureInput = false): boolean {

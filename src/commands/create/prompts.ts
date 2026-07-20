@@ -1,6 +1,7 @@
 import { ExitCode } from "../../lib/errors.js";
 import {
   isInteractiveMode,
+  normalizeAppsSelection,
   normalizeBillingSelection,
   normalizeFeaturesSelection,
   PROJECT_NAME_RE,
@@ -25,6 +26,7 @@ export interface PromptResult {
   database: "postgres" | "convex" | "none";
   billing: string[];
   features: string[];
+  apps: string[];
   noInstall: boolean;
   cancelled?: boolean;
   exitCode?: number;
@@ -47,6 +49,7 @@ export async function promptInteractive(
     database: string;
     billing: string[];
     features: string[];
+    apps: string[];
     noInstall: boolean;
   },
 ): Promise<PromptResult> {
@@ -74,11 +77,12 @@ export async function promptInteractive(
       p.cancel("Operation cancelled.");
       return {
         name: "",
-        mode: initial.mode as any,
-        framework: initial.framework as any,
-        database: initial.database as any,
+        mode: initial.mode as PromptResult["mode"],
+        framework: initial.framework as PromptResult["framework"],
+        database: initial.database as PromptResult["database"],
         billing: initial.billing,
         features: initial.features,
+        apps: initial.apps,
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -98,11 +102,12 @@ export async function promptInteractive(
         p.cancel(`Invalid project name after ${attempts + 1} attempts: ${reason}`);
         return {
           name: name as string,
-          mode: initial.mode as any,
-          framework: initial.framework as any,
-          database: initial.database as any,
+          mode: initial.mode as PromptResult["mode"],
+          framework: initial.framework as PromptResult["framework"],
+          database: initial.database as PromptResult["database"],
           billing: initial.billing,
           features: initial.features,
+          apps: initial.apps,
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -127,11 +132,12 @@ export async function promptInteractive(
         p.cancel("Operation cancelled.");
         return {
           name: name as string,
-          mode: initial.mode as any,
-          framework: initial.framework as any,
-          database: initial.database as any,
+          mode: initial.mode as PromptResult["mode"],
+          framework: initial.framework as PromptResult["framework"],
+          database: initial.database as PromptResult["database"],
           billing: initial.billing,
           features: initial.features,
+          apps: initial.apps,
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -209,6 +215,24 @@ export async function promptInteractive(
               { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
             ],
           }),
+        apps: () =>
+          p.multiselect({
+            message: "App targets? (space to select, enter to confirm)",
+            initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
+            required: false,
+            options: [
+              {
+                value: "web",
+                label: "Web",
+                hint: "Next.js or TanStack Start via --framework (default)",
+              },
+              {
+                value: "mobile",
+                label: "Mobile",
+                hint: "Expo SDK 52 Router + SecureStore, shares backend via EXPO_PUBLIC_API_URL",
+              },
+            ],
+          }),
         install: () =>
           p.confirm({
             message: "Install dependencies with Bun?",
@@ -226,11 +250,12 @@ export async function promptInteractive(
     if (err instanceof CancelledError) {
       return {
         name: name as string,
-        mode: initial.mode as any,
-        framework: initial.framework as any,
-        database: initial.database as any,
+        mode: initial.mode as PromptResult["mode"],
+        framework: initial.framework as PromptResult["framework"],
+        database: initial.database as PromptResult["database"],
         billing: initial.billing,
         features: initial.features,
+        apps: initial.apps,
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -244,30 +269,36 @@ export async function promptInteractive(
   ) {
     return {
       name: name as string,
-      mode: initial.mode as any,
-      framework: initial.framework as any,
-      database: initial.database as any,
+      mode: initial.mode as PromptResult["mode"],
+      framework: initial.framework as PromptResult["framework"],
+      database: initial.database as PromptResult["database"],
       billing: initial.billing,
       features: initial.features,
+      apps: initial.apps,
       noInstall: initial.noInstall,
       cancelled: true,
       exitCode: ExitCode.CANCELLED,
     };
   }
 
-  const mode = (group.mode as any) ?? initial.mode;
-  const framework = (group.framework as any) ?? initial.framework;
-  const database = (group.database as any) ?? initial.database;
+  const mode = ((group.mode as string | undefined) ?? initial.mode) as PromptResult["mode"];
+  const framework = ((group.framework as string | undefined) ??
+    initial.framework) as PromptResult["framework"];
+  const database = ((group.database as string | undefined) ??
+    initial.database) as PromptResult["database"];
   const billing = normalizeBillingSelection((group.billing as string[]) ?? []);
   const features = normalizeFeaturesSelection((group.features as string[]) ?? []);
+  const apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
   const shouldInstall = group.install as boolean | undefined;
   const noInstall = shouldInstall !== undefined ? !shouldInstall : initial.noInstall;
 
   const billingLabel = billing.length ? ` + billing:${billing.join(",")}` : "";
   const featuresLabel = features.length ? ` + ${features.join(",")}` : "";
   const frameworkLabel = framework ? ` + ${framework}` : "";
+  const appsLabel = apps.length ? ` + apps:${apps.join(",")}` : "";
+  void appsLabel;
   p.outro(
-    `Scaffolding ${name} with ${mode}${frameworkLabel} + ${database}${billingLabel}${featuresLabel}...`,
+    `Scaffolding ${name} with ${mode}${frameworkLabel} + ${apps.join(",")} + ${database}${billingLabel}${featuresLabel}...`,
   );
 
   return {
@@ -277,6 +308,7 @@ export async function promptInteractive(
     database,
     billing,
     features,
+    apps,
     noInstall,
   };
 }

@@ -3,20 +3,19 @@ import { file, packageJson } from "../../shared.js";
 import {
   appsFiles as genAppsFiles,
   tanstackStartFiles as genTanstackFiles,
+  expoFiles as genExpoFiles,
 } from "../../apps/index.js";
 import type { AddonInstallerMap, FrameworkName } from "../../../lib/addons.js";
+import { hasAddon } from "../../../lib/addons.js";
 
 function appsFilesWithConditionalEve(
   runtime: "node" | "bun",
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
 ): TemplateFile[] {
-  const hasEve = Boolean((addons as any)?.eve?.inUse);
-  const isTanstack =
-    framework === "tanstack-start" || Boolean((addons as any)?.["tanstack-start"]?.inUse);
-  const base = isTanstack
-    ? genTanstackFiles(runtime as any, addons as any)
-    : genAppsFiles(runtime as any, addons as any);
+  const hasEve = hasAddon(addons, "eve");
+  const isTanstack = framework === "tanstack-start" || hasAddon(addons, "tanstack-start");
+  const base = isTanstack ? genTanstackFiles(runtime, addons) : genAppsFiles(runtime, addons);
   if (hasEve || isTanstack) return base;
   const nonEveConfig = file(
     "apps/web/next.config.ts",
@@ -50,7 +49,10 @@ function appsFilesWithConditionalEve(
   return [...base.filter((f: TemplateFile) => f.path !== "apps/web/next.config.ts"), nonEveConfig];
 }
 
-function typescriptConfigWithAliases(framework: FrameworkName = "nextjs"): TemplateFile[] {
+function typescriptConfigWithAliases(
+  framework: FrameworkName = "nextjs",
+  apps?: string[],
+): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
   const explicitBasePaths: Record<string, string[]> = {
     "@/*": ["./src/*"],
@@ -131,6 +133,11 @@ function typescriptConfigWithAliases(framework: FrameworkName = "nextjs"): Templ
     "@repo/ui": ["packages/ui/src/index.ts"],
     "@repo/testing": ["packages/testing/src/index.ts"],
     "@repo/workflows": ["packages/workflows/src/index.ts"],
+  };
+
+  const explicitExpoPaths: Record<string, string[]> = {
+    "@/*": ["./src/*"],
+    "@repo/*": ["packages/*/src", "tooling/*/src"],
   };
 
   const baseFiles: TemplateFile[] = [
@@ -232,6 +239,26 @@ function typescriptConfigWithAliases(framework: FrameworkName = "nextjs"): Templ
         2,
       ) + "\n",
     ),
+    file(
+      "packages/typescript-config/expo.json",
+      JSON.stringify(
+        {
+          extends: "./base.json",
+          compilerOptions: {
+            jsx: "react-jsx",
+            lib: ["ES2024", "DOM"],
+            noEmit: true,
+            incremental: true,
+            composite: false,
+            baseUrl: ".",
+            paths: explicitExpoPaths,
+            types: ["bun-types", "node"],
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    ),
   ];
 
   const webTsConfig = isTanstack
@@ -317,17 +344,42 @@ function typescriptConfigWithAliases(framework: FrameworkName = "nextjs"): Templ
         ) + "\n",
       );
 
-  return [...baseFiles, webTsConfig];
+  const includeWeb = !apps || apps.includes("web");
+  return includeWeb ? [...baseFiles, webTsConfig] : baseFiles;
 }
 
 export function appsComposerFiles(
   runtime: "node" | "bun",
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
+  appsOrFrameworkMaybe?: string[] | FrameworkName,
 ): TemplateFile[] {
-  // typescriptConfigWithAliases must be after appsFiles so it wins dedup for web tsconfig
+  let effectiveFramework: FrameworkName = framework;
+  let effectiveApps: string[] = ["web"];
+
+  const maybe = appsOrFrameworkMaybe as unknown;
+  if (Array.isArray(maybe) && (maybe as string[]).some((a) => a === "web" || a === "mobile")) {
+    effectiveApps = maybe as string[];
+  } else if (maybe === "web" || maybe === "mobile") {
+    effectiveApps = [maybe as string];
+  } else {
+    const hasMobileAddon = hasAddon(addons, "mobile");
+    const hasWebAddon = hasAddon(addons, "web");
+    if (hasMobileAddon || hasWebAddon) {
+      effectiveApps = [...(hasWebAddon ? ["web"] : []), ...(hasMobileAddon ? ["mobile"] : [])];
+    }
+    if (effectiveApps.length === 0) effectiveApps = ["web"];
+  }
+
+  const hasWeb = effectiveApps.includes("web");
+  const hasMobile = effectiveApps.includes("mobile");
+
+  const webFiles = hasWeb ? appsFilesWithConditionalEve(runtime, addons, effectiveFramework) : [];
+  const mobileFiles = hasMobile ? genExpoFiles(runtime, addons) : [];
+
   return [
-    ...appsFilesWithConditionalEve(runtime, addons, framework),
-    ...typescriptConfigWithAliases(framework),
+    ...webFiles,
+    ...mobileFiles,
+    ...typescriptConfigWithAliases(effectiveFramework, effectiveApps),
   ];
 }

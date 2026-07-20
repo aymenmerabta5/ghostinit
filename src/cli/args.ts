@@ -25,6 +25,7 @@ export const CLI_OPTIONS = {
   billing: { type: "string" as const, multiple: true as const },
   features: { type: "string" as const, multiple: true as const },
   database: { type: "string" as const, multiple: true as const },
+  apps: { type: "string" as const, multiple: true as const },
 };
 
 export interface ParsedCli {
@@ -55,6 +56,7 @@ export interface CreateParsed {
   billing: import("../lib/addons.js").BillingProviderName[];
   features: import("../lib/addons.js").FeatureName[];
   database: "postgres" | "convex" | "none";
+  apps: import("../lib/addons.js").AppName[];
 }
 
 export function parseCreateSpecific(
@@ -68,6 +70,7 @@ export function parseCreateSpecific(
       billing: getStringArray(values.billing),
       features: getStringArray(values.features),
       database: getStringArray(values.database),
+      apps: getStringArray(values.apps),
     }) as CreateParsed;
   }
   return {
@@ -76,6 +79,7 @@ export function parseCreateSpecific(
     billing: [] as never[],
     features: [] as never[],
     database: "postgres" as const,
+    apps: ["web"] as import("../lib/addons.js").AppName[],
   };
 }
 
@@ -104,11 +108,13 @@ export function buildGlobalOptions(
     billing: createParsed.billing,
     features: createParsed.features,
     database: createParsed.database,
+    apps: createParsed.apps,
     rawMode: getStringArray(values.mode),
     rawFramework: getStringArray(values.framework),
     rawBilling: getStringArray(values.billing),
     rawFeatures: getStringArray(values.features),
     rawDatabase: getStringArray(values.database),
+    rawApps: getStringArray(values.apps),
     logger,
   };
 }

@@ -5,7 +5,7 @@
 
 import { file, type TemplateFile } from "../shared.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
-import { billingProviders } from "../../lib/addons.js";
+import { billingProviders, hasAddon } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
@@ -24,9 +24,9 @@ function selectedBillingFromAddons(
   if (Array.isArray(map)) return map as BillingProviderName[];
   const sel: BillingProviderName[] = [];
   for (const p of billingProviders) {
-    if ((map as any)[p]?.inUse) sel.push(p as BillingProviderName);
+    if (hasAddon(map as AddonInstallerMap, p)) sel.push(p as BillingProviderName);
   }
-  if ((map as any).billing?.inUse && sel.length === 0)
+  if (hasAddon(map as AddonInstallerMap, "billing") && sel.length === 0)
     return [...billingProviders] as BillingProviderName[];
   return sel;
 }
@@ -39,7 +39,7 @@ function shouldEmitProvider(
 ): boolean {
   if (!addonsPresent) return false;
   if (selected.length === 0) {
-    const legacy = (map as any)?.billing?.inUse;
+    const legacy = hasAddon(map as AddonInstallerMap, "billing");
     return Boolean(legacy);
   }
   return selected.includes(provider);
@@ -49,9 +49,16 @@ export function tanstackApiFiles(
   addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
   const addonsPresent = addons !== undefined;
-  const selected = selectedBillingFromAddons(addons as any);
+  const selected = selectedBillingFromAddons(
+    addons as AddonInstallerMap | Record<string, { inUse: boolean }> | BillingProviderName[],
+  );
   const include = (p: BillingProviderName) =>
-    shouldEmitProvider(p, selected, addonsPresent, addons as any);
+    shouldEmitProvider(
+      p,
+      selected,
+      addonsPresent,
+      addons as AddonInstallerMap | Record<string, { inUse: boolean }>,
+    );
 
   const base: TemplateFile[] = [
     authApiRoute(),

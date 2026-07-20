@@ -1,3 +1,4 @@
+// @allow-long 430: addon registry consolidated billing+apps+features parsing with forward-compat unknown-token handling, single source for host+generated
 /**
  * Addon registry — single source of truth for flexible options.
  *
@@ -49,6 +50,9 @@ export type ProjectMode = (typeof availableModes)[number];
 export const availableFrameworks = ["nextjs", "tanstack-start"] as const;
 export type FrameworkName = (typeof availableFrameworks)[number];
 
+export const availableApps = ["web", "mobile"] as const;
+export type AppName = (typeof availableApps)[number];
+
 export const availableFeatures = ["eve", "i18n"] as const;
 export type FeatureName = (typeof availableFeatures)[number];
 
@@ -77,7 +81,8 @@ export type AddonKey =
   | FeatureName
   | DatabaseProvider
   | ProjectMode
-  | FrameworkName;
+  | FrameworkName
+  | AppName;
 
 export interface AddonInstaller {
   inUse: boolean;
@@ -286,6 +291,52 @@ export function parseDatabaseInput(input?: string): DatabaseProvider {
 }
 
 /* ------------------------------------------------------------------ */
+/* Apps parsing                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse apps input:
+ * - undefined / "" / whitespace -> ["web"] default (backward compat)
+ * - "none" -> [] (let isValidAddonCombo report missing app)
+ * - "all" / "both" -> ["web","mobile"]
+ * - comma/whitespace separated, case-insensitive, deduped
+ *   e.g. "web" => ["web"], "mobile" => ["mobile"]
+ *        "web,mobile" / "both" / "all" => ["web","mobile"]
+ * - Unknown tokens ignored when at least one known exists (forward-compat)
+ * - Fully unknown non-empty (no explicit none) throws ValidationError
+ */
+export function parseAppsInput(input?: string): AppName[] {
+  if (!input) return ["web"];
+  const trimmedInput = input.trim();
+  if (trimmedInput === "") return ["web"];
+  const normalized = trimmedInput.toLowerCase();
+  if (normalized === "none") return [];
+  if (normalized === "all" || normalized === "both") return [...availableApps];
+
+  const parts = normalized.split(/[,\s]+/).filter(Boolean);
+  const result: AppName[] = [];
+  for (const raw of parts) {
+    const p = raw.trim().toLowerCase();
+    if (p === "" || p === "none") continue;
+    if (p === "all" || p === "both") return [...availableApps];
+    if ((availableApps as readonly string[]).includes(p)) {
+      const typed = p as AppName;
+      if (!result.includes(typed)) result.push(typed);
+    }
+  }
+  if (result.length === 0) {
+    const hasExplicitNone = parts.includes("none");
+    const hasMeaningful = parts.some((t) => t !== "" && t !== "none");
+    if (hasMeaningful && !hasExplicitNone) {
+      throw new ValidationError(
+        `Invalid --apps value: ${input}. Allowed: ${availableApps.join(", ")}, both, all`,
+      );
+    }
+  }
+  return result;
+}
+
+/* ------------------------------------------------------------------ */
 /* Compatibility validation                                           */
 /* ------------------------------------------------------------------ */
 
@@ -294,12 +345,31 @@ export function isValidAddonCombo(options: {
   database: DatabaseProvider;
   mode: ProjectMode;
   framework?: FrameworkName;
+  apps?: AppName[];
 }): { valid: boolean; message?: string } {
+  const apps = options.apps ?? ["web" as AppName];
   if (options.billing.length > 0 && options.database === "none") {
     return {
       valid: false,
       message:
         "Billing requires at least postgres or convex for subscriptions table, but database is none",
+    };
+  }
+  if (apps.length === 0) {
+    return {
+      valid: false,
+      message: "At least one app target required --apps web, mobile, or both",
+    };
+  }
+  if (
+    options.mode === "single" &&
+    apps.includes("web" as AppName) &&
+    apps.includes("mobile" as AppName)
+  ) {
+    return {
+      valid: false,
+      message:
+        "Single mode supports only one app target --apps web or --apps mobile, not both. Use monorepo for web+mobile",
     };
   }
   return { valid: true };
@@ -315,6 +385,7 @@ export interface BuildAddonMapInput {
   database: DatabaseProvider;
   mode: ProjectMode;
   framework?: FrameworkName;
+  apps?: AppName[];
 }
 
 /**
@@ -337,45 +408,45 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     ...availableDatabases,
     ...availableModes,
     ...availableFrameworks,
+    ...availableApps,
   ]);
-
   const map: Record<string, AddonInstaller> = {};
-
-  for (const key of allKeys) {
-    map[key] = { inUse: false };
-  }
-
-  // Defaults always enabled
-  for (const addon of defaultAddons) {
-    map[addon] = { inUse: true };
-  }
-
-  // Mode
-  for (const m of availableModes) {
-    map[m] = { inUse: m === input.mode };
-  }
-
-  // Database
-  for (const d of availableDatabases) {
-    map[d] = { inUse: false };
-  }
+  for (const key of allKeys) map[key] = { inUse: false };
+  for (const addon of defaultAddons) map[addon] = { inUse: true };
+  for (const m of availableModes) map[m] = { inUse: m === input.mode };
+  for (const d of availableDatabases) map[d] = { inUse: false };
   map[input.database] = { inUse: true };
-
-  // Features
-  for (const f of availableFeatures) {
-    map[f] = { inUse: input.features.includes(f) };
-  }
-
-  // Billing providers
-  for (const b of BILLING_PROVIDERS) {
+  for (const f of availableFeatures) map[f] = { inUse: input.features.includes(f) };
+  for (const b of BILLING_PROVIDERS)
     map[b] = { inUse: input.billing.includes(b as BillingProviderName) };
-  }
-
-  // Framework
   const effectiveFramework = input.framework ?? "nextjs";
-  for (const f of availableFrameworks) {
-    map[f] = { inUse: f === effectiveFramework };
-  }
-
+  for (const f of availableFrameworks) map[f] = { inUse: f === effectiveFramework };
+  const effectiveApps = input.apps ?? (["web"] as AppName[]);
+  for (const a of availableApps) map[a] = { inUse: (effectiveApps as string[]).includes(a) };
   return map as AddonInstallerMap;
+}
+
+export function hasAddon(map: AddonInstallerMap | undefined, key: string): boolean {
+  if (!map) return false;
+  return Boolean(map[key]?.inUse);
+}
+
+export function isAddonInstallerMap(input: unknown): input is AddonInstallerMap {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return false;
+  const rec = input as Record<string, unknown>;
+  for (const v of Object.values(rec)) {
+    if (typeof v === "object" && v !== null && "inUse" in (v as Record<string, unknown>))
+      return true;
+  }
+  return false;
+}
+
+export function getFeatureFlag(
+  input: boolean | AddonInstallerMap | Record<string, { inUse?: boolean }> | undefined,
+  feature: string,
+): boolean {
+  if (typeof input === "boolean") return input;
+  if (!input) return false;
+  const rec = input as Record<string, { inUse?: boolean }>;
+  return Boolean(rec[feature]?.inUse);
 }

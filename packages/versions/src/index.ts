@@ -170,6 +170,31 @@ export const postgresDocker = {
   image: "postgres:18.4",
 } as const;
 
+export const expo = {
+  expo: "52.0.0",
+  "@expo/metro-runtime": "4.0.0",
+  "expo-constants": "17.0.0",
+  "expo-linking": "7.0.0",
+  "expo-router": "4.0.0",
+  "expo-secure-store": "13.0.0",
+  "expo-status-bar": "2.0.0",
+  "expo-web-browser": "14.0.0",
+  "react-native": "0.81.4",
+  "react-native-safe-area-context": "5.0.0",
+  "react-native-web": "0.20.0",
+  "babel-preset-expo": "12.0.0",
+} as const;
+
+export const reanimated = {
+  "react-native-reanimated": "3.17.0",
+} as const;
+
+export const uniwind = {
+  uniwind: "0.2.0",
+  "tailwind-variants": "1.0.0",
+  "tw-animate-css": "1.2.0",
+} as const;
+
 export const catalog = {
   ...runtime,
   ...typescript,
@@ -190,6 +215,9 @@ export const catalog = {
   ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
   ...interactive,
+  ...expo,
+  ...reanimated,
+  ...uniwind,
 } as const;
 
 export type CatalogPackage = keyof typeof catalog;

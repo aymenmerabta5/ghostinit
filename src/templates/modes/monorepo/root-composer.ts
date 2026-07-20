@@ -4,19 +4,17 @@ import { rootFiles as genRootFiles } from "../../root.js";
 import type { BillingProviderName } from "../../../lib/addons.js";
 import { filteredEnvExample } from "./utils.js";
 
+type Runtime = "node" | "bun";
+type GenerateCtx = { dryRun?: boolean };
+
 export function rootComposerFiles(
   projectName: string,
   secrets: RootSecrets,
-  ctx: { dryRun?: boolean },
-  runtime: "node" | "bun",
+  ctx: GenerateCtx,
+  runtime: Runtime,
   selectedBilling: BillingProviderName[],
 ): TemplateFile[] {
-  const raw = genRootFiles(
-    projectName,
-    secrets,
-    { dryRun: Boolean(ctx.dryRun) } as any,
-    runtime as any,
-  );
+  const raw = genRootFiles(projectName, secrets, { dryRun: Boolean(ctx.dryRun) }, runtime);
   const filtered = filteredEnvExample(projectName, secrets, selectedBilling, true, runtime);
   return raw.map((f: TemplateFile) => (f.path === ".env.example" ? filtered : f));
 }

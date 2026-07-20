@@ -23,11 +23,13 @@ export interface GlobalOptions {
   billing?: BillingProviderName[];
   features?: FeatureName[];
   database?: DatabaseProvider;
+  apps?: import("../lib/addons.js").AppName[];
   rawMode?: string | string[];
   rawFramework?: string | string[];
   rawBilling?: string | string[];
   rawFeatures?: string | string[];
   rawDatabase?: string | string[];
+  rawApps?: string | string[];
   logger: Logger;
 }
 

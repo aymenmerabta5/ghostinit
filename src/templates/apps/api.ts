@@ -5,7 +5,7 @@
 
 import { file, type TemplateFile } from "../shared.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
-import { billingProviders } from "../../lib/addons.js";
+import { billingProviders, hasAddon } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
@@ -26,9 +26,9 @@ function selectedBillingFromAddons(
   }
   const sel: BillingProviderName[] = [];
   for (const p of billingProviders) {
-    if ((map as any)[p]?.inUse) sel.push(p as BillingProviderName);
+    if (hasAddon(map as AddonInstallerMap, p)) sel.push(p as BillingProviderName);
   }
-  if ((map as any).billing?.inUse && sel.length === 0) {
+  if (hasAddon(map as AddonInstallerMap | undefined, "billing") && sel.length === 0) {
     return [...billingProviders] as BillingProviderName[];
   }
   return sel;
@@ -44,7 +44,7 @@ function shouldEmitProvider(
     return false;
   }
   if (selected.length === 0) {
-    const legacy = (map as any)?.billing?.inUse;
+    const legacy = hasAddon(map as AddonInstallerMap, "billing");
     return Boolean(legacy);
   }
   return selected.includes(provider);

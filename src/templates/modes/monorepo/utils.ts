@@ -1,7 +1,12 @@
 import { secret, type TemplateFile } from "../../shared.js";
 import { filteredEnvExample as sharedFilteredEnvExample } from "../../shared/billing-env.js";
 import type { RootSecrets } from "../../root.js";
-import { billingProviders, type BillingProviderName } from "../../../lib/addons.js";
+import {
+  billingProviders,
+  hasAddon,
+  type BillingProviderName,
+  type AddonInstallerMap,
+} from "../../../lib/addons.js";
 
 export function buildSecrets(): RootSecrets {
   return {
@@ -23,12 +28,12 @@ export function buildSecrets(): RootSecrets {
 }
 
 export function selectedBillingFromAddons(
-  addons?: Record<string, { inUse: boolean }>,
+  addons?: Record<string, { inUse: boolean }> | AddonInstallerMap,
 ): BillingProviderName[] {
   if (!addons) return [];
   const sel: BillingProviderName[] = [];
   for (const p of billingProviders) {
-    if ((addons as any)[p]?.inUse) sel.push(p as BillingProviderName);
+    if (hasAddon(addons as AddonInstallerMap, p)) sel.push(p as BillingProviderName);
   }
   return sel;
 }

@@ -247,6 +247,76 @@ Explicit trigger doc:
 - **Verification:** After extraction, `tanstack-pages.ts` ~60 LOC parity with `pages.ts` (70 LOC). Each fragment file <150 LOC. `settingsFiles("tanstack")` returns 1 file, `billingFiles("tanstack")` returns 1 file, `recoveryFiles("tanstack")` returns 2. Guard duplication eliminated via `tanstack-guard` helpers.
 - **History:** 2026-07-19 Yellow #3 — extracted forgot-password (66 LOC), reset-password (80 LOC), settings (78 LOC), billing (66 LOC) inline from `tanstack-pages.ts` (357 LOC → 65 LOC) into `fragments/recovery/` (RouterType), `fragments/settings/tanstack-page.ts` using guard helpers, `fragments/billing/` new dir. Achieved DRY parity.
 
+### Expo RNR + Uniwind Shared Theming (Web + Mobile Monorepo)
+
+Design spec: `docs/superpowers/specs/2026-07-20-expo-rnr-uniwind-shared-theming-design.md`, plan: `docs/superpowers/plans/2026-07-20-expo-rnr-uniwind-shared-theming.md`.
+
+**Single source tokens: `@repo/ui` becomes tokens-only**
+
+- Before: `packages/ui` contained 15+ web primitives (Button, Card, Badge, Input, etc.) with `@base-ui/react` heavy deps, duplicated theming.
+- After: `packages/ui/src/theme.css` is single source OKLCH tokens — light/dark `:root`/`.dark` + `@theme inline` mapping + `@layer theme @variant light/dark` for Uniwind compat. `packages/ui/src/lib/utils.ts` `cn()` stays (`clsx+tailwind-merge`). Package.json dependencies minimal (`clsx`, `tailwind-merge`), no React heavy deps. Barrel exports `cn` + `themePath`.
+- Web UI primitives moved to `apps/web/src/components/ui/` (deterministic host templates in `src/templates/apps/fragments/web-ui/`) + `apps/web/src/lib/utils.ts`. Generated via `core.ts` `webUiFiles()` aggregated from `primitives.ts`, `feedback.ts`, `forms.ts`, `layout.ts`, `overlays.ts`, `dropdown.ts`, `data.ts` (copies from old `src/templates/ui/*` but new output paths `apps/web/src/components/ui/*`).
+- Mobile UI primitives: `apps/mobile/src/components/ui/` RNR + Uniwind — deterministic templates in `src/templates/apps/fragments/expo/rnr/` (no `npx @rnr/cli` runtime). Components: `text.tsx` (`TextClassContext` for card-foreground), `button.tsx` (`tv` variants + `Pressable` + `Text`), `card.tsx` (Card family with context provider), `input.tsx` (`TextInput` className border-input bg-background), `label.tsx`, `badge.tsx` (tv variants), `avatar.tsx`, `tabs.tsx`. All use `className="bg-primary text-primary-foreground"` referencing shared tokens, no `StyleSheet.create` for colors.
+
+**global.css imports — single source**
+
+- `src/templates/apps/fragments/css.ts` canonical token constants `oklchLightTokens`, `oklchDarkTokens`, `themeInlineTokens` kept, but `globalCssContent()` now returns `@import "tailwindcss"; @import "@repo/ui/theme.css"; @import "tw-animate-css"; @custom-variant dark ... @layer base`. No tokens inline — imports shared file.
+- `mobileGlobalCssContent()` returns `@import "tailwindcss"; @import "uniwind"; @import "@repo/ui/theme.css"; @import "tw-animate-css"; @source` entries + custom-variant.
+- `src/templates/ui/theme.ts` `themeCssContent()` composes `oklchLightTokens + oklchDarkTokens + themeInlineTokens + @layer theme @variant light { --color-* }` wrapper for Uniwind, generates `packages/ui/src/theme.css` file via `themeFiles()`.
+- Web composer `apps/core.ts` generates `apps/web/src/app/globals.css` via `globalCssContent()` (now imports shared).
+- Mobile composer `apps/expo-core.ts` generates `apps/mobile/global.css` via `mobileGlobalCssContent()`.
+- Result: edit `packages/ui/src/theme.css` one file → both `apps/web/src/app/globals.css` and `apps/mobile/global.css` see same `--primary` after restart.
+
+**Expo Uniwind infra — Babel, Metro, TS**
+
+- Babel: `['uniwind/babel', { cssEntryFile: './global.css' }]` **before** `babel-preset-expo` — order matters per Uniwind docs (`uniwind/babel` must be first preset). Template `babelConfigContent()` in `expo-core.ts`.
+- Metro: `withUniwindConfig(config, { cssEntryFile: './global.css', dtsFile: './uniwind-types.d.ts' })` wrapper from `uniwind/metro` — `getDefaultConfig(__dirname)` auto monorepo, then wrapped. Template `metroConfigContent()`.
+- TS: `tsconfig.json` (mobile) includes `.expo/types/**/*.ts`, `expo-env.d.ts`, `uniwind-types.d.ts`, `global.css` in include array — ensures Uniwind d.ts generated file typed.
+- Layout: `apps/mobile/app/_layout.tsx` `expoRootLayoutContent()` must `import '../global.css'` at top per Uniwind docs Expo Router. If missing, className silently ignored (no style). Verified in smoke test `web-mobile-rnr.test.ts`.
+- Deps: `packages/versions/src/index.ts` `uniwind` group (`uniwind`, `tailwind-variants`, `tw-animate-css`) + `reanimated` group (`react-native-reanimated`). Versions: `uniwind@0.2.0` (RN binding Founded Labs, not Vue uniwindcss 2.x), `tailwind-variants@1.0.0`, `tw-animate-css@1.2.0`, `react-native-reanimated@3.17.0` (stable, not 4.1.1 canary). Added to `catalog` spread. `apps/mobile/package.json` includes these via `expo-core.ts` `webPackageMobile()`.
+
+**Pages rewrite — RNR + className**
+
+- `src/templates/apps/fragments/expo/layout.ts` — imports `../global.css` + QueryClientProvider + Stack.
+- `marketing.ts` — `View className="flex-1 bg-background"` + `Text className="text-foreground"` + RNR `Button`, `Card`, `Badge` with `className` tokens, no hardcoded `#111827`. `Built with Expo + RNR + Uniwind + OKLCH shared theme` note.
+- `auth.ts` (5 screens sign-in, sign-up, forgot, reset, 2fa) — uses `Input`, `Label`, `Button`, `CardHeader/Title/Description/Content/Footer`, `Text`, `Badge` all with Tailwind className `bg-background`, `border-border`, `text-muted-foreground`, etc. No `StyleSheet.create` for colors.
+- `dashboard.ts` — Card family, Badge, Avatar, Text with `bg-background`, `text-foreground`.
+- `header.ts` — View border `border-b border-border bg-background/95`, Text `text-sm font-bold`.
+- `orpc.ts` — typed `AuthClientWithCookie` type for `getCookie()` via `typeof authClient & { getCookie?: ... }`, no `as any` — returns cookie header for RPCLink.
+- All pages verified to contain `components/ui/button` + `className` + no `StyleSheet.create` in smoke.
+
+**6-layer compliance — mobile same L1**
+
+- `src/lib/architecture/rules/layered.ts` `getLayerFromFilePath()` returns L1 for `apps/mobile/src/` + `apps/mobile/app/` + `apps/mobile/` paths explicitly. `isFrameworkEntryPoint()` now also exempts `_layout.tsx` (`__root.tsx` already exempt, added `_layout.tsx` check). So `apps/mobile/app/_layout.tsx` is null (exempt), other mobile files L1.
+- `packages/ui/src/theme.css` → L6 Supporting (`packages/ui` path).
+- `apps/web/src/components/ui/button.tsx` → L1 UI (web).
+- `apps/mobile/src/components/ui/button.tsx` → L1 UI (mobile).
+- Downward allowed: L1 UI → L2 Transport (`packages/api`), L3 Domain, L4 Capabilities, L5 Vendors, L6 Supporting. No new violation introduced.
+- Test: `tests/unit/arch-layers.test.ts` verifies mobile UI L1, web UI L1, theme.css L6, `global.css` L1, `_layout.tsx` exempt.
+
+**Linting — forbid any in host**
+
+- `.oxlintrc.json` new override: `files ["src/lib/**/*.ts", "src/templates/**/*.ts", "src/cli/**/*.ts", "src/commands/**/*.ts"]` rules `typescript/no-explicit-any: warn`. Valid rule name via oxlint `--rules` json lists `typescript/no-explicit-any` restriction. Set to warn not error to allow gradual cleanup while warning new code.
+- Previous host files had scattered `as any` in addon parsing (`core.ts`, `expo-core.ts`, `tanstack-core.ts`, `apps-composer.ts`, `billing-generator.ts`, `api.ts`, `lib/addons.ts`, `cli.ts`, analytics). Plan tasks 7-8 describe typed helpers `hasAddon(map,key)`, `getFeatureFlag(input, feature)`, `isAddonInstallerMap(input)`, `AuthClientWithCookie` etc. to remove anys. This task enables lint rule to prevent regression; existing any's now warn (50+ warnings) but not fail `bun run check` (check only fails on errors, warnings allowed).
+- Generated project lint: `apps/mobile` uses same oxlint base (extends). RNR components fully typed, no any.
+
+**Smoke tests**
+
+- `tests/integration/web-mobile-rnr.test.ts` — generates `monorepoFiles` with `apps ["web","mobile"]`, asserts paths contain `packages/ui/src/theme.css`, `apps/web/src/app/globals.css`, `apps/mobile/global.css`, `babel.config.js`, `metro.config.js`, `utils.ts`, RNR ui components, web button. Asserts theme contains `oklch`, `--background`, `@theme inline`. Asserts `webGlobal` contains `@import "@repo/ui/theme.css"` + `tailwindcss`. Asserts `mobileGlobal` contains `@import "@repo/ui/theme.css"` + `tailwindcss` + `uniwind` + `@source`. Asserts babel contains `uniwind/babel` + `cssEntryFile` + `global.css` and uniwind before expo. Asserts metro contains `withUniwindConfig` + `global.css` + `dtsFile`. Asserts marketing marketing `index.tsx` uses `components/ui/button` + `className` + no `StyleSheet.create` + no hardcoded `#111827`. Dashboard contains `bg-background` + no StyleSheet.
+
+**Template composition dedup**
+
+- `src/templates/ui/index.ts` now only merges `configFiles()` + `themeFiles()` + `barrelFile()` (tokens-only). Old `primitivesFiles()` etc removed from ui package — they live in `web-ui` fragments.
+- `src/templates/apps/fragments/web-ui/index.ts` aggregates `cnFile` + `primitivesFiles()` + `feedbackFiles()` + `formsFiles()` + `layoutFiles()` + `overlaysFiles()` + `sheetFiles()` + `dropdownFiles()` + `chartFiles()` — generates `apps/web/src/lib/utils.ts` + `apps/web/src/components/ui/*`.
+- `src/templates/apps/core.ts` imports `webUiFiles()` and spreads into `coreFiles()` array — web UI local generation.
+- `src/templates/modes/monorepo/apps-composer.ts` typescript config includes expo paths alias `@repo/ui` etc. No change needed for mobile detection — `genExpoFiles()` already includes core + components + pages.
+- `src/templates/modes/monorepo/index.ts` dedup+sort + `__PROJECT_NAME__` replace + filter by effectiveApps (web/mobile) + tsconfig references filtered by app name.
+- Version sync still 3 files: `packages/versions/src/index.ts` ghostinitVersion + `package.json` version + `src/templates/versions.ts` re-export — checked by build step.
+
+**History**
+
+- 2026-07-20 Expo RNR+Uniwind shared theming — full refactor per design spec/plan. Previous impl used StyleSheet hardcoded colors (#111827 etc), web primitives in @repo/ui, no shared theme. New impl single source theme.css + RNR + Uniwind className + web local ui.
+
 ### Build / TS / Bun Policies
 
 **Host:**

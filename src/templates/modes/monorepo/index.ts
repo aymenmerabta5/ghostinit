@@ -1,8 +1,16 @@
 import type { ProjectConfig } from "../../../lib/config.js";
 import type { TemplateFile } from "../../shared.js";
 import type { RootSecrets } from "../../root.js";
-import { buildAddonInstallerMap } from "../../../lib/addons.js";
-import type { AddonInstallerMap, BillingProviderName, FrameworkName } from "../../../lib/addons.js";
+import { buildAddonInstallerMap, hasAddon } from "../../../lib/addons.js";
+import type {
+  AddonInstallerMap,
+  AppName,
+  BillingProviderName,
+  FrameworkName,
+  ProjectMode,
+  DatabaseProvider,
+  FeatureName,
+} from "../../../lib/addons.js";
 import { buildSecrets, selectedBillingFromAddons } from "./utils.js";
 import { rootComposerFiles } from "./root-composer.js";
 import { packagesComposerFiles } from "./packages-composer.js";
@@ -21,57 +29,70 @@ export interface MonorepoContext {
   dryRun?: boolean;
 }
 
+type Runtime = "node" | "bun";
+
 export function monorepoFiles(
   config: ProjectConfig,
   secrets: RootSecrets = buildSecrets(),
   ctx: MonorepoContext = { dryRun: false },
   addons?: AddonInstallerMap,
 ): TemplateFile[] {
-  const runtime = (config.runtime ?? "bun") as "node" | "bun";
-  const mode = (config.mode ?? "monorepo") as "monorepo" | "single";
+  const runtime = (config.runtime ?? "bun") as Runtime;
+  const mode = (config.mode ?? "monorepo") as ProjectMode;
   const addonMap: AddonInstallerMap =
-    (addons as AddonInstallerMap) ??
+    addons ??
     buildAddonInstallerMap({
-      billing: (config.billing ?? []) as any,
-      features: (config.features ?? []) as any,
-      database: (config.database ?? "postgres") as any,
-      mode: mode as any,
-      framework: (config.framework ?? "nextjs") as any,
+      billing: (config.billing ?? []) as BillingProviderName[],
+      features: (config.features ?? []) as FeatureName[],
+      database: (config.database ?? "postgres") as DatabaseProvider,
+      mode,
+      framework: (config.framework ?? "nextjs") as FrameworkName,
+      apps: (config.apps ?? ["web"]) as AppName[],
     });
 
   const hasEve = Boolean(
-    (addonMap as any).eve?.inUse ?? (config.features ?? []).includes("eve" as any),
+    hasAddon(addonMap, "eve") || (config.features ?? []).includes("eve" as FeatureName),
   );
   const hasI18n = Boolean(
-    (addonMap as any).i18n?.inUse ?? (config.features ?? []).includes("i18n" as any),
+    hasAddon(addonMap, "i18n") || (config.features ?? []).includes("i18n" as FeatureName),
   );
-  const configuredFramework = (config as any).framework as FrameworkName | undefined;
+  const configuredFramework = config.framework as FrameworkName | undefined;
   const effectiveFramework = (configuredFramework ??
-    ((addonMap as any)?.["tanstack-start"]?.inUse ? "tanstack-start" : "nextjs")) as FrameworkName;
-  const selectedBilling = selectedBillingFromAddons(addonMap as any);
+    (hasAddon(addonMap, "tanstack-start") ? "tanstack-start" : "nextjs")) as FrameworkName;
+  const selectedBilling = selectedBillingFromAddons(addonMap as unknown as AddonInstallerMap);
   const effectiveBilling =
     selectedBilling.length > 0
       ? selectedBilling
       : ((config.billing ?? []) as BillingProviderName[]);
 
+  let effectiveApps: AppName[];
+  const cfgApps = config.apps as AppName[] | undefined;
+  if (cfgApps && Array.isArray(cfgApps) && cfgApps.length > 0) {
+    effectiveApps = cfgApps;
+  } else {
+    const hasWeb = hasAddon(addonMap, "web");
+    const hasMobile = hasAddon(addonMap, "mobile");
+    if (hasWeb || hasMobile) {
+      effectiveApps = [
+        ...(hasWeb ? (["web"] as AppName[]) : []),
+        ...(hasMobile ? (["mobile"] as AppName[]) : []),
+      ] as AppName[];
+    } else {
+      effectiveApps = ["web"] as AppName[];
+    }
+  }
+
   const all: TemplateFile[] = [
-    ...rootComposerFiles(config.name, secrets, ctx, runtime as any, effectiveBilling),
-    ...packagesComposerFiles(runtime as any),
-    ...databaseComposerFiles(config.name, runtime as any),
+    ...rootComposerFiles(config.name, secrets, ctx, runtime, effectiveBilling),
+    ...packagesComposerFiles(runtime),
+    ...databaseComposerFiles(config.name, runtime),
     ...authComposerFiles(effectiveFramework),
     ...apiComposerFiles(),
     ...uiComposerFiles(),
-    ...modulesComposerFiles(runtime as any),
-    ...appsComposerFiles(runtime as any, addonMap, effectiveFramework),
-    ...servicesComposerFiles(
-      config.name,
-      runtime as any,
-      addonMap,
-      hasEve,
-      hasI18n,
-      effectiveFramework,
-    ),
-    ...billingComposerFiles("monorepo", runtime as any, addonMap, effectiveBilling),
+    ...modulesComposerFiles(runtime),
+    ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps),
+    ...servicesComposerFiles(config.name, runtime, addonMap, hasEve, hasI18n, effectiveFramework),
+    ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
   ];
 
   const enrichedAgents = agentsComposerFiles(
@@ -94,7 +115,37 @@ export function monorepoFiles(
 
   const dedup = new Map<string, TemplateFile>();
   for (const f of merged) dedup.set(f.path, f);
-  const finalFiles = [...dedup.values()].sort((a: TemplateFile, b: TemplateFile) =>
+
+  const hasWeb = effectiveApps.includes("web" as AppName);
+  const hasMobile = effectiveApps.includes("mobile" as AppName);
+  let filteredFiles = [...dedup.values()];
+  if (!hasWeb) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/web/"));
+  if (!hasMobile) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/mobile/"));
+
+  const tsIdx = filteredFiles.findIndex((f) => f.path === "tsconfig.json");
+  if (tsIdx !== -1) {
+    try {
+      const parsed = JSON.parse(filteredFiles[tsIdx].content) as {
+        references?: Array<{ path: string }>;
+      };
+      if (Array.isArray(parsed.references)) {
+        parsed.references = parsed.references.filter((r: { path: string }) => {
+          const p = r.path;
+          if (p.startsWith("apps/")) {
+            const appName = p.split("/")[1];
+            return effectiveApps.includes(appName as AppName);
+          }
+          return true;
+        });
+        filteredFiles[tsIdx] = {
+          ...filteredFiles[tsIdx],
+          content: `${JSON.stringify(parsed, null, 2)}\n`,
+        };
+      }
+    } catch {}
+  }
+
+  const finalFiles = filteredFiles.sort((a: TemplateFile, b: TemplateFile) =>
     a.path.localeCompare(b.path),
   );
 

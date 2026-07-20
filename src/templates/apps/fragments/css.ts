@@ -2,6 +2,8 @@
  * Shared OKLCH design tokens + Tailwind v4 global CSS
  * Deduplicates 95% identical global CSS between Next (app/globals.css) and TanStack (styles/app.css)
  * Both use same paper white oklch(0.99) + indigo primary 0.55 chroma 0.22
+ * After RNR+Uniwind refactor: theme tokens live in @repo/ui/src/theme.css (single source).
+ * Web and mobile both @import that file.
  */
 
 export const tailwindImports = `@import "tailwindcss";
@@ -129,17 +131,33 @@ export const baseLayer = `@layer base {
 }`;
 
 /**
- * Returns the full Tailwind v4 + OKLCH global CSS shared by Next and TanStack
- * 100% identical – eliminates 100% duplication for CSS tokens
+ * Web global.css — single source: imports @repo/ui/theme.css
+ * Contains only imports + base layer, tokens live in @repo/ui/theme.css
  */
 export function globalCssContent(): string {
-  return `${tailwindImports}
-${oklchLightTokens}
-
-${oklchDarkTokens}
-
-${themeInlineTokens}
+  return `@import "tailwindcss";
+@import "@repo/ui/theme.css";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
 
 ${baseLayer}
+`;
+}
+
+/**
+ * Mobile global.css — Uniwind + Tailwind + single source @repo/ui/theme.css
+ * Must be imported in apps/mobile/app/_layout.tsx at top per Uniwind docs.
+ */
+export function mobileGlobalCssContent(): string {
+  return `@import "tailwindcss";
+@import "uniwind";
+@import "@repo/ui/theme.css";
+@import "tw-animate-css";
+
+@source "./app/**/*.{js,jsx,ts,tsx}";
+@source "./src/**/*.{js,jsx,ts,tsx}";
+@source "./components/**/*.{js,jsx,ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
 `;
 }
