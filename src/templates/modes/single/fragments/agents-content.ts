@@ -1,3 +1,4 @@
+import * as v from "../../../versions.js";
 import type { BillingProviderName } from "../../../../lib/addons.js";
 
 export function buildAgentsMdContent(
@@ -19,9 +20,9 @@ export function buildAgentsMdContent(
   lines.push(
     "- Mode: single (flat Next.js all-in-one src/app + server/ + agent/ if eve, no workspaces)",
   );
-  lines.push("- Runtime: bun only (bun 1.3.14, bunfig.toml hoist false, bun.lock or npm)");
+  lines.push(`- Runtime: bun only (bun ${v.runtime.bun}, bunfig.toml hoist true, bun.lock or npm)`);
   lines.push(
-    "- Stack: Next.js 16.2.10 App Router React 19.2.7 TS 7.0.2 Drizzle 0.45.2 PG 18.4 Better Auth 1.6.23 Resend 4.0.1 Zod 4.4.3 TanStack Query 5.101.2 Form 1.33.1 Tailwind 4.3.2 Base UI 1.6.0 eve 0.24.6 if chosen",
+    `- Stack: Next.js ${v.nextStack.next} App Router React ${v.nextStack.react} TS ${v.typescript.typescript} Drizzle ${v.database["drizzle-orm"]} PG 18.4 Better Auth ${v.auth["better-auth"]} Resend 4.0.1 Zod 4.4.3 TanStack Query 5.101.2 Form 1.33.1 Tailwind 4.3.2 Base UI 1.6.0 eve 0.24.6 if chosen`,
   );
   lines.push(
     "- Billing: " +
@@ -49,7 +50,7 @@ export function buildAgentsMdContent(
     "- **src/server/db/** Drizzle pool max 20 idle 30s SSL, schema/auth.ts users sessions accounts verifications twoFactor, schema/billing.ts shared, index.ts builds connectionString from DATABASE_URL or POSTGRES_* fallback",
   );
   lines.push(
-    "- **src/server/auth/** Better Auth 1.6.23 emailAndPassword autoSignIn false SECURITY user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit memory window 60 max 100 IP disabled unless TRUSTED_PROXY, plugins admin twoFactor nextCookies, sendResetPassword hook Resend via forgotPasswordTemplate",
+    `- **src/server/auth/** Better Auth ${v.auth["better-auth"]} emailAndPassword autoSignIn false SECURITY user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit memory window 60 max 100 IP disabled unless TRUSTED_PROXY, plugins admin twoFactor nextCookies, sendResetPassword hook Resend via forgotPasswordTemplate`,
   );
   lines.push(
     "- **src/lib/** auth-client.ts createAuthClient twoFactorClient onTwoFactorRedirect /2fa adminClient, orpc.ts typed client, utils.ts cn clsx+twMerge",

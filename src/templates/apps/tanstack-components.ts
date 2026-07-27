@@ -11,6 +11,7 @@ import {
   themeToggleFileContent,
   providersFileContent,
 } from "./fragments/theme.js";
+import { convexClientProviderContent } from "./fragments/convex-providers.js";
 import { headerFileContent, signOutButtonContent, adminGuardContent } from "./fragments/header.js";
 import {
   orpcClientContent,
@@ -19,9 +20,23 @@ import {
   tanstackUseBillingHookContent,
   tanstackUseAuthHookContent,
 } from "./fragments/core.js";
+import type { AddonInstallerMap } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 
-export function tanstackComponentFiles(): TemplateFile[] {
-  return [
+type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
+
+function isConvex(input?: AddonMapInput): boolean {
+  if (!input) return false;
+  try {
+    return hasAddon(input as AddonInstallerMap, "convex");
+  } catch {
+    return Boolean((input as Record<string, { inUse?: boolean }>).convex?.inUse);
+  }
+}
+
+export function tanstackComponentFiles(addonMap?: AddonMapInput): TemplateFile[] {
+  const convex = isConvex(addonMap);
+  const base: TemplateFile[] = [
     themeProviderComponent(),
     themeToggleComponent(),
     headerComponent(),
@@ -32,8 +47,12 @@ export function tanstackComponentFiles(): TemplateFile[] {
     useCopyHook(),
     useBillingHook(),
     useAuthHook(),
-    providersComponent(),
+    providersComponent(convex),
   ];
+  if (convex) {
+    base.push(convexClientProviderComponent());
+  }
+  return base;
 }
 
 function themeProviderComponent(): TemplateFile {
@@ -44,8 +63,15 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(): TemplateFile {
-  return file("apps/web/src/components/providers.tsx", providersFileContent("tanstack"));
+function providersComponent(isConvex = false): TemplateFile {
+  return file("apps/web/src/components/providers.tsx", providersFileContent("tanstack", isConvex));
+}
+
+function convexClientProviderComponent(): TemplateFile {
+  return file(
+    "apps/web/src/components/providers/convex-client-provider.tsx",
+    convexClientProviderContent(),
+  );
 }
 
 function headerComponent(): TemplateFile {

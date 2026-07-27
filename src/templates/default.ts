@@ -26,22 +26,16 @@ export function generateProjectFiles(
     return monorepoFiles(config, undefined, { dryRun: ctx.dryRun });
   }
 
-  // Single mode — flat Next.js no workspaces via singleFiles
+  // Single mode — flat Next.js no workspaces via singleFiles.
+  //
+  // Only self-issued secrets are minted here. Billing provider credentials are
+  // issued BY the provider and are deliberately left undefined so the env writer
+  // emits REPLACE_WITH_* placeholders: a generated value would satisfy every
+  // webhook's `secret.startsWith("REPLACE_WITH")` guard and turn a clear
+  // 400 "not configured" into an opaque 403 signature failure.
   const secrets: RootSecrets = {
     authSecret: secret(),
     postgresPassword: secret(),
-    resendApiKey: secret(),
-    stripeSecretKey: secret(),
-    stripeWebhookSecret: secret(),
-    stripePublishableKey: `pk_test_${secret().slice(0, 32)}`,
-    chargilyApiKey: secret(),
-    chargilySecretKey: secret(),
-    paddleApiKey: secret(),
-    paddleWebhookSecret: secret(),
-    paddleClientToken: `pdl_ntf_${secret().slice(0, 24)}`,
-    polarAccessToken: secret(),
-    polarWebhookSecret: secret(),
-    polarOrgId: secret(),
   };
 
   const addonMap = buildAddonInstallerMap({

@@ -15,10 +15,14 @@ export const Tooltip = BaseTooltip.Root;
 export const TooltipTrigger = BaseTooltip.Trigger;
 export const TooltipPortal = BaseTooltip.Portal;
 
-export const TooltipContent = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof BaseTooltip.Popup>
->(({ className, sideOffset = 4, ...props }, ref) => (
+export interface TooltipContentProps
+  extends React.ComponentPropsWithoutRef<typeof BaseTooltip.Popup> {
+  /** Base UI puts \`sideOffset\` on the Positioner, not the Popup. */
+  sideOffset?: number;
+}
+
+export const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentProps>(
+  ({ className, sideOffset = 4, ...props }, ref) => (
   <BaseTooltip.Portal>
     <BaseTooltip.Positioner sideOffset={sideOffset} className="z-50">
       <BaseTooltip.Popup

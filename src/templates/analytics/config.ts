@@ -48,14 +48,25 @@ export function isAnalyticsEnabled(): boolean {
     const parsed = configSchema.safeParse(env as unknown as Record<string, unknown>);
     if (!parsed.success) return false;
     const e = parsed.data as Record<string, string | undefined>;
-    const rawEnv = env as Record<string, string | undefined>;
+    // env carries non-string members (numeric transforms), so the widening cast
+    // must go through unknown — a direct assertion is a TS2352 error.
+    const rawEnv = env as unknown as Record<string, string | undefined>;
     const disabledFlag =
       e.ANALYTICS_DISABLED ??
       e.NEXT_PUBLIC_ANALYTICS_DISABLED ??
+      e.VITE_ANALYTICS_DISABLED ??
       rawEnv.ANALYTICS_DISABLED ??
-      rawEnv.NEXT_PUBLIC_ANALYTICS_DISABLED;
+      rawEnv.NEXT_PUBLIC_ANALYTICS_DISABLED ??
+      rawEnv.VITE_ANALYTICS_DISABLED;
     if (isDisabledFlag(disabledFlag)) return false;
-    const key = e.NEXT_PUBLIC_POSTHOG_KEY ?? e.POSTHOG_KEY ?? rawEnv.POSTHOG_KEY ?? rawEnv.NEXT_PUBLIC_POSTHOG_KEY;
+    // Public vars are NEXT_PUBLIC_* on Next.js and VITE_* on TanStack Start.
+    const key =
+      e.NEXT_PUBLIC_POSTHOG_KEY ??
+      e.VITE_POSTHOG_KEY ??
+      e.POSTHOG_KEY ??
+      rawEnv.POSTHOG_KEY ??
+      rawEnv.NEXT_PUBLIC_POSTHOG_KEY ??
+      rawEnv.VITE_POSTHOG_KEY;
     if (!key || typeof key !== "string" || key.length === 0) return false;
     if (key.includes("REPLACE") || key.includes("placeholder")) return false;
     return true;
@@ -65,31 +76,33 @@ export function isAnalyticsEnabled(): boolean {
 }
 
 export function getAnalyticsConfig(): AnalyticsConfig {
-  const e = env as Record<string, string | undefined>;
+  // Widening cast goes through unknown: env has non-string members.
+  const e = env as unknown as Record<string, string | undefined>;
+  // Public prefix is NEXT_PUBLIC_ on Next.js and VITE_ on TanStack Start.
   const rawHost =
     e.NEXT_PUBLIC_POSTHOG_HOST ??
+    e.VITE_POSTHOG_HOST ??
     e.POSTHOG_HOST ??
-    e.POSTHOG_API_HOST ??
-    e.POSTHOG_HOST;
+    e.POSTHOG_API_HOST;
 
   const isDev = e.NODE_ENV !== "production";
 
   return {
-    key:
-      e.NEXT_PUBLIC_POSTHOG_KEY ??
-      e.POSTHOG_KEY ??
-      e.POSTHOG_KEY,
-    host: rawHost,
+    // key/host are declared as plain strings, so fall back rather than leaking
+    // an optional (TS2322). An empty key means "not configured", which
+    // isAnalyticsEnabled() already treats as disabled.
+    key: e.NEXT_PUBLIC_POSTHOG_KEY ?? e.VITE_POSTHOG_KEY ?? e.POSTHOG_KEY ?? "",
+    host: rawHost ?? "https://us.i.posthog.com",
     enabled: isAnalyticsEnabled(),
     debug: isDev,
     autocapture: parseEnvBoolean(
-      e.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE,
+      e.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE ?? e.VITE_POSTHOG_AUTOCAPTURE,
       true,
     ),
     capturePageview: false,
     capturePageleave: true,
     sessionRecording: parseEnvBoolean(
-      e.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING,
+      e.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING ?? e.VITE_POSTHOG_SESSION_RECORDING,
       !isDev,
     ),
     persistence: "localStorage+cookie",
@@ -175,17 +188,19 @@ export function isAnalyticsEnabled(): boolean {
 
 export function getAnalyticsConfig(): AnalyticsConfig {
   const env = readEnv();
+  // Public prefix is NEXT_PUBLIC_ on Next.js and VITE_ on TanStack Start.
   const rawHost =
     env.NEXT_PUBLIC_POSTHOG_HOST ??
+    env.VITE_POSTHOG_HOST ??
     env.POSTHOG_HOST ??
-    env.POSTHOG_API_HOST ??
-    env.POSTHOG_HOST;
+    env.POSTHOG_API_HOST;
 
   const isDev = env.NODE_ENV !== "production";
 
   return {
-    key: env.NEXT_PUBLIC_POSTHOG_KEY ?? env.POSTHOG_KEY ?? env.POSTHOG_KEY,
-    host: rawHost,
+    // key/host are plain strings; fall back rather than leaking an optional (TS2322).
+    key: env.NEXT_PUBLIC_POSTHOG_KEY ?? env.VITE_POSTHOG_KEY ?? env.POSTHOG_KEY ?? "",
+    host: rawHost ?? "https://us.i.posthog.com",
     enabled: isAnalyticsEnabled(),
     debug: isDev,
     autocapture: parseEnvBoolean(

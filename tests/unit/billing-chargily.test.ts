@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { billingFiles } from "../../src/templates/billing-generator";
+import { generateProjectFiles } from "../../src/templates/default";
 import { eveFiles } from "../../src/templates/eve";
 import { backendFiles } from "../../src/templates/backend/elysia";
 
@@ -11,10 +12,27 @@ function aggProvider(files: any[], name: string) {
     .map((f: any) => f.content)
     .join("\n");
 }
-function aggSchema(files: any[]) {
-  return files
-    .filter((f: any) => f.path.includes("schema/"))
-    .map((f: any) => f.content)
+/**
+ * The pgTable definitions live in the database layer, not in packages/billing —
+ * billing/src/schema/ is a thin re-export. Aggregate a full project so these
+ * assertions read the real schema regardless of which package owns it.
+ * See the longer note in billing-interface.test.ts.
+ */
+function aggSchema(_files?: any[]) {
+  const config = {
+    name: "demo",
+    runtime: "bun",
+    version: "0.1.0",
+    mode: "monorepo",
+    billing: ["stripe", "chargily", "paddle", "polar"],
+    features: [],
+    database: "postgres",
+    framework: "nextjs",
+    apps: ["web"],
+  } as any;
+  return generateProjectFiles(config, { dryRun: false })
+    .filter((f) => f.path.includes("schema/"))
+    .map((f) => f.content)
     .join("\n");
 }
 
@@ -225,7 +243,17 @@ describe("billing provider — chargily (Algeria EDAHABIA/CIB checkout-only serv
     expect(envLocal).toContain("CHARGILY_API_KEY=");
     expect(envLocal).toContain("CHARGILY_SECRET_KEY=");
     expect(envLocal).toContain("CHARGILY_MODE=test");
-    expect(envLocal.length).toBeGreaterThan(envExample.length - 200);
+
+    // Provider credentials are issued BY the provider — .env.local must carry the
+    // REPLACE_WITH_* placeholder, never a generated value. A random value would
+    // pass every webhook's `secret.startsWith("REPLACE_WITH")` guard and turn a
+    // clear 400 "not configured" into an opaque 403 signature failure.
+    expect(envLocal).toContain("CHARGILY_SECRET_KEY=REPLACE_WITH");
+    expect(envLocal).toContain("CHARGILY_API_KEY=REPLACE_WITH");
+
+    // Self-issued secrets are still genuinely generated, not placeholders.
+    expect(envLocal).toContain(`BETTER_AUTH_SECRET=${"a".repeat(48)}`);
+    expect(envLocal).not.toContain("BETTER_AUTH_SECRET=REPLACE_WITH");
 
     const pkgFiles = packageFiles("bun");
     const configEnv =

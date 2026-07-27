@@ -1,9 +1,18 @@
 import type { RootSecrets } from "../../root.js";
 import type { BillingProviderName } from "../../../lib/addons.js";
 import { ENV_PLACEHOLDERS } from "../../../lib/constants.js";
-import { secret as genSecret } from "../../shared.js";
+import { type EnvAudience, publicVarLines } from "./core.js";
 
-export function billingEnvLines(selected: BillingProviderName[]): string[] {
+const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false };
+
+function billingPublicVarLines(audience: EnvAudience, name: string, value: string): string[] {
+  return publicVarLines(audience, name, value);
+}
+
+export function billingEnvLines(
+  selected: BillingProviderName[],
+  audience: EnvAudience = DEFAULT_AUDIENCE,
+): string[] {
   const out: string[] = [];
   const has = (n: BillingProviderName) => selected.includes(n);
   if (selected.length === 0) {
@@ -25,9 +34,13 @@ export function billingEnvLines(selected: BillingProviderName[]): string[] {
     out.push("# Stripe global cards");
     out.push(`STRIPE_SECRET_KEY=${ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`);
     out.push(`STRIPE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`);
-    out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
-    out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
-    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
+    out.push(
+      ...billingPublicVarLines(
+        audience,
+        "STRIPE_PUBLISHABLE_KEY",
+        ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE,
+      ),
+    );
     out.push("");
   }
   if (has("chargily")) {
@@ -42,12 +55,14 @@ export function billingEnvLines(selected: BillingProviderName[]): string[] {
     out.push(`PADDLE_API_KEY=${ENV_PLACEHOLDERS.PADDLE_API_KEY}`);
     out.push(`PADDLE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.PADDLE_WEBHOOK_SECRET}`);
     out.push("PADDLE_ENVIRONMENT=sandbox");
-    out.push(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN}`);
-    out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`VITE_PADDLE_CLIENT_TOKEN=${ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN}`);
-    out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN}`);
-    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
+    out.push(
+      ...billingPublicVarLines(
+        audience,
+        "PADDLE_CLIENT_TOKEN",
+        ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN,
+      ),
+    );
+    out.push(...billingPublicVarLines(audience, "PADDLE_ENVIRONMENT", "sandbox"));
     out.push("");
   }
   if (has("polar")) {
@@ -61,48 +76,82 @@ export function billingEnvLines(selected: BillingProviderName[]): string[] {
   return out;
 }
 
+/**
+ * Local-dev lines for a single billing provider.
+ *
+ * Billing credentials are issued BY the provider — they cannot be invented.
+ * Emitting `genSecret()` here produced a value that looks configured but is
+ * not: it defeats the `secret.startsWith("REPLACE_WITH")` guard every webhook
+ * route uses to detect an unconfigured provider, turning a clear
+ * 400 "not configured" into an opaque 403 signature failure (and the Stripe SDK
+ * throws outright on a key without an `sk_` prefix). So .env.local carries the
+ * same REPLACE_WITH_* placeholders as .env.example unless a real value was
+ * supplied. Self-issued secrets (auth secret, postgres password) still use
+ * genSecret() — those we legitimately mint.
+ */
+function providerLocalLines(
+  secrets: RootSecrets,
+  provider: BillingProviderName,
+  audience: EnvAudience = DEFAULT_AUDIENCE,
+): string[] {
+  switch (provider) {
+    case "stripe": {
+      const pk = secrets.stripePublishableKey ?? ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE;
+      return [
+        `STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`,
+        `STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`,
+        ...billingPublicVarLines(audience, "STRIPE_PUBLISHABLE_KEY", pk),
+        "",
+      ];
+    }
+    case "chargily":
+      return [
+        `CHARGILY_API_KEY=${secrets.chargilyApiKey ?? ENV_PLACEHOLDERS.CHARGILY_API_KEY}`,
+        `CHARGILY_SECRET_KEY=${secrets.chargilySecretKey ?? ENV_PLACEHOLDERS.CHARGILY_SECRET}`,
+        "CHARGILY_MODE=test",
+        "",
+      ];
+    case "paddle": {
+      const ct = secrets.paddleClientToken ?? ENV_PLACEHOLDERS.PADDLE_CLIENT_TOKEN;
+      return [
+        `PADDLE_API_KEY=${secrets.paddleApiKey ?? ENV_PLACEHOLDERS.PADDLE_API_KEY}`,
+        `PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? ENV_PLACEHOLDERS.PADDLE_WEBHOOK_SECRET}`,
+        "PADDLE_ENVIRONMENT=sandbox",
+        ...billingPublicVarLines(audience, "PADDLE_CLIENT_TOKEN", ct),
+        ...billingPublicVarLines(audience, "PADDLE_ENVIRONMENT", "sandbox"),
+        "",
+      ];
+    }
+    case "polar":
+      return [
+        `POLAR_ACCESS_TOKEN=${secrets.polarAccessToken ?? ENV_PLACEHOLDERS.POLAR_ACCESS_TOKEN}`,
+        `POLAR_WEBHOOK_SECRET=${secrets.polarWebhookSecret ?? ENV_PLACEHOLDERS.POLAR_WEBHOOK_SECRET}`,
+        `POLAR_ORG_ID=${secrets.polarOrgId ?? ENV_PLACEHOLDERS.POLAR_ORG_ID}`,
+        "POLAR_ENVIRONMENT=sandbox",
+        "",
+      ];
+    default:
+      return [];
+  }
+}
+
+const LOCAL_PROVIDER_ORDER: BillingProviderName[] = ["stripe", "chargily", "paddle", "polar"];
+
+/**
+ * .env.local billing lines. With no provider selected this emits every provider
+ * (commented guidance lives in .env.example) — kept for backwards compatibility;
+ * prefer billingEnvLocalLinesFiltered which emits only what was selected.
+ */
 export function billingEnvLocalLines(
   secrets: RootSecrets,
   selected: BillingProviderName[],
+  audience: EnvAudience = DEFAULT_AUDIENCE,
 ): string[] {
+  const emitAll = selected.length === 0;
   const out: string[] = [];
-  const has = (n: BillingProviderName) => selected.includes(n) || selected.length === 0;
-  const emitAllWhenEmpty = selected.length === 0;
-  const shouldEmit = (provider: BillingProviderName) => emitAllWhenEmpty || has(provider);
-  if (shouldEmit("stripe")) {
-    const pk = secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32);
-    out.push(`STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? genSecret()}`);
-    out.push(`STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? genSecret()}`);
-    out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk}`);
-    out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${pk}`);
-    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk}`);
-    out.push("");
-  }
-  if (shouldEmit("chargily")) {
-    out.push(`CHARGILY_API_KEY=${secrets.chargilyApiKey ?? genSecret()}`);
-    out.push(`CHARGILY_SECRET_KEY=${secrets.chargilySecretKey ?? genSecret()}`);
-    out.push("CHARGILY_MODE=test");
-    out.push("");
-  }
-  if (shouldEmit("paddle")) {
-    const clientToken = secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24);
-    out.push(`PADDLE_API_KEY=${secrets.paddleApiKey ?? genSecret()}`);
-    out.push(`PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? genSecret()}`);
-    out.push("PADDLE_ENVIRONMENT=sandbox");
-    out.push(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${clientToken}`);
-    out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`VITE_PADDLE_CLIENT_TOKEN=${clientToken}`);
-    out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${clientToken}`);
-    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push("");
-  }
-  if (shouldEmit("polar")) {
-    out.push(`POLAR_ACCESS_TOKEN=${secrets.polarAccessToken ?? genSecret()}`);
-    out.push(`POLAR_WEBHOOK_SECRET=${secrets.polarWebhookSecret ?? genSecret()}`);
-    out.push(`POLAR_ORG_ID=${secrets.polarOrgId ?? genSecret()}`);
-    out.push("POLAR_ENVIRONMENT=sandbox");
-    out.push("");
+  for (const provider of LOCAL_PROVIDER_ORDER) {
+    if (emitAll || selected.includes(provider))
+      out.push(...providerLocalLines(secrets, provider, audience));
   }
   return out;
 }
@@ -110,44 +159,12 @@ export function billingEnvLocalLines(
 export function billingEnvLocalLinesFiltered(
   secrets: RootSecrets,
   selected: BillingProviderName[],
+  audience: EnvAudience = DEFAULT_AUDIENCE,
 ): string[] {
   if (selected.length === 0) return ["# Billing: none selected — no billing env vars"];
   const out: string[] = [];
-  const has = (n: BillingProviderName) => selected.includes(n);
-  if (has("stripe")) {
-    const pk2 = secrets.stripePublishableKey ?? "pk_test_" + genSecret().slice(0, 32);
-    out.push(`STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? genSecret()}`);
-    out.push(`STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? genSecret()}`);
-    out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk2}`);
-    out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${pk2}`);
-    out.push(`EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=${pk2}`);
-    out.push("");
-  }
-  if (has("chargily")) {
-    out.push(`CHARGILY_API_KEY=${secrets.chargilyApiKey ?? genSecret()}`);
-    out.push(`CHARGILY_SECRET_KEY=${secrets.chargilySecretKey ?? genSecret()}`);
-    out.push("CHARGILY_MODE=test");
-    out.push("");
-  }
-  if (has("paddle")) {
-    const ct = secrets.paddleClientToken ?? "pdl_ntf_" + genSecret().slice(0, 24);
-    out.push(`PADDLE_API_KEY=${secrets.paddleApiKey ?? genSecret()}`);
-    out.push(`PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? genSecret()}`);
-    out.push("PADDLE_ENVIRONMENT=sandbox");
-    out.push(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=${ct}`);
-    out.push("NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`VITE_PADDLE_CLIENT_TOKEN=${ct}`);
-    out.push("VITE_PADDLE_ENVIRONMENT=sandbox");
-    out.push(`EXPO_PUBLIC_PADDLE_CLIENT_TOKEN=${ct}`);
-    out.push("EXPO_PUBLIC_PADDLE_ENVIRONMENT=sandbox");
-    out.push("");
-  }
-  if (has("polar")) {
-    out.push(`POLAR_ACCESS_TOKEN=${secrets.polarAccessToken ?? genSecret()}`);
-    out.push(`POLAR_WEBHOOK_SECRET=${secrets.polarWebhookSecret ?? genSecret()}`);
-    out.push(`POLAR_ORG_ID=${secrets.polarOrgId ?? genSecret()}`);
-    out.push("POLAR_ENVIRONMENT=sandbox");
-    out.push("");
+  for (const provider of LOCAL_PROVIDER_ORDER) {
+    if (selected.includes(provider)) out.push(...providerLocalLines(secrets, provider, audience));
   }
   return out;
 }

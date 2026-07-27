@@ -1,3 +1,4 @@
+// @allow-long 430: FsTransaction is one cohesive unit: staging, atomic rename, rollback and stale-staging GC share private state and must not be split across files
 /**
  * Transactional filesystem helpers.
  *

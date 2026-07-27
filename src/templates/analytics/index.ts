@@ -15,7 +15,39 @@ const jsVer = v.analytics["posthog-js"];
 const nodeVer = v.analytics["posthog-node"];
 const zodVer = v.validation.zod;
 
-function monorepoList(_mode: ProjectMode, runtime: Runtime, testCmd: string): TemplateFile[] {
+type AnalyticsFramework = "nextjs" | "tanstack-start";
+
+/**
+ * The PostHog reverse-proxy routes are Next.js App Router route handlers
+ * (`export async function POST(req: NextRequest)`). A TanStack Start app has no
+ * `src/app/` router, so emitting them there shipped a dead file that imported
+ * `next` — a package the TanStack app does not depend on. TanStack projects
+ * proxy through their own `src/routes/api/*` handlers instead.
+ */
+function proxyRouteFiles(mode: ProjectMode, framework: AnalyticsFramework): TemplateFile[] {
+  if (framework !== "nextjs") return [];
+  const base = mode === "monorepo" ? "apps/web/src" : "src";
+  const scope = mode === "monorepo" ? "monorepo" : "single";
+  return [
+    file(`${base}/app/api/ingest/route.ts`, c.proxyRouteContent(scope)),
+    file(`${base}/app/api/ingest/[...path]/route.ts`, c.proxyCatchAllRouteContent(scope)),
+  ];
+}
+
+/** Router peer differs per framework — see routerBinding in ./pageview.ts. */
+function clientPeerDependencies(framework: AnalyticsFramework): Record<string, string> {
+  const base = { react: `^${v.nextStack.react}` };
+  return framework === "tanstack-start"
+    ? { ...base, "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}` }
+    : { ...base, next: `^${v.nextStack.next}` };
+}
+
+function monorepoList(
+  _mode: ProjectMode,
+  runtime: Runtime,
+  testCmd: string,
+  framework: AnalyticsFramework,
+): TemplateFile[] {
   return [
     file(
       "packages/analytics/package.json",
@@ -45,8 +77,14 @@ function monorepoList(_mode: ProjectMode, runtime: Runtime, testCmd: string): Te
           "@repo/config": "workspace:*",
           "@repo/observability": "workspace:*",
         },
+        // src/client/*.tsx are React client components, and the pageview tracker
+        // binds to the host router (next/navigation or @tanstack/react-router).
+        // Declared as peers so the consuming app supplies the single copy.
+        peerDependencies: clientPeerDependencies(framework),
         devDependencies: {
           "@types/node": `^${v.runtime["@types/node"]}`,
+          // Needed for the client components; react itself is a peer dependency.
+          "@types/react": `^${v.nextStack["@types/react"]}`,
           typescript: `^${v.typescript.typescript}`,
           ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
           oxlint: `^${v.tooling.oxlint}`,
@@ -54,7 +92,32 @@ function monorepoList(_mode: ProjectMode, runtime: Runtime, testCmd: string): Te
         },
       }),
     ),
-    file("packages/analytics/tsconfig.json", tsconfig({ include: ["src/**/*"] })),
+    // A real assertion, not a placeholder: this package declared a `test` script
+    // with zero test files, so `bun test` exited 1 ("No tests found!") and
+    // `turbo run test` was red on every freshly generated project. Importing the
+    // barrel also catches the broken re-export class of bug.
+    file(
+      "packages/analytics/tests/barrel.test.ts",
+      `import { describe, it, expect } from "bun:test";
+import * as mod from "../src/index.js";
+
+describe("@repo/analytics barrel", () => {
+  it("loads and exposes its public API", () => {
+    expect(typeof mod.getAnalyticsConfig).toBe("function");
+    expect(typeof mod.isAnalyticsEnabled).toBe("function");
+  });
+});
+`,
+    ),
+    file(
+      "packages/analytics/tsconfig.json",
+      // src/client/*.tsx are React components, and the package typechecks
+      // @repo/config's source (which uses `process`) through the @repo/* path map.
+      tsconfig({
+        compilerOptions: { types: ["node", "react"], jsx: "react-jsx" },
+        include: ["src/**/*"],
+      }),
+    ),
     file("packages/analytics/src/index.ts", c.monorepoRootIndexContent()),
     file("packages/analytics/src/config.ts", c.configContent("monorepo")),
     file("packages/analytics/src/types.ts", c.typesContent("monorepo")),
@@ -68,7 +131,10 @@ function monorepoList(_mode: ProjectMode, runtime: Runtime, testCmd: string): Te
       c.clientPosthogClientContent("monorepo"),
     ),
     file("packages/analytics/src/client/provider.tsx", c.clientProviderContent("monorepo")),
-    file("packages/analytics/src/client/pageview.tsx", c.clientPageViewContent("monorepo")),
+    file(
+      "packages/analytics/src/client/pageview.tsx",
+      c.clientPageViewContent("monorepo", framework),
+    ),
     file("packages/analytics/src/client/hooks.ts", c.clientHooksContent("monorepo")),
     file("packages/analytics/src/client/components.tsx", c.clientComponentsContent("monorepo")),
     file("packages/analytics/src/server/index.ts", c.monorepoServerIndexContent()),
@@ -85,13 +151,12 @@ function monorepoList(_mode: ProjectMode, runtime: Runtime, testCmd: string): Te
     ),
     file("packages/analytics/src/testing/mocks.ts", c.testingMocksContent("monorepo")),
     file("packages/analytics/src/proxy/README.md", c.proxyReadmeContent()),
-    file("apps/web/src/app/api/ingest/route.ts", c.proxyRouteContent("monorepo")),
-    file("apps/web/src/app/api/ingest/[...path]/route.ts", c.proxyCatchAllRouteContent("monorepo")),
+    ...proxyRouteFiles("monorepo", framework),
     file("apps/web/src/components/analytics/README.md", c.webComponentsAnalyticsReadme()),
   ];
 }
 
-function singleList(_mode: ProjectMode): TemplateFile[] {
+function singleList(_mode: ProjectMode, framework: AnalyticsFramework): TemplateFile[] {
   return [
     file("src/server/analytics/config.ts", c.configContent("single")),
     file("src/server/analytics/types.ts", c.typesContent("single")),
@@ -107,13 +172,23 @@ function singleList(_mode: ProjectMode): TemplateFile[] {
     file("src/server/analytics/integrations/billing.ts", c.integrationsBillingContent("single")),
     file("src/lib/analytics.ts", c.singleLibAnalyticsContent()),
     file("src/components/analytics/posthog-provider.tsx", c.singleComponentsProviderContent()),
-    file("src/components/analytics/posthog-pageview.tsx", c.singlePageViewContent()),
+    file("src/components/analytics/posthog-pageview.tsx", c.singlePageViewContent(framework)),
     file("src/components/analytics/feature-flag-gate.tsx", c.singleFeatureFlagGateContent()),
     file("src/components/analytics/index.ts", c.singleComponentsIndexContent()),
     file("src/hooks/use-analytics.ts", c.singleHooksContent()),
-    file("src/app/api/ingest/route.ts", c.proxyRouteContent("single")),
-    file("src/app/api/ingest/[...path]/route.ts", c.proxyCatchAllRouteContent("single")),
+    ...proxyRouteFiles("single", framework),
   ];
+}
+
+/** Framework defaults to nextjs — normalizeTemplateArgs does not carry it. */
+function readFramework(
+  modeOrOpts?: ProjectMode | string | Record<string, unknown>,
+): AnalyticsFramework {
+  if (modeOrOpts && typeof modeOrOpts === "object") {
+    const fw = (modeOrOpts as Record<string, unknown>).framework;
+    if (fw === "tanstack-start") return "tanstack-start";
+  }
+  return "nextjs";
 }
 
 export function analyticsFiles(
@@ -123,7 +198,11 @@ export function analyticsFiles(
 ): TemplateFile[] {
   const { mode, runtime } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
   const testCmd = runtime === "bun" ? "bun test" : "npm run test:unit";
-  const files = mode === "monorepo" ? monorepoList(mode, runtime, testCmd) : singleList(mode);
+  const framework = readFramework(modeOrOpts);
+  const files =
+    mode === "monorepo"
+      ? monorepoList(mode, runtime, testCmd, framework)
+      : singleList(mode, framework);
   files.sort((a, b) => a.path.localeCompare(b.path));
   return mergeFiles(files);
 }

@@ -36,7 +36,7 @@ function isDisabledFlag(value: unknown): boolean {
 export function isAnalyticsEnabled(): boolean {
   try {
     const env = readEnv();
-    const disabledFlag = env.ANALYTICS_DISABLED ?? env.NEXT_PUBLIC_ANALYTICS_DISABLED;
+    const disabledFlag = env.ANALYTICS_DISABLED ?? env.NEXT_PUBLIC_ANALYTICS_DISABLED ?? env.VITE_ANALYTICS_DISABLED;
     if (isDisabledFlag(disabledFlag)) return false;
     const key = env.NEXT_PUBLIC_POSTHOG_KEY;
     if (!key) return false;
@@ -49,17 +49,20 @@ export function isAnalyticsEnabled(): boolean {
 
 export function getAnalyticsConfig(): AnalyticsConfig {
   const env = readEnv();
-  const rawHost = env.NEXT_PUBLIC_POSTHOG_HOST ?? env.POSTHOG_HOST ?? env.NEXT_PUBLIC_POSTHOG_HOST;
+  const rawHost = env.NEXT_PUBLIC_POSTHOG_HOST ?? env.VITE_POSTHOG_HOST ?? env.POSTHOG_HOST;
   const isDev = env.NODE_ENV !== "production";
   return {
-    key: env.NEXT_PUBLIC_POSTHOG_KEY ?? env.POSTHOG_KEY ?? env.NEXT_PUBLIC_POSTHOG_KEY,
-    host: rawHost,
+    // key/host are declared as plain strings; fall back rather than leaking an
+    // optional (TS2322). An empty key means "not configured", which
+    // isAnalyticsEnabled() already treats as disabled.
+    key: env.NEXT_PUBLIC_POSTHOG_KEY ?? env.VITE_POSTHOG_KEY ?? env.POSTHOG_KEY ?? "",
+    host: rawHost ?? "https://us.i.posthog.com",
     enabled: isAnalyticsEnabled(),
     debug: isDev,
-    autocapture: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE, true),
+    autocapture: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE ?? env.VITE_POSTHOG_AUTOCAPTURE, true),
     capturePageview: false,
     capturePageleave: true,
-    sessionRecording: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING, !isDev),
+    sessionRecording: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING ?? env.VITE_POSTHOG_SESSION_RECORDING, !isDev),
     persistence: "localStorage+cookie",
     personProfiles: "identified_only",
     apiEndpoint: "/api/ingest",
@@ -162,12 +165,14 @@ export async function initPostHogClient(options?: {
         capture_pageleave: cfg.capturePageleave,
         persistence: cfg.persistence as PostHogConfig["persistence"],
         person_profiles: cfg.personProfiles as PostHogConfig["person_profiles"],
+        // posthog-js types featureFlagPayloads as JSON values; assert to the SDK's
+        // own BootstrapConfig rather than leaking an incompatible literal (TS2322).
         bootstrap: options?.bootstrapFlags
-          ? {
+          ? ({
               distinctID: "bootstrap",
               featureFlags: options.bootstrapFlags,
               featureFlagPayloads: options.bootstrapPayloads,
-            }
+            } as PostHogConfig["bootstrap"])
           : undefined,
         loaded: (ph) => {
           try {

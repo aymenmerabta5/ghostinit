@@ -6,7 +6,7 @@ import { FsTransaction } from "../../lib/fs.js";
 import { acquireLock } from "../../lib/lock.js";
 import { checkGitStatus, assertCleanGit } from "../../lib/git.js";
 import { saveState, validateStateCompatibility, loadState } from "../../lib/state.js";
-import { relativeChecksum } from "../../lib/checksum.js";
+import { relativeChecksum, isDriftTracked } from "../../lib/checksum.js";
 import { generateProjectFiles } from "../../templates/default.js";
 import type { GlobalOptions } from "../types.js";
 
@@ -187,12 +187,33 @@ export async function runProjectInstall(input: InstallInput): Promise<{
       const { written } = await tx.commit();
       filesWritten = written.length;
 
+      // Only the sync-owned registries are drift-tracked. Checksumming every
+      // generated file meant editing .env.local (or any page) bricked add/sync.
       for (const relPath of written) {
+        if (!isDriftTracked(relPath)) continue;
         const content = await readFile(join(projectRoot, relPath), "utf-8");
         checksums.push(relativeChecksum(projectRoot, relPath, content));
       }
 
-      const modules: string[] = ["identity"];
+      // Modules are generated on disk; discover them rather than hardcoding a
+      // static list. The billing domain demonstration (packages/modules/src/billing)
+      // was added after the initial "identity" module, and hardcoding meant every
+      // fresh project immediately failed `ghostinit sync --check` with DRIFT because
+      // the index barrel included `billing` but the state said only `identity`.
+      const { readdirSync } = await import("node:fs");
+      const { existsSync: existsSyncForCheck } = await import("node:fs");
+      let modules: string[] = ["identity"];
+      try {
+        const modulesDir = join(projectRoot, "packages", "modules", "src");
+        if (existsSyncForCheck(modulesDir)) {
+          modules = readdirSync(modulesDir, { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .sort();
+        }
+      } catch {
+        modules = ["identity"];
+      }
       validateStateCompatibility(await loadState(projectRoot), config);
       await saveState(projectRoot, config, checksums, modules, []);
     }

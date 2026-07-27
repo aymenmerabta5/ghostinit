@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { billingFiles } from "../../src/templates/billing-generator";
+import { generateProjectFiles } from "../../src/templates/default";
 import { billingProviders } from "../../src/lib/addons";
 import { BILLING_PROVIDER_NAMES } from "../../src/templates/billing/providers/interface";
 
@@ -9,10 +10,34 @@ function aggInterface(files: any[]) {
     .map((f: any) => f.content)
     .join("\n");
 }
-function aggSchema(files: any[]) {
-  return files
-    .filter((f: any) => f.path.includes("schema/"))
-    .map((f: any) => f.content)
+/**
+ * Aggregate the billing schema as the generated project actually sees it.
+ *
+ * The pgTable definitions used to be emitted twice — once under
+ * packages/database/src/schema/ and again, byte-identical, under
+ * packages/billing/src/schema/ (20 files, all @ts-nocheck). The database layer
+ * is now the single owner and packages/billing/src/schema/ is a thin re-export,
+ * so reading only billingFiles() would no longer see any column or enum.
+ *
+ * These assertions are about the SCHEMA, not about which package holds it, so
+ * they aggregate every schema file in a fully generated project. That also means
+ * they keep working if ownership moves again.
+ */
+function aggSchema(_files?: any[]) {
+  const config = {
+    name: "demo",
+    runtime: "bun",
+    version: "0.1.0",
+    mode: "monorepo",
+    billing: ["stripe", "chargily", "paddle", "polar"],
+    features: [],
+    database: "postgres",
+    framework: "nextjs",
+    apps: ["web"],
+  } as any;
+  return generateProjectFiles(config, { dryRun: false })
+    .filter((f) => f.path.includes("schema/"))
+    .map((f) => f.content)
     .join("\n");
 }
 

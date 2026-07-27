@@ -57,7 +57,6 @@ export function singleTsConfigContent(): string {
           resolveJsonModule: true,
           incremental: true,
           plugins: [{ name: "next" }],
-          baseUrl: ".",
           paths: {
             "@/*": ["./src/*"],
             "@/server/*": ["./src/server/*"],

@@ -1,7 +1,12 @@
 /**
- * API fragments shim — split 575 LOC god file into api/ folder <300 each.
+ * API fragments shim — split a 575 LOC god file into api/ (<300 LOC each).
+ *
+ * Provider webhook fragments used to live here too. They emitted a second copy of
+ * every `api/webhooks/<provider>` route and lost the composition race to
+ * src/templates/billing/webhooks/providers/*, so they were deleted rather than
+ * kept as a decaying parallel implementation.
  */
-export * from "./api/index.js";
+export type { RouterType, ResponseLib } from "./api/core.js";
 export {
   authFileContent,
   orpcFileContent,
@@ -10,13 +15,3 @@ export {
   billingHelperCode,
   sharedAuthHandlerLogic,
 } from "./api/core.js";
-export {
-  sharedStripeImports,
-  stripeSecretCheck,
-  stripeWebhookCore,
-  stripeWebhookFileContent,
-} from "./api/stripe.js";
-export { chargilySharedCore, chargilyWebhookFileContent } from "./api/chargily.js";
-export { paddleWebhookFileContent } from "./api/paddle.js";
-export { polarWebhookFileContent } from "./api/polar.js";
-export type { RouterType, ResponseLib } from "./api/core.js";

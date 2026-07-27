@@ -1,8 +1,12 @@
 import type { ProjectMode } from "../../lib/addons.js";
 
-export function serverUtilsContent(_mode: ProjectMode): string {
+export function serverUtilsContent(mode: ProjectMode): string {
+  // Emitted at packages/analytics/src/server/utils.ts (monorepo) but at
+  // src/server/analytics/utils.ts (single) — one directory shallower, so the
+  // types module is a sibling there rather than a parent.
+  const typesImport = mode === "monorepo" ? "../types.js" : "./types.js";
   return `import { createHash } from "node:crypto";
-import type { AnalyticsContext } from "../types.js";
+import type { AnalyticsContext } from "${typesImport}";
 
 export function anonymize(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 16);
@@ -64,13 +68,18 @@ export function extractDistinctId(opts: {
   if (opts.userId) return opts.userId;
   if (opts.anonymousId) return opts.anonymousId;
   try {
-    const cookieStore = opts.cookies as { get?: (name: string) => { value: string } | undefined } & (Map<string, string> | Record<string, unknown>);
+    // Intersecting a getter signature with Map made \`.get\` a union of two
+    // incompatible call signatures, so TS refused to call it (TS2349). Narrow the
+    // Map case first, then treat anything else as a cookies()-style accessor.
+    const cookieStore = opts.cookies as unknown;
     if (cookieStore) {
-      if (typeof cookieStore.get === "function") {
-        const v = cookieStore.get("posthog_distinct_id")?.value ?? cookieStore.get("distinct_id")?.value;
+      if (cookieStore instanceof Map) {
+        const m = cookieStore as Map<string, string>;
+        const v = m.get("posthog_distinct_id") ?? m.get("distinct_id");
         if (v) return v;
-      } else if (cookieStore instanceof Map) {
-        const v = cookieStore.get("posthog_distinct_id") ?? cookieStore.get("distinct_id");
+      } else if (typeof (cookieStore as { get?: unknown }).get === "function") {
+        const store = cookieStore as { get: (name: string) => { value?: string } | undefined };
+        const v = store.get("posthog_distinct_id")?.value ?? store.get("distinct_id")?.value;
         if (v) return v;
       }
     }

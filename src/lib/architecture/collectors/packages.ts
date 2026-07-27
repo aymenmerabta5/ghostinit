@@ -24,10 +24,17 @@ export async function discoverPackages(root: string): Promise<PackageInfo[]> {
           name?: string;
           dependencies?: Record<string, string>;
           devDependencies?: Record<string, string>;
+          peerDependencies?: Record<string, string>;
+          optionalDependencies?: Record<string, string>;
         };
+        // peer/optional dependencies are declarations too — a shared React package
+        // that peer-depends on react has declared it, and flagging it as undeclared
+        // pushes authors toward bundling a duplicate copy.
         const deps = new Set([
           ...Object.keys(manifest.dependencies ?? {}),
           ...Object.keys(manifest.devDependencies ?? {}),
+          ...Object.keys(manifest.peerDependencies ?? {}),
+          ...Object.keys(manifest.optionalDependencies ?? {}),
         ]);
         packages.push({ name: manifest.name ?? entry.name, dir: pkgDir, dependencies: deps });
       } catch {

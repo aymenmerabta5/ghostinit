@@ -64,8 +64,7 @@ ${sharedLogic}
 export const Route = createFileRoute('/api/rpc/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
 `;
   }
-  return `import { type NextRequest } from "next/server";
-import { RPCHandler } from "@orpc/server/fetch";
+  return `import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { appRouter, createContext } from "@repo/api";
 ${sharedLogic}

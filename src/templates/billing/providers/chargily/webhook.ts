@@ -31,9 +31,10 @@ export async function verifyChargilyWebhook(
   let isValid = false;
   try {
     isValid = verifySignature(rawBody, signature, secretKey);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { valid: false, error: `Invalid signature 403: ${msg}` };
+  } catch {
+    // Deliberately generic: this result is surfaced at an unauthenticated webhook
+    // boundary, so the underlying verifier message must not travel back to the caller.
+    return { valid: false, error: "Invalid signature" };
   }
 
   if (!isValid) return { valid: false, error: "Invalid signature 403" };

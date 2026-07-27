@@ -25,7 +25,10 @@ export function configFiles(): TemplateFile[] {
       "packages/ui/tsconfig.json",
       tsconfig({
         include: ["src/**/*"],
-        compilerOptions: { jsx: "react-jsx" },
+        // @repo/ui is tokens-only (theme.css + a clsx/tailwind-merge helper): no
+        // React and no node globals, so it declares no ambient @types. Listing any
+        // here fails with TS2688 because the package does not depend on them.
+        compilerOptions: { types: [], jsx: "react-jsx" },
       }),
     ),
   ];

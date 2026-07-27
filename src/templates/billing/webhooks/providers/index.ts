@@ -21,9 +21,11 @@ import { BILLING_PROVIDER_NAMES } from "../../providers/interface/types.js";
 import {
   getDbImports,
   getPath,
+  convexApiImport,
   type WebhookFramework,
   type WebhookMode,
   type DbImports,
+  type ConvexImports,
   type BillingProviderName,
 } from "./shared.js";
 import { stripeNextContent, stripeTanstackContent } from "./stripe.js";
@@ -46,29 +48,64 @@ const providerContentMap: Record<BillingProviderName, ContentGenerators | undefi
   polar: { next: polarNextContent, tanstack: polarTanstackContent },
 } as Record<BillingProviderName, ContentGenerators | undefined>;
 
-function contentFor(
-  provider: BillingProviderName,
-  framework: WebhookFramework,
-  imp: DbImports,
-): string {
-  const isTanstack = framework === "tanstack";
-  const entry = providerContentMap[provider];
-  if (!entry) return "";
-  return isTanstack ? entry.tanstack(imp) : entry.next(imp);
+export type DatabaseProvider = "postgres" | "convex" | "none";
+
+function resolveIsConvexDatabase(database?: DatabaseProvider | string): boolean {
+  return database === "convex";
 }
 
 export function webhookContent(
   provider: BillingProviderName,
   framework: WebhookFramework,
   mode: WebhookMode = "monorepo",
+  database: DatabaseProvider | string = "postgres",
 ): TemplateFile {
   const effectiveMode: WebhookMode = framework === "single" ? "single" : mode;
   const effectiveFramework: WebhookFramework = framework === "single" ? "next" : framework;
   const isMonorepo = effectiveMode === "monorepo";
   const imp = getDbImports(isMonorepo);
   const path = getPath(provider, effectiveFramework, effectiveMode);
-  const content = contentFor(provider, effectiveFramework, imp);
+  const isConvex = resolveIsConvexDatabase(database as DatabaseProvider);
+  const content = contentFor(provider, effectiveFramework, imp, isConvex, isMonorepo, path);
   return file(path, content);
+}
+
+type ConvexContentGenerators = ContentGenerators & {
+  nextConvex?: (imp: ConvexImports) => string;
+  tanstackConvex?: (imp: ConvexImports) => string;
+};
+
+function contentFor(
+  provider: BillingProviderName,
+  framework: WebhookFramework,
+  imp: DbImports,
+  isConvex = false,
+  isMonorepo = true,
+  routePath = "",
+): string {
+  const isTanstack = framework === "tanstack";
+  const entry = providerContentMap[provider] as ConvexContentGenerators | undefined;
+  if (!entry) return "";
+  if (isConvex) {
+    // convexApi is resolved from the route's own path so provider fragments
+    // never hardcode a `../../` depth — see convexApiImport in ./shared.ts.
+    const convexImp: ConvexImports = {
+      ...imp,
+      isConvex: true,
+      isMonorepo,
+      convexApi: convexApiImport(routePath),
+    };
+    if (isTanstack && entry.tanstackConvex) {
+      return entry.tanstackConvex(convexImp);
+    }
+    if (!isTanstack && entry.nextConvex) {
+      return entry.nextConvex(convexImp);
+    }
+    // Fallback: providers themselves check imp.isConvex flag (e.g., stripeNextContent branches)
+    const fallback = isTanstack ? entry.tanstack : entry.next;
+    return fallback(convexImp);
+  }
+  return isTanstack ? entry.tanstack(imp) : entry.next(imp);
 }
 
 export function webhookFilesForProvider(

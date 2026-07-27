@@ -1,5 +1,8 @@
-import type { DbImports } from "./shared.js";
-export function polarNextContent(imp: DbImports): string {
+import { convexApiFor, type DbImports, type ConvexImports } from "./shared.js";
+
+type ConvexImp = ConvexImports;
+
+function baseNext(imp: DbImports): string {
   return [
     'import { eq } from "drizzle-orm";',
     `import { db } from "${imp.db}";`,
@@ -8,35 +11,49 @@ export function polarNextContent(imp: DbImports): string {
     "",
     "export async function POST(req: Request): Promise<Response> {",
     '  const secret = process.env.POLAR_WEBHOOK_SECRET ?? "";',
-    '  if (!secret || secret.startsWith("REPLACE_WITH")) {',
-    '    logger.error("[polar webhook] POLAR_WEBHOOK_SECRET not configured");',
-    '    return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 });',
-    "  }",
+    '  if (!secret || secret.startsWith("REPLACE_WITH")) { logger.error("[polar webhook] POLAR_WEBHOOK_SECRET not configured"); return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 }); }',
     "  const buf = Buffer.from(await req.arrayBuffer());",
-    "  const headers: Record<string, string> = {};",
-    "  req.headers.forEach((v, k) => { headers[k] = v; headers[k.toLowerCase()] = v; });",
+    "  const headers: Record<string, string> = {}; req.headers.forEach((v, k) => { headers[k] = v; headers[k.toLowerCase()] = v; });",
     '  const webhookId = headers["webhook-id"]; const webhookTimestamp = headers["webhook-timestamp"]; const webhookSignature = headers["webhook-signature"] ?? headers["polar-signature"];',
     '  if (!webhookId || !webhookTimestamp || !webhookSignature) { return new Response("Missing required webhook headers: webhook-id, webhook-timestamp, webhook-signature", { status: 400 }); }',
     "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>;",
     '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers as any, secret) as any; eventType = validated.type ?? "unknown"; eventPayload = validated.data ?? validated; eventId = (validated.data as any)?.id ?? validated.id ?? `evt_${Date.now()}`; }',
-    '  catch (err: any) { const name = err?.name ?? ""; const msg = err?.message ?? String(err); const isInvalid = name === "WebhookVerificationError" || msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("verification") || msg.toLowerCase().includes("whsec"); logger.error(`[polar webhook] ${isInvalid ? "signature verification failed 403" : "webhook error 400"}: ${msg}`); return new Response(isInvalid ? `Invalid polar signature 403: ${msg}` : `Webhook Error: ${msg}`, { status: isInvalid ? 403 : 400 }); }',
+    '  catch (err: any) { const name = err?.name ?? ""; const msg = err?.message ?? String(err); const isInvalid = name === "WebhookVerificationError" || msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("verification") || msg.toLowerCase().includes("whsec"); logger.error(`[polar webhook] ${isInvalid ? "signature verification failed 403" : "webhook error 400"}: ${msg}`); return new Response(isInvalid ? "Invalid polar signature" : "Webhook Error", { status: isInvalid ? 403 : 400 }); }',
     '  try { if (!db.query.webhook_events.findFirst) throw new Error("webhook_events query not available — ensure billing schema is migrated"); const existing = await db.query.webhook_events.findFirst({ where: eq(webhook_events.providerEventId, eventId), }); if (existing?.processed) { logger.info(`[polar webhook] already processed ${eventId}`); return new Response("already processed", { status: 200 }); } }',
     '  catch (error) { const message = error instanceof Error ? error.message : String(error); if (message.includes("webhook_events query not available")) { logger.error(`[polar webhook] ${message}`); throw error; } logger.error(`[polar webhook] idempotency check failed: ${message}`); }',
-    "  try {",
-    "    const data = eventPayload as Record<string, unknown>; const custom = (data as any).metadata as Record<string, unknown> | undefined; const customerId = (data as any).customerId ?? (data as any).customer_id;",
-    "    switch (eventType) {",
-    '      case "checkout.created": { try { const checkoutId = (data as any).id ?? eventId; const url = (data as any).url; const userId = (custom?.userId as string | undefined) ?? (data as any).externalCustomerId ?? (data as any).external_customer_id; if (userId) { await db.insert(checkouts).values({ provider: "polar", providerCheckoutId: checkoutId, url: url as string | undefined, status: "pending", metadata: custom as any, }).onConflictDoNothing(); } } catch (error) { logger.error(`[polar webhook] checkout.created failed: ${error instanceof Error ? error.message : String(error)}`); } break; }',
-    '      case "checkout.updated": { try { const checkoutId = (data as any).id ?? eventId; const status = (data as any).status; if (checkoutId && status) { const mapped = status === "confirmed" || status === "succeeded" ? "completed" : status === "expired" ? "expired" : "pending"; await db.update(checkouts).set({ status: mapped as any }).where(eq(checkouts.providerCheckoutId, checkoutId)); } } catch (error) { logger.error(`[polar webhook] checkout.updated failed: ${error instanceof Error ? error.message : String(error)}`); } break; }',
-    '      case "order.created": case "order.paid": { try { const orderId = (data as any).id ?? eventId; const subId = (data as any).subscriptionId ?? (data as any).subscription_id; await db.insert(invoices).values({ provider: "polar", providerInvoiceId: orderId, subscriptionId: subId as any, paid: eventType === "order.paid" || (data as any).status === "paid", amount: (data as any).totalAmount ?? (data as any).amount ?? 0, status: eventType === "order.paid" ? "paid" : "open", }).onConflictDoNothing(); if (eventType === "order.paid" && subId) { await db.update(subscriptions).set({ status: "active" as any }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] order handling failed: ${error instanceof Error ? error.message : String(error)}`); } break; }',
-    '      case "subscription.created": case "subscription.active": case "subscription.updated": case "subscription.uncanceled": { try { const subId = (data as any).id ?? eventId; const userId = (custom?.userId as string | undefined) ?? (data as any).customerId ?? (data as any).externalCustomerId ?? ""; const statusRaw = (data as any).status ?? (eventType.includes("active") ? "active" : eventType.includes("canceled") ? "canceled" : eventType.includes("revoked") ? "canceled" : eventType.includes("uncanceled") ? "active" : "active"); if (userId || subId) { await db.insert(subscriptions).values({ userId: userId || subId, provider: "polar", providerSubscriptionId: subId, status: statusRaw as any, customerId: customerId as any, metadata: custom as any, }).onConflictDoNothing(); await db.update(subscriptions).set({ status: statusRaw as any }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] subscription upsert failed: ${error instanceof Error ? error.message : String(error)}`); } break; }',
-    '      case "subscription.canceled": case "subscription.revoked": { try { const subId = (data as any).id ?? eventId; await db.update(subscriptions).set({ status: "canceled" as any }).where(eq(subscriptions.providerSubscriptionId, subId)); try { await db.update(license_keys).set({ status: "revoked" as any }).where(eq(license_keys.subscriptionId, subId as any)); } catch (errInner) { logger.error(`[polar webhook] revoke license_keys failed: ${errInner instanceof Error ? errInner.message : String(errInner)}`); } } catch (error) { logger.error(`[polar webhook] subscription canceled/revoked failed: ${error instanceof Error ? error.message : String(error)}`); } break; }',
-    "      default: break;",
-    "    }",
-    "  } catch (error) { logger.error(`[polar webhook] handler error: ${error instanceof Error ? error.message : String(error)}`); }",
+    '  try { const data = eventPayload as any; const custom = (data as any).metadata as Record<string, unknown> | undefined; const customerId = (data as any).customerId ?? (data as any).customer_id; switch (eventType) { case "checkout.created": { try { const checkoutId = (data as any).id ?? eventId; const url = (data as any).url; const userId = (custom?.userId as string | undefined) ?? (data as any).externalCustomerId ?? (data as any).external_customer_id; if (userId) { await db.insert(checkouts).values({ provider: "polar", providerCheckoutId: checkoutId, url: url as string | undefined, status: "pending", metadata: custom as any, }).onConflictDoNothing(); } } catch (error) { logger.error(`[polar webhook] checkout.created failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "checkout.updated": { try { const checkoutId = (data as any).id ?? eventId; const status = (data as any).status; if (checkoutId && status) { const mapped = status === "confirmed" || status === "succeeded" ? "completed" : status === "expired" ? "expired" : "pending"; await db.update(checkouts).set({ status: mapped as any }).where(eq(checkouts.providerCheckoutId, checkoutId)); } } catch (error) { logger.error(`[polar webhook] checkout.updated failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "order.created": case "order.paid": { try { const orderId = (data as any).id ?? eventId; const subId = (data as any).subscriptionId ?? (data as any).subscription_id; await db.insert(invoices).values({ provider: "polar", providerInvoiceId: orderId, subscriptionId: subId as any, paid: eventType === "order.paid" || (data as any).status === "paid", amount: (data as any).totalAmount ?? (data as any).amount ?? 0, status: eventType === "order.paid" ? "paid" : "open", }).onConflictDoNothing(); if (eventType === "order.paid" && subId) { await db.update(subscriptions).set({ status: "active" as any }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] order handling failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription.created": case "subscription.active": case "subscription.updated": case "subscription.uncanceled": { try { const subId = (data as any).id ?? eventId; const userId = (custom?.userId as string | undefined) ?? (data as any).customerId ?? (data as any).externalCustomerId ?? ""; const statusRaw = (data as any).status ?? (eventType.includes("active") ? "active" : eventType.includes("canceled") ? "canceled" : eventType.includes("revoked") ? "canceled" : eventType.includes("uncanceled") ? "active" : "active"); if (userId || subId) { await db.insert(subscriptions).values({ userId: userId || subId, provider: "polar", providerSubscriptionId: subId, status: statusRaw as any, customerId: customerId as any, metadata: custom as any, }).onConflictDoNothing(); await db.update(subscriptions).set({ status: statusRaw as any }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] subscription upsert failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription.canceled": case "subscription.revoked": { try { const subId = (data as any).id ?? eventId; await db.update(subscriptions).set({ status: "canceled" as any }).where(eq(subscriptions.providerSubscriptionId, subId)); try { await db.update(license_keys).set({ status: "revoked" as any }).where(eq(license_keys.subscriptionId, subId as any)); } catch (errInner) { logger.error(`[polar webhook] revoke license_keys failed: ${errInner instanceof Error ? errInner.message : String(errInner)}`); } } catch (error) { logger.error(`[polar webhook] subscription canceled/revoked failed: ${error instanceof Error ? error.message : String(error)}`); } break; } default: break; } } catch (error) { logger.error(`[polar webhook] handler error: ${error instanceof Error ? error.message : String(error)}`); }',
     '  try { await db.insert(webhook_events).values({ provider: "polar", providerEventId: eventId, type: eventType, payload: eventPayload as any, processed: true, }).onConflictDoNothing(); } catch (error) { logger.error(`[polar webhook] failed to record event: ${error instanceof Error ? error.message : String(error)}`); }',
-    "  logger.info(`[polar webhook] processed ${eventType} ${eventId}`);",
-    '  return new Response("ok", { status: 200 });',
+    '  logger.info(`[polar webhook] processed ${eventType} ${eventId}`); return new Response("ok", { status: 200 });',
     "}",
-    "",
   ].join("\n");
+}
+
+function convexNext(imp: DbImports): string {
+  const convexImport = `import { convexClient } from "${imp.db}";`;
+  const apiImport = `import { api } from "${convexApiFor(imp, "polar", "next")}";`;
+  return [
+    convexImport,
+    apiImport,
+    `import { logger } from "${imp.observability}";`,
+    "export async function POST(req: Request): Promise<Response> {",
+    '  const secret = process.env.POLAR_WEBHOOK_SECRET ?? "";',
+    '  if (!secret || secret.startsWith("REPLACE_WITH")) return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 });',
+    "  const buf = Buffer.from(await req.arrayBuffer());",
+    "  const headers: Record<string, string> = {}; req.headers.forEach((v, k) => { headers[k] = v; });",
+    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>;",
+    '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers as any, secret) as any; eventType = validated.type ?? "unknown"; eventPayload = validated.data ?? validated; eventId = (validated.data as any)?.id ?? validated.id ?? `evt_${Date.now()}`; } catch (err: any) { const msg = err?.message ?? String(err); const isInvalid = msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("verification"); logger.error(`[polar] ${msg}`); return new Response("Webhook Error", { status: isInvalid ? 403 : 400 }); }',
+    '  try { const existing = await convexClient.query(api.billing.checkWebhookEvent, { provider: "polar", providerEventId: eventId }); if ((existing as any)?.processed) { logger.info(`[polar] already processed ${eventId}`); return new Response("already processed", { status: 200 }); } } catch (e) { logger.error(`[polar] idempotency fail`); }',
+    '  try { const data = eventPayload as any; const custom = data.metadata; if (eventType.includes("checkout.created")) { const checkoutId = data.id ?? eventId; await convexClient.mutation(api.billing.upsertCheckout, { provider: "polar", providerCheckoutId: checkoutId, status: "pending" as any, url: data.url, metadata: custom }); } else if (eventType.includes("subscription")) { const subId = data.id ?? eventId; const userId = (custom as any)?.userId ?? data.customerId ?? data.externalCustomerId ?? subId; const statusRaw = data.status ?? (eventType.includes("canceled") ? "canceled" : "active"); await convexClient.mutation(api.billing.upsertSubscription, { userId, provider: "polar", providerSubscriptionId: subId, status: statusRaw as any, customerId: data.customerId, metadata: custom }); } } catch (e) { logger.error(`[polar] handler error ${e instanceof Error ? e.message : String(e)}`); }',
+    '  try { await convexClient.mutation(api.billing.upsertWebhookEvent, { provider: "polar", providerEventId: eventId, type: eventType, payload: eventPayload as any, processed: true }); } catch (e) { logger.error(`[polar] record fail`); }',
+    '  logger.info(`[polar] processed ${eventType} ${eventId}`); return new Response("ok", { status: 200 });',
+    "}",
+  ].join("\n");
+}
+
+export function polarNextContent(imp: DbImports): string {
+  if ((imp as ConvexImp).isConvex) return polarNextConvexContent(imp);
+  return baseNext(imp);
+}
+export function polarNextConvexContent(imp: DbImports): string {
+  return convexNext(imp);
 }

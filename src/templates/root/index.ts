@@ -14,6 +14,7 @@ import {
   githubWorkflow,
 } from "./config.js";
 import { envExample, envLocal, webEnvLocal } from "./env.js";
+import type { AddonInstallerMap } from "../../lib/addons.js";
 export type { RootSecrets } from "./secrets.js";
 export { billingEnvPlaceholders } from "./secrets.js";
 
@@ -22,9 +23,10 @@ export function rootFiles(
   secrets: RootSecrets,
   ctx: GenerateContext,
   runtime: "node" | "bun" = "bun",
+  addonMap?: AddonInstallerMap | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
   return [
-    rootPackageJson(projectName, runtime),
+    rootPackageJson(projectName, runtime, addonMap),
     ...(runtime === "bun" ? [bunfig()] : []),
     turbo(runtime),
     rootTsConfig(),

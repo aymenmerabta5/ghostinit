@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import {
+  parseAppsInput,
   parseBillingInput,
   parseFeaturesInput,
   parseDatabaseInput,
@@ -250,5 +251,32 @@ describe("addon registry - buildAddonInstallerMap", () => {
     });
     expect(map["stripe"]?.inUse).toBe(true);
     expect(map["chargily"]?.inUse).toBe(true);
+  });
+});
+
+describe("parseAppsInput — no silent fallback (AGENTS.md: only billing/features allow partial unknown)", () => {
+  it("accepts the known app names", () => {
+    expect(parseAppsInput("web")).toEqual(["web"]);
+    expect(parseAppsInput("web,mobile").sort()).toEqual(["mobile", "web"]);
+    expect(parseAppsInput("all").sort()).toEqual(["mobile", "web"]);
+    expect(parseAppsInput("both").sort()).toEqual(["mobile", "web"]);
+  });
+
+  it("throws on a fully unknown value", () => {
+    expect(() => parseAppsInput("bogus")).toThrow(/Invalid --apps value/);
+  });
+
+  it("throws when an unknown token rides along with a valid one", () => {
+    // Regression: this used to drop the unknown token silently, so
+    // `create --yes --apps web,totally-not-real` exited 0 and quietly built
+    // a web-only project instead of failing.
+    expect(() => parseAppsInput("web,totally-not-real")).toThrow(/totally-not-real/);
+    expect(() => parseAppsInput("mobile web nope")).toThrow(/Invalid --apps value/);
+  });
+
+  it("still honours none and empty input", () => {
+    expect(parseAppsInput("none")).toEqual([]);
+    expect(parseAppsInput("")).toEqual(["web"]);
+    expect(parseAppsInput()).toEqual(["web"]);
   });
 });

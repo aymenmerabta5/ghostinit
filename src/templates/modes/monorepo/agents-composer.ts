@@ -1,3 +1,4 @@
+import * as v from "../../versions.js";
 import type { TemplateFile } from "../../shared.js";
 import { file } from "../../shared.js";
 import type { BillingProviderName, FrameworkName } from "../../../lib/addons.js";
@@ -21,7 +22,7 @@ function buildAgentsMdContent(
   lines.push(
     "- Mode: monorepo (workspaces apps/* packages/* tooling/* covers packages/services + billing + email via packages/* glob)",
   );
-  lines.push("- Runtime: bun only (bun 1.3.14, bunfig.toml hoist false, bun.lock)");
+  lines.push(`- Runtime: bun only (bun ${v.runtime.bun}, bunfig.toml hoist true, bun.lock)`);
   lines.push(`- Framework: ${framework}`);
   lines.push(
     `- Billing: ${selectedBilling.length ? selectedBilling.join(",") : "none — Empty UI + Add provider button"}`,
@@ -29,7 +30,7 @@ function buildAgentsMdContent(
   lines.push(`- Eve: ${hasEve ? "enabled hybrid withEve" : "disabled — only AGENTS.md rules"}`);
   lines.push(`- i18n: ${hasI18n ? "enabled next-intl 4.x" : "disabled"}`);
   lines.push(
-    "- Stack: Next.js 16.2.10 / TanStack Start 1.168.30 React 19.2.7 TS 7.0.2 Drizzle 0.45.2 Better Auth 1.6.23 oRPC 1.14.7 Zod 4.4.3 Tailwind 4.3.2 Base UI 1.6.0 turbo 2.10.4",
+    `- Stack: Next.js ${v.nextStack.next} / TanStack Start 1.168.30 React ${v.nextStack.react} TS ${v.typescript.typescript} Drizzle ${v.database["drizzle-orm"]} Better Auth ${v.auth["better-auth"]} oRPC 1.14.7 Zod 4.4.3 Tailwind 4.3.2 Base UI 1.6.0 turbo 2.10.4`,
   );
   lines.push("- Type: modular monolith 6-layer layered + capability");
   lines.push("");
@@ -74,7 +75,7 @@ function buildAgentsMdContent(
     "- Import alias @ always: @/* -> ./src/* + @repo/* -> packages/*/src via typescript-config paths explicit mappings 15 packages baseUrl explicit.",
   );
   lines.push(
-    "- Workspaces: root package.json workspaces [apps/*, packages/*, tooling/*] covers packages/services + billing + email. bunfig.toml hoist false bun.lock.",
+    "- Workspaces: root package.json workspaces [apps/*, packages/*, tooling/*] covers packages/services + billing + email. bunfig.toml hoist true bun.lock.",
   );
   lines.push(
     hasI18n

@@ -5,6 +5,11 @@
 import type { ArchitectureFinding, PackageInfo } from "../types.js";
 import { getBasePackage } from "../utils.js";
 
+/** tsconfig `paths` aliases that resolve inside the package, not to node_modules. */
+function isPathAlias(imp: string): boolean {
+  return imp.startsWith("@/") || imp.startsWith("~/");
+}
+
 export async function checkUndeclaredDependency(
   findings: ArchitectureFinding[],
   file: string,
@@ -15,6 +20,10 @@ export async function checkUndeclaredDependency(
   if (!pkg) return;
   if (imp.startsWith("node:")) return;
   if (imp === "bun:test") return;
+  // `@/*` and `~/*` are tsconfig path aliases pointing back into the package's own
+  // source, not npm packages. Treating them as external produced a spurious
+  // "undeclared dependency @/components" on every app file that uses the alias.
+  if (isPathAlias(imp)) return;
   if (!imp.startsWith("@repo/") && !imp.startsWith(".")) {
     const base = getBasePackage(imp);
     if (!pkg.dependencies.has(base) && !base.startsWith("@types/")) {

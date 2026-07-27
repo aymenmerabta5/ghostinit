@@ -10,28 +10,12 @@ import { useRouter } from "next/navigation";
 import { authClient } from "../../../lib/auth-client.js";
 import { useForm } from "@/components/ui/form";
 interface ProfileForm { name: string; }
-export interface UseSettingsReturn {
-  session: ReturnType<typeof authClient.useSession>["data"];
-  isPending: boolean;
-  user: NonNullable<ReturnType<typeof authClient.useSession>["data"]>["user"] | undefined;
-  profileForm: ReturnType<typeof useForm<ProfileForm>>;
-  currentPassword: string; setCurrentPassword: React.Dispatch<React.SetStateAction<string>>;
-  newPassword: string; setNewPassword: React.Dispatch<React.SetStateAction<string>>;
-  passwordError: string | null; passwordSuccess: string | null;
-  twoFactorPassword: string; setTwoFactorPassword: React.Dispatch<React.SetStateAction<string>>;
-  totpUri: string | null; backupCodes: string | null;
-  verifyCode: string; setVerifyCode: React.Dispatch<React.SetStateAction<string>>;
-  twoFactorError: string | null; twoFactorEnabled: boolean;
-  deletePassword: string; setDeletePassword: React.Dispatch<React.SetStateAction<string>>;
-  deleteError: string | null;
-  handleChangePassword: (e: React.FormEvent) => Promise<void>;
-  handleEnableTwoFactor: (e: React.FormEvent) => Promise<void>;
-  handleVerifyTwoFactor: (e: React.FormEvent) => Promise<void>;
-  handleDisableTwoFactor: (e: React.FormEvent) => Promise<void>;
-  handleDeleteAccount: () => Promise<void>;
-  clearPasswordMessages: () => void;
-}
-export function useSettings(): UseSettingsReturn {
+// Derived from the implementation rather than hand-written. The form field's type
+// is TanStack Form's ReactFormExtendedApi with eleven type parameters; restating
+// it by hand drifted (a hand-written \`ReturnType<typeof useForm<ProfileForm>>\` is
+// an instantiation expression, which ReturnType rejects — TS2344/TS2635).
+export type UseSettingsReturn = ReturnType<typeof useSettings>;
+export function useSettings() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;

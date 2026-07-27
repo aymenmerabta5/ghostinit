@@ -48,13 +48,17 @@ import {
 } from "../../../apps/fragments/expo/header.js";
 import { webhookContent } from "../../../billing/webhooks/factory.js";
 
-import { serverAuthSingle } from "../server/auth.js";
+import { serverAuthSingle, serverAuthSingleConvex } from "../server/auth.js";
 import {
   serverDbIndexSingle,
+  serverDbIndexSingleConvex,
+  serverDbIndexSingleNone,
   serverDbAuthSchemaStub,
   serverObservabilitySingle,
   libUtils,
 } from "../server/db.js";
+import { hasAddon } from "../../../../lib/addons.js";
+import { convexDatabaseFiles } from "../../../database/convex.js";
 import {
   singleApiContextContent,
   singleApiHealthProcedureContent,
@@ -89,7 +93,6 @@ function singleExpoTsConfigContent(): string {
           forceConsistentCasingInFileNames: true,
           resolveJsonModule: true,
           incremental: true,
-          baseUrl: ".",
           paths: {
             "@/*": ["./src/*"],
             "@/server/*": ["./src/server/*"],
@@ -244,17 +247,17 @@ function expoOpenapiApiContent(): string {
   ].join("\n");
 }
 
-function expoStripeWebhook(): string {
-  return webhookContent("stripe", "next", "single").content;
+function expoStripeWebhook(isConvex = false): string {
+  return webhookContent("stripe", "next", "single", isConvex ? "convex" : "postgres").content;
 }
-function expoChargilyWebhook(): string {
-  return webhookContent("chargily", "next", "single").content;
+function expoChargilyWebhook(isConvex = false): string {
+  return webhookContent("chargily", "next", "single", isConvex ? "convex" : "postgres").content;
 }
-function expoPaddleWebhook(): string {
-  return webhookContent("paddle", "next", "single").content;
+function expoPaddleWebhook(isConvex = false): string {
+  return webhookContent("paddle", "next", "single", isConvex ? "convex" : "postgres").content;
 }
-function expoPolarWebhook(): string {
-  return webhookContent("polar", "next", "single").content;
+function expoPolarWebhook(isConvex = false): string {
+  return webhookContent("polar", "next", "single", isConvex ? "convex" : "postgres").content;
 }
 
 function expoUseAuthHook(): string {
@@ -398,12 +401,14 @@ export function buildExpoFiles(
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
+  const isConvex = hasAddon(addonMap, "convex");
+  const isNone = hasAddon(addonMap, "none");
   const files: TemplateFile[] = [];
 
   files.push(
     file(
       "package.json",
-      singlePackageJsonExpo(projectName, runtime, effectiveBilling, hasEve, hasI18n),
+      singlePackageJsonExpo(projectName, runtime, effectiveBilling, hasEve, hasI18n, isConvex),
     ),
   );
   files.push(file("app.json", expoAppJsonContent(projectName)));
@@ -426,7 +431,41 @@ export function buildExpoFiles(
   files.push(file("app/billing.tsx", expoBillingContent()));
   files.push(file("app/+not-found.tsx", expoNotFoundContent()));
 
-  files.push(file("src/lib/auth-client.ts", expoAuthClientContent(projectName)));
+  // auth-client for expo: use convex variant if convex mode
+  if (isConvex) {
+    const scheme = projectName.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+    const convexExpoAuthContent = `import { createAuthClient } from "better-auth/react";
+import { expoClient } from "@better-auth/expo/client";
+import { convexClient } from "@convex-dev/better-auth/client/plugins";
+import * as SecureStore from "expo-secure-store";
+
+function getBaseUrl(): string {
+  const url = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_APP_URL;
+  if (!url) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("EXPO_PUBLIC_API_URL must be set in production");
+    }
+    return "http://localhost:3000";
+  }
+  return url;
+}
+
+export const authClient = createAuthClient({
+  baseURL: getBaseUrl(),
+  plugins: [
+    convexClient(),
+    expoClient({
+      scheme: "${scheme}",
+      storagePrefix: "${projectName}",
+      storage: SecureStore,
+    }),
+  ],
+});
+`;
+    files.push(file("src/lib/auth-client.ts", convexExpoAuthContent));
+  } else {
+    files.push(file("src/lib/auth-client.ts", expoAuthClientContent(projectName)));
+  }
   files.push(file("src/lib/orpc.ts", singleExpoOrpcClientContent()));
   files.push(file("src/lib/utils.ts", libUtils()));
   files.push(file("src/components/ui/text.tsx", rnrTextContent()));
@@ -443,9 +482,23 @@ export function buildExpoFiles(
   files.push(file("src/hooks/use-billing.ts", expoUseBillingHook()));
   files.push(file("src/hooks/use-copy.ts", expoUseCopyHook()));
 
-  files.push(file("src/server/auth/index.ts", serverAuthSingle()));
-  files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
-  files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  if (isConvex) {
+    files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
+    const convexAll = convexDatabaseFiles(projectName, runtime);
+    for (const cf of convexAll) {
+      if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
+        files.push(cf);
+      }
+    }
+  } else if (isNone) {
+    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
+  } else {
+    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/server/api/context.ts", singleApiContextContent()));
   files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
@@ -461,28 +514,39 @@ export function buildExpoFiles(
   files.push(file("app/api/openapi+api.ts", expoOpenapiApiContent()));
 
   if (effectiveBilling.includes("stripe"))
-    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook()));
+    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook(isConvex)));
   if (effectiveBilling.includes("chargily"))
-    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook()));
+    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook(isConvex)));
   if (effectiveBilling.includes("paddle"))
-    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook()));
+    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook(isConvex)));
   if (effectiveBilling.includes("polar"))
-    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook()));
+    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook(isConvex)));
   if (
     effectiveBilling.length === 0 &&
     (addonMap as never as { billing?: { inUse: boolean } }).billing?.inUse
   ) {
-    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook()));
-    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook()));
-    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook()));
-    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook()));
+    files.push(file("app/api/webhooks/stripe+api.ts", expoStripeWebhook(isConvex)));
+    files.push(file("app/api/webhooks/chargily+api.ts", expoChargilyWebhook(isConvex)));
+    files.push(file("app/api/webhooks/paddle+api.ts", expoPaddleWebhook(isConvex)));
+    files.push(file("app/api/webhooks/polar+api.ts", expoPolarWebhook(isConvex)));
   }
 
   files.push(gitignoreSingle());
   files.push(readmeSingle(projectName));
-  files.push(filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime));
-  files.push(filteredEnvLocal(projectName, secrets, effectiveBilling, runtime));
-  files.push(singleEnvFile());
+  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
+  files.push(
+    filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime, dbType, {
+      framework: "nextjs",
+      hasMobile: true,
+    }),
+  );
+  files.push(
+    filteredEnvLocal(projectName, secrets, effectiveBilling, runtime, dbType, {
+      framework: "nextjs",
+      hasMobile: true,
+    }),
+  );
+  files.push(singleEnvFile(addonMap));
 
   files.push(
     ...(servicesFiles(
@@ -549,7 +613,6 @@ export function buildExpoFiles(
               forceConsistentCasingInFileNames: true,
               resolveJsonModule: true,
               types: ["node"],
-              baseUrl: ".",
               paths: { "#*": ["./agent/*"], "#evals/*": ["./evals/*"] },
               outDir: "./dist",
               rootDir: ".",

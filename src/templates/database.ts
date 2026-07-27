@@ -1,3 +1,4 @@
+// @allow-long 423: drizzle schema + client + migration config for the postgres path, emitted as one coherent set
 /**
  * Generated project database package template.
  * Now aggregates billing schema for db.query.webhook_events support.
@@ -7,18 +8,12 @@
 
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import * as v from "./versions.js";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { tryLoadTemplate } from "./template-loader.js";
 
-const thisDir = dirname(fileURLToPath(import.meta.url));
-function tryLoadBilling(rel: string): string | null {
-  try {
-    return readFileSync(join(thisDir, rel), "utf-8");
-  } catch {
-    return null;
-  }
-}
+// Uses the shared multi-root resolver: a naive join(thisDir, rel) always fails
+// once bundled into dist/cli.js, which silently emitted a billing barrel whose
+// ./tables/* targets were never written.
+const tryLoadBilling = tryLoadTemplate;
 
 /**
  * start-database.sh — quick postgres container start, inspired by create-t3-app's
@@ -154,6 +149,9 @@ export function databasePackage(
           "@repo/config": "workspace:*",
         },
         devDependencies: {
+          // tsconfig declares types: ["node"], so the package must depend on it —
+          // otherwise TS2688 "Cannot find type definition file for 'node'".
+          "@types/node": `^${v.runtime["@types/node"]}`,
           "@types/pg": `^${v.database["@types/pg"]}`,
           "drizzle-kit": `^${v.database["drizzle-kit"]}`,
           typescript: `^${v.typescript.typescript}`,
@@ -165,7 +163,11 @@ export function databasePackage(
       tsconfig({
         include: ["src/**/*"],
         compilerOptions: {
+          types: ["node"],
           outDir: "./dist",
+          // Explicit rootDir — without it TS6 raises TS5011 once declaration output
+          // is enabled, which failed the generated project's typecheck.
+          rootDir: "./src",
           declaration: true,
         },
       }),
@@ -359,9 +361,16 @@ export const posts = pgTable("posts", {
   // Source of truth remains @repo/billing, but we copy tables to database for db.query support and tsc aggregate root.
   // This avoids circular dependency (database -> billing -> database) by copying, not importing.
 
+  // index.ts is preferred over billing.ts deliberately. billing.ts is a thin
+  // barrel that does `export { customerRelations } from "./index"` — which is
+  // correct inside packages/billing, but here "./index" resolves to
+  // packages/database/src/schema/index.ts, the ghostinit-sync barrel that itself
+  // re-exports "./billing". That cycle meant customerRelations was never
+  // actually exported from @repo/database. index.ts is self-contained: it
+  // defines customerRelations and re-exports ./enums + ./tables/*.
   const billingBarrelContent =
-    tryLoadBilling("./billing/schema/billing.ts") ??
     tryLoadBilling("./billing/schema/index.ts") ??
+    tryLoadBilling("./billing/schema/billing.ts") ??
     `// Fallback billing barrel - explicit re-exports
 export {
   billingProviderEnum,
@@ -406,12 +415,24 @@ export const recurringIntervalEnum = pgEnum("billing_recurring_interval", ["mont
     "webhook_events",
   ];
 
+  // The barrel above re-exports every one of these. If a table template cannot be
+  // located we must NOT silently skip it — that produced a barrel importing files
+  // that were never written, and the generated project failed to typecheck.
+  const missingTables: string[] = [];
   for (const table of tableNames) {
-    const rel = `./billing/schema/tables/${table}.ts`;
-    const content = tryLoadBilling(rel);
+    const content = tryLoadBilling(`./billing/schema/tables/${table}.ts`);
     if (content) {
       baseFiles.push(file(`packages/database/src/schema/tables/${table}.ts`, content));
+    } else {
+      missingTables.push(table);
     }
+  }
+  if (missingTables.length > 0) {
+    throw new Error(
+      `[ghostinit] billing table templates missing: ${missingTables.join(", ")}. ` +
+        `packages/database/src/schema/billing.ts re-exports them, so emitting the ` +
+        `barrel without them would produce a project that cannot typecheck.`,
+    );
   }
 
   // Also emit index.ts inside tables? Not needed, but ensure billing barrel re-export is complete.

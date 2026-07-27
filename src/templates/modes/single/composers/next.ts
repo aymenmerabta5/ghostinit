@@ -1,5 +1,11 @@
 import { file, type TemplateFile } from "../../../shared.js";
-import { type BillingProviderName, type AddonInstallerMap } from "../../../../lib/addons.js";
+import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
+import { adminGuardContent } from "../../../apps/fragments/header.js";
+import {
+  type BillingProviderName,
+  type AddonInstallerMap,
+  hasAddon,
+} from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
@@ -21,11 +27,19 @@ import {
 } from "../core/layout.js";
 import {
   serverDbIndexSingle,
+  serverDbIndexSingleConvex,
+  serverDbIndexSingleNone,
   serverDbAuthSchemaStub,
   serverObservabilitySingle,
   libUtils,
 } from "../server/db.js";
-import { authClientSingle, serverAuthSingle } from "../server/auth.js";
+import {
+  authClientSingle,
+  authClientSingleConvex,
+  serverAuthSingle,
+  serverAuthSingleConvex,
+} from "../server/auth.js";
+import { convexDatabaseFiles } from "../../../database/convex.js";
 import { singleMarketingPage } from "../pages/marketing.js";
 import {
   forgotPasswordPageSingle,
@@ -53,7 +67,7 @@ import {
   adminCreateUserPageSingleFileContent,
 } from "../pages/admin.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
-import { providersSingleContent } from "../components/providers.js";
+import { providersSingleContent, providersSingleContentConvex } from "../components/providers.js";
 import { headerSingleContent } from "../components/header.js";
 import {
   useCopyHookSingleContent,
@@ -84,9 +98,14 @@ export function buildNextFiles(
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
+  const isConvex = hasAddon(addonMap, "convex");
+  const isNone = hasAddon(addonMap, "none");
   const files: TemplateFile[] = [];
   files.push(
-    file("package.json", singlePackageJson(projectName, runtime, effectiveBilling, hasEve, false)),
+    file(
+      "package.json",
+      singlePackageJson(projectName, runtime, effectiveBilling, hasEve, false, isConvex),
+    ),
   );
   files.push(file("next.config.ts", singleNextConfigContent(hasEve)));
   files.push(file("tsconfig.json", singleTsConfigContent()));
@@ -128,6 +147,9 @@ export function buildNextFiles(
   );
   files.push(file("src/app/settings/page.tsx", settingsPageSingleContent()));
   files.push(file("src/app/admin/layout.tsx", adminLayoutSingleContent()));
+  // src/app/admin/layout.tsx imports @/components/admin-guard; the TanStack single
+  // composer already emitted it, the Next.js one did not.
+  files.push(file("src/components/admin-guard.tsx", adminGuardContent("next")));
   files.push(file("src/app/admin/page.tsx", adminDashboardSingleFileContent()));
   files.push(
     file("src/app/admin/users/hooks/use-admin-users.ts", useAdminUsersHookSingleContent()),
@@ -135,24 +157,58 @@ export function buildNextFiles(
   files.push(file("src/app/admin/users/components/user-row.tsx", adminUserRowSingleContent()));
   files.push(file("src/app/admin/users/page.tsx", adminUsersPageSingleFileContent()));
   files.push(file("src/app/admin/users/create/page.tsx", adminCreateUserPageSingleFileContent()));
-  files.push(file("src/lib/auth-client.ts", authClientSingle()));
-  files.push(file("src/server/auth/index.ts", serverAuthSingle()));
-  files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
-  files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  if (isConvex) {
+    files.push(file("src/lib/auth-client.ts", authClientSingleConvex()));
+    files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
+    // emit convex folder (only convex/* and convex.json) for single mode
+    const convexAll = convexDatabaseFiles(projectName, runtime);
+    for (const cf of convexAll) {
+      if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
+        files.push(cf);
+      }
+    }
+  } else if (isNone) {
+    files.push(file("src/lib/auth-client.ts", authClientSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
+  } else {
+    files.push(file("src/lib/auth-client.ts", authClientSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
+  // shadcn-style primitives the pages import via @/components/ui/*.
+  files.push(...singleWebUiFiles());
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
-  files.push(file("src/components/providers.tsx", providersSingleContent()));
+  if (isConvex) {
+    files.push(file("src/components/providers.tsx", providersSingleContentConvex()));
+  } else {
+    files.push(file("src/components/providers.tsx", providersSingleContent()));
+  }
   files.push(file("src/components/header.tsx", headerSingleContent()));
   files.push(file("src/hooks/use-copy.ts", useCopyHookSingleContent()));
   files.push(file("src/hooks/use-billing.ts", useBillingHookSingleContent()));
   files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
   files.push(gitignoreSingle());
   files.push(readmeSingle(projectName));
-  files.push(filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime));
-  files.push(filteredEnvLocal(projectName, secrets, effectiveBilling, runtime));
-  files.push(singleEnvFile());
+  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
+  files.push(
+    filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime, dbType, {
+      framework: "nextjs",
+      hasMobile: false,
+    }),
+  );
+  files.push(
+    filteredEnvLocal(projectName, secrets, effectiveBilling, runtime, dbType, {
+      framework: "nextjs",
+      hasMobile: false,
+    }),
+  );
+  files.push(singleEnvFile(addonMap));
 
   files.push(
     ...(servicesFiles(
@@ -221,7 +277,6 @@ export function buildNextFiles(
               forceConsistentCasingInFileNames: true,
               resolveJsonModule: true,
               types: ["node"],
-              baseUrl: ".",
               paths: { "#*": ["./agent/*"], "#evals/*": ["./evals/*"] },
               outDir: "./dist",
               rootDir: ".",

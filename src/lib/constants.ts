@@ -72,6 +72,20 @@ export const ALL_BILLING_PROVIDERS = BILLING_PROVIDERS;
 export const BILLING_PROVIDER_NAMES = BILLING_PROVIDERS;
 
 /* ------------------------------------------------------------------ */
+/* Convex constants                                                   */
+/* ------------------------------------------------------------------ */
+
+export const CONVEX_ENV_KEYS = [
+  "CONVEX_DEPLOYMENT",
+  "CONVEX_URL",
+  "NEXT_PUBLIC_CONVEX_URL",
+  "VITE_CONVEX_URL",
+  "EXPO_PUBLIC_CONVEX_URL",
+  "CONVEX_SITE_URL",
+  "SITE_URL",
+] as const;
+
+/* ------------------------------------------------------------------ */
 /* Reserved workspace packages — single source of truth               */
 /* Re-exported from reserved.ts originally, now defined here and    */
 /* imported by reserved.ts to ensure single source.                  */
@@ -116,4 +130,9 @@ export const ENV_PLACEHOLDERS = {
   POLAR_WEBHOOK_SECRET: "REPLACE_WITH_POLAR_WEBHOOK_SECRET",
   POLAR_ORG_ID: "REPLACE_WITH_POLAR_ORG_ID",
   POSTHOG_KEY: "phc_REPLACE_WITH_POSTHOG_KEY",
+  CONVEX_DEPLOYMENT: "REPLACE_WITH_CONVEX_DEPLOYMENT_dev:example-123",
+  CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
+  NEXT_PUBLIC_CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
+  CONVEX_SITE_URL: "REPLACE_WITH_CONVEX_SITE_URL_https://example-123.convex.site",
+  SITE_URL: "http://localhost:3000",
 } as const;

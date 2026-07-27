@@ -7,8 +7,11 @@
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import { viteSecurityHeaders, postcssConfigContent } from "./fragments/core.js";
+import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
+import { webUiFiles } from "./fragments/web-ui/index.js";
 
 type FeatureInput =
   | boolean
@@ -31,22 +34,48 @@ function resolveHasI18n(input: FeatureInput = false): boolean {
   return resolveHasFeature(input, "i18n");
 }
 
+function resolveAddonMapTanstack(
+  hasEveInput: FeatureInput = false,
+  explicit?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
+): AddonInstallerMap | undefined {
+  if (explicit) return explicit as AddonInstallerMap;
+  if (typeof hasEveInput === "object" && !Array.isArray(hasEveInput)) {
+    const rec = hasEveInput as Record<string, unknown>;
+    if ("convex" in rec || "postgres" in rec || "eve" in rec || "i18n" in rec) {
+      return hasEveInput as unknown as AddonInstallerMap;
+    }
+  }
+  return undefined;
+}
+
 export function tanstackCoreFiles(
   runtime: "node" | "bun" = "bun",
   hasEveInput: FeatureInput = false,
   hasI18nInput: FeatureInput = false,
+  addonMapExplicit?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
 ): TemplateFile[] {
   const hasEve = resolveHasEve(hasEveInput);
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
+  const addonMap = resolveAddonMapTanstack(hasEveInput, addonMapExplicit);
   return [
-    webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start"),
+    webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap),
     viteConfig(hasEve, effectiveHasI18n),
     nitroConfig(),
     routerFile(),
     globalCss(),
     postcssConfig(),
-    tsconfigTanstack(),
+
+    // NOTE: apps/web/tsconfig.json is deliberately NOT emitted here.
+    // modes/monorepo/apps-composer.ts owns it and emits the full @repo/* path
+    // table plus vite/client types; a thinner copy used to be emitted from this
+    // list and lost the composition race silently.
+
+    // The TanStack routes import @/components/ui/* and @/lib/utils exactly like the
+    // Next.js pages do, and webUiFiles() already emits under apps/web/src. Omitting
+    // it left every TanStack project referencing components that were never
+    // generated (TS2307 across the whole app).
+    ...webUiFiles(),
   ];
 }
 
@@ -55,6 +84,7 @@ function webPackageTanstack(
   hasEve = false,
   _hasI18n = false,
   _framework: string = "tanstack-start",
+  addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
 ): TemplateFile {
   return file(
     "apps/web/package.json",
@@ -69,6 +99,9 @@ function webPackageTanstack(
         ...codeScripts({
           test: runtime === "bun" ? "bun test tests" : "npm run test:unit",
           e2e: true,
+          // src/routeTree.gen.ts is written by the router codegen; every
+          // createFileRoute("/path") needs it to resolve, so generate before tsc.
+          typecheck: "tsr generate && tsc --noEmit",
         }),
       },
       dependencies: {
@@ -90,22 +123,38 @@ function webPackageTanstack(
         "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
+        // Required by the shared shadcn-style components emitted via webUiFiles().
+        "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
+        "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
+        clsx: `^${v.ui.clsx}`,
+        "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
+        ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
+          ? {
+              convex: `^${v.convex.convex}`,
+              "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+            }
+          : {}),
+        // Webhook routes under src/routes/api/webhooks/* import these directly.
+        ...webhookRuntimeDeps(addonMap),
         react: `^${v.nextStack.react}`,
         "react-dom": `^${v.nextStack["react-dom"]}`,
         zod: `^${v.validation.zod}`,
       },
       devDependencies: {
         "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,
+        // Provides `tsr generate` for src/routeTree.gen.ts (see typecheck script).
+        "@tanstack/router-cli": `^${v.tanstackStart["@tanstack/router-cli"]}`,
+        // apps/web tsconfig lists types: ["bun-types", ...] — declare it or TS2688.
+        "bun-types": `^${v.runtime.bun}`,
         "@playwright/test": `^${v.testing.playwright}`,
         vite: `^${v.tanstackStart.vite}`,
         "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
         "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
         nitro: `^${v.tanstackStart.nitro}`,
-        nitropack: `^${v.tanstackStart.nitro}`,
         oxfmt: `^${v.tooling.oxfmt}`,
         oxlint: `^${v.tooling.oxlint}`,
         "@repo/typescript-config": "workspace:*",
@@ -161,7 +210,7 @@ ${viteSecurityHeaders()}
 function nitroConfig(): TemplateFile {
   return file(
     "apps/web/nitro.config.ts",
-    `import { defineNitroConfig } from 'nitropack/config'
+    `import { defineNitroConfig } from 'nitro/config'
 
 export default defineNitroConfig({
   preset: 'bun',
@@ -216,37 +265,6 @@ function globalCss(): TemplateFile {
 
 function postcssConfig(): TemplateFile {
   return file("apps/web/postcss.config.mjs", postcssConfigContent());
-}
-
-function tsconfigTanstack(): TemplateFile {
-  return file(
-    "apps/web/tsconfig.json",
-    JSON.stringify(
-      {
-        extends: "@repo/typescript-config/tanstack.json",
-        compilerOptions: {
-          target: "ES2024",
-          module: "ESNext",
-          moduleResolution: "bundler",
-          jsx: "react-jsx",
-          lib: ["ES2024", "DOM", "DOM.Iterable"],
-          baseUrl: ".",
-          paths: {
-            "~/*": ["./src/*"],
-            "@/*": ["./src/*"],
-            "@repo/*": ["../../packages/*/src"],
-          },
-          noEmit: true,
-          incremental: true,
-          types: ["bun-types", "node"],
-        },
-        include: ["src/**/*", "vite.config.ts"],
-        exclude: ["node_modules", ".output", "dist"],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
 }
 
 export { webPackageTanstack, viteConfig, routerFile, globalCss };

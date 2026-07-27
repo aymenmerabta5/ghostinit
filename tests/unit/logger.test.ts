@@ -57,4 +57,45 @@ describe("logger redaction", () => {
     expect(output).not.toContain("token=z");
     expect(output).toContain('"secret":"***"');
   });
+
+  // Key-based redaction alone misses a credential carried under a benign key or
+  // interpolated into the message — which is how provider error text leaks.
+  it("redacts secret-SHAPED values even under a harmless key", () => {
+    const result = redact({ note: "using sk_live_abcdef1234567890 now" }) as Record<
+      string,
+      unknown
+    >;
+    expect(result.note).not.toContain("sk_live_abcdef1234567890");
+    expect(result.note).toContain("***");
+  });
+
+  it("redacts credentials embedded in a connection string", () => {
+    const result = redact({ dsn: "postgres://admin:hunter2@db.internal:5432/app" }) as Record<
+      string,
+      unknown
+    >;
+    expect(result.dsn).not.toContain("hunter2");
+  });
+
+  it("redacts secrets interpolated into the log MESSAGE, not just meta", () => {
+    const lines: string[] = [];
+    const logger = new Logger({
+      out: (chunk: string) => {
+        lines.push(chunk);
+        return true;
+      },
+    });
+    logger.error("stripe rejected key sk_test_9f8e7d6c5b4a3210 during checkout");
+    const output = lines.join("");
+    expect(output).not.toContain("sk_test_9f8e7d6c5b4a3210");
+    expect(output).toContain("***");
+  });
+
+  it("does not infinitely recurse on circular structures", () => {
+    const circular: Record<string, unknown> = { name: "root" };
+    circular.self = circular;
+    const result = redact(circular) as Record<string, unknown>;
+    expect(result.name).toBe("root");
+    expect(result.self).toBe("[Circular]");
+  });
 });

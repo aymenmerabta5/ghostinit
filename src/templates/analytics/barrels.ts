@@ -57,11 +57,23 @@ export * from "./testing/mocks.js";
 }
 
 export function singleComponentsIndexContent(): string {
+  // Explicit re-exports: both posthog-provider and posthog-pageview export
+  // PostHogPageView, and `export *` made that ambiguous (TS2308). The dedicated
+  // pageview module is the canonical one.
   return `"use client";
 
-export * from "./posthog-provider.js";
-export * from "./posthog-pageview.js";
-export * from "./feature-flag-gate.js";
+export {
+  PostHogProvider,
+  PostHogContext,
+  usePostHogContext,
+  useFeatureFlag,
+  useFeatureFlagEnabled,
+  useFeatureFlagPayload,
+  useActiveFeatureFlags,
+  useExperiment,
+} from "./posthog-provider.js";
+export { PostHogPageView } from "./posthog-pageview.js";
+export { FeatureFlagGate, ExperimentGate, PostHogToolbar } from "./feature-flag-gate.js";
 `;
 }
 

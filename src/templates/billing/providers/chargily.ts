@@ -111,34 +111,56 @@ export function createChargilyProvider(
 
 export const createChargilyProviderFactory = createChargilyProvider;
 
+/**
+ * Facade over the lazily-imported Chargily operations.
+ *
+ * Parameter types are derived from the target functions with `Parameters<...>`
+ * rather than widened to `any`: the delegation stays type-checked and cannot
+ * drift if an underlying signature changes.
+ */
+type ChargilyConfigArg = ChargilyProviderConfig | Record<string, unknown> | undefined;
+type ProductModule = typeof import("./chargily/product.js");
+type PaymentLinkModule = typeof import("./chargily/payment-link.js");
+type OperationsModule = typeof import("./chargily/operations.js");
+type CustomerModule = typeof import("./chargily/customer.js");
+
 export const Chargily = {
   createClient: (cfg: ChargilyProviderConfig | Record<string, unknown>) => getChargilyClient(cfg),
   verifySignature,
-  createProduct: async (i: any, cfg?: any) =>
-    (await import("./chargily/product.js")).createChargilyProduct(i, cfg),
-  createPrice: async (i: any, cfg?: any) =>
-    (await import("./chargily/product.js")).createChargilyPrice(i, cfg),
-  createPaymentLink: async (i: any, cfg?: any) =>
-    (await import("./chargily/payment-link.js")).createChargilyPaymentLink(i, cfg),
-  getBalance: async (cfg?: any) =>
+  createProduct: async (
+    i: Parameters<ProductModule["createChargilyProduct"]>[0],
+    cfg?: ChargilyConfigArg,
+  ) => (await import("./chargily/product.js")).createChargilyProduct(i, cfg),
+  createPrice: async (
+    i: Parameters<ProductModule["createChargilyPrice"]>[0],
+    cfg?: ChargilyConfigArg,
+  ) => (await import("./chargily/product.js")).createChargilyPrice(i, cfg),
+  createPaymentLink: async (
+    i: Parameters<PaymentLinkModule["createChargilyPaymentLink"]>[0],
+    cfg?: ChargilyConfigArg,
+  ) => (await import("./chargily/payment-link.js")).createChargilyPaymentLink(i, cfg),
+  getBalance: async (cfg?: ChargilyConfigArg) =>
     (await import("./chargily/operations.js")).getChargilyBalance(cfg),
-  listCustomers: async (p?: number, cfg?: any) =>
+  listCustomers: async (p?: number, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/customer.js")).listChargilyCustomers(p, cfg),
-  getCustomer: async (id: string, cfg?: any) =>
+  getCustomer: async (id: string, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/customer.js")).getChargilyCustomer(id, cfg),
-  getCheckout: async (id: string, cfg?: any) =>
+  getCheckout: async (id: string, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/operations.js")).getChargilyCheckout(id, cfg),
-  listCheckouts: async (p?: number, cfg?: any) =>
+  listCheckouts: async (p?: number, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/operations.js")).listChargilyCheckouts(p, cfg),
-  getCheckoutItems: async (id: string, p?: number, cfg?: any) =>
+  getCheckoutItems: async (id: string, p?: number, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/operations.js")).getChargilyCheckoutItems(id, p, cfg),
-  expireCheckout: async (id: string, cfg?: any) =>
+  expireCheckout: async (id: string, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/operations.js")).expireChargilyCheckout(id, cfg),
-  listPaymentLinks: async (p?: number, cfg?: any) =>
+  listPaymentLinks: async (p?: number, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/payment-link.js")).listChargilyPaymentLinks(p, cfg),
-  getProductPrices: async (pid: string, p?: number, cfg?: any) =>
+  getProductPrices: async (pid: string, p?: number, cfg?: ChargilyConfigArg) =>
     (await import("./chargily/product.js")).getChargilyProductPrices(pid, p, cfg),
-};
+} satisfies Record<string, unknown>;
+
+// Referenced only for the Parameters<> derivations above.
+export type { OperationsModule, CustomerModule };
 
 export default createChargilyProvider;
 export type ChargilyProvider = ReturnType<typeof createChargilyProvider>;

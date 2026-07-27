@@ -9,9 +9,32 @@ import {
   coreEnvLocalLines,
   resendExampleLines,
   resendLocalLines,
+  publicVarLines,
+  type EnvAudience,
 } from "./core.js";
 
 type EnvMode = "monorepo" | "single";
+
+/**
+ * PostHog client vars, emitted only for the prefixes this project consumes.
+ *
+ * This block was previously written out three times over (NEXT_PUBLIC_, VITE_,
+ * EXPO_PUBLIC_) regardless of framework or whether a mobile app existed, in two
+ * separate copies. @repo/config declares exactly one client family, so the
+ * surplus lines described variables nothing would ever read.
+ */
+function analyticsPublicLines(audience: EnvAudience): string[] {
+  return [
+    "# Analytics — PostHog",
+    ...publicVarLines(audience, "POSTHOG_KEY", ENV_PLACEHOLDERS.POSTHOG_KEY),
+    ...publicVarLines(audience, "POSTHOG_HOST", "/ingest"),
+    "POSTHOG_HOST=https://us.i.posthog.com",
+    `POSTHOG_API_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`,
+    ...publicVarLines(audience, "POSTHOG_SESSION_RECORDING", "false"),
+    ...publicVarLines(audience, "POSTHOG_AUTOCAPTURE", "true"),
+    ...publicVarLines(audience, "ANALYTICS_DISABLED", "false"),
+  ];
+}
 
 export function envExampleContent(
   projectName: string,
@@ -19,14 +42,16 @@ export function envExampleContent(
   includeResend = true,
   runtime = "bun",
   mode: EnvMode = "monorepo",
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: EnvAudience = { framework: "nextjs", hasMobile: false },
 ): string {
   const lines: string[] = [];
-  lines.push(...coreEnvExampleLines(projectName));
+  lines.push(...coreEnvExampleLines(projectName, database, audience));
   lines.push("");
   if (includeResend) lines.push(...resendExampleLines(projectName));
-  lines.push(...billingEnvLines(billingProviders));
+  lines.push(...billingEnvLines(billingProviders, audience));
   if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
-  lines.push(...analyticsEnvLines());
+  lines.push(...analyticsEnvLines(audience));
   lines.push("");
   if (mode === "monorepo") {
     lines.push("# oRPC contract-first, single port 3000");
@@ -90,29 +115,18 @@ export function envLocalContent(
   }
   if (!projectName) projectName = "ghostinit-app";
   const lines: string[] = [];
-  lines.push(...coreEnvLocalLines(projectName, secrets));
+  // Detect database from overload? For backwards compat, we look at second arg maybe?
+  // In this legacy overload we don't have database param, default to postgres.
+  // New callers should use filteredEnvLocal with database param via sharedFiltered.
+  // Legacy positional overload with no framework information: assume the
+  // Next.js default rather than emitting every prefix family.
+  const audience: EnvAudience = { framework: "nextjs", hasMobile: false };
+  lines.push(...coreEnvLocalLines(projectName, secrets, "postgres", audience));
   lines.push("");
   lines.push(...resendLocalLines(projectName, secrets));
-  if (billingProviders.length === 0) lines.push(...billingEnvLocalLines(secrets, []));
-  else lines.push(...billingEnvLocalLinesFiltered(secrets, billingProviders));
-  lines.push("# Analytics — PostHog");
-  lines.push(`NEXT_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("NEXT_PUBLIC_POSTHOG_HOST=/ingest");
-  lines.push(`VITE_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("VITE_POSTHOG_HOST=/ingest");
-  lines.push(`EXPO_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("EXPO_PUBLIC_POSTHOG_HOST=/ingest");
-  lines.push("POSTHOG_HOST=https://us.i.posthog.com");
-  lines.push(`POSTHOG_API_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("NEXT_PUBLIC_POSTHOG_SESSION_RECORDING=false");
-  lines.push("NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true");
-  lines.push("VITE_POSTHOG_SESSION_RECORDING=false");
-  lines.push("VITE_POSTHOG_AUTOCAPTURE=true");
-  lines.push("EXPO_PUBLIC_POSTHOG_SESSION_RECORDING=false");
-  lines.push("EXPO_PUBLIC_POSTHOG_AUTOCAPTURE=true");
-  lines.push("NEXT_PUBLIC_ANALYTICS_DISABLED=false");
-  lines.push("VITE_ANALYTICS_DISABLED=false");
-  lines.push("EXPO_PUBLIC_ANALYTICS_DISABLED=false");
+  if (billingProviders.length === 0) lines.push(...billingEnvLocalLines(secrets, [], audience));
+  else lines.push(...billingEnvLocalLinesFiltered(secrets, billingProviders, audience));
+  lines.push(...analyticsPublicLines(audience));
   lines.push("");
   lines.push(`# Runtime ${effectiveRuntime}`);
   lines.push(`RUNTIME=${effectiveRuntime}`);
@@ -127,8 +141,18 @@ export function filteredEnvExample(
   includeResend: boolean,
   runtime: string,
   mode: EnvMode = "monorepo",
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: EnvAudience = { framework: "nextjs", hasMobile: false },
 ): TemplateFile {
-  const content = envExampleContent(projectName, selectedBilling, includeResend, runtime, mode);
+  const content = envExampleContent(
+    projectName,
+    selectedBilling,
+    includeResend,
+    runtime,
+    mode,
+    database,
+    audience,
+  );
   return file(".env.example", content);
 }
 
@@ -138,30 +162,15 @@ export function filteredEnvLocal(
   selectedBilling: BillingProviderName[],
   runtime = "bun",
   mode: EnvMode = "monorepo",
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: EnvAudience = { framework: "nextjs", hasMobile: false },
 ): TemplateFile {
   const lines: string[] = [];
-  lines.push(...coreEnvLocalLines(projectName, secrets));
+  lines.push(...coreEnvLocalLines(projectName, secrets, database, audience));
   lines.push("");
   lines.push(...resendLocalLines(projectName, secrets));
-  lines.push(...billingEnvLocalLinesFiltered(secrets, selectedBilling));
-  lines.push("# Analytics — PostHog");
-  lines.push(`NEXT_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("NEXT_PUBLIC_POSTHOG_HOST=/ingest");
-  lines.push(`VITE_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("VITE_POSTHOG_HOST=/ingest");
-  lines.push(`EXPO_PUBLIC_POSTHOG_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("EXPO_PUBLIC_POSTHOG_HOST=/ingest");
-  lines.push("POSTHOG_HOST=https://us.i.posthog.com");
-  lines.push(`POSTHOG_API_KEY=${ENV_PLACEHOLDERS.POSTHOG_KEY}`);
-  lines.push("NEXT_PUBLIC_POSTHOG_SESSION_RECORDING=false");
-  lines.push("NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true");
-  lines.push("VITE_POSTHOG_SESSION_RECORDING=false");
-  lines.push("VITE_POSTHOG_AUTOCAPTURE=true");
-  lines.push("EXPO_PUBLIC_POSTHOG_SESSION_RECORDING=false");
-  lines.push("EXPO_PUBLIC_POSTHOG_AUTOCAPTURE=true");
-  lines.push("NEXT_PUBLIC_ANALYTICS_DISABLED=false");
-  lines.push("VITE_ANALYTICS_DISABLED=false");
-  lines.push("EXPO_PUBLIC_ANALYTICS_DISABLED=false");
+  lines.push(...billingEnvLocalLinesFiltered(secrets, selectedBilling, audience));
+  lines.push(...analyticsPublicLines(audience));
   lines.push("");
   if (mode === "monorepo") {
     lines.push("# oRPC contract-first, single port 3000");

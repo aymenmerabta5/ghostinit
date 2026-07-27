@@ -1,5 +1,5 @@
 import type { ProjectConfig } from "../../../lib/config.js";
-import type { TemplateFile } from "../../shared.js";
+import { dedupeFilesOrThrow, type TemplateFile } from "../../shared.js";
 import type { RootSecrets } from "../../root.js";
 import { buildAddonInstallerMap, hasAddon } from "../../../lib/addons.js";
 import type {
@@ -82,14 +82,32 @@ export function monorepoFiles(
     }
   }
 
+  const configuredDatabase = config.database as DatabaseProvider | undefined;
+  const effectiveDatabase = (configuredDatabase ??
+    (hasAddon(addonMap, "convex")
+      ? "convex"
+      : hasAddon(addonMap, "none")
+        ? "none"
+        : "postgres")) as DatabaseProvider;
+
   const all: TemplateFile[] = [
-    ...rootComposerFiles(config.name, secrets, ctx, runtime, effectiveBilling),
-    ...packagesComposerFiles(runtime),
-    ...databaseComposerFiles(config.name, runtime),
-    ...authComposerFiles(effectiveFramework),
-    ...apiComposerFiles(),
+    ...rootComposerFiles(
+      config.name,
+      secrets,
+      ctx,
+      runtime,
+      effectiveBilling,
+      addonMap,
+      effectiveDatabase,
+      effectiveFramework,
+      effectiveApps,
+    ),
+    ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase),
+    ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
+    ...authComposerFiles(effectiveFramework, addonMap),
+    ...apiComposerFiles(effectiveBilling),
     ...uiComposerFiles(),
-    ...modulesComposerFiles(runtime),
+    ...modulesComposerFiles(runtime, effectiveBilling.length > 0),
     ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps),
     ...servicesComposerFiles(config.name, runtime, addonMap, hasEve, hasI18n, effectiveFramework),
     ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
@@ -113,12 +131,14 @@ export function monorepoFiles(
   );
   const merged = [...withoutOldAgents, ...enrichedAgents];
 
-  const dedup = new Map<string, TemplateFile>();
-  for (const f of merged) dedup.set(f.path, f);
+  // Collapses same-path emissions and FAILS if two composers disagree on the
+  // content. A silent last-writer-wins here previously hid a whole duplicate
+  // webhook implementation for months — see dedupeFiles in ../../shared.ts.
+  const deduped = dedupeFilesOrThrow(merged);
 
   const hasWeb = effectiveApps.includes("web" as AppName);
   const hasMobile = effectiveApps.includes("mobile" as AppName);
-  let filteredFiles = [...dedup.values()];
+  let filteredFiles = deduped;
   if (!hasWeb) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/web/"));
   if (!hasMobile) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/mobile/"));
 
@@ -165,6 +185,12 @@ export function monorepoFiles(
     if (filePath.endsWith("auth-client.ts") && fileContent.includes("scheme:")) {
       const sanitized = config.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
       fileContent = fileContent.replace(/scheme:\s*"[^"]*"/, `scheme: "${sanitized}"`);
+    }
+    // packages/auth emits "__APP_SCHEME__://" in trustedOrigins when a mobile app
+    // exists; it must match the scheme written into auth-client.ts above.
+    if (fileContent.includes("__APP_SCHEME__")) {
+      const sanitized = config.name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+      fileContent = fileContent.replace(/__APP_SCHEME__/g, sanitized);
     }
     return { path: filePath, content: fileContent };
   });

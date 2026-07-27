@@ -315,6 +315,10 @@ export function parseAppsInput(input?: string): AppName[] {
 
   const parts = normalized.split(/[,\s]+/).filter(Boolean);
   const result: AppName[] = [];
+  // Unlike billing/features, apps does NOT allow partial-unknown for
+  // forward-compat (see AGENTS.md). Silently dropping an unknown token meant
+  // `--apps web,totally-not-real` exited 0 and quietly built a web-only project.
+  const unknown: string[] = [];
   for (const raw of parts) {
     const p = raw.trim().toLowerCase();
     if (p === "" || p === "none") continue;
@@ -322,7 +326,14 @@ export function parseAppsInput(input?: string): AppName[] {
     if ((availableApps as readonly string[]).includes(p)) {
       const typed = p as AppName;
       if (!result.includes(typed)) result.push(typed);
+    } else {
+      unknown.push(raw);
     }
+  }
+  if (unknown.length > 0) {
+    throw new ValidationError(
+      `Invalid --apps value: ${unknown.join(", ")}. Allowed: ${availableApps.join(", ")}, both, all`,
+    );
   }
   if (result.length === 0) {
     const hasExplicitNone = parts.includes("none");

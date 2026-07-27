@@ -12,7 +12,9 @@ import { generateModule } from "../generators/module.js";
 import { generateUseCase } from "../generators/use-case.js";
 import { generateProcedure } from "../generators/procedure.js";
 import { generateAction } from "../generators/action.js";
-import { syncCommand } from "./sync.js";
+// `rebuildRegistries` is dynamically imported inside the locked region so sync.ts
+// and add.ts never both hold the lock at once; syncCommand remains the CLI
+// entry point that owns its own lock. See the fix comment in the body.
 import { validateArtifactName } from "../lib/reserved.js";
 import { checkGitStatus, assertCleanGit } from "../lib/git.js";
 import { validateProjectForMutation } from "../lib/validate-project.js";
@@ -133,6 +135,7 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
   const { release } = await acquireLock(options.cwd, options.logger, { force: options.force });
   let addedName = "";
   let noop = false;
+  let syncExitCode: number = ExitCode.OK;
 
   try {
     // TOCTOU fix: re-check module existence post-lock (state may have changed between pre-lock check and lock acquisition).
@@ -178,45 +181,60 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
         break;
       }
     }
+
+    if (noop) {
+      options.logger.info(
+        `No changes for ${subcommand} ${addedName} (already exists), skipping sync`,
+      );
+      if (options.json) {
+        const updated = await loadState(options.cwd);
+        printJson(
+          envelope({
+            success: true,
+            exitCode: ExitCode.OK,
+            data: {
+              added: subcommand,
+              name: addedName,
+              noop: true,
+              modules: updated?.modules ?? [],
+              procedures: updated?.procedures ?? [],
+            },
+            command: "add",
+            durationMs: Date.now() - start,
+          }),
+        );
+      }
+      return ExitCode.OK;
+    }
+
+    // One lock for both the module write above and the registry rebuild below.
+    // This is the fix for the reported lock gap: previously `add` released its
+    // lock in a finally before invoking syncCommand, which re-acquired.
+    // During that gap the module existed but its registrations in the four
+    // deterministic barrels (modules/index, contract, router, schema/index) did
+    // not — an observer would see a half-wired project.
+    //
+    // `force:true` is intentionally passed only to the inner rebuild: `add`
+    // already ran assertCleanGit against the tree as the user left it, and the
+    // new module has deliberately dirtied the tree *because of us* — a second
+    // git-clean check inside the rebuild would exit 20 on every first `add` in a
+    // git-tracked repo, leaving the module written but never wired.
+    const { rebuildRegistries } = await import("./sync.js");
+    const rebuilt = await rebuildRegistries(
+      { ...options, json: false, force: true, cwd: options.cwd },
+      start,
+    );
+    syncExitCode = rebuilt.exitCode;
   } finally {
     await release();
   }
 
-  // Skip sync if noop — no changes, no need to rebuild registries
-  if (noop) {
-    options.logger.info(
-      `No changes for ${subcommand} ${addedName} (already exists), skipping sync`,
-    );
-    if (options.json) {
-      const updated = await loadState(options.cwd);
-      printJson(
-        envelope({
-          success: true,
-          exitCode: ExitCode.OK,
-          data: {
-            added: subcommand,
-            name: addedName,
-            noop: true,
-            modules: updated?.modules ?? [],
-            procedures: updated?.procedures ?? [],
-          },
-          command: "add",
-          durationMs: Date.now() - start,
-        }),
-      );
-    }
-    return ExitCode.OK;
-  }
-
-  // Keep deterministic registries in sync after any addition.
-  const syncResult = await syncCommand([], { ...options, json: false });
   const updated = await loadState(options.cwd);
-
   if (options.json) {
     printJson(
       envelope({
-        success: syncResult === ExitCode.OK,
-        exitCode: syncResult,
+        success: syncExitCode === ExitCode.OK,
+        exitCode: syncExitCode,
         data: {
           added: subcommand,
           name: addedName,
@@ -229,6 +247,5 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
       }),
     );
   }
-
-  return syncResult;
+  return syncExitCode;
 }

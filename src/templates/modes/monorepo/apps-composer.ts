@@ -1,3 +1,4 @@
+// @allow-long 386: assembles app files plus the tsconfig path-alias matrix for every framework; the alias tables are data, and separating them from their consumer invites drift
 import type { TemplateFile } from "../../shared.js";
 import { file, packageJson } from "../../shared.js";
 import {
@@ -164,7 +165,6 @@ function typescriptConfigWithAliases(
             sourceMap: true,
             incremental: true,
             composite: false,
-            baseUrl: ".",
             paths: explicitBasePaths,
           },
         },
@@ -184,7 +184,6 @@ function typescriptConfigWithAliases(
             composite: false,
             noEmit: true,
             types: ["bun-types", "node"],
-            baseUrl: ".",
             paths: explicitNextPaths,
           },
         },
@@ -209,7 +208,6 @@ function typescriptConfigWithAliases(
             composite: false,
             verbatimModuleSyntax: false,
             erasableSyntaxOnly: false,
-            baseUrl: ".",
             paths: explicitTanPaths,
           },
         },
@@ -228,7 +226,6 @@ function typescriptConfigWithAliases(
             noEmit: true,
             incremental: true,
             composite: false,
-            baseUrl: ".",
             paths: {
               "@/*": ["./src/*"],
               "@repo/*": ["packages/*/src"],
@@ -250,7 +247,6 @@ function typescriptConfigWithAliases(
             noEmit: true,
             incremental: true,
             composite: false,
-            baseUrl: ".",
             paths: explicitExpoPaths,
             types: ["bun-types", "node"],
           },
@@ -273,7 +269,6 @@ function typescriptConfigWithAliases(
               moduleResolution: "bundler",
               jsx: "react-jsx",
               lib: ["ES2024", "DOM", "DOM.Iterable"],
-              baseUrl: ".",
               paths: {
                 "~/*": ["./src/*"],
                 "@/*": ["./src/*"],
@@ -309,7 +304,6 @@ function typescriptConfigWithAliases(
           {
             extends: "@repo/typescript-config/nextjs.json",
             compilerOptions: {
-              baseUrl: ".",
               paths: {
                 "@/*": ["./src/*"],
                 "@repo/*": ["../../packages/*/src"],

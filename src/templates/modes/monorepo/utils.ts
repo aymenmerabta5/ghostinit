@@ -11,22 +11,21 @@ import {
   type AddonInstallerMap,
 } from "../../../lib/addons.js";
 
+/**
+ * Mint only SELF-ISSUED secrets.
+ *
+ * Third-party credentials (Stripe/Chargily/Paddle/Polar keys, Resend API key)
+ * are issued by the vendor and are intentionally omitted so the env writer emits
+ * REPLACE_WITH_* placeholders. A generated value looks configured but isn't: it
+ * satisfies every webhook's `secret.startsWith("REPLACE_WITH")` guard, so the
+ * clear 400 "not configured" path never fires and the user instead debugs an
+ * opaque 403 signature failure (and the Stripe SDK throws on a key with no
+ * `sk_` prefix).
+ */
 export function buildSecrets(): RootSecrets {
   return {
     authSecret: secret(),
     postgresPassword: secret(),
-    resendApiKey: secret(),
-    stripeSecretKey: secret(),
-    stripeWebhookSecret: secret(),
-    stripePublishableKey: "pk_test_" + secret().slice(0, 32),
-    chargilyApiKey: secret(),
-    chargilySecretKey: secret(),
-    paddleApiKey: secret(),
-    paddleWebhookSecret: secret(),
-    paddleClientToken: "pdl_ntf_" + secret().slice(0, 24),
-    polarAccessToken: secret(),
-    polarWebhookSecret: secret(),
-    polarOrgId: secret(),
   };
 }
 
@@ -47,6 +46,11 @@ export function filteredEnvExample(
   selectedBilling: BillingProviderName[],
   includeResend: boolean,
   runtime: string,
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: import("../../shared/env/core.js").EnvAudience = {
+    framework: "nextjs",
+    hasMobile: false,
+  },
 ): TemplateFile {
   return sharedFilteredEnvExample(
     projectName,
@@ -55,6 +59,8 @@ export function filteredEnvExample(
     includeResend,
     runtime,
     "monorepo",
+    database,
+    audience,
   );
 }
 
@@ -63,6 +69,19 @@ export function filteredEnvLocal(
   secrets: RootSecrets,
   selectedBilling: BillingProviderName[],
   runtime: string,
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: import("../../shared/env/core.js").EnvAudience = {
+    framework: "nextjs",
+    hasMobile: false,
+  },
 ): TemplateFile {
-  return sharedFilteredEnvLocal(projectName, secrets, selectedBilling, runtime, "monorepo");
+  return sharedFilteredEnvLocal(
+    projectName,
+    secrets,
+    selectedBilling,
+    runtime,
+    "monorepo",
+    database,
+    audience,
+  );
 }

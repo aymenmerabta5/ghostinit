@@ -1,7 +1,12 @@
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import * as v from "./versions.js";
 
-export function apiPackage(): TemplateFile[] {
+/**
+ * @param hasBilling — billing oRPC procedures and the billing domain demo are
+ * emitted only when this is true. Without billing, @repo/billing does not exist
+ * and including a `getBillingProvider` import fails the generation-matrix guard.
+ */
+export function apiPackage(hasBilling = true): TemplateFile[] {
   return [
     file(
       "packages/api/package.json",
@@ -26,11 +31,16 @@ export function apiPackage(): TemplateFile[] {
           zod: `^${v.validation.zod}`,
         },
         devDependencies: {
+          // tsconfig declares types: ["node"] — must be depended on or TS2688.
+          "@types/node": `^${v.runtime["@types/node"]}`,
           typescript: `^${v.typescript.typescript}`,
         },
       }),
     ),
-    file("packages/api/tsconfig.json", tsconfig({ include: ["src/**/*"] })),
+    file(
+      "packages/api/tsconfig.json",
+      tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
+    ),
     file(
       "packages/api/src/context.ts",
       `import { auth } from "@repo/auth";
@@ -119,9 +129,213 @@ export const me = implementer.me.handler(async ({ context }) => {
 });
 `,
     ),
+    // Procedures that demonstrate the full 6-layer chain:
+    // app/api/** (or apps/web fetch) → @repo/api/procedures/* (Transport, oRPC contract-first)
+    // → @repo/modules/billing/application/* (Domain application layer, use-cases)
+    // → @repo/services/billing/* (Capabilities, business rules + port adapters)
+    // → @repo/billing/providers/* (Vendors, SDK wrapper implementations)
+    // → @repo/database + @repo/config (Supporting)
+    // This is what `ghostinit check` enforces via oxc-parser — it fails on upward
+    // imports and on Transport→Vendors direct imports. That check used to be
+    // vacuous because the only procedures (health, me) called no use-case.
+    ...(hasBilling
+      ? [
+          file(
+            "packages/api/src/procedures/billing/subscriptions.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { listSubscriptionsUseCase } from "@repo/modules/billing/application/list-subscriptions.usecase";
+import { ErrorCode } from "@repo/contracts";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+
+const contract = {
+  list: oc
+    .route({ method: "GET", path: "/billing/subscriptions" })
+    .errors({ UNAUTHORIZED: { message: "Unauthorized" } })
+    .output(
+      z.object({
+        subscriptions: z.array(z.record(z.unknown())),
+        invoices: z.array(z.record(z.unknown())),
+        usageEvents: z.array(z.record(z.unknown())),
+        licenseKeys: z.array(z.record(z.unknown())),
+      }),
+    ),
+};
+
+export const billingSubscriptionsContract = contract.list;
+
+const implementer = implement<typeof contract, ApiContext>(contract);
+
+export const billingSubscriptions = implementer.list.handler(async ({ context }) => {
+  if (!context.user?.id) {
+    throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  }
+  const result = await listSubscriptionsUseCase(context.user.id);
+  if (!result.ok) {
+    // Use-case errors are internal — surface as INTERNAL but log the real cause
+    // in the observability layer once the oRPC error handler is wired to logger.
+    throw new ORPCError(ErrorCode.INTERNAL_ERROR, {
+      message: result.error.message,
+      cause: result.error,
+    });
+  }
+  return result.value;
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/billing/create-checkout.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { ErrorCode } from "@repo/contracts";
+import { getBillingProvider } from "@repo/billing";
+import { createCheckoutUseCase } from "@repo/modules/billing/application/create-checkout.usecase";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+
+const contract = {
+  createCheckout: oc
+    .route({ method: "POST", path: "/billing/checkout" })
+    .errors({
+      UNAUTHORIZED: { message: "Unauthorized" },
+      VALIDATION_ERROR: { message: "Invalid input" },
+      INTERNAL_ERROR: { message: "Failed to create checkout" },
+    })
+    .input(
+      z.object({
+        provider: z.enum(["stripe", "chargily", "paddle", "polar"]),
+        priceId: z.string().min(1),
+        successUrl: z.string().url(),
+        failureUrl: z.string().url().optional(),
+        cancelUrl: z.string().url().optional(),
+        quantity: z.number().int().positive().optional(),
+      }),
+    )
+    .output(z.object({ id: z.string(), url: z.string() })),
+};
+
+export const billingCreateCheckoutContract = contract.createCheckout;
+
+const implementer = implement<typeof contract, ApiContext>(contract);
+
+export const billingCreateCheckout = implementer.createCheckout.handler(
+  async ({ input, context }) => {
+    if (!context.user?.id || !context.user?.email) {
+      throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+    }
+    // BillingProvider port — vendor layer is swapped behind this port via factory.
+    const billingProvider = await getBillingProvider(input.provider as never);
+    const result = await createCheckoutUseCase(
+      {
+        userId: context.user.id,
+        customerEmail: context.user.email,
+        provider: input.provider,
+        priceId: input.priceId,
+        successUrl: input.successUrl,
+        failureUrl: input.failureUrl,
+        cancelUrl: input.cancelUrl,
+        quantity: input.quantity,
+      },
+      { billingProvider },
+    );
+    if (!result.ok) {
+      const isValidation = /required/i.test(result.error.message);
+      throw new ORPCError(
+        isValidation ? "VALIDATION_ERROR" : ErrorCode.INTERNAL_ERROR,
+        { message: result.error.message, cause: result.error },
+      );
+    }
+    return result.value;
+  },
+);
+`,
+          ),
+          file(
+            "packages/api/src/procedures/billing/create-portal-session.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { ErrorCode } from "@repo/contracts";
+import { getBillingProvider } from "@repo/billing";
+import { createPortalSessionUseCase } from "@repo/modules/billing/application/create-portal-session.usecase";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+
+const contract = {
+  createPortalSession: oc
+    .route({ method: "POST", path: "/billing/portal" })
+    .errors({
+      UNAUTHORIZED: { message: "Unauthorized" },
+      VALIDATION_ERROR: { message: "Invalid input" },
+      INTERNAL_ERROR: { message: "Failed to create portal session" },
+    })
+    .input(
+      z.object({
+        provider: z.enum(["stripe", "chargily", "paddle", "polar"]),
+        customerId: z.string().min(1),
+        returnUrl: z.string().url(),
+      }),
+    )
+    .output(z.object({ url: z.string() })),
+};
+
+export const billingCreatePortalSessionContract = contract.createPortalSession;
+
+const implementer = implement<typeof contract, ApiContext>(contract);
+
+export const billingCreatePortalSession = implementer.createPortalSession.handler(
+  async ({ input, context }) => {
+    if (!context.user?.id) {
+      throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+    }
+    const billingProvider = await getBillingProvider(input.provider as never);
+    const result = await createPortalSessionUseCase(
+      {
+        provider: input.provider,
+        customerId: input.customerId,
+        returnUrl: input.returnUrl,
+      },
+      { billingProvider },
+    );
+    if (!result.ok) {
+      const msg = result.error.message;
+      const isValidation = /required/i.test(msg);
+      const isNotSupported = /does not support/i.test(msg);
+      if (isNotSupported) {
+        throw new ORPCError("VALIDATION_ERROR", { message: msg, cause: result.error });
+      }
+      throw new ORPCError(isValidation ? "VALIDATION_ERROR" : ErrorCode.INTERNAL_ERROR, {
+        message: msg,
+        cause: result.error,
+      });
+    }
+    return result.value;
+  },
+);
+`,
+          ),
+        ]
+      : []),
     file(
       "packages/api/src/contract.ts",
-      `import { healthContract } from "./procedures/health";
+      hasBilling
+        ? `import { healthContract } from "./procedures/health";
+import { meContract } from "./procedures/me";
+import { billingSubscriptionsContract } from "./procedures/billing/subscriptions";
+import { billingCreateCheckoutContract } from "./procedures/billing/create-checkout";
+import { billingCreatePortalSessionContract } from "./procedures/billing/create-portal-session";
+
+export const appContract = {
+  health: healthContract,
+  me: meContract,
+  billing: {
+    subscriptions: billingSubscriptionsContract,
+    createCheckout: billingCreateCheckoutContract,
+    createPortalSession: billingCreatePortalSessionContract,
+  },
+};
+`
+        : `import { healthContract } from "./procedures/health";
 import { meContract } from "./procedures/me";
 
 export const appContract = {
@@ -132,7 +346,31 @@ export const appContract = {
     ),
     file(
       "packages/api/src/router.ts",
-      `import { implement, os } from "@orpc/server";
+      hasBilling
+        ? `import { implement, os } from "@orpc/server";
+import { appContract } from "./contract";
+import { health } from "./procedures/health";
+import { me } from "./procedures/me";
+import { billingSubscriptions } from "./procedures/billing/subscriptions";
+import { billingCreateCheckout } from "./procedures/billing/create-checkout";
+import { billingCreatePortalSession } from "./procedures/billing/create-portal-session";
+import type { ApiContext } from "./context";
+
+const implementer = implement<typeof appContract, ApiContext>(appContract);
+
+export const appRouter = os.prefix("/api").router(
+  implementer.router({
+    health,
+    me,
+    billing: {
+      subscriptions: billingSubscriptions,
+      createCheckout: billingCreateCheckout,
+      createPortalSession: billingCreatePortalSession,
+    },
+  }),
+);
+`
+        : `import { implement, os } from "@orpc/server";
 import { appContract } from "./contract";
 import { health } from "./procedures/health";
 import { me } from "./procedures/me";
@@ -161,13 +399,13 @@ export { createContext, type ApiContext } from "./context.js";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { appRouter } from "./router.js";
 
-// Context7 verified: /dinwwwh/orpc OpenAPIGenerator with converters [ZodToJsonSchemaConverter] generates spec from router
-// oRPC contract-first, os.prefix("/api") + oc.route
-// Source: https://context7.com/dinwwwh/orpc - OpenAPIGenerator converters pattern
+// oRPC contract-first, os.prefix("/api") + oc.route.
+// The constructor option is \`schemaConverters\` (OpenAPIGeneratorOptions in
+// @orpc/openapi); \`converters\` is not a known property and failed to typecheck.
 
 export async function generateOpenAPISpec(): Promise<unknown> {
   const generator = new OpenAPIGenerator({
-    converters: [new ZodToJsonSchemaConverter()],
+    schemaConverters: [new ZodToJsonSchemaConverter()],
   });
   return generator.generate(appRouter, {
     info: { title: "GhostInit API", version: "0.1.0" },

@@ -8,7 +8,6 @@ export function clientComponentsContent(mode: ProjectMode): string {
 import React, { useEffect, useState } from "react";
 import {
   useFeatureFlag,
-  useFeatureFlagEnabled,
   useExperiment,
   usePostHog,
   useActiveFeatureFlags,

@@ -1,12 +1,51 @@
 import type { ProjectMode } from "../../lib/addons.js";
 
-export function clientPageViewContent(mode: ProjectMode): string {
+export type PageViewFramework = "nextjs" | "tanstack-start";
+
+/**
+ * Router binding for the pageview tracker.
+ *
+ * The component only needs a pathname and a search string. Emitting the Next.js
+ * hooks unconditionally put a hard `next/navigation` import inside
+ * `packages/analytics` — a package that TanStack Start projects also consume but
+ * which never depends on next. Isolating the binding keeps one implementation.
+ */
+function routerBinding(framework: PageViewFramework): { imports: string; hook: string } {
+  if (framework === "tanstack-start") {
+    return {
+      imports: `import { useLocation } from "@tanstack/react-router";`,
+      hook: `function useRouteLocation(): { pathname: string; search: string } {
+  const location = useLocation();
+  return {
+    pathname: location.pathname ?? "",
+    search: (location.searchStr ?? "").replace(/^\\?/, ""),
+  };
+}`,
+    };
+  }
+  return {
+    imports: `import { usePathname, useSearchParams } from "next/navigation";`,
+    hook: `function useRouteLocation(): { pathname: string; search: string } {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  return { pathname: pathname ?? "", search: searchParams?.toString() ?? "" };
+}`,
+  };
+}
+
+export function clientPageViewContent(
+  mode: ProjectMode,
+  framework: PageViewFramework = "nextjs",
+): string {
   const clientImport = mode === "monorepo" ? "./posthog-client.js" : "../lib/analytics.js";
+  const binding = routerBinding(framework);
   return `"use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+${binding.imports}
 import { getPostHogClient } from "${clientImport}";
+
+${binding.hook}
 
 const SENSITIVE_PARAMS = [
   "token",
@@ -47,15 +86,13 @@ function canCapture(): boolean {
 }
 
 export function PostHogPageView() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { pathname, search } = useRouteLocation();
   const lastPathRef = useRef<string>("");
 
   useEffect(() => {
     if (!canCapture()) return;
     const client = getPostHogClient();
     if (!client) return;
-    const search = searchParams?.toString();
     const url = pathname + (search ? "?" + search : "");
     const fullUrl = typeof window !== "undefined" ? window.location.href : url;
     const sanitizedUrl = getSanitizedUrl(fullUrl);
@@ -72,7 +109,7 @@ export function PostHogPageView() {
     } catch (err) {
       console.debug("[analytics] $pageview capture failed", err);
     }
-  }, [pathname, searchParams]);
+  }, [pathname, search]);
 
   return null;
 }
@@ -80,8 +117,7 @@ export function PostHogPageView() {
 export default PostHogPageView;
 
 export function usePostHogPageViewTracker(enabled = true) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { pathname, search } = useRouteLocation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -89,7 +125,6 @@ export function usePostHogPageViewTracker(enabled = true) {
     const client = getPostHogClient();
     if (!client) return;
     try {
-      const search = searchParams?.toString();
       const fullUrl = typeof window !== "undefined" ? window.location.href : pathname + (search ? "?" + search : "");
       const sanitizedUrl = getSanitizedUrl(fullUrl);
       client.capture("$pageview", {
@@ -98,17 +133,20 @@ export function usePostHogPageViewTracker(enabled = true) {
         $host: typeof window !== "undefined" ? window.location.host : undefined,
       });
     } catch {}
-  }, [pathname, searchParams, enabled]);
+  }, [pathname, search, enabled]);
 }
 `;
 }
 
-export function singlePageViewContent(): string {
+export function singlePageViewContent(framework: PageViewFramework = "nextjs"): string {
+  const binding = routerBinding(framework);
   return `"use client";
 
 import { useEffect, useRef } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+${binding.imports}
 import { getPostHogClient } from "../../lib/analytics.js";
+
+${binding.hook}
 
 const SENSITIVE_PARAMS = [
   "token",
@@ -138,14 +176,12 @@ function getSanitizedUrl(raw: string): string {
 }
 
 export function PostHogPageView() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { pathname, search } = useRouteLocation();
   const lastRef = useRef("");
 
   useEffect(() => {
     const client = getPostHogClient();
     if (!client) return;
-    const search = searchParams?.toString();
     const url = pathname + (search ? "?" + search : "");
     const fullUrl = typeof window !== "undefined" ? window.location.href : url;
     const sanitizedUrl = getSanitizedUrl(fullUrl);
@@ -158,7 +194,7 @@ export function PostHogPageView() {
         $host: typeof window !== "undefined" ? window.location.host : undefined,
       });
     } catch {}
-  }, [pathname, searchParams]);
+  }, [pathname, search]);
 
   return null;
 }

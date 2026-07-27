@@ -1,3 +1,4 @@
+// @allow-long 360: one Expo auth screen set (sign-in/sign-up/2FA) sharing form validators
 /**
  * Expo auth fragments – sign-in, sign-up, 2FA, forgot, reset
  * RNR + Uniwind: className tokens (bg-background, text-foreground, etc.) no StyleSheet, no hardcoded hex.
@@ -13,7 +14,6 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
 export default function SignInScreen(): React.JSX.Element {
   const router = useRouter();
@@ -84,7 +84,6 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
 export default function SignUpScreen(): React.JSX.Element {
   const router = useRouter();
@@ -158,7 +157,6 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 
 export default function TwoFactorScreen(): React.JSX.Element {
   const router = useRouter();

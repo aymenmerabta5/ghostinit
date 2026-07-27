@@ -2,7 +2,7 @@ import { singleGlobalsCss } from "../core/css.js";
 
 export function singleNitroConfigTanstackContent(): string {
   return [
-    "import { defineNitroConfig } from 'nitropack/config'",
+    "import { defineNitroConfig } from 'nitro/config'",
     "",
     "export default defineNitroConfig({",
     "  preset: 'bun',",
@@ -157,7 +157,6 @@ export function singleTsConfigTanstackContent(): string {
           forceConsistentCasingInFileNames: true,
           resolveJsonModule: true,
           incremental: true,
-          baseUrl: ".",
           paths: {
             "@/*": ["./src/*"],
             "@/server/*": ["./src/server/*"],

@@ -16,22 +16,11 @@ export interface SingleContext {
   dryRun?: boolean;
 }
 
+/** Self-issued secrets only — see monorepo/utils.ts buildSecrets for the rationale. */
 export function buildSecrets(): RootSecrets {
   return {
     authSecret: secret(),
     postgresPassword: secret(),
-    resendApiKey: secret(),
-    stripeSecretKey: secret(),
-    stripeWebhookSecret: secret(),
-    stripePublishableKey: "pk_test_" + secret().slice(0, 32),
-    chargilyApiKey: secret(),
-    chargilySecretKey: secret(),
-    paddleApiKey: secret(),
-    paddleWebhookSecret: secret(),
-    paddleClientToken: "pdl_ntf_" + secret().slice(0, 24),
-    polarAccessToken: secret(),
-    polarWebhookSecret: secret(),
-    polarOrgId: secret(),
   };
 }
 
@@ -41,6 +30,11 @@ export function filteredEnvExample(
   selectedBilling: BillingProviderName[],
   includeResend: boolean,
   runtime: string,
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: import("../../shared/env/core.js").EnvAudience = {
+    framework: "nextjs",
+    hasMobile: false,
+  },
 ): TemplateFile {
   return unifiedFilteredEnvExample(
     projectName,
@@ -49,6 +43,8 @@ export function filteredEnvExample(
     includeResend,
     runtime,
     "single",
+    database,
+    audience,
   );
 }
 
@@ -57,8 +53,21 @@ export function filteredEnvLocal(
   secrets: RootSecrets,
   selectedBilling: BillingProviderName[],
   runtime = "bun",
+  database: "postgres" | "convex" | "none" | string = "postgres",
+  audience: import("../../shared/env/core.js").EnvAudience = {
+    framework: "nextjs",
+    hasMobile: false,
+  },
 ): TemplateFile {
-  return unifiedFilteredEnvLocal(projectName, secrets, selectedBilling, runtime, "single");
+  return unifiedFilteredEnvLocal(
+    projectName,
+    secrets,
+    selectedBilling,
+    runtime,
+    "single",
+    database,
+    audience,
+  );
 }
 
 export function selectedBillingFromAddons(

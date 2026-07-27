@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadState } from "./state.js";
-import { hashContent } from "./checksum.js";
+import { hashContent, isDriftTracked } from "./checksum.js";
 import { ExitCode } from "./errors.js";
 import type { State } from "./config.js";
 
@@ -55,6 +55,11 @@ export async function validateProjectForMutation(
 
   const drift: string[] = [];
   for (const [relPath, entry] of Object.entries(state.checksums)) {
+    // Ignore entries outside the sync-owned registries. Projects created by an
+    // older CLI have all ~256 generated files checksummed here; without this
+    // filter they stay permanently bricked (exit 23) after upgrading, because
+    // the user has since edited .env.local and their own app source.
+    if (!isDriftTracked(relPath)) continue;
     const absPath = join(cwd, ...relPath.split("/"));
     if (!existsSync(absPath)) {
       drift.push(`${relPath}: missing`);

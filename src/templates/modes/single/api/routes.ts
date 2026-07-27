@@ -237,7 +237,7 @@ export function singleApiOpenapiContent(): string {
     "",
     "export async function generateOpenAPISpec(): Promise<unknown> {",
     "  const generator = new OpenAPIGenerator({",
-    "    converters: [new ZodToJsonSchemaConverter()],",
+    "    schemaConverters: [new ZodToJsonSchemaConverter()],",
     "  });",
     "  return generator.generate(appRouter, {",
     '    info: { title: "GhostInit API", version: "0.1.0" },',

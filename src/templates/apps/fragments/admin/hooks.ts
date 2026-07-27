@@ -3,7 +3,6 @@ export function useAdminUsersHook(): TemplateFile {
   return file(
     "apps/web/src/app/admin/users/hooks/use-admin-users.ts",
     `"use client";
-import * as React from "react";
 import { useEffect, useState, useCallback } from "react";
 import { authClient } from "../../../../lib/auth-client.js";
 export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }

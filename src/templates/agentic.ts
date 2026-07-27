@@ -1,3 +1,4 @@
+// @allow-long 433: single generated AGENTS.md/CLAUDE.md knowledge file — prose, not logic
 /**
  * Agentic workflow templates — generates AGENTS.md, CLAUDE.md,
  * .cursor/rules/ghostinit.mdc, .windsurf/rules/ghostinit.md
@@ -21,6 +22,7 @@
  * - Security from src/commands/create.ts buildInstallEnv + logger + auth + billing raw body Buffer critical
  */
 
+import * as v from "./versions.js";
 import { file, type TemplateFile } from "./shared.js";
 
 export function agenticFiles(projectName: string): TemplateFile[] {
@@ -45,8 +47,8 @@ function generateAgentsMd(projectName: string): string {
 
 - **Name:** ${projectName}
 - **Modes:** Dual — monorepo (default, recommended for AI: apps/* + packages/* + tooling/*) vs single all-in-one (src/ + server/ + agent/ if eve).
-- **Stack:** Turborepo 2.10.4 (Bun workspaces) OR flat Next.js single; Next.js 16.2.10 App Router, React 19.2.7, TS 7.0.2 strict, Drizzle 0.45.2 PG 18.4, Better Auth 1.6.23 (emailAndPassword autoSignIn false, 2FA TOTP, Resend for reset E2E forgot-password/reset-password), oRPC 1.14.7 contract-first + OpenAPI gated 404 prod single port webhooks via Next routes, Zod 4.4.3, TanStack Query 5.101.2 Form 1.33.1, Tailwind 4.3.2 Base UI 1.6.0 shadcn via bunx --bun shadcn@latest add, oxlint 1.73.0 oxfmt 0.58.0, eve 0.24.6 durable hybrid withEve same-origin, Resend 4.0.1 email default, Stripe 19.1.0, Chargily 2.1.0 server-only checkout-only, Paddle 3.8.0 + paddle-js 1.6.4 MoR 5%+50c, Polar 0.48.1 + nextjs 0.9.6 MoR open-source 4%+metering+license, next-intl optional, Clack prompts interactive, Playwright 1.61.1.
-- **PM:** Bun 1.3.14 primary, Node 22+ via --runtime node. Bun only.
+- **Stack:** Turborepo ${v.tooling.turbo} (Bun workspaces) OR flat Next.js single; Next.js ${v.nextStack.next} App Router, React ${v.nextStack.react}, TS ${v.typescript.typescript} strict, Drizzle ${v.database["drizzle-orm"]} PG 18.4, Better Auth ${v.auth["better-auth"]} (emailAndPassword autoSignIn false, 2FA TOTP, Resend for reset E2E forgot-password/reset-password), oRPC 1.14.7 contract-first + OpenAPI gated 404 prod single port webhooks via Next routes, Zod 4.4.3, TanStack Query 5.101.2 Form 1.33.1, Tailwind 4.3.2 Base UI 1.6.0 shadcn via bunx --bun shadcn@latest add, oxlint 1.73.0 oxfmt 0.58.0, eve 0.24.6 durable hybrid withEve same-origin, Resend 4.0.1 email default, Stripe 19.1.0, Chargily 2.1.0 server-only checkout-only, Paddle 3.8.0 + paddle-js 1.6.4 MoR 5%+50c, Polar 0.48.1 + nextjs 0.9.6 MoR open-source 4%+metering+license, next-intl optional, Clack prompts interactive, Playwright 1.61.1.
+- **PM:** Bun ${v.runtime.bun} primary, Node 22+ via --runtime node. Bun only.
 - **Alias:** @ always (@/* -> ./src/* single, @repo/* -> packages/*/src + @/* monorepo). Never ~/.
 - **Type:** Opinionated modular-monolith, flexible: billing none/both/one/all any combo 4 providers at create or add later, eve false default selectable, i18n optional, DB postgres default + convex optional. One command ghostinit create <name> --billing stripe,polar --mode monorepo.
 - **Frontend:** All UI must use shadcn + impeccable (OKLCH, theme scene sentence, typography 65-75ch, layout vary spacing, absolute bans).
@@ -86,7 +88,7 @@ Enforcement via ghostinit check: domain-purity, application-purity, database-iso
 
 Monorepo default recommended for AI swarms:
 - AGENTS.md 400+ lines, CLAUDE.md identical, .cursor/rules/ghostinit.mdc MDC frontmatter alwaysApply true description includes billing flexible + services + layered + oRPC contract-first, .windsurf/rules/ghostinit.md same NO CURSOR.md.
-- package.json workspaces apps/* packages/* tooling/* isolated hoist false bun.lock, turbo globalEnv NODE_ENV DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL RESEND_API_KEY EMAIL_FROM STRIPE_SECRET_KEY CHARGILY_API_KEY PADDLE_API_KEY POLAR_ACCESS_TOKEN APP_URL etc + globalDependencies .env.*local.
+- package.json workspaces apps/* packages/* tooling/* hoist true bun.lock, turbo globalEnv NODE_ENV DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL RESEND_API_KEY EMAIL_FROM STRIPE_SECRET_KEY CHARGILY_API_KEY PADDLE_API_KEY POLAR_ACCESS_TOKEN APP_URL etc + globalDependencies .env.*local.
 - docker-compose postgres:18.4 container project_postgres env_file .env.local ports 5432 healthcheck pg_isready, start-database.sh bash set -e detects docker/podman nc -z port reuses container random password openssl rand base64 reads DATABASE_URL or POSTGRES_* from .env.local safe loader allowlist SAFE_ENV_KEYS.
 - .env.example placeholders REPLACE_WITH_A_STRONG_SECRET_... REPLACE_WITH_RESEND_API_KEY REPLACE_WITH_STRIPE_SECRET_KEY etc no real secrets, .env.local real 48-byte base64url randomBytes(48) base64url validated regex ^[A-Za-z0-9_-]+$ length >=32 gitignored + apps/web/.env.local duplicate.
 - apps/web/ Next.js 16 App Router marketing / sign-up sign-in TanStack Form email contains @ password >=8 2FA 6 digits forgot-password email contains @ FieldGroup Field authClient.forgetPassword redirectTo "/reset-password" reset-password token searchParams ?token=xxx newPassword confirm >=8 match authClient.resetPassword dashboard RSC protected getSession redirect sign-in settings profile/password/2FA totpURI backupCodes/delete admin role admin users list/create billing tabs per provider Stripe Chargily Paddle Polar shared tables provider enum Badge tabs shadcn Tabs + Card + Table + Badge semantic + Alert + Empty + Sonner + Skeleton + FieldGroup + Button data-icon + Separator, agent useEveAgent MessageScroller Bubble per shadcn chat.md if eve. API auth [...all] 405 else oRPC [...path] RPCHandler+OpenAPIHandler nosniff Referrer-Policy 404 health ok openapi 404 prod, webhooks stripe|chargily|paddle|polar raw body critical Buffer.from(await req.arrayBuffer()) NOT req.json() else 403 verify idempotent webhook_events unique provider+eventId.
@@ -108,7 +110,7 @@ Single all-in-one flat Next.js:
 ## Task Completion Requirements — Quality Gates
 
 Before considering a task complete run:
-- bun run typecheck (or npm run typecheck if --runtime node) — TS 7.0.2 strict must pass
+- bun run typecheck (or npm run typecheck if --runtime node) — TS ${v.typescript.typescript} strict must pass
 - bun run lint — oxlint correctness
 - bun run format:check — oxfmt --check
 - bun run test — bun test --timeout 100000 including addons.test.ts modes.test.ts services.test.ts billing tests auth-reset email webhooks raw body arrayBuffer provider enum tabs
@@ -130,7 +132,7 @@ Before considering a task complete run:
 
 - \`packages/api\`: oRPC contract-first. \`src/context.ts\` createContext(headers) via auth.api.getSession → {user? {id email name?}}. \`src/procedures/health.ts\` GET /health → {status ok time datetime}, \`me.ts\` GET /me → {user {id email name nullable}|null}. \`src/contract.ts\` appContract {health, me}, \`src/router.ts\` os.prefix("/api").router(implementer.router({health,me})), \`src/openapi.ts\` OpenAPIGenerator + ZodToJsonSchemaConverter. Generators add procedures: \`ghostinit add procedure <module> <name>\` → POST /<module>/<name> Input {id} Output {id processed} implements use-case maps ORPCError INTERNAL_ERROR, must have use-case first.
 
-- \`packages/auth\`: Better Auth 1.6.23. appName secret baseURL drizzleAdapter db provider pg schema user/session/account/verification/twoFactor. emailAndPassword enabled autoSignInAfterRegistration false SECURITY (reduce session-fixation). User delete enabled. Session cookieCache enabled maxAge 60*5 strategy compact. Cookie httpOnly true secure isHttps sameSite lax. RateLimit enabled storage memory window 60 max 100. IP: ipAddressHeaders x-forwarded-for/x-real-ip only when TRUSTED_PROXY=true else disableIpTracking true. backgroundTasks handler waitUntil. Plugins admin(), twoFactor({issuer: BETTER_AUTH_URL}), nextCookies(). Warnings: BETTER_AUTH_URL localhost, secret length <32 throws. Client: createAuthClient plugins twoFactorClient onTwoFactorRedirect /2fa + adminClient().
+- \`packages/auth\`: Better Auth ${v.auth["better-auth"]}. appName secret baseURL drizzleAdapter db provider pg schema user/session/account/verification/twoFactor. emailAndPassword enabled autoSignInAfterRegistration false SECURITY (reduce session-fixation). User delete enabled. Session cookieCache enabled maxAge 60*5 strategy compact. Cookie httpOnly true secure isHttps sameSite lax. RateLimit enabled storage memory window 60 max 100. IP: ipAddressHeaders x-forwarded-for/x-real-ip only when TRUSTED_PROXY=true else disableIpTracking true. backgroundTasks handler waitUntil. Plugins admin(), twoFactor({issuer: BETTER_AUTH_URL}), nextCookies(). Warnings: BETTER_AUTH_URL localhost, secret length <32 throws. Client: createAuthClient plugins twoFactorClient onTwoFactorRedirect /2fa + adminClient().
 
 - \`packages/database\`: Drizzle ORM 0.45.2. \`src/index.ts\` builds connectionString from env.DATABASE_URL or POSTGRES_* fallback, pg Pool max DATABASE_POOL_SIZE??20 idle 30s, SSL if DATABASE_SSL true + CA. \`drizzle.config.ts\` same. \`src/schema/index.ts\` generated by sync — export * from auth + posts + per-module. auth.ts users/accounts/sessions/verifications/twoFactor + relations, posts userId FK cascade. Per-module schema <name>.ts pgTable pluralized, userId FK cascade name text timestamps. Scripts: bun --env-file=../../.env.local drizzle-kit generate/migrate/push.
 
@@ -201,7 +203,7 @@ Before considering a task complete run:
 - \`cp .env.example .env.local\` — .env.example has placeholders REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS + REPLACE_WITH_A_STRONG_POSTGRES_PASSWORD, no real secrets. .env.local has real 48-byte base64url secrets generated via randomBytes(48).toString("base64url") validated length >=32 regex ^[A-Za-z0-9_-]+$, gitignored. Also apps/web/.env.local duplicate same content.
 - \`docker compose up -d\` — postgres:18.4 image, container_name ${projectName}_postgres, env_file .env.local, POSTGRES_USER postgres POSTGRES_DB ${projectName}, ports 5432:5432, volume postgres_data, healthcheck pg_isready interval 5s timeout 5s retries 5.
 - \`./start-database.sh\` — quick postgres start alternative to full compose: bash, set -e, detects docker or podman, checks port via nc -z, reuses existing container if present, generates random password via openssl rand -base64 if default, reads DATABASE_URL or POSTGRES_* from .env.local, sanitize name. chmod +x ./start-database.sh if needed. Inspired by create-t3-app's start-database.sh.
-- \`bun install\` (or npm install if --runtime node) — isolated installs hoist false, bun.lock path.
+- \`bun install\` (or npm install if --runtime node) — hoist true installs, bun.lock path.
 - \`bun run db:generate\` / \`db:migrate\` / \`db:push\` — bun --env-file=../../.env.local drizzle-kit generate/migrate/push. Or via root turbo: bun run db:generate.
 - \`bun run dev\` — turbo run dev cache false persistent true.
 - Root package.json workspaces apps/* packages/* tooling/*, scripts dev/build/start/typecheck/test/lint/format all turbo run.
@@ -253,7 +255,7 @@ Before considering a task complete run:
 
 ## Monorepo Conventions
 
-- Bun workspaces apps/* packages/* tooling/*, isolated installs hoist false, lockfile path bun.lock, frozenLockfile false (could be true in CI).
+- Bun workspaces apps/* packages/* tooling/*, hoist true installs, lockfile path bun.lock, frozenLockfile false (could be true in CI).
 - Turborepo globalDependencies .env.*local, globalEnv NODE_ENV DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL, tasks build dependsOn ^build outputs dist/** .next/**, typecheck dependsOn ^build, test dependsOn ^build, lint {}, db:generate/migrate cache false, pipeline build outputs.
 - Package.json sorting via sortKeys alphabetical, normalizeDeps strips caret prefix, so templates write ^v.xxx but output no caret.
 - Import normalization: shared file() strips .js from relative ESM imports via regex so Next.js resolves tsx/ts natively while external package specifiers unchanged. External packages untouched.
@@ -268,16 +270,16 @@ Before considering a task complete run:
 
 - Integration cli.test.ts 15 spawnSync node dist/cli.js: --version contains ghostinit, --version --json success data name, --help contains create, --help --json has help property, invalid _bad status !=0 success envelope, reserved api status 2 INVALID_ARGUMENTS, create smoke --no-install --force --json status 0 projectName smoke files exist root package.json apps/web package.json packages/auth/src/index.ts .env.example .env.local not .env, dry-run placeholder secrets + no leftover dir, add module billing success + domain/types.ts exists, sync --check in-sync fresh + detects external edit drift modified externally, sync no-op preserves generatedAt, duplicate add idempotent noop false then true, node runtime packageManager npm@10 dev turbo run dev.
 
-- Compatibility fixtures: drizzle-betterauth-orpc REPORT.md 2026-07-12 Bun 1.3.14 Win11 exact pins installed 89 packages tsc exit 0 bun test 3 pass. next-tailwind-biome misnamed actually oxlint/oxfmt no biome dep contributes 0 tests.
+- Compatibility fixtures: drizzle-betterauth-orpc REPORT.md 2026-07-12 Bun ${v.runtime.bun} Win11 exact pins installed 89 packages tsc exit 0 bun test 3 pass. next-tailwind-biome misnamed actually oxlint/oxfmt no biome dep contributes 0 tests.
 
-- CI: check-and-test ubuntu setup-bun 1.3.14 bun install check (oxlint+oxfmt check+tsc) test fixtures install test:fixtures build + generated-project-smoke create smoke --no-install --force bun install format lint typecheck test build.
+- CI: check-and-test ubuntu setup-bun ${v.runtime.bun} bun install check (oxlint+oxfmt check+tsc) test fixtures install test:fixtures build + generated-project-smoke create smoke --no-install --force bun install format lint typecheck test build.
 
 ## Eve Durable Agents — apps/eve/
 
 - Framework: eve@0.24.6 filesystem-first, agent is directory on disk, path-derived naming (agent/tools/get_weather.ts -> tool get_weather).
 - Enable via \`cd apps/eve && bun install && npx eve dev\` — HMR dev server + terminal REPL UI. --no-ui for background HTTP verification POST /eve/v1/session + GET stream + continuationToken.
 - Structure:
-  - package.json: name eve (or __PROJECT_NAME__-eve?), private, type module, imports #* -> ./agent/* #evals/* -> ./evals/*, scripts build: eve build dev: eve dev start: eve start typecheck: tsc, deps eve ^0.24.6 ai ^7.0.26 zod ^4.4.3 @vercel/connect ^0.2.2 workspace @repo/config/database/auth/contracts/workflows/kernel/modules, devDeps @types/node 24.x typescript 7.0.2, overrides ai ^7.0.26, engines node 24.x
+  - package.json: name eve (or __PROJECT_NAME__-eve?), private, type module, imports #* -> ./agent/* #evals/* -> ./evals/*, scripts build: eve build dev: eve dev start: eve start typecheck: tsc, deps eve ^0.24.6 ai ^7.0.26 zod ^4.4.3 @vercel/connect ^0.2.2 workspace @repo/config/database/auth/contracts/workflows/kernel/modules, devDeps @types/node 24.x typescript ${v.typescript.typescript}, overrides ai ^7.0.26, engines node 24.x
   - tsconfig.json include agent/**/*
   - agent/agent.ts: defineAgent model anthropic/claude-sonnet-5 (default, configurable to claude-opus-4.8 provider @ai-sdk/anthropic), optional reasoning high, compaction thresholdPercent 0.9, limits maxInputTokensPerSession 40m default, modelOptions, experimental workflow world.
   - agent/instructions.md: Identity and purpose — you are ${projectName}'s durable backend agent, manage DDD modules, architecture checks, sync registries, workflows, DB, auth, etc.
@@ -368,7 +370,7 @@ alwaysApply: true
 
 ## Stack
 
-Turborepo + Bun 1.3.14 + Next.js 16.2.10 App Router + TS 7.0.2 + Drizzle 0.45.2 PG 18.4 + Better Auth 1.6.23 + oRPC 1.14.7 + Zod 4.4.3 + TanStack Query/Form + Tailwind 4.3.2 Base UI 1.6.0 + oxlint/oxfmt + eve 0.24.6 durable agent (apps/eve/ filesystem-first: agent/agent.ts defineAgent, instructions.md, tools/ defineTool, skills/ SKILL.md, channels/, schedules/ cron).
+Turborepo + Bun ${v.runtime.bun} + Next.js ${v.nextStack.next} App Router + TS ${v.typescript.typescript} + Drizzle ${v.database["drizzle-orm"]} PG 18.4 + Better Auth ${v.auth["better-auth"]} + oRPC 1.14.7 + Zod 4.4.3 + TanStack Query/Form + Tailwind 4.3.2 Base UI 1.6.0 + oxlint/oxfmt + eve 0.24.6 durable agent (apps/eve/ filesystem-first: agent/agent.ts defineAgent, instructions.md, tools/ defineTool, skills/ SKILL.md, channels/, schedules/ cron).
 
 ## Package Roles
 
@@ -414,7 +416,7 @@ Domain /domain/ no framework, application /application/ no framework, DB only in
 
 ## Monorepo
 
-Bun workspaces apps/* packages/* tooling/* isolated hoist false, turbo globalEnv + tasks build ^build typecheck^build test etc., package.json sorted deps ^ stripped, file() strips .js relative imports, readdir sorted deterministic no timestamps source only state.json generatedAt now, checksum refresh after oxfmt, .ghostinit/state.json v1.
+Bun workspaces apps/* packages/* tooling/* hoist true, turbo globalEnv + tasks build ^build typecheck^build test etc., package.json sorted deps ^ stripped, file() strips .js relative imports, readdir sorted deterministic no timestamps source only state.json generatedAt now, checksum refresh after oxfmt, .ghostinit/state.json v1.
 
 ## Eve Integration
 

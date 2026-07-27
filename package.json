@@ -40,8 +40,10 @@
     "test": "bun test --timeout 100000 tests/integration tests/unit",
     "pretest:fixtures": "cd tests/fixtures/compatibility/drizzle-betterauth-orpc && bun install && cd ../next-tailwind-biome && bun install",
     "test:fixtures": "bun test tests/fixtures",
-    "test:ci": "bun run test && bun run test:fixtures",
-    "release": "bun run build && npm pack"
+    "test:ci": "bun run test && bun run test:fixtures && bun run test:generated",
+    "test:generated": "bun run scripts/test-generated.ts",
+    "check:versions": "bun run scripts/check-versions.ts",
+    "release": "bun run check:versions && bun run build && npm pack"
   },
   "dependencies": {
     "@clack/prompts": "0.8.2",

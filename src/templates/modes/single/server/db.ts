@@ -15,6 +15,42 @@ export function serverDbIndexSingle(): string {
   ].join("\n");
 }
 
+export function serverDbIndexSingleConvex(): string {
+  return [
+    "import { ConvexHttpClient } from 'convex/browser';",
+    "",
+    "function resolveConvexUrl(): string {",
+    "  if (typeof process !== 'undefined' && process.env) {",
+    "    return (",
+    "      process.env.CONVEX_URL ??",
+    "      process.env.NEXT_PUBLIC_CONVEX_URL ??",
+    "      process.env.VITE_CONVEX_URL ??",
+    "      process.env.EXPO_PUBLIC_CONVEX_URL ??",
+    "      'REPLACE_WITH_CONVEX_URL'",
+    "    );",
+    "  }",
+    "  return 'REPLACE_WITH_CONVEX_URL';",
+    "}",
+    "",
+    "const url = resolveConvexUrl();",
+    "export const convexClient = new ConvexHttpClient(url);",
+    "export function getConvexClient(): ConvexHttpClient { return convexClient; }",
+    "// Back-compat alias: some legacy code imports db, prefer convexClient directly",
+    "export const db = convexClient as unknown as any;",
+    "",
+  ].join("\n");
+}
+
+export function serverDbIndexSingleNone(): string {
+  return [
+    "// database=none - no database client. Replace with your own persistence if needed.",
+    "export const db: any = {};",
+    "export const convexClient: any = null;",
+    "export function getConvexClient(): null { return null; }",
+    "",
+  ].join("\n");
+}
+
 export function serverDbAuthSchemaStub(): string {
   return [
     "import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';",

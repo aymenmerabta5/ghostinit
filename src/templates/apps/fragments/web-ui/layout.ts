@@ -70,8 +70,28 @@ import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { cn } from "../../lib/utils.js";
 
 export const Dialog = BaseDialog.Root;
-export const DialogTrigger = BaseDialog.Trigger;
 export const DialogPortal = BaseDialog.Portal;
+
+export interface DialogTriggerProps
+  extends React.ComponentPropsWithoutRef<typeof BaseDialog.Trigger> {
+  /** Render the single child element as the trigger (maps to Base UI's \`render\`). */
+  asChild?: boolean;
+}
+
+// Base UI composes via \`render\`; \`asChild\` is the Radix spelling the call sites use.
+export const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
+  ({ asChild, children, ...props }, ref) => {
+    if (asChild && React.isValidElement(children)) {
+      return <BaseDialog.Trigger ref={ref} render={children as React.ReactElement} {...props} />;
+    }
+    return (
+      <BaseDialog.Trigger ref={ref} {...props}>
+        {children}
+      </BaseDialog.Trigger>
+    );
+  },
+);
+DialogTrigger.displayName = "DialogTrigger";
 
 export const DialogBackdrop = React.forwardRef<
   HTMLDivElement,

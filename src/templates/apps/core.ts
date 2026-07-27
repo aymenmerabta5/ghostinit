@@ -5,6 +5,7 @@
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import {
   nextConfigHeadersFunction,
@@ -13,6 +14,7 @@ import {
   posthogRewritesBlock,
 } from "./fragments/core.js";
 import { webUiFiles } from "./fragments/web-ui/index.js";
+import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 
 type FeatureInput =
   | boolean
@@ -36,16 +38,32 @@ function resolveHasI18n(input: FeatureInput = false): boolean {
   return resolveHasFeature(input, "i18n");
 }
 
+function resolveAddonMap(
+  hasEveInput: FeatureInput = false,
+  explicit?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
+): AddonInstallerMap | undefined {
+  if (explicit) return explicit as AddonInstallerMap;
+  if (typeof hasEveInput === "object" && !Array.isArray(hasEveInput)) {
+    const rec = hasEveInput as Record<string, unknown>;
+    if ("convex" in rec || "postgres" in rec || "eve" in rec || "i18n" in rec) {
+      return hasEveInput as unknown as AddonInstallerMap;
+    }
+  }
+  return undefined;
+}
+
 export function coreFiles(
   runtime: "node" | "bun" = "bun",
   hasEveInput: FeatureInput = false,
   hasI18nInput: FeatureInput = false,
+  addonMapExplicit?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
 ): TemplateFile[] {
   const hasEve = resolveHasEve(hasEveInput);
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
+  const addonMap = resolveAddonMap(hasEveInput, addonMapExplicit);
   return [
-    webPackage(runtime, hasEve, effectiveHasI18n),
+    webPackage(runtime, hasEve, effectiveHasI18n, addonMap),
     nextConfig(hasEve, effectiveHasI18n),
     postcssConfig(),
     globalCss(runtime),
@@ -53,7 +71,12 @@ export function coreFiles(
   ];
 }
 
-function webPackage(runtime: "node" | "bun", hasEve = false, hasI18n = false): TemplateFile {
+function webPackage(
+  runtime: "node" | "bun",
+  hasEve = false,
+  hasI18n = false,
+  addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
+): TemplateFile {
   return file(
     "apps/web/package.json",
     packageJson({
@@ -98,12 +121,24 @@ function webPackage(runtime: "node" | "bun", hasEve = false, hasI18n = false): T
         "next-themes": `^${v.ui["next-themes"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),
+        ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
+          ? {
+              convex: `^${v.convex.convex}`,
+              "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+            }
+          : {}),
+        // apps/web hosts the webhook routes, so it imports the provider SDKs and
+        // (on drizzle) `eq` from drizzle-orm directly. These must be declared here,
+        // not merely hoisted from @repo/billing.
+        ...webhookRuntimeDeps(addonMap),
         next: `^${v.nextStack.next}`,
         react: `^${v.nextStack.react}`,
         "react-dom": `^${v.nextStack["react-dom"]}`,
         zod: `^${v.validation.zod}`,
       },
       devDependencies: {
+        // apps/web tsconfig lists types: ["bun-types", ...] — declare it or TS2688.
+        "bun-types": `^${v.runtime.bun}`,
         "@playwright/test": `^${v.testing.playwright}`,
         oxfmt: `^${v.tooling.oxfmt}`,
         oxlint: `^${v.tooling.oxlint}`,
@@ -146,9 +181,13 @@ const nextConfig = withEve(withNextIntl(config), {
   eveRoot: "../eve",
 });
 
-// Fix: withEve may add experimental.turbo which is invalid in Next 16
-if ((nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental?.turbo) {
-  delete (nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental.turbo;
+// withEve may add experimental.turbo, which is invalid in Next 16.
+// Bind the narrowed object first: TS cannot prove the property is defined on
+// the second (separately-asserted) expression, so deleting through it was TS2532.
+const eveExperimental = (nextConfig as unknown as { experimental?: { turbo?: unknown } })
+  .experimental;
+if (eveExperimental?.turbo) {
+  delete eveExperimental.turbo;
 }
 
 export default nextConfig;
@@ -173,8 +212,13 @@ const nextConfig = withEve(config, {
   eveRoot: "../eve",
 });
 
-if ((nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental?.turbo) {
-  delete (nextConfig as unknown as { experimental?: { turbo?: unknown } }).experimental.turbo;
+// withEve may add experimental.turbo, which is invalid in Next 16.
+// Bind the narrowed object first: TS cannot prove the property is defined on
+// the second (separately-asserted) expression, so deleting through it was TS2532.
+const eveExperimental = (nextConfig as unknown as { experimental?: { turbo?: unknown } })
+  .experimental;
+if (eveExperimental?.turbo) {
+  delete eveExperimental.turbo;
 }
 
 export default nextConfig;
@@ -225,28 +269,3 @@ function postcssConfig(): TemplateFile {
 function globalCss(_runtime: "node" | "bun"): TemplateFile {
   return file("apps/web/src/app/globals.css", globalCssContent());
 }
-
-function webTsconfig(_runtime: "node" | "bun"): TemplateFile {
-  return file(
-    "apps/web/tsconfig.json",
-    JSON.stringify(
-      {
-        extends: "@repo/typescript-config/nextjs.json",
-        compilerOptions: {
-          baseUrl: ".",
-          paths: {
-            "@/*": ["./src/*"],
-            "@repo/*": ["../../packages/*/src"],
-          },
-          noEmit: true,
-        },
-        include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-        exclude: ["node_modules", ".next"],
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-}
-
-export { webTsconfig };

@@ -1,3 +1,4 @@
+// @allow-long 315: interactive prompt flow; the ordering and conditional branching read best as one sequence
 import { ExitCode } from "../../lib/errors.js";
 import {
   isInteractiveMode,

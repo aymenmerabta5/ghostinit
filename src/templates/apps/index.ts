@@ -25,9 +25,9 @@ export function appsFiles(
 ): TemplateFile[] {
   return [
     ...coreFiles(runtime, addonsOrHasEve),
-    ...pageFiles(),
+    ...pageFiles(addonsOrHasEve),
     ...apiFiles(addonsOrHasEve as AddonInstallerMap),
-    ...componentFiles(),
+    ...componentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime),
   ];
 }
@@ -40,7 +40,7 @@ export function tanstackStartFiles(
     ...tanstackCoreFiles(runtime, addonsOrHasEve),
     ...tanstackPageFiles(),
     ...tanstackApiFiles(addonsOrHasEve as AddonInstallerMap),
-    ...tanstackComponentFiles(),
+    ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime),
   ];
 }

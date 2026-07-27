@@ -1,5 +1,11 @@
+// @allow-long 312: single-mode TanStack Start composer; the file list is a linear manifest
+import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
 import { file, type TemplateFile } from "../../../shared.js";
-import { type BillingProviderName, type AddonInstallerMap } from "../../../../lib/addons.js";
+import {
+  type BillingProviderName,
+  type AddonInstallerMap,
+  hasAddon,
+} from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
@@ -8,6 +14,7 @@ import { analyticsFiles } from "../../../analytics.js";
 import { eveFiles as genEveFiles } from "../../../eve.js";
 
 import { singlePackageJsonTanstack } from "../package.js";
+import { convexDatabaseFiles } from "../../../database/convex.js";
 import { filteredEnvExample, filteredEnvLocal } from "../config.js";
 import { singleEnvFile } from "../fragments/env.js";
 import {
@@ -53,15 +60,25 @@ import {
   singleApiOpenapiContent,
   singleOrpcClientTanstackContent,
 } from "../api/routes.js";
-import { authClientSingle, serverAuthTanstackSingle } from "../server/auth.js";
+import {
+  authClientSingle,
+  authClientSingleConvex,
+  serverAuthTanstackSingle,
+  serverAuthTanstackSingleConvex,
+} from "../server/auth.js";
 import {
   serverDbIndexSingle,
+  serverDbIndexSingleConvex,
+  serverDbIndexSingleNone,
   serverDbAuthSchemaStub,
   serverObservabilitySingle,
   libUtils,
 } from "../server/db.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
-import { singleProvidersTanstackContent } from "../components/providers.js";
+import {
+  singleProvidersTanstackContent,
+  singleProvidersTanstackContentConvex,
+} from "../components/providers.js";
 import {
   singleHeaderTanstackContent,
   singleSignOutButtonTanstackContent,
@@ -83,11 +100,13 @@ export function buildTanstackFiles(
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
+  const isConvex = hasAddon(addonMap, "convex");
+  const isNone = hasAddon(addonMap, "none");
   const files: TemplateFile[] = [];
   files.push(
     file(
       "package.json",
-      singlePackageJsonTanstack(projectName, runtime, effectiveBilling, hasEve, hasI18n),
+      singlePackageJsonTanstack(projectName, runtime, effectiveBilling, hasEve, hasI18n, isConvex),
     ),
   );
   files.push(file("vite.config.ts", singleViteConfigTanstackContent()));
@@ -112,21 +131,37 @@ export function buildTanstackFiles(
   files.push(file("src/routes/api/health.ts", singleHealthApiRouteTanstackContent()));
   files.push(file("src/routes/api/openapi.ts", singleOpenapiApiRouteTanstackContent()));
   if (effectiveBilling.includes("stripe"))
-    files.push(file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent()));
+    files.push(
+      file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent(isConvex)),
+    );
   if (effectiveBilling.includes("chargily"))
-    files.push(file("src/routes/api/webhooks/chargily.ts", singleChargilyWebhookTanstackContent()));
+    files.push(
+      file("src/routes/api/webhooks/chargily.ts", singleChargilyWebhookTanstackContent(isConvex)),
+    );
   if (effectiveBilling.includes("paddle"))
-    files.push(file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent()));
+    files.push(
+      file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent(isConvex)),
+    );
   if (effectiveBilling.includes("polar"))
-    files.push(file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent()));
+    files.push(
+      file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent(isConvex)),
+    );
   if (
     effectiveBilling.length === 0 &&
     (addonMap as Record<string, { inUse?: boolean }>)["billing"]?.inUse
   ) {
-    files.push(file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent()));
-    files.push(file("src/routes/api/webhooks/chargily.ts", singleChargilyWebhookTanstackContent()));
-    files.push(file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent()));
-    files.push(file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent()));
+    files.push(
+      file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent(isConvex)),
+    );
+    files.push(
+      file("src/routes/api/webhooks/chargily.ts", singleChargilyWebhookTanstackContent(isConvex)),
+    );
+    files.push(
+      file("src/routes/api/webhooks/paddle.ts", singlePaddleWebhookTanstackContent(isConvex)),
+    );
+    files.push(
+      file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent(isConvex)),
+    );
   }
   files.push(file("src/server/api/context.ts", singleApiContextContent()));
   files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
@@ -140,22 +175,55 @@ export function buildTanstackFiles(
   files.push(file("src/components/header.tsx", singleHeaderTanstackContent()));
   files.push(file("src/components/sign-out-button.tsx", singleSignOutButtonTanstackContent()));
   files.push(file("src/components/admin-guard.tsx", singleAdminGuardTanstackContent()));
-  files.push(file("src/components/providers.tsx", singleProvidersTanstackContent()));
-  files.push(file("src/lib/auth-client.ts", authClientSingle()));
-  files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
-  files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
-  files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  if (isConvex) {
+    files.push(file("src/components/providers.tsx", singleProvidersTanstackContentConvex()));
+  } else {
+    files.push(file("src/components/providers.tsx", singleProvidersTanstackContent()));
+  }
+  if (isConvex) {
+    files.push(file("src/lib/auth-client.ts", authClientSingleConvex()));
+    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingleConvex()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
+    const convexAll = convexDatabaseFiles(projectName, runtime);
+    for (const cf of convexAll) {
+      if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
+        files.push(cf);
+      }
+    }
+  } else if (isNone) {
+    files.push(file("src/lib/auth-client.ts", authClientSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
+  } else {
+    files.push(file("src/lib/auth-client.ts", authClientSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
+    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
+  }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
+  // shadcn-style primitives the pages import via @/components/ui/*.
+  files.push(...singleWebUiFiles());
   files.push(file("src/lib/orpc.ts", singleOrpcClientTanstackContent()));
   files.push(file("src/hooks/use-copy.ts", useCopyHookSingleContent()));
   files.push(file("src/hooks/use-billing.ts", useBillingHookSingleContent()));
   files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
   files.push(gitignoreSingle());
   files.push(readmeSingle(projectName));
-  files.push(filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime));
-  files.push(filteredEnvLocal(projectName, secrets, effectiveBilling, runtime));
-  files.push(singleEnvFile());
+  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
+  files.push(
+    filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime, dbType, {
+      framework: "tanstack-start",
+      hasMobile: false,
+    }),
+  );
+  files.push(
+    filteredEnvLocal(projectName, secrets, effectiveBilling, runtime, dbType, {
+      framework: "tanstack-start",
+      hasMobile: false,
+    }),
+  );
+  files.push(singleEnvFile(addonMap, "tanstack-start"));
 
   files.push(
     ...(servicesFiles(
@@ -205,7 +273,11 @@ export function buildTanstackFiles(
   );
   files.push(
     ...(analyticsFiles(
-      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      { mode: "single", runtime, framework: "tanstack-start" } as {
+        mode: "single";
+        runtime: "node" | "bun";
+        framework: "tanstack-start";
+      },
       runtime,
     ) as TemplateFile[]),
   );
@@ -233,7 +305,6 @@ export function buildTanstackFiles(
               forceConsistentCasingInFileNames: true,
               resolveJsonModule: true,
               types: ["node"],
-              baseUrl: ".",
               paths: { "#*": ["./agent/*"], "#evals/*": ["./evals/*"] },
               outDir: "./dist",
               rootDir: ".",

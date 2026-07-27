@@ -1,4 +1,4 @@
-import { type TemplateFile } from "../../shared.js";
+import { dedupeFilesOrThrow, type TemplateFile } from "../../shared.js";
 import type { ProjectConfig } from "../../../lib/config.js";
 import type { RootSecrets } from "../../root.js";
 import {
@@ -104,9 +104,9 @@ export function singleFiles(
     windsurfFromAgents(enrichedAgents),
   );
 
-  const dedup = new Map<string, TemplateFile>();
-  for (const f of withoutOld) dedup.set(f.path, f);
-  const finalFiles = [...dedup.values()].sort((a, b) => a.path.localeCompare(b.path));
+  // Same-path emissions collapse here; differing content is a real conflict and
+  // fails loudly rather than dropping one implementation. See ../../shared.ts.
+  const finalFiles = dedupeFilesOrThrow(withoutOld).sort((a, b) => a.path.localeCompare(b.path));
 
   return finalFiles.map((f) => ({
     path: f.path.replace(/__PROJECT_NAME__/g, config.name),

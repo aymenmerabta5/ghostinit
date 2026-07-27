@@ -1,3 +1,4 @@
+// @allow-long 358: deterministic registry rebuild for modules, contracts, router and schema; the four rebuilds share drift-detection and checksum logic
 /**
  * ghostinit sync [--check] implementation.
  *
@@ -168,189 +169,195 @@ async function detectFileDrift(
   return results.filter((v): v is string => v !== null);
 }
 
-export async function syncCommand(_args: string[], options: GlobalOptions): Promise<number> {
-  const start = Date.now();
-  const { release } = await acquireLock(options.cwd, options.logger, { force: options.force });
-
-  try {
-    const validation = await validateProjectForMutation(options.cwd);
-    const state = await (async () => {
-      if (validation.valid) return validation.state;
-      if (
-        options.force &&
-        validation.exitCodeSuggestion === ExitCode.INVALID_STATE &&
-        validation.details?.drift
-      ) {
-        options.logger.warn(
-          "Drift detected; --force will regenerate registries and overwrite tracked files.",
-        );
-        const forced = await loadState(options.cwd);
-        if (!forced) {
-          throw new ValidationError("No GhostInit project state found.");
-        }
-        return forced;
-      }
-      if (validation.exitCodeSuggestion === ExitCode.INVALID_STATE) {
-        throw new GhostinitError(validation.message, ExitCode.INVALID_STATE, {
-          ...validation.details,
-          cause: validation.error?.message,
-        });
-      }
-      throw new ValidationError(validation.message);
-    })();
-
-    if (!options.force) {
-      const gitStatus = await checkGitStatus(options.cwd, options.logger);
-      assertCleanGit(gitStatus, options.force, options.logger);
-    }
-
-    const modules = await listDirectories(options.cwd, "packages", "modules", "src");
-    const procedures = await listProcedureFiles(options.cwd);
-
-    const schemas = await listSchemaFiles(options.cwd);
-
-    const moduleRegistry = buildModuleRegistry(modules);
-    const apiRegistry = buildApiRegistry(procedures);
-    const schemaRegistry = buildSchemaRegistry(schemas);
-
-    const moduleIndexPath = join(options.cwd, "packages", "modules", "src", "index.ts");
-    const contractPath = join(options.cwd, "packages", "api", "src", "contract.ts");
-    const routerPath = join(options.cwd, "packages", "api", "src", "router.ts");
-    const schemaIndexPath = join(options.cwd, "packages", "database", "src", "schema", "index.ts");
-
-    // Fix Issue 12: only catch ENOENT as empty, re-throw EACCES/EIO etc as GhostinitError via readFileSafe.
-    // Also parallelize reads to avoid duplicate IO sequencing.
-    const [modulesContent, contractContent, routerContent, schemaIndexContent] = await Promise.all([
-      readFileSafe(moduleIndexPath),
-      readFileSafe(contractPath),
-      readFileSafe(routerPath),
-      readFileSafe(schemaIndexPath),
-    ]);
-
-    const before = {
-      modules: modulesContent,
-      contract: contractContent,
-      router: routerContent,
-      schemaIndex: schemaIndexContent,
-    };
-
-    const changed =
-      before.modules !== moduleRegistry ||
-      before.contract !== apiRegistry.contract ||
-      before.router !== apiRegistry.router ||
-      before.schemaIndex !== schemaRegistry;
-
-    if (options.check) {
-      const drift = await detectFileDrift(options.cwd, state.checksums);
-      if (drift.length > 0 || changed) {
-        const message =
-          drift.length > 0
-            ? `Generated files are out of sync. Drift: ${drift.join("; ")}`
-            : "Generated registries are out of sync. Run `ghostinit sync` to fix.";
-        options.logger.error(message);
-        if (options.json) {
-          printJson(
-            envelope({
-              success: false,
-              exitCode: ExitCode.DRIFT,
-              error: { message, code: exitCodeName(ExitCode.DRIFT), details: { drift, changed } },
-              command: "sync",
-              durationMs: Date.now() - start,
-            }),
-          );
-        }
-        return ExitCode.DRIFT;
-      }
-      options.logger.info("Generated registries are in sync");
-      if (options.json) {
-        printJson(
-          envelope({
-            success: true,
-            exitCode: ExitCode.OK,
-            data: { modules, procedures, inSync: true },
-            command: "sync",
-            durationMs: Date.now() - start,
-          }),
-        );
-      }
-      return ExitCode.OK;
-    }
-
-    if (!changed) {
-      options.logger.info("Generated registries are already up to date");
-      if (options.json) {
-        printJson(
-          envelope({
-            success: true,
-            exitCode: ExitCode.OK,
-            data: { modules, procedures, inSync: true },
-            command: "sync",
-            durationMs: Date.now() - start,
-          }),
-        );
-      }
-      return ExitCode.OK;
-    }
-
-    // Fix Issue 15: dryRun flag was ignored — skip writes when true.
-    if (options.dryRun) {
-      const wouldChange: string[] = [];
-      if (before.modules !== moduleRegistry) wouldChange.push("packages/modules/src/index.ts");
-      if (before.contract !== apiRegistry.contract)
-        wouldChange.push("packages/api/src/contract.ts");
-      if (before.router !== apiRegistry.router) wouldChange.push("packages/api/src/router.ts");
-      if (before.schemaIndex !== schemaRegistry)
-        wouldChange.push("packages/database/src/schema/index.ts");
-
-      options.logger.info(
-        `[dry-run] Would update ${wouldChange.length} file(s): ${wouldChange.join(", ")}`,
+/**
+ * Core registry rebuild — caller must already hold the project lock.
+ *
+ * Extracted so both `syncCommand` and `addCommand` can use one lock.
+ * Previously `add` (add.ts:182) released its lock in a finally and then
+ * called `syncCommand`, which re-acquired at sync.ts:174 — a window where the
+ * module file existed but the 4 deterministic barrels that wire it did not.
+ * Any process listing schemas or invoking ghostinit check in that gap would see
+ * an incomplete project.
+ */
+export async function rebuildRegistries(
+  options: GlobalOptions,
+  start: number,
+): Promise<{ exitCode: number; modules: string[]; procedures: string[] }> {
+  const validation = await validateProjectForMutation(options.cwd);
+  const state = await (async () => {
+    if (validation.valid) return validation.state;
+    if (
+      options.force &&
+      validation.exitCodeSuggestion === ExitCode.INVALID_STATE &&
+      validation.details?.drift
+    ) {
+      options.logger.warn(
+        "Drift detected; --force will regenerate registries and overwrite tracked files.",
       );
-      for (const f of wouldChange) {
-        options.logger.info(`[dry-run] Would write ${f}`);
+      const forced = await loadState(options.cwd);
+      if (!forced) {
+        throw new ValidationError("No GhostInit project state found.");
       }
-      options.logger.info("[dry-run] Skipping writeFile and saveState");
+      return forced;
+    }
+    if (validation.exitCodeSuggestion === ExitCode.INVALID_STATE) {
+      throw new GhostinitError(validation.message, ExitCode.INVALID_STATE, {
+        ...validation.details,
+        cause: validation.error?.message,
+      });
+    }
+    throw new ValidationError(validation.message);
+  })();
 
+  if (!options.force) {
+    const gitStatus = await checkGitStatus(options.cwd, options.logger);
+    assertCleanGit(gitStatus, options.force, options.logger);
+  }
+
+  const modules = await listDirectories(options.cwd, "packages", "modules", "src");
+  const procedures = await listProcedureFiles(options.cwd);
+  const schemas = await listSchemaFiles(options.cwd);
+
+  const moduleRegistry = buildModuleRegistry(modules);
+  const apiRegistry = buildApiRegistry(procedures);
+  const schemaRegistry = buildSchemaRegistry(schemas);
+
+  const moduleIndexPath = join(options.cwd, "packages", "modules", "src", "index.ts");
+  const contractPath = join(options.cwd, "packages", "api", "src", "contract.ts");
+  const routerPath = join(options.cwd, "packages", "api", "src", "router.ts");
+  const schemaIndexPath = join(options.cwd, "packages", "database", "src", "schema", "index.ts");
+
+  const [modulesContent, contractContent, routerContent, schemaIndexContent] = await Promise.all([
+    readFileSafe(moduleIndexPath),
+    readFileSafe(contractPath),
+    readFileSafe(routerPath),
+    readFileSafe(schemaIndexPath),
+  ]);
+
+  const before = {
+    modules: modulesContent,
+    contract: contractContent,
+    router: routerContent,
+    schemaIndex: schemaIndexContent,
+  };
+
+  const changed =
+    before.modules !== moduleRegistry ||
+    before.contract !== apiRegistry.contract ||
+    before.router !== apiRegistry.router ||
+    before.schemaIndex !== schemaRegistry;
+
+  if (options.check) {
+    const drift = await detectFileDrift(options.cwd, state.checksums);
+    if (drift.length > 0 || changed) {
+      const message =
+        drift.length > 0
+          ? `Generated files are out of sync. Drift: ${drift.join("; ")}`
+          : "Generated registries are out of sync. Run `ghostinit sync` to fix.";
+      options.logger.error(message);
       if (options.json) {
         printJson(
           envelope({
-            success: true,
-            exitCode: ExitCode.OK,
-            data: { modules, procedures, wouldChange, dryRun: true },
+            success: false,
+            exitCode: ExitCode.DRIFT,
+            error: { message, code: exitCodeName(ExitCode.DRIFT), details: { drift, changed } },
             command: "sync",
             durationMs: Date.now() - start,
           }),
         );
       }
-      return ExitCode.OK;
+      return { exitCode: ExitCode.DRIFT, modules, procedures };
     }
-
-    await writeFile(moduleIndexPath, moduleRegistry, "utf-8");
-    await writeFile(contractPath, apiRegistry.contract, "utf-8");
-    await writeFile(routerPath, apiRegistry.router, "utf-8");
-    await writeFile(schemaIndexPath, schemaRegistry, "utf-8");
-
-    const checksums = [
-      relativeChecksum(options.cwd, "packages/modules/src/index.ts", moduleRegistry),
-      relativeChecksum(options.cwd, "packages/api/src/contract.ts", apiRegistry.contract),
-      relativeChecksum(options.cwd, "packages/api/src/router.ts", apiRegistry.router),
-      relativeChecksum(options.cwd, "packages/database/src/schema/index.ts", schemaRegistry),
-    ];
-
-    await saveState(options.cwd, state.project, checksums, modules, procedures);
-
+    options.logger.info("Generated registries are in sync");
     if (options.json) {
       printJson(
         envelope({
           success: true,
           exitCode: ExitCode.OK,
-          data: { modules, procedures },
+          data: { modules, procedures, inSync: true },
           command: "sync",
           durationMs: Date.now() - start,
         }),
       );
     }
+    return { exitCode: ExitCode.OK, modules, procedures };
+  }
 
-    return ExitCode.OK;
+  if (!changed) {
+    options.logger.info("Generated registries are already up to date");
+    if (options.json) {
+      printJson(
+        envelope({
+          success: true,
+          exitCode: ExitCode.OK,
+          data: { modules, procedures, inSync: true },
+          command: "sync",
+          durationMs: Date.now() - start,
+        }),
+      );
+    }
+    return { exitCode: ExitCode.OK, modules, procedures };
+  }
+
+  if (options.dryRun) {
+    const wouldChange: string[] = [];
+    if (before.modules !== moduleRegistry) wouldChange.push("packages/modules/src/index.ts");
+    if (before.contract !== apiRegistry.contract) wouldChange.push("packages/api/src/contract.ts");
+    if (before.router !== apiRegistry.router) wouldChange.push("packages/api/src/router.ts");
+    if (before.schemaIndex !== schemaRegistry)
+      wouldChange.push("packages/database/src/schema/index.ts");
+    options.logger.info(
+      `[dry-run] Would update ${wouldChange.length} file(s): ${wouldChange.join(", ")}`,
+    );
+    for (const f of wouldChange) options.logger.info(`[dry-run] Would write ${f}`);
+    options.logger.info("[dry-run] Skipping writeFile and saveState");
+    if (options.json) {
+      printJson(
+        envelope({
+          success: true,
+          exitCode: ExitCode.OK,
+          data: { modules, procedures, wouldChange, dryRun: true },
+          command: "sync",
+          durationMs: Date.now() - start,
+        }),
+      );
+    }
+    return { exitCode: ExitCode.OK, modules, procedures };
+  }
+
+  await writeFile(moduleIndexPath, moduleRegistry, "utf-8");
+  await writeFile(contractPath, apiRegistry.contract, "utf-8");
+  await writeFile(routerPath, apiRegistry.router, "utf-8");
+  await writeFile(schemaIndexPath, schemaRegistry, "utf-8");
+
+  const checksums = [
+    relativeChecksum(options.cwd, "packages/modules/src/index.ts", moduleRegistry),
+    relativeChecksum(options.cwd, "packages/api/src/contract.ts", apiRegistry.contract),
+    relativeChecksum(options.cwd, "packages/api/src/router.ts", apiRegistry.router),
+    relativeChecksum(options.cwd, "packages/database/src/schema/index.ts", schemaRegistry),
+  ];
+  await saveState(options.cwd, state.project, checksums, modules, procedures);
+
+  if (options.json) {
+    printJson(
+      envelope({
+        success: true,
+        exitCode: ExitCode.OK,
+        data: { modules, procedures },
+        command: "sync",
+        durationMs: Date.now() - start,
+      }),
+    );
+  }
+  return { exitCode: ExitCode.OK, modules, procedures };
+}
+
+export async function syncCommand(_args: string[], options: GlobalOptions): Promise<number> {
+  const start = Date.now();
+  const { release } = await acquireLock(options.cwd, options.logger, { force: options.force });
+  try {
+    const result = await rebuildRegistries(options, start);
+    return result.exitCode;
   } finally {
     await release();
   }

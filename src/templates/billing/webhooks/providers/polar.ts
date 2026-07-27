@@ -1,2 +1,2 @@
-export { polarNextContent } from "./polar-next.js";
-export { polarTanstackContent } from "./polar-tanstack.js";
+export { polarNextContent, polarNextConvexContent } from "./polar-next.js";
+export { polarTanstackContent, polarTanstackConvexContent } from "./polar-tanstack.js";

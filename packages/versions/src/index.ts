@@ -47,8 +47,24 @@ export const database = {
   "@types/pg": "8.11.14", // latest stable at research time; verify in spike
 } as const;
 
+export const convex = {
+  // The templates are written against the 0.12.x API surface: `convexAdapter`,
+  // `createClient`, `createApi`, the `/auth-config`, `/client/plugins`, `/react`
+  // and `/react-start` subpaths, and `convexBetterAuthNextJs` from `/nextjs`.
+  // NONE of those exist in 0.8.7 — that mismatch made every Convex project fail
+  // at module load, and `convex deploy` fail on a missing `/auth-config` subpath.
+  //
+  // @convex-dev/better-auth@0.12.5 peers on convex ^1.25.0 and
+  // better-auth >=1.6.11 <1.7.0 (we pin 1.6.23). convex 1.23.0 additionally
+  // lacked the `compareValues` export the component imports at module top level.
+  convex: "1.42.3",
+  "@convex-dev/better-auth": "0.12.5",
+} as const;
+
 export const auth = {
   "better-auth": "1.6.23",
+  // Expo client plugin — must track the better-auth version above.
+  "@better-auth/expo": "1.6.23",
 } as const;
 
 export const orpc = {
@@ -67,6 +83,9 @@ export const orpc = {
 export const validation = {
   zod: "4.4.3",
   "@t3-oss/env-nextjs": "0.13.11",
+  // env-core is used for TanStack Start, where the public prefix is VITE_ rather
+  // than the NEXT_PUBLIC_ that env-nextjs hardcodes.
+  "@t3-oss/env-core": "0.13.11",
 } as const;
 
 export const tanstack = {
@@ -78,6 +97,11 @@ export const tanstackStart = {
   "@tanstack/react-start": "1.168.30",
   "@tanstack/react-router": "1.170.18",
   "@tanstack/router-plugin": "1.168.22",
+  // `tsr generate` writes src/routeTree.gen.ts. Without it a freshly generated
+  // TanStack project cannot typecheck: every createFileRoute("/path") call has no
+  // route tree to resolve against. The codegen packages lag react-router's line;
+  // 1.167.x is the newest published.
+  "@tanstack/router-cli": "1.167.21",
   "@tanstack/react-router-devtools": "1.167.0",
   vite: "7.3.6",
   "@vitejs/plugin-react": "5.2.0",
@@ -104,7 +128,9 @@ export const ui = {
 } as const;
 
 export const tooling = {
-  biome: "2.5.3",
+  // NOTE: no `biome` entry. This toolchain uses oxlint + oxfmt; the old
+  // `biome: "2.5.3"` pin referenced the unscoped `biome` package on npm, which is
+  // an unrelated project (Biome ships as @biomejs/biome), and nothing consumed it.
   oxlint: "1.73.0",
   oxfmt: "0.58.0",
   turbo: "2.10.4",
@@ -134,8 +160,12 @@ export const billing = {
 } as const;
 
 export const analytics = {
-  "posthog-js": "1.233.2",
-  "posthog-node": "4.20.1",
+  // Both were previously pinned to versions that do not exist on npm
+  // (posthog-js 1.233.2, posthog-node 4.20.1), so `bun install` failed in every
+  // generated project. Pinned to real releases within the same major to keep the
+  // client/server APIs the templates are written against.
+  "posthog-js": "1.239.1",
+  "posthog-node": "4.18.0",
 } as const;
 
 export const email = {
@@ -163,7 +193,8 @@ export const i18n = {
 } as const;
 
 export const interactive = {
-  "@clack/prompts": "0.8.3",
+  // Must match the host package.json — 0.8.3 was never published.
+  "@clack/prompts": "0.8.2",
 } as const;
 
 export const postgresDocker = {
@@ -176,6 +207,8 @@ export const expo = {
   "expo-constants": "18.0.9",
   "expo-linking": "8.0.8",
   "expo-router": "6.0.24",
+  // Peer of @better-auth/expo. SDK 54 tracks the expo-network 8.x line.
+  "expo-network": "8.0.8",
   "expo-secure-store": "15.0.8",
   "expo-status-bar": "3.0.9",
   "expo-web-browser": "15.0.7",
@@ -205,6 +238,7 @@ export const catalog = {
   ...typescript,
   ...nextStack,
   ...database,
+  ...convex,
   ...auth,
   ...orpc,
   ...validation,

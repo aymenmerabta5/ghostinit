@@ -1,7 +1,16 @@
+/**
+ * Secrets used when writing .env.local.
+ *
+ * `authSecret` and `postgresPassword` are self-issued — GhostInit mints them.
+ * Everything else is issued by a third party (Resend, Stripe, Chargily, Paddle,
+ * Polar) and is therefore optional: when absent the env writer emits the
+ * REPLACE_WITH_* placeholder so an unconfigured integration fails loudly at the
+ * vendor boundary instead of looking configured.
+ */
 export interface RootSecrets {
   authSecret: string;
   postgresPassword: string;
-  resendApiKey: string;
+  resendApiKey?: string;
   stripeSecretKey?: string;
   stripeWebhookSecret?: string;
   stripePublishableKey?: string;

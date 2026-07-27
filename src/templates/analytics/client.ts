@@ -68,12 +68,15 @@ export async function initPostHogClient(options?: {
             if (!hasConsent("analytics")) ph.opt_out_capturing();
           } catch {}
         },
+        // posthog-js types featureFlagPayloads as JSON values; our public option is
+        // Record<string, unknown>, so assert to the SDK's own BootstrapConfig shape
+        // rather than leaking a structurally-incompatible literal (TS2322).
         bootstrap: options?.bootstrapFlags
-          ? {
+          ? ({
               distinctID: "bootstrap",
               featureFlags: options.bootstrapFlags,
               featureFlagPayloads: options.bootstrapPayloads,
-            }
+            } as PostHogConfig["bootstrap"])
           : undefined,
         session_recording: { maskAllInputs: true, maskTextSelector: "[data-ph-no-capture]" },
         opt_out_capturing_by_default: false,

@@ -235,9 +235,12 @@ export function tsconfig(opts: {
   return `${JSON.stringify(obj, null, 2)}\n`;
 }
 
-export function codeScripts(opts: { test?: string; e2e?: boolean } = {}): Record<string, string> {
+export function codeScripts(
+  opts: { test?: string; e2e?: boolean; typecheck?: string } = {},
+): Record<string, string> {
   const scripts: Record<string, string> = {
-    typecheck: "tsc --noEmit",
+    // TanStack apps override this to run the route-tree codegen first.
+    typecheck: opts.typecheck ?? "tsc --noEmit",
     lint: "oxlint .",
     format: "oxfmt --write .",
     "format:check": "oxfmt --check .",
@@ -264,6 +267,86 @@ export function pascalCase(name: string): string {
 
 export function mergeFiles(...groups: TemplateFile[][]): TemplateFile[] {
   return groups.flat();
+}
+
+export interface FileConflict {
+  path: string;
+  /** Byte length of each competing version, in composition order. */
+  sizes: number[];
+}
+
+export interface DedupeResult {
+  files: TemplateFile[];
+  conflicts: FileConflict[];
+}
+
+/**
+ * Collapse a composed file list by path, reporting genuine conflicts.
+ *
+ * Composers legitimately emit the same path more than once — that is how a
+ * framework-specific composer overrides a default. Those duplicates are
+ * byte-identical and harmless. A duplicate with DIFFERENT content is not an
+ * override, it is two implementations of the same file where one is silently
+ * discarded by composition order.
+ *
+ * That is not hypothetical. `apps/api.ts` and `billing/webhooks/providers/*`
+ * both emitted `apps/web/src/app/api/webhooks/<provider>/route.ts`; the plain
+ * `Map.set` that used to live here dropped one at random-looking order, so the
+ * losing implementation rotted undetected — it could not even be caught by the
+ * generation matrix, which only ever sees files that survived the collapse.
+ *
+ * Last-writer-wins is preserved so behaviour does not change; the conflicts are
+ * returned so callers can fail loudly instead of guessing.
+ */
+export function dedupeFiles(files: TemplateFile[]): DedupeResult {
+  const byPath = new Map<string, TemplateFile>();
+  const variants = new Map<string, Set<string>>();
+  const sizes = new Map<string, number[]>();
+
+  for (const f of files) {
+    byPath.set(f.path, f);
+    let seen = variants.get(f.path);
+    if (!seen) {
+      seen = new Set();
+      variants.set(f.path, seen);
+      sizes.set(f.path, []);
+    }
+    if (!seen.has(f.content)) {
+      seen.add(f.content);
+      sizes.get(f.path)?.push(f.content.length);
+    }
+  }
+
+  const conflicts: FileConflict[] = [];
+  for (const [path, seen] of variants) {
+    if (seen.size > 1) conflicts.push({ path, sizes: sizes.get(path) ?? [] });
+  }
+
+  return {
+    files: [...byPath.values()],
+    conflicts: conflicts.sort((a, b) => a.path.localeCompare(b.path)),
+  };
+}
+
+/**
+ * Collapse by path and throw if any two composers disagree on a file's content.
+ *
+ * Generation is the only place this can be caught: once the output is on disk
+ * the discarded implementation leaves no trace.
+ */
+export function dedupeFilesOrThrow(files: TemplateFile[]): TemplateFile[] {
+  const { files: deduped, conflicts } = dedupeFiles(files);
+  if (conflicts.length > 0) {
+    const detail = conflicts
+      .map((c) => `  ${c.path} (${c.sizes.length} differing versions: ${c.sizes.join(", ")} bytes)`)
+      .join("\n");
+    throw new Error(
+      `Template composition conflict: ${conflicts.length} file(s) emitted with differing content by more than one composer.\n` +
+        `${detail}\n` +
+        `One implementation would be silently discarded. Give the file a single owner.`,
+    );
+  }
+  return deduped;
 }
 
 export function withConfigVars(content: string, config: ProjectConfig): string {

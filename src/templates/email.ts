@@ -251,12 +251,32 @@ export function emailFiles(
           },
         }),
       ),
-      file("packages/email/tsconfig.json", tsconfig({ include: ["src/**/*"] })),
+      // A real assertion, not a placeholder: this package declared a `test` script
+      // with zero test files, so `bun test` exited 1 ("No tests found!") and
+      // `turbo run test` was red on every freshly generated project. Importing the
+      // barrel also catches the broken re-export class of bug.
+      file(
+        "packages/email/tests/barrel.test.ts",
+        `import { describe, it, expect } from "bun:test";
+import * as mod from "../src/index.js";
+
+describe("@repo/email barrel", () => {
+  it("loads and exposes its public API", () => {
+    expect(typeof mod.sendEmail).toBe("function");
+    expect(typeof mod.forgotPasswordTemplate).toBe("function");
+  });
+});
+`,
+      ),
+      file(
+        "packages/email/tsconfig.json",
+        tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
+      ),
       file("packages/email/src/constants.ts", constantsContent("monorepo")),
       file("packages/email/src/index.ts", indexContent("monorepo")),
       file("packages/email/src/send.ts", sharedSend),
-      file("packages/email/src/templates/forgot-password.tsx", forgotPasswordTemplateContent),
-      file("packages/email/src/templates/reset-password.tsx", resetPasswordTemplateContent),
+      file("packages/email/src/templates/forgot-password.ts", forgotPasswordTemplateContent),
+      file("packages/email/src/templates/reset-password.ts", resetPasswordTemplateContent),
     );
   } else {
     // Single mode — src/server/email/
@@ -264,8 +284,8 @@ export function emailFiles(
       file("src/server/email/constants.ts", constantsContent("single")),
       file("src/server/email/index.ts", indexContent("single")),
       file("src/server/email/send.ts", sharedSend),
-      file("src/server/email/templates/forgot-password.tsx", forgotPasswordTemplateContent),
-      file("src/server/email/templates/reset-password.tsx", resetPasswordTemplateContent),
+      file("src/server/email/templates/forgot-password.ts", forgotPasswordTemplateContent),
+      file("src/server/email/templates/reset-password.ts", resetPasswordTemplateContent),
     );
   }
 

@@ -10,6 +10,7 @@ import {
   themeToggleFileContent,
   providersFileContent,
 } from "./fragments/theme.js";
+import { convexClientProviderContent } from "./fragments/convex-providers.js";
 import { headerFileContent, signOutButtonContent, adminGuardContent } from "./fragments/header.js";
 import {
   orpcClientContent,
@@ -18,10 +19,27 @@ import {
   useAuthHookContent,
   authClientShim,
 } from "./fragments/core.js";
+import type { AddonInstallerMap } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 
-export function componentFiles(): TemplateFile[] {
-  return [
-    providersComponent(),
+type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
+
+function isConvex(input?: AddonMapInput): boolean {
+  if (!input) return false;
+  if (hasAddon) {
+    try {
+      return hasAddon(input as AddonInstallerMap, "convex");
+    } catch {
+      // fallback
+    }
+  }
+  return Boolean((input as Record<string, { inUse?: boolean }>).convex?.inUse);
+}
+
+export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
+  const convex = isConvex(addonMap);
+  const base: TemplateFile[] = [
+    providersComponent(convex),
     themeProviderComponent(),
     themeToggleComponent(),
     headerComponent(),
@@ -33,6 +51,10 @@ export function componentFiles(): TemplateFile[] {
     useBillingHook(),
     useAuthHook(),
   ];
+  if (convex) {
+    base.push(convexClientProviderComponent());
+  }
+  return base;
 }
 
 function themeProviderComponent(): TemplateFile {
@@ -43,8 +65,15 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(): TemplateFile {
-  return file("apps/web/src/components/providers.tsx", providersFileContent("next"));
+function providersComponent(isConvex = false): TemplateFile {
+  return file("apps/web/src/components/providers.tsx", providersFileContent("next", isConvex));
+}
+
+function convexClientProviderComponent(): TemplateFile {
+  return file(
+    "apps/web/src/components/providers/convex-client-provider.tsx",
+    convexClientProviderContent(),
+  );
 }
 
 function headerComponent(): TemplateFile {

@@ -7,7 +7,7 @@ export function clientHooksContent(mode: ProjectMode): string {
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { usePostHogContext } from "${contextImport}";
-import { captureClientEvent, getPostHogClient } from "${clientImport}";
+import { captureClientEvent } from "${clientImport}";
 import type { AnalyticsEventName, EventProperties, ExperimentKey, FeatureFlagKey } from "${mode === "monorepo" ? "../types.js" : "../server/analytics/types.js"}";
 
 export function usePostHog() {

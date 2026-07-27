@@ -12,8 +12,13 @@ import { settingsFiles } from "./fragments/settings/index.js";
 import { adminFiles } from "./fragments/admin/index.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { agentFiles } from "./fragments/agent/index.js";
+import { resolveHasEve, type FeatureInput } from "./fragments/features.js";
 
-export function pageFiles(): TemplateFile[] {
+export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] {
+  // The agent page imports `eve/react`. Emitting it unconditionally shipped a
+  // build-breaking import into every monorepo project that did not enable the
+  // eve feature (single mode already gated this correctly).
+  const hasEve = resolveHasEve(addonsOrHasEve);
   return [
     layout(),
     notFoundPage(),
@@ -24,7 +29,7 @@ export function pageFiles(): TemplateFile[] {
     signUpPage(),
     twoFactorPage(),
     dashboardPage(),
-    ...agentFiles(),
+    ...(hasEve ? agentFiles() : []),
     ...settingsFiles(),
     ...recoveryFiles(),
     ...adminFiles(),

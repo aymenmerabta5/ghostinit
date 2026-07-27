@@ -49,3 +49,27 @@ export function checksumRegistry(entries: ChecksumEntry[]): Record<string, Check
   }
   return map;
 }
+
+/**
+ * Files whose drift genuinely blocks a mutation.
+ *
+ * `sync` regenerates exactly these four registries, so they are the only files
+ * where a user edit actually conflicts with what GhostInit is about to write.
+ *
+ * State used to checksum EVERY generated file (256 of them, including
+ * `.env.local`). Adding a real STRIPE_SECRET_KEY — the mandatory first step in
+ * the generated README — therefore made `add` and `sync` exit 23 INVALID_STATE
+ * with no CLI path back, turning GhostInit into a one-shot generator instead of
+ * a lifecycle tool. Editing your own page or schema did the same.
+ */
+const DRIFT_TRACKED_PATHS = new Set([
+  "packages/modules/src/index.ts",
+  "packages/api/src/contract.ts",
+  "packages/api/src/router.ts",
+  "packages/database/src/schema/index.ts",
+]);
+
+/** True when drift in this file should block `add`/`sync`. */
+export function isDriftTracked(relPath: string): boolean {
+  return DRIFT_TRACKED_PATHS.has(relPath.split("\\").join("/"));
+}

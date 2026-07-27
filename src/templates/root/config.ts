@@ -7,7 +7,6 @@ export function rootTsConfig(): TemplateFile {
       {
         extends: "./packages/typescript-config/base.json",
         compilerOptions: {
-          baseUrl: ".",
           noEmit: true,
           incremental: true,
           composite: false,
@@ -48,17 +47,62 @@ export function rootTsConfig(): TemplateFile {
     ) + "\n",
   );
 }
+/**
+ * Self-contained lint/format config.
+ *
+ * These previously did `extends: ["./tooling/oxlint.json"]` (and the oxfmt
+ * equivalent), but no such file was ever emitted — so `bun run lint` failed in
+ * every generated project with "invalid config file ... NotFound" for every
+ * package. There is no shared tooling config package in the output, so inline it.
+ */
 export function oxlintConfig(): TemplateFile {
   return file(
     ".oxlintrc.json",
-    JSON.stringify({ extends: ["./tooling/oxlint.json"] }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        $schema: "./node_modules/oxlint/configuration_schema.json",
+        plugins: ["typescript", "unicorn", "oxc"],
+        categories: { correctness: "error" },
+        env: { builtin: true },
+        ignorePatterns: [
+          "node_modules",
+          "dist",
+          ".next",
+          ".output",
+          ".turbo",
+          ".vercel",
+          "convex/_generated",
+          "**/routeTree.gen.ts",
+          "*.d.ts",
+        ],
+      },
+      null,
+      2,
+    ) + "\n",
   );
 }
 export function oxlintIgnore(): TemplateFile {
-  return file(".oxlintignore", `node_modules\ndist\n.next\n`);
+  return file(".oxlintignore", `node_modules\ndist\n.next\n.output\n.turbo\n`);
 }
 export function oxfmtConfig(): TemplateFile {
-  return file(".oxfmtrc.json", JSON.stringify({ extends: "./tooling/oxfmt.json" }, null, 2) + "\n");
+  return file(
+    ".oxfmtrc.json",
+    JSON.stringify(
+      {
+        ignorePatterns: [
+          "node_modules",
+          "dist",
+          ".next",
+          ".output",
+          ".turbo",
+          "convex/_generated",
+          "**/routeTree.gen.ts",
+        ],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
 }
 export function dockerCompose(): TemplateFile {
   return file(

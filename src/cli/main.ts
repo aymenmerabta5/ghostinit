@@ -66,34 +66,35 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
       return rejectInvalid(message, command, jsonFlag, logger, start);
     }
 
-    const hasMode = values.mode !== undefined;
-    const hasFramework = values.framework !== undefined;
-    const hasBilling = values.billing !== undefined;
-    const hasFeatures = values.features !== undefined;
-    const hasDatabase = values.database !== undefined;
     const hasKind = values.kind !== undefined;
     const hasCheck = getBoolean(values.check);
 
-    if (
-      command !== "create" &&
-      (hasMode || hasFramework || hasBilling || hasFeatures || hasDatabase)
-    ) {
-      const offending = [
-        hasMode ? "--mode" : null,
-        hasFramework ? "--framework" : null,
-        hasBilling ? "--billing" : null,
-        hasFeatures ? "--features" : null,
-        hasDatabase ? "--database" : null,
-      ]
-        .filter(Boolean)
-        .join(", ");
-      return rejectInvalid(
-        `${offending} can only be used with 'create' command`,
-        command,
-        jsonFlag,
-        logger,
-        start,
+    // Flags that only make sense while scaffolding a new project. Listed once so
+    // adding a create-only flag cannot silently skip the gate — `--apps` was
+    // omitted from the old hand-maintained condition, so `sync --apps mobile`
+    // was accepted and quietly ignored.
+    const CREATE_ONLY_FLAGS = [
+      "mode",
+      "framework",
+      "billing",
+      "features",
+      "database",
+      "apps",
+    ] as const;
+
+    if (command !== "create") {
+      const offending = CREATE_ONLY_FLAGS.filter((flag) => values[flag] !== undefined).map(
+        (flag) => `--${flag}`,
       );
+      if (offending.length > 0) {
+        return rejectInvalid(
+          `${offending.join(", ")} can only be used with 'create' command`,
+          command,
+          jsonFlag,
+          logger,
+          start,
+        );
+      }
     }
 
     if (command !== "add" && hasKind) {

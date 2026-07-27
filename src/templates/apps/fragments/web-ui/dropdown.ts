@@ -11,16 +11,41 @@ import { Menu as BaseMenu } from "@base-ui/react/menu";
 import { cn } from "../../lib/utils.js";
 
 export const DropdownMenu = BaseMenu.Root;
-export const DropdownMenuTrigger = BaseMenu.Trigger;
 export const DropdownMenuPortal = BaseMenu.Portal;
 export const DropdownMenuGroup = BaseMenu.Group;
 
-export const DropdownMenuContent = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentPropsWithoutRef<typeof BaseMenu.Popup>
->(({ className, ...props }, ref) => (
+export interface DropdownMenuTriggerProps
+  extends React.ComponentPropsWithoutRef<typeof BaseMenu.Trigger> {
+  /** Render the single child element as the trigger (maps to Base UI's \`render\`). */
+  asChild?: boolean;
+}
+
+// Base UI composes via \`render\`; \`asChild\` is the Radix spelling the call sites use.
+export const DropdownMenuTrigger = React.forwardRef<HTMLButtonElement, DropdownMenuTriggerProps>(
+  ({ asChild, children, ...props }, ref) => {
+    if (asChild && React.isValidElement(children)) {
+      return <BaseMenu.Trigger ref={ref} render={children as React.ReactElement} {...props} />;
+    }
+    return (
+      <BaseMenu.Trigger ref={ref} {...props}>
+        {children}
+      </BaseMenu.Trigger>
+    );
+  },
+);
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
+
+export interface DropdownMenuContentProps
+  extends React.ComponentPropsWithoutRef<typeof BaseMenu.Popup> {
+  /** Positioner alignment — Base UI puts \`align\`/\`sideOffset\` on the Positioner. */
+  align?: "start" | "center" | "end";
+  sideOffset?: number;
+}
+
+export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContentProps>(
+  ({ className, align = "center", sideOffset = 4, ...props }, ref) => (
   <BaseMenu.Portal>
-    <BaseMenu.Positioner className="z-50" sideOffset={4}>
+    <BaseMenu.Positioner className="z-50" align={align} sideOffset={sideOffset}>
       <BaseMenu.Popup
         ref={ref}
         data-slot="dropdown-menu-content"

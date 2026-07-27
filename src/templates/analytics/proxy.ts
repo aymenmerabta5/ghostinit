@@ -1,21 +1,24 @@
+// @allow-long 305: PostHog reverse-proxy route handlers (root + catch-all, both modes) with shared header-forwarding rules
 import type { ProjectMode } from "../../lib/addons.js";
 
 function envAccessSnippet(mode: ProjectMode): string {
   return mode === "monorepo"
     ? `import { env } from "@repo/config";
 
+// env holds non-string members (numeric transforms), so widen through unknown —
+// a direct assertion to Record<string, string | undefined> is a TS2352 error.
+const envRecord = env as unknown as Record<string, string | undefined>;
+
 function getPostHogHost(): string {
-  return (env as Record<string, string | undefined>).POSTHOG_HOST ?? (env as Record<string, string | undefined>).NEXT_PUBLIC_POSTHOG_HOST ?? (env as Record<string, string | undefined>).POSTHOG_API_HOST ?? (env as Record<string, string | undefined>).POSTHOG_HOST ?? "";
+  return envRecord.POSTHOG_HOST ?? envRecord.NEXT_PUBLIC_POSTHOG_HOST ?? envRecord.VITE_POSTHOG_HOST ?? envRecord.POSTHOG_API_HOST ?? "";
 }
-function getPostHogKey(): string {
-  return (env as Record<string, string | undefined>).POSTHOG_KEY ?? (env as Record<string, string | undefined>).NEXT_PUBLIC_POSTHOG_KEY ?? (env as Record<string, string | undefined>).POSTHOG_KEY ?? "";
-}`
+`
     : `function getPostHogHost(): string {
-  return process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST ?? process.env.POSTHOG_API_HOST ?? process.env.POSTHOG_HOST;
+  // Declared as string, so terminate the chain with "" rather than returning
+  // \`string | undefined\` (TS2322). resolveTargetHost() treats "" as unset.
+  return process.env.POSTHOG_HOST ?? process.env.NEXT_PUBLIC_POSTHOG_HOST ?? process.env.VITE_POSTHOG_HOST ?? process.env.POSTHOG_API_HOST ?? "";
 }
-function getPostHogKey(): string {
-  return process.env.POSTHOG_KEY ?? process.env.NEXT_PUBLIC_POSTHOG_KEY ?? process.env.POSTHOG_KEY;
-}`;
+`;
 }
 
 export function proxyReadmeContent(): string {
@@ -103,13 +106,13 @@ async function proxyRequest(request: NextRequest, extraPath?: string): Promise<N
       }
     }
 
-    let rawBody: Buffer | undefined;
+    let rawBody: ArrayBuffer | undefined;
     if (request.method !== "GET" && request.method !== "HEAD") {
       const ab = await request.arrayBuffer();
       if (ab.byteLength > MAX_BODY_SIZE) {
         return NextResponse.json({ error: "Payload too large" }, { status: 413 });
       }
-      rawBody = Buffer.from(ab);
+      rawBody = ab;
     }
 
     const headers: Record<string, string> = {};
@@ -143,7 +146,8 @@ async function proxyRequest(request: NextRequest, extraPath?: string): Promise<N
       redirect: "manual",
     });
 
-    const resBody = Buffer.from(await upstream.arrayBuffer());
+    // ArrayBuffer is a valid BodyInit; a Node Buffer is not (TS2769 on NextResponse).
+    const resBody = await upstream.arrayBuffer();
     const res = new NextResponse(resBody, {
       status: upstream.status,
       statusText: upstream.statusText,
@@ -177,7 +181,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   return proxyRequest(request);
 }
 
-export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+export async function OPTIONS(_request: NextRequest): Promise<NextResponse> {
   const res = new NextResponse(null, { status: 204 });
   res.headers.set("access-control-allow-origin", "*");
   res.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
@@ -248,13 +252,13 @@ async function proxyCatchAll(request: NextRequest, params: RouteParams): Promise
       }
     }
 
-    let rawBody: Buffer | undefined;
+    let rawBody: ArrayBuffer | undefined;
     if (request.method !== "GET" && request.method !== "HEAD") {
       const ab = await request.arrayBuffer();
       if (ab.byteLength > MAX_BODY_SIZE) {
         return NextResponse.json({ error: "Payload too large" }, { status: 413 });
       }
-      rawBody = Buffer.from(ab);
+      rawBody = ab;
     }
 
     const headers: Record<string, string> = {};
@@ -272,7 +276,8 @@ async function proxyCatchAll(request: NextRequest, params: RouteParams): Promise
       redirect: "manual",
     });
 
-    const resBody = Buffer.from(await upstream.arrayBuffer());
+    // ArrayBuffer is a valid BodyInit; a Node Buffer is not (TS2769 on NextResponse).
+    const resBody = await upstream.arrayBuffer();
     const res = new NextResponse(resBody, { status: upstream.status });
     const ct = upstream.headers.get("content-type");
     if (ct) res.headers.set("content-type", ct);
@@ -292,7 +297,7 @@ export async function GET(request: NextRequest, ctx: RouteParams): Promise<NextR
   return proxyCatchAll(request, ctx);
 }
 
-export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+export async function OPTIONS(_request: NextRequest): Promise<NextResponse> {
   const res = new NextResponse(null, { status: 204 });
   res.headers.set("access-control-allow-origin", "*");
   res.headers.set("access-control-allow-methods", "GET, POST, OPTIONS");

@@ -30,6 +30,49 @@ export function providersSingleContent(): string {
   ].join("\n");
 }
 
+export function providersSingleContentConvex(): string {
+  return [
+    '"use client";',
+    "",
+    "import * as React from 'react';",
+    "import { useState, Suspense } from 'react';",
+    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query';",
+    "import { ConvexReactClient } from 'convex/react';",
+    "import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';",
+    "import { authClient } from '@/lib/auth-client';",
+    "import { ThemeProvider } from '@/components/theme-provider';",
+    "import { PostHogProvider } from '@/components/analytics/posthog-provider';",
+    "import { PostHogPageView } from '@/components/analytics/posthog-pageview';",
+    "import { Toaster } from '@/components/ui/sonner';",
+    "",
+    "const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;",
+    "if (!convexUrl) {",
+    "  console.warn('[ghostinit] NEXT_PUBLIC_CONVEX_URL not set – Convex client will fail. Run npx convex dev');",
+    "}",
+    "const convex = new ConvexReactClient(convexUrl ?? '');",
+    "",
+    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
+    "  const [queryClient] = useState(() => new QueryClient());",
+    "  return (",
+    "    <ConvexBetterAuthProvider client={convex} authClient={authClient}>",
+    "      <QueryClientProvider client={queryClient}>",
+    "        <PostHogProvider>",
+    '          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>',
+    "            <Suspense fallback={null}>",
+    "              <PostHogPageView />",
+    "            </Suspense>",
+    "            {children}",
+    '            <Toaster richColors position="bottom-right" />',
+    "          </ThemeProvider>",
+    "        </PostHogProvider>",
+    "      </QueryClientProvider>",
+    "    </ConvexBetterAuthProvider>",
+    "  );",
+    "}",
+    "",
+  ].join("\n");
+}
+
 export function singleProvidersTanstackContent(): string {
   return [
     '"use client"',
@@ -47,6 +90,37 @@ export function singleProvidersTanstackContent(): string {
     "        <Toaster richColors position='bottom-right' />",
     "      </ThemeProvider>",
     "    </QueryClientProvider>",
+    "  )",
+    "}",
+    "",
+  ].join("\n");
+}
+
+export function singleProvidersTanstackContentConvex(): string {
+  return [
+    '"use client"',
+    "import * as React from 'react'",
+    "import { useState } from 'react'",
+    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query'",
+    "import { ConvexReactClient } from 'convex/react'",
+    "import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'",
+    "import { authClient } from '@/lib/auth-client'",
+    "import { ThemeProvider } from '@/components/theme-provider'",
+    "import { Toaster } from '@/components/ui/sonner'",
+    "const convexUrl = process.env.VITE_CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL",
+    "if (!convexUrl) { console.warn('[ghostinit] VITE_CONVEX_URL not set – Convex client will fail. Run bunx convex dev') }",
+    "const convex = new ConvexReactClient(convexUrl ?? '')",
+    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
+    "  const [queryClient] = useState(() => new QueryClient())",
+    "  return (",
+    "    <ConvexBetterAuthProvider client={convex} authClient={authClient}>",
+    "      <QueryClientProvider client={queryClient}>",
+    "        <ThemeProvider attribute='class' defaultTheme='light' enableSystem={false} disableTransitionOnChange>",
+    "          {children}",
+    "          <Toaster richColors position='bottom-right' />",
+    "        </ThemeProvider>",
+    "      </QueryClientProvider>",
+    "    </ConvexBetterAuthProvider>",
     "  )",
     "}",
     "",

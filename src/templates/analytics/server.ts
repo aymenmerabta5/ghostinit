@@ -4,7 +4,6 @@ export function serverPosthogServerContent(mode: ProjectMode): string {
   const cfgImport = mode === "monorepo" ? "../config.js" : "./config.js";
   return `import { PostHog } from "posthog-node";
 import { getAnalyticsConfig, isAnalyticsEnabled } from "${cfgImport}";
-import { anonymizeEmail, buildServerContext } from "./utils.js";
 
 export type { PostHog as PostHogServerClient } from "posthog-node";
 

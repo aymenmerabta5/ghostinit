@@ -47,10 +47,13 @@ describe("web+mobile generation RNR+Uniwind - shared theme single source", () =>
     expect(mobileGlobal).toContain("@source");
 
     const babel = files.find((f) => f.path === "apps/mobile/babel.config.js")?.content ?? "";
-    expect(babel).toContain("uniwind/babel");
-    expect(babel).toContain("cssEntryFile");
-    expect(babel).toContain("global.css");
-    expect(babel.indexOf("uniwind")).toBeLessThan(babel.indexOf("babel-preset-expo"));
+    expect(babel).toContain("babel-preset-expo");
+    // uniwind has NO ./babel subpath in its exports map (only ./components,
+    // ./metro, ./vite, ./types). Referencing it made Metro fail on module 1 of 1
+    // with ERR_PACKAGE_PATH_NOT_EXPORTED, so the app could not bundle at all.
+    // This assertion previously pinned that bug in place — it now guards against
+    // reintroducing it. uniwind integrates via metro.config.js, asserted below.
+    expect(babel).not.toContain("uniwind/babel");
 
     const metro = files.find((f) => f.path === "apps/mobile/metro.config.js")?.content ?? "";
     expect(metro).toContain("withUniwindConfig");

@@ -7,7 +7,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useState } from "react";
 import { authClient } from "../../lib/auth-client.js";
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -53,7 +52,6 @@ import * as React from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { authClient } from '../lib/auth-client.js'
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -75,7 +73,8 @@ function ForgotPasswordPage(): React.JSX.Element {
     setSuccess(null)
     setPending(true)
     try {
-      const result = await authClient.forgetPassword({ email, redirectTo: '/reset-password' })
+      // Better Auth renamed forgetPassword -> requestPasswordReset.
+      const result = await authClient.requestPasswordReset({ email, redirectTo: '/reset-password' })
       if (result.error) {
         setError(result.error.message ?? 'Failed to send reset email')
         return

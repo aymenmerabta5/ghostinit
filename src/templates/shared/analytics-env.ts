@@ -1,33 +1,33 @@
 /**
  * Shared analytics env helpers — PostHog product analytics.
- * Provides analyticsEnvLines used by templates (similar to billing-env.ts).
+ *
+ * The public prefix is framework-specific: @repo/config declares exactly ONE
+ * client family (NEXT_PUBLIC_ for Next.js via @t3-oss/env-nextjs, VITE_ for
+ * TanStack Start via @t3-oss/env-core with clientPrefix), plus EXPO_PUBLIC_ only
+ * when a mobile app exists. Emitting all three unconditionally put variables in
+ * .env.example that the schema validating it never declares.
+ *
  * No timestamps, deterministic output.
  */
 
-export function analyticsEnvLines(): string[] {
+import { publicVarLines, type EnvAudience } from "./env/core.js";
+
+const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false };
+
+export function analyticsEnvLines(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
   return [
     "# Analytics — PostHog product analytics + feature flags + experiments + session replay",
     "# Cloud US: https://us.i.posthog.com, EU: https://eu.i.posthog.com, or /ingest proxy to bypass adblockers (default)",
-    "NEXT_PUBLIC_POSTHOG_KEY=phc_REPLACE_WITH_POSTHOG_KEY",
-    "NEXT_PUBLIC_POSTHOG_HOST=/ingest",
-    "VITE_POSTHOG_KEY=phc_REPLACE_WITH_POSTHOG_KEY",
-    "VITE_POSTHOG_HOST=/ingest",
-    "EXPO_PUBLIC_POSTHOG_KEY=phc_REPLACE_WITH_POSTHOG_KEY",
-    "EXPO_PUBLIC_POSTHOG_HOST=/ingest",
+    ...publicVarLines(audience, "POSTHOG_KEY", "phc_REPLACE_WITH_POSTHOG_KEY"),
+    ...publicVarLines(audience, "POSTHOG_HOST", "/ingest"),
     "POSTHOG_HOST=https://us.i.posthog.com",
     "POSTHOG_API_KEY=phc_REPLACE_WITH_POSTHOG_KEY # optional if same as public, server-side",
-    "NEXT_PUBLIC_POSTHOG_SESSION_RECORDING=false",
-    "NEXT_PUBLIC_POSTHOG_AUTOCAPTURE=true",
-    "VITE_POSTHOG_SESSION_RECORDING=false",
-    "VITE_POSTHOG_AUTOCAPTURE=true",
-    "EXPO_PUBLIC_POSTHOG_SESSION_RECORDING=false",
-    "EXPO_PUBLIC_POSTHOG_AUTOCAPTURE=true",
-    "NEXT_PUBLIC_ANALYTICS_DISABLED=false",
-    "VITE_ANALYTICS_DISABLED=false",
-    "EXPO_PUBLIC_ANALYTICS_DISABLED=false",
+    ...publicVarLines(audience, "POSTHOG_SESSION_RECORDING", "false"),
+    ...publicVarLines(audience, "POSTHOG_AUTOCAPTURE", "true"),
+    ...publicVarLines(audience, "ANALYTICS_DISABLED", "false"),
   ];
 }
 
-export function analyticsEnvLocalLines(): string[] {
-  return analyticsEnvLines();
+export function analyticsEnvLocalLines(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
+  return analyticsEnvLines(audience);
 }

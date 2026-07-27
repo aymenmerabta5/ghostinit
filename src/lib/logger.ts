@@ -60,20 +60,55 @@ function redactUrlToken(value: string): string {
   }
 }
 
-export function redact(value: unknown, key = ""): unknown {
+/**
+ * Redact secret-shaped substrings from a free-text value.
+ *
+ * Key-based redaction only catches `{ apiKey: "..." }`. It misses a secret
+ * carried under a benign key (`{ note: "sk_live_..." }`) or interpolated into a
+ * message. SECRET_VALUE_PATTERNS covers the common issued-credential shapes.
+ */
+const SECRET_VALUE_PATTERNS: RegExp[] = [
+  // Provider-issued keys: sk_live_, pk_test_, whsec_, rk_, pdl_ntf_, phc_, re_, polar_...
+  /\b(?:sk|pk|rk|whsec|psk)_[A-Za-z0-9_]{8,}/g,
+  /\bpdl_[A-Za-z0-9_]{8,}/g,
+  /\bpolar_[A-Za-z0-9_]{8,}/g,
+  /\b(?:phc|re)_[A-Za-z0-9_]{16,}/g,
+  // Bearer tokens and JWTs
+  /\bBearer\s+[A-Za-z0-9._~+/-]{12,}=*/gi,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+/g,
+  // postgres://user:password@host — credentials embedded in a connection string
+  /\b([a-z][a-z0-9+.-]*:\/\/[^:\s/]+):[^@\s]+@/gi,
+];
+
+export function redactSecretValues(text: string): string {
+  let out = text;
+  for (const pattern of SECRET_VALUE_PATTERNS) {
+    out = out.replace(pattern, (match, prefix?: string) =>
+      // Connection-string form keeps the scheme+user so the log stays useful.
+      typeof prefix === "string" ? `${prefix}:***@` : "***",
+    );
+  }
+  return out;
+}
+
+export function redact(value: unknown, key = "", seen = new WeakSet<object>()): unknown {
   if (typeof value === "string") {
     if (looksLikeSecret(key)) {
       return "***";
     }
-    return redactUrlToken(value);
+    return redactSecretValues(redactUrlToken(value));
   }
   if (Array.isArray(value)) {
-    return value.map((v, i) => redact(v, String(i)));
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    return value.map((v, i) => redact(v, String(i), seen));
   }
   if (value && typeof value === "object" && !(value instanceof Date)) {
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = redact(v, k);
+      out[k] = redact(v, k, seen);
     }
     return out;
   }
@@ -114,11 +149,14 @@ export class Logger {
     if (!this.shouldLog(level)) return;
 
     const safeMeta = meta ? redact(meta) : undefined;
+    // The message is user-facing free text and routinely interpolates values
+    // (error strings, URLs, env values) — scan it too, not just meta.
+    const safeMessage = redactSecretValues(redactUrlToken(message));
 
     if (this.json) {
       const line = JSON.stringify({
         level,
-        message,
+        message: safeMessage,
         timestamp: new Date().toISOString(),
         ...(safeMeta ? { meta: safeMeta } : {}),
       });
@@ -126,7 +164,7 @@ export class Logger {
     } else {
       const prefix = `[${level.toUpperCase()}]`;
       const suffix = safeMeta ? ` ${JSON.stringify(safeMeta)}` : "";
-      this.out(`${prefix} ${message}${suffix}\n`);
+      this.out(`${prefix} ${safeMessage}${suffix}\n`);
     }
   }
 

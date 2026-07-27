@@ -43,7 +43,9 @@ export async function verifyStripeWebhook(
         break;
     }
     return { valid: true, event: billingEvent };
-  } catch (err: any) {
-    return { valid: false, error: `Webhook Error: ${err?.message ?? "Unknown"}` };
+  } catch {
+    // Generic on purpose: this result is surfaced at an unauthenticated webhook
+    // boundary, so the underlying Stripe error text must not travel back out.
+    return { valid: false, error: "Webhook Error" };
   }
 }

@@ -88,18 +88,18 @@ export function singleOpenapiApiRouteTanstackContent(): string {
   ].join("\n");
 }
 
-export function singleStripeWebhookTanstackContent(): string {
-  return webhookContent("stripe", "tanstack", "single").content;
+export function singleStripeWebhookTanstackContent(isConvex = false): string {
+  return webhookContent("stripe", "tanstack", "single", isConvex ? "convex" : "postgres").content;
 }
 
-export function singleChargilyWebhookTanstackContent(): string {
-  return webhookContent("chargily", "tanstack", "single").content;
+export function singleChargilyWebhookTanstackContent(isConvex = false): string {
+  return webhookContent("chargily", "tanstack", "single", isConvex ? "convex" : "postgres").content;
 }
 
-export function singlePaddleWebhookTanstackContent(): string {
-  return webhookContent("paddle", "tanstack", "single").content;
+export function singlePaddleWebhookTanstackContent(isConvex = false): string {
+  return webhookContent("paddle", "tanstack", "single", isConvex ? "convex" : "postgres").content;
 }
 
-export function singlePolarWebhookTanstackContent(): string {
-  return webhookContent("polar", "tanstack", "single").content;
+export function singlePolarWebhookTanstackContent(isConvex = false): string {
+  return webhookContent("polar", "tanstack", "single", isConvex ? "convex" : "postgres").content;
 }

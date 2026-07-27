@@ -141,7 +141,7 @@ describe("ghostinit CLI", () => {
     const projectRoot = join(tmp, "smoke");
     const result = spawnSync(
       "node",
-      [CLI, "add", "module", "billing", "--cwd", projectRoot, "--json"],
+      [CLI, "add", "module", "posts", "--cwd", projectRoot, "--json"],
       {
         encoding: "utf-8",
       },
@@ -149,7 +149,7 @@ describe("ghostinit CLI", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("success");
     expect(
-      existsSync(join(projectRoot, "packages", "modules", "src", "billing", "domain", "types.ts")),
+      existsSync(join(projectRoot, "packages", "modules", "src", "posts", "domain", "types.ts")),
     ).toBe(true);
   });
 
@@ -210,7 +210,7 @@ describe("ghostinit CLI", () => {
     const projectRoot = join(tmp, "smoke");
     const result1 = spawnSync(
       "node",
-      [CLI, "add", "module", "billing", "--cwd", projectRoot, "--json"],
+      [CLI, "add", "module", "notifications", "--cwd", projectRoot, "--json"],
       { encoding: "utf-8" },
     );
     expect(result1.status).toBe(0);
@@ -218,7 +218,7 @@ describe("ghostinit CLI", () => {
 
     const result2 = spawnSync(
       "node",
-      [CLI, "add", "module", "billing", "--cwd", projectRoot, "--json"],
+      [CLI, "add", "module", "notifications", "--cwd", projectRoot, "--json"],
       { encoding: "utf-8" },
     );
     expect(result2.status).toBe(0);
@@ -328,5 +328,68 @@ describe("ghostinit CLI", () => {
     const agentTs = fs.readFileSync(join(projectRoot, "apps", "eve", "agent", "agent.ts"), "utf-8");
     expect(agentTs).toContain("defineAgent");
     expect(agentTs).toContain("claude-sonnet-5");
+  });
+});
+
+/**
+ * Create-only flags must be rejected on every other command.
+ *
+ * `--apps` was missing from the gate, so `ghostinit sync --apps mobile` exited 0
+ * having silently ignored the flag. An agent reading exit 0 concludes the app was
+ * added. The gate is now driven by one list; this test pins every entry so the
+ * list and the flags cannot drift apart again.
+ */
+describe("create-only flag gate", () => {
+  const CREATE_ONLY: Array<[string, string]> = [
+    ["--mode", "single"],
+    ["--framework", "tanstack-start"],
+    ["--billing", "stripe"],
+    ["--features", "eve"],
+    ["--database", "convex"],
+    ["--apps", "mobile"],
+  ];
+
+  for (const command of ["sync", "add", "status", "check"]) {
+    for (const [flag, value] of CREATE_ONLY) {
+      it(`rejects ${flag} on '${command}'`, () => {
+        const result = spawnSync("node", [CLI, command, flag, value, "--json"], {
+          encoding: "utf-8",
+        });
+        expect(result.status).not.toBe(0);
+        const parsed = JSON.parse(result.stdout);
+        expect(parsed.success).toBe(false);
+        expect(parsed.error.message).toContain(flag);
+        expect(parsed.error.message).toContain("only be used with 'create'");
+      });
+    }
+  }
+
+  it("still accepts every create-only flag on 'create'", () => {
+    const result = spawnSync(
+      "node",
+      [
+        CLI,
+        "create",
+        "gate-demo",
+        "--yes",
+        "--no-install",
+        "--dry-run",
+        "--json",
+        "--mode",
+        "single",
+        "--framework",
+        "nextjs",
+        "--billing",
+        "stripe",
+        "--features",
+        "eve",
+        "--database",
+        "postgres",
+        "--apps",
+        "web",
+      ],
+      { encoding: "utf-8" },
+    );
+    expect(result.status).toBe(0);
   });
 });

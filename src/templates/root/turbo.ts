@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../shared.js";
+import { CONVEX_ENV_KEYS } from "../../lib/constants.js";
 
 export function turbo(runtime: "node" | "bun"): TemplateFile {
   const envList = [
@@ -71,15 +72,19 @@ export function turbo(runtime: "node" | "bun"): TemplateFile {
     "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY",
     "EXPO_PUBLIC_PADDLE_CLIENT_TOKEN",
     "EXPO_PUBLIC_PADDLE_ENVIRONMENT",
+    // Convex — single source from CONVEX_ENV_KEYS plus explicit coverage for cache correctness
+    ...CONVEX_ENV_KEYS,
   ];
-  if (runtime === "node") envList.push("npm_config_user_agent");
+  // Deduplicate while preserving order
+  const dedupedEnvList = [...new Set(envList)];
+  if (runtime === "node") dedupedEnvList.push("npm_config_user_agent");
   return file(
     "turbo.json",
     JSON.stringify(
       {
         $schema: "https://turbo.build/schema.json",
         globalDependencies: ["**/.env.*local"],
-        globalEnv: envList,
+        globalEnv: dedupedEnvList,
         tasks: {
           build: { dependsOn: ["^build"], outputs: ["dist/**", ".next/**", "!.next/cache/**"] },
           dev: { cache: false, persistent: true },

@@ -1,3 +1,4 @@
+// @allow-long 352: single-mode package.json dependency matrix across every addon combination — effectively a data table
 import { packageJson } from "../../shared.js";
 import * as v from "../../versions.js";
 import type { BillingProviderName } from "../../../lib/addons.js";
@@ -7,7 +8,18 @@ function buildDeps(
   hasEve: boolean,
   hasI18n: boolean,
   isTanstack = false,
+  isConvex = false,
 ): Record<string, string> {
+  const baseConvex: Record<string, string> = isConvex
+    ? {
+        convex: `^${v.convex.convex}`,
+        "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+      }
+    : {
+        "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+        pg: `^${v.database.pg}`,
+      };
+
   const deps: Record<string, string> = isTanstack
     ? {
         "@tanstack/react-start": `^${v.tanstackStart["@tanstack/react-start"]}`,
@@ -17,7 +29,7 @@ function buildDeps(
         react: `^${v.nextStack.react}`,
         "react-dom": `^${v.nextStack["react-dom"]}`,
         "better-auth": `^${v.auth["better-auth"]}`,
-        "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+        ...baseConvex,
         zod: `^${v.validation.zod}`,
         "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
         resend: `^${v.email.resend}`,
@@ -27,10 +39,11 @@ function buildDeps(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
         "@orpc/zod": `^${v.orpc["@orpc/zod"]}`,
-        pg: `^${v.database.pg}`,
         sonner: `^${v.ui.sonner}`,
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
+        // Required by the shadcn-style components emitted via singleWebUiFiles().
+        "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
@@ -41,7 +54,7 @@ function buildDeps(
         react: `^${v.nextStack.react}`,
         "react-dom": `^${v.nextStack["react-dom"]}`,
         "better-auth": `^${v.auth["better-auth"]}`,
-        "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+        ...baseConvex,
         zod: `^${v.validation.zod}`,
         "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
         resend: `^${v.email.resend}`,
@@ -53,10 +66,11 @@ function buildDeps(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
         "@orpc/zod": `^${v.orpc["@orpc/zod"]}`,
-        pg: `^${v.database.pg}`,
         sonner: `^${v.ui.sonner}`,
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
+        // Required by the shadcn-style components emitted via singleWebUiFiles().
+        "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
@@ -91,33 +105,50 @@ export function singlePackageJson(
   selectedBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  isConvex = false,
 ): string {
+  const scripts: Record<string, string> = isConvex
+    ? {
+        dev: "next dev",
+        build: "next build",
+        start: "next start",
+        typecheck: "tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "convex:dev": "convex dev",
+        "convex:deploy": "convex deploy",
+        "convex:codegen": "convex codegen",
+      }
+    : {
+        dev: "next dev",
+        build: "next build",
+        start: "next start",
+        typecheck: "tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate",
+        "db:push": "drizzle-kit push",
+      };
+
   return packageJson({
     name: projectName,
     version: v.ghostinitVersion,
     private: true,
     type: "module",
-    scripts: {
-      dev: "next dev",
-      build: "next build",
-      start: "next start",
-      typecheck: "tsc --noEmit",
-      test: runtime === "bun" ? "bun test" : "npm run test:unit",
-      lint: "oxlint .",
-      format: "oxfmt --write .",
-      "format:check": "oxfmt --check .",
-      "db:generate": "drizzle-kit generate",
-      "db:migrate": "drizzle-kit migrate",
-      "db:push": "drizzle-kit push",
-    },
-    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false),
+    scripts,
+    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       typescript: `^${v.typescript.typescript}`,
       "@types/node": `^${v.runtime["@types/node"]}`,
       "@types/react": `^${v.nextStack["@types/react"]}`,
       "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
-      "@types/pg": `^${v.database["@types/pg"]}`,
+      ...(isConvex ? {} : { "@types/pg": `^${v.database["@types/pg"]}` }),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
       tailwindcss: `^${v.styling.tailwindcss}`,
@@ -133,35 +164,53 @@ export function singlePackageJsonTanstack(
   selectedBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  isConvex = false,
 ): string {
   void hasI18n;
+  const scripts: Record<string, string> = isConvex
+    ? {
+        dev: "vite dev --port 3000",
+        build: "vite build",
+        start: "node .output/server/index.mjs",
+        typecheck: "tsr generate && tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "convex:dev": "convex dev",
+        "convex:deploy": "convex deploy",
+        "convex:codegen": "convex codegen",
+      }
+    : {
+        dev: "vite dev --port 3000",
+        build: "vite build",
+        start: "node .output/server/index.mjs",
+        typecheck: "tsr generate && tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate",
+        "db:push": "drizzle-kit push",
+      };
+
   return packageJson({
     name: projectName,
     version: v.ghostinitVersion,
     private: true,
     type: "module",
-    scripts: {
-      dev: "vite dev --port 3000",
-      build: "vite build",
-      start: "node .output/server/index.mjs",
-      typecheck: "tsc --noEmit",
-      test: runtime === "bun" ? "bun test" : "npm run test:unit",
-      lint: "oxlint .",
-      format: "oxfmt --write .",
-      "format:check": "oxfmt --check .",
-      "db:generate": "drizzle-kit generate",
-      "db:migrate": "drizzle-kit migrate",
-      "db:push": "drizzle-kit push",
-    },
-    dependencies: buildDeps(selectedBilling, hasEve, false, true),
+    scripts,
+    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,
+      // Provides `tsr generate` for src/routeTree.gen.ts (see typecheck script).
+      "@tanstack/router-cli": `^${v.tanstackStart["@tanstack/router-cli"]}`,
       vite: `^${v.tanstackStart.vite}`,
       "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
       "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
       nitro: `^${v.tanstackStart.nitro}`,
-      nitropack: `^${v.tanstackStart.nitro}`,
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,
@@ -169,7 +218,7 @@ export function singlePackageJsonTanstack(
       "@types/node": `^${v.runtime["@types/node"]}`,
       "@types/react": `^${v.nextStack["@types/react"]}`,
       "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
-      "@types/pg": `^${v.database["@types/pg"]}`,
+      ...(isConvex ? {} : { "@types/pg": `^${v.database["@types/pg"]}` }),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
     },
@@ -182,7 +231,18 @@ export function singlePackageJsonExpo(
   selectedBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  isConvex = false,
 ): string {
+  const baseDb: Record<string, string> = isConvex
+    ? {
+        convex: `^${v.convex.convex}`,
+        "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+      }
+    : {
+        "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+        pg: `^${v.database.pg}`,
+      };
+
   const deps: Record<string, string> = {
     "@expo/metro-runtime": `^${v.expo["@expo/metro-runtime"]}`,
     "@orpc/client": `^${v.orpc["@orpc/client"]}`,
@@ -194,11 +254,13 @@ export function singlePackageJsonExpo(
     "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
     "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
     "better-auth": `^${v.auth["better-auth"]}`,
-    "drizzle-orm": `^${v.database["drizzle-orm"]}`,
-    pg: `^${v.database.pg}`,
+    ...baseDb,
     resend: `^${v.email.resend}`,
     zod: `^${v.validation.zod}`,
     "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
+    // src/lib/auth-client.ts imports @better-auth/expo (expo-network is its peer).
+    "@better-auth/expo": `^${v.auth["@better-auth/expo"]}`,
+    "expo-network": `^${v.expo["expo-network"]}`,
     expo: `^${v.expo.expo}`,
     "expo-constants": `^${v.expo["expo-constants"]}`,
     "expo-linking": `^${v.expo["expo-linking"]}`,
@@ -208,6 +270,9 @@ export function singlePackageJsonExpo(
     "expo-web-browser": `^${v.expo["expo-web-browser"]}`,
     "expo-clipboard": `^${v.expo["expo-clipboard"]}`,
     react: `^${v.nextStack.react}`,
+    // app.json declares the web platform; react-native-web peers on react-dom and
+    // `expo export` refuses to start without it.
+    "react-dom": `^${v.nextStack["react-dom"]}`,
     "react-native": `^${(v.expo["react-native"] as string) ?? "0.81.4"}`,
     "react-native-safe-area-context": `^${v.expo["react-native-safe-area-context"]}`,
     "react-native-web": `^${v.expo["react-native-web"]}`,
@@ -215,6 +280,8 @@ export function singlePackageJsonExpo(
     "react-native-worklets": `^${v.worklets["react-native-worklets"]}`,
     clsx: `^${v.ui.clsx}`,
     "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
+    // global.css imports tailwindcss and uniwind peers on it (>=4).
+    tailwindcss: `^${v.styling.tailwindcss}`,
     "tailwind-variants": `^${v.uniwind["tailwind-variants"]}`,
     "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
     uniwind: `^${v.uniwind.uniwind}`,
@@ -243,6 +310,38 @@ export function singlePackageJsonExpo(
     deps["next-intl"] = `^${v.i18n["next-intl"]}`;
   }
 
+  const scripts: Record<string, string> = isConvex
+    ? {
+        dev: "expo start --port 19000",
+        android: "expo start --android",
+        ios: "expo start --ios",
+        web: "expo start --web",
+        build: "expo export",
+        typecheck: "tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "convex:dev": "convex dev",
+        "convex:deploy": "convex deploy",
+        "convex:codegen": "convex codegen",
+      }
+    : {
+        dev: "expo start --port 19000",
+        android: "expo start --android",
+        ios: "expo start --ios",
+        web: "expo start --web",
+        build: "expo export",
+        typecheck: "tsc --noEmit",
+        test: runtime === "bun" ? "bun test" : "npm run test:unit",
+        lint: "oxlint .",
+        format: "oxfmt --write .",
+        "format:check": "oxfmt --check .",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate",
+        "db:push": "drizzle-kit push",
+      };
+
   return packageJson({
     name: projectName,
     version: v.ghostinitVersion,
@@ -250,27 +349,13 @@ export function singlePackageJsonExpo(
     private: true,
     type: "module",
     packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
-    scripts: {
-      dev: "expo start --port 19000",
-      android: "expo start --android",
-      ios: "expo start --ios",
-      web: "expo start --web",
-      build: "expo export",
-      typecheck: "tsc --noEmit",
-      test: runtime === "bun" ? "bun test" : "npm run test:unit",
-      lint: "oxlint .",
-      format: "oxfmt --write .",
-      "format:check": "oxfmt --check .",
-      "db:generate": "drizzle-kit generate",
-      "db:migrate": "drizzle-kit migrate",
-      "db:push": "drizzle-kit push",
-    },
+    scripts,
     dependencies: deps,
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       "@types/node": `^${v.runtime["@types/node"]}`,
       "@types/react": `^${v.nextStack["@types/react"]}`,
-      "@types/pg": `^${v.database["@types/pg"]}`,
+      ...(isConvex ? {} : { "@types/pg": `^${v.database["@types/pg"]}` }),
       "babel-preset-expo": `^${v.expo["babel-preset-expo"]}`,
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,

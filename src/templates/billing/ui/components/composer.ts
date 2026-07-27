@@ -8,92 +8,48 @@ import { billingEmptyContent } from "./empty.js";
 import { billingHookContent } from "./hook.js";
 import { providerPanelContent } from "./providers.js";
 import { billingTabsContent } from "./tabs.js";
-import { mainPageContent, packageMainPageContent } from "./main.js";
+import { mainPageContent } from "./main.js";
 
 type Runtime = "node" | "bun";
 
+/**
+ * Billing UI files.
+ *
+ * The billing UI is Layer 1 (UI) and is emitted ONLY alongside the app, where the
+ * `@/*` path alias and the app's jsx config actually resolve.
+ *
+ * It is deliberately NOT mirrored into `packages/billing/src/ui` (monorepo) or
+ * `src/server/billing/ui` (single). Those are Capability-layer (4) locations: they
+ * have no `@/*` mapping and no `jsx` compiler option, so the mirrored copy could
+ * never compile, nothing ever imported it, and it produced ~40 spurious
+ * `dependency-declaration` findings in `ghostinit check`.
+ */
 export function billingUiFiles(
   modeOrOpts?: ProjectMode | string | Record<string, unknown>,
   runtimeOrAddons?: Runtime | string | AddonInstallerMap | Record<string, unknown>,
   maybeAddons?: AddonInstallerMap | Record<string, unknown>,
 ): TemplateFile[] {
   const { mode, addons } = normalize(modeOrOpts, runtimeOrAddons, maybeAddons);
-  const selected = selectedProviders(addons);
-  const effective = selected;
-  const icons = billingIconsContent();
-  const header = billingHeaderContent();
-  const empty = billingEmptyContent();
-  const hook = billingHookContent();
-  const tabs = billingTabsContent(effective);
-  const main = mainPageContent(effective);
-  const pkgMain = packageMainPageContent(effective);
-  const files: TemplateFile[] = [];
+  const effective = selectedProviders(addons);
+  const base = mode === "monorepo" ? "apps/web/src/app/billing" : "src/app/billing";
 
-  if (mode === "monorepo") {
-    files.push(file("apps/web/src/app/billing/components/icons.tsx", icons));
-    files.push(file("apps/web/src/app/billing/components/billing-header.tsx", header));
-    files.push(file("apps/web/src/app/billing/components/billing-empty.tsx", empty));
-    files.push(file("apps/web/src/app/billing/hooks/use-billing-page.ts", hook));
-    files.push(file("apps/web/src/hooks/use-billing-page.ts", hook));
-    for (const p of effective)
-      files.push(
-        file(
-          `apps/web/src/app/billing/components/providers/${p}-panel.tsx`,
-          providerPanelContent(p, "../../hooks/use-billing-page"),
-        ),
-      );
-    files.push(file("apps/web/src/app/billing/components/billing-tabs.tsx", tabs));
-    files.push(file("apps/web/src/app/billing/page.tsx", main));
-    files.push(file("packages/billing/src/ui/components/icons.tsx", icons));
-    files.push(file("packages/billing/src/ui/components/billing-header.tsx", header));
-    files.push(file("packages/billing/src/ui/components/billing-empty.tsx", empty));
-    files.push(file("packages/billing/src/ui/hooks/use-billing-page.ts", hook));
-    for (const p of effective)
-      files.push(
-        file(
-          `packages/billing/src/ui/components/providers/${p}-panel.tsx`,
-          providerPanelContent(p, "../../hooks/use-billing-page"),
-        ),
-      );
-    files.push(file("packages/billing/src/ui/components/billing-tabs.tsx", tabs));
-    files.push(file("packages/billing/src/ui/billing-page.tsx", pkgMain));
+  const files: TemplateFile[] = [
+    file(`${base}/components/icons.tsx`, billingIconsContent()),
+    file(`${base}/components/billing-header.tsx`, billingHeaderContent()),
+    file(`${base}/components/billing-empty.tsx`, billingEmptyContent()),
+    file(`${base}/hooks/use-billing-page.ts`, billingHookContent()),
+  ];
+
+  for (const p of effective) {
     files.push(
-      file("packages/billing/src/ui/index.ts", `export { default } from "./billing-page.js";\n`),
-    );
-  } else {
-    files.push(file("src/app/billing/components/icons.tsx", icons));
-    files.push(file("src/app/billing/components/billing-header.tsx", header));
-    files.push(file("src/app/billing/components/billing-empty.tsx", empty));
-    files.push(file("src/app/billing/hooks/use-billing-page.ts", hook));
-    files.push(file("src/hooks/use-billing-page.ts", hook));
-    for (const p of effective)
-      files.push(
-        file(
-          `src/app/billing/components/providers/${p}-panel.tsx`,
-          providerPanelContent(p, "../../hooks/use-billing-page"),
-        ),
-      );
-    files.push(file("src/app/billing/components/billing-tabs.tsx", tabs));
-    files.push(file("src/app/billing/page.tsx", main));
-    files.push(file("src/server/billing/ui/components/icons.tsx", icons));
-    files.push(file("src/server/billing/ui/components/billing-header.tsx", header));
-    files.push(file("src/server/billing/ui/components/billing-empty.tsx", empty));
-    files.push(file("src/server/billing/ui/hooks/use-billing-page.ts", hook));
-    for (const p of effective)
-      files.push(
-        file(
-          `src/server/billing/ui/components/providers/${p}-panel.tsx`,
-          providerPanelContent(p, "../../hooks/use-billing-page"),
-        ),
-      );
-    files.push(file("src/server/billing/ui/components/billing-tabs.tsx", tabs));
-    files.push(file("src/server/billing/ui/billing-page.tsx", pkgMain));
-    files.push(
-      file("src/server/billing/ui/index.ts", `export { default } from "./billing-page.js";\n`),
+      file(
+        `${base}/components/providers/${p}-panel.tsx`,
+        providerPanelContent(p, "../../hooks/use-billing-page"),
+      ),
     );
   }
+
+  files.push(file(`${base}/components/billing-tabs.tsx`, billingTabsContent(effective)));
+  files.push(file(`${base}/page.tsx`, mainPageContent(effective)));
   return files;
 }
-
-export const billingPageFiles = billingUiFiles;
-export const billingUiPackage = billingUiFiles;
