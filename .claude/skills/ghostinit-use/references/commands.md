@@ -29,30 +29,48 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 
 ### Flags
 
-| Flag                  | Values                                                    | Default    | Effect                                                |
-| --------------------- | --------------------------------------------------------- | ---------- | ----------------------------------------------------- |
-| `--mode`              | `monorepo`, `single`                                      | `monorepo` | Structure: workspaces vs flat                         |
-| `--framework`         | `nextjs`, `tanstack-start`                                | `nextjs`   | Frontend framework for web target                     |
-| `--apps`              | `web,mobile,both,all` comma/repeat                        | `web`      | App targets: web=Next/TanStack, mobile=Expo, both=all |
-| `--billing`           | `stripe,chargily,paddle,polar,both,all,none` comma/repeat | `none`     | Any combo allowed                                     |
-| `--features`          | `eve,i18n,none` comma/repeat                              | `none`     | Eve AI, i18n next-intl                                |
-| `--database`          | `postgres,convex,none`                                    | `postgres` | DB provider                                           |
-| `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                        |
-| `--cwd`               | path                                                      | `.`        | Parent where project created                          |
-| `--no-install`        | flag                                                      | off        | Skip bun install                                      |
-| `--force`             | flag                                                      | off        | Bypass exists + dirty git + drift                     |
-| `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                  |
-| `--yes` / `--ci`      | flag                                                      | off        | Non-interactive                                       |
-| `--dry-run`           | flag                                                      | off        | Preview would-write without writing                   |
-| `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                         |
+| Flag                  | Values                                                    | Default    | Effect                                                                                    |
+| --------------------- | --------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| `--preset`            | `saas,frontend,custom`                                    | `saas`     | Preset: saas=full Auth+DB+API+Email+Analytics; frontend=minimal; custom=pick via --with-* |
+| `--mode`              | `monorepo`, `single`                                      | `monorepo` | Structure: workspaces vs flat                                                             |
+| `--framework`         | `nextjs`, `tanstack-start`                                | `nextjs`   | Frontend framework for web target                                                         |
+| `--apps`              | `web,mobile,both,all` comma/repeat                        | `web`      | App targets: web=Next/TanStack, mobile=Expo, both=all                                     |
+| `--billing`           | `stripe,chargily,paddle,polar,both,all,none` comma/repeat | `none`     | Any combo allowed                                                                         |
+| `--cache`             | `redis,none` (alias `upstash`)                            | `none`     | Cache via Upstash Redis + memory fallback                                                 |
+| `--stack`             | `nextjs,tanstack-start,expo,both`                         | —          | Frontend shorthand: maps to framework+apps for frontend preset                            |
+| `--with-auth`         | flag                                                      | off        | Opt-in Auth (requires DB postgres                                                         | convex); custom only, saas forces on, frontend off unless --with-* |
+| `--with-api`          | flag                                                      | off        | Opt-in oRPC API contract-first                                                            |
+| `--with-email`        | flag                                                      | off        | Opt-in Resend email                                                                       |
+| `--with-analytics`    | flag                                                      | off        | Opt-in PostHog                                                                            |
+| `--with-cache`        | flag                                                      | off        | Opt-in Upstash Redis (same as --cache redis)                                              |
+| `--with-eve`          | flag                                                      | off        | Opt-in Eve AI hybrid; --features eve deprecated alias                                     |
+| `--with-i18n`         | flag                                                      | off        | Opt-in next-intl; --features i18n deprecated alias                                        |
+| `--features`          | `eve,i18n,none` deprecated alias                          | `none`     | Alias for --with-eve/--with-i18n (case-insensitive deduped)                               |
+| `--database`          | `postgres,convex,none`                                    | `postgres` | DB provider; frontend defaults to none if not set                                         |
+| `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                                                            |
+| `--cwd`               | path                                                      | `.`        | Parent where project created                                                              |
+| `--no-install`        | flag                                                      | off        | Skip bun install                                                                          |
+| `--force`             | flag                                                      | off        | Bypass exists + dirty git + drift                                                         |
+| `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                                                      |
+| `--yes` / `--ci`      | flag                                                      | off        | Non-interactive; --yes defaults to saas unless --preset set                               |
+| `--dry-run`           | flag                                                      | off        | Preview would-write without writing                                                       |
+| `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                                                             |
 
-Invalid `--mode/framework/database/apps` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing/features: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown (`unknownOnly`) → throws exit 17. Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`.
+Invalid `--mode/framework/database/apps/preset/cache` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`.
+
+Interactive when TTY and no --json/--yes/--ci: preset-first wizard. First prompts project name (if missing), then `What are you building?` select SaaS Starter / Frontend Only / Custom. Branching: SaaS → mode, framework, database (postgres|convex), billing multiselect, apps, features (eve/i18n); Frontend → mode, stack (nextjs|tanstack-start|expo|both), install confirm; Custom → mode, framework, database (postgres|convex|none), apps, addons 7-toggle (auth/api/email/analytics/cache/eve/i18n), billing, install confirm. Cancel → exit 130.
 
 ### Example
 
 ```bash
-ghostinit create my-app --yes --cwd /tmp --mode monorepo --framework nextjs --apps web,mobile --database postgres --billing stripe,chargily --features eve,i18n --no-install --json
-# stdout: {"success":true,"exitCode":0,"data":{"projectName":"my-app","projectRoot":"/tmp/my-app","filesWritten":167,...},"meta":{"command":"create","durationMs":1234}}
+ghostinit create my-app --yes --cwd /tmp --mode monorepo --framework nextjs --apps web,mobile --database postgres --billing stripe,chargily --with-eve --with-i18n --no-install --json
+# stdout: {"success":true,"exitCode":0,"data":{"projectName":"my-app","projectRoot":"/tmp/my-app","filesWritten":216,...},"meta":{"command":"create","durationMs":1234}}
+# deprecated alias still works:
+ghostinit create my-app --preset saas --features eve,i18n --yes --no-install
+# frontend minimal:
+ghostinit create my-app --preset frontend --stack nextjs --yes --no-install
+# custom pick-your-own:
+ghostinit create my-app --preset custom --with-auth --with-api --with-cache --cache redis --with-eve --database postgres --yes --no-install
 
 ghostinit create my-app --apps web,mobile
 ghostinit create my-app --apps mobile --mode monorepo

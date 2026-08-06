@@ -36,6 +36,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let interactiveCustomApi: boolean | undefined;
   let interactiveCustomEmail: boolean | undefined;
   let interactiveCustomAnalytics: boolean | undefined;
+  let interactiveCustomEve: boolean | undefined;
+  let interactiveCustomI18n: boolean | undefined;
 
   const interactive = getIsInteractive(options);
 
@@ -70,6 +72,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
         else if (f === "__custom_api") interactiveCustomApi = true;
         else if (f === "__custom_email") interactiveCustomEmail = true;
         else if (f === "__custom_analytics") interactiveCustomAnalytics = true;
+        else if (f === "__custom_eve") interactiveCustomEve = true;
+        else if (f === "__custom_i18n") interactiveCustomI18n = true;
         else decoded.push(f);
       }
       rawFeatures = decoded;
@@ -77,6 +81,12 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       if (interactiveCustomApi === undefined) interactiveCustomApi = false;
       if (interactiveCustomEmail === undefined) interactiveCustomEmail = false;
       if (interactiveCustomAnalytics === undefined) interactiveCustomAnalytics = false;
+      if (interactiveCustomEve === undefined) interactiveCustomEve = false;
+      if (interactiveCustomI18n === undefined) interactiveCustomI18n = false;
+      // Also handle eve/i18n via separate features multiselect when custom (if user selected via features)
+      if (rawFeatures.includes("eve" as string)) interactiveCustomEve = true;
+      if (rawFeatures.includes("i18n" as string)) interactiveCustomI18n = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "eve" && f !== "i18n") as unknown as string[];
     }
     features = rawFeatures as unknown as FeatureName[];
     // stack mapping may override framework/apps via prompt result
@@ -162,11 +172,15 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let effectiveApi: boolean | undefined;
   let effectiveEmail: boolean | undefined;
   let effectiveAnalytics: boolean | undefined;
+  let effectiveEve: boolean | undefined;
+  let effectiveI18n: boolean | undefined;
   const withAuthFlag = options.withAuth;
   const withApiFlag = options.withApi;
   const withEmailFlag = options.withEmail;
   const withAnalyticsFlag = options.withAnalytics;
   const withCacheFlag = options.withCache;
+  const withEveFlag = options.withEve;
+  const withI18nFlag = options.withI18n;
 
   if (effectivePreset === "custom") {
     // Prefer interactive decoded values if present, else CLI with-* flags
@@ -178,6 +192,10 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     else if (withEmailFlag !== undefined) effectiveEmail = withEmailFlag;
     if (interactiveCustomAnalytics !== undefined) effectiveAnalytics = interactiveCustomAnalytics;
     else if (withAnalyticsFlag !== undefined) effectiveAnalytics = withAnalyticsFlag;
+    if (interactiveCustomEve !== undefined) effectiveEve = interactiveCustomEve;
+    else if (withEveFlag !== undefined) effectiveEve = withEveFlag;
+    if (interactiveCustomI18n !== undefined) effectiveI18n = interactiveCustomI18n;
+    else if (withI18nFlag !== undefined) effectiveI18n = withI18nFlag;
     // For interactive custom, cache already set from prompts (cache includes redis when cache feature selected)
     if (interactive && cache === "none" && interactiveCustomAuth === undefined) {
       // no-op
@@ -187,11 +205,15 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     effectiveApi = false;
     effectiveEmail = false;
     effectiveAnalytics = false;
+    effectiveEve = features.includes("eve" as never) || withEveFlag === true;
+    effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
   } else if (effectivePreset === "saas") {
     effectiveAuth = true;
     effectiveApi = true;
     effectiveEmail = true;
     effectiveAnalytics = true;
+    effectiveEve = features.includes("eve" as never) || withEveFlag === true;
+    effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
   }
 
   // Merge with with-* overrides even for saas/frontend (allow --with-cache on frontend)
@@ -203,6 +225,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   if (withCacheFlag === true) {
     // effectiveCache already set to redis when with-cache true in parseCreateArgs, keep
   }
+  if (withEveFlag === true) effectiveEve = true;
+  if (withI18nFlag === true) effectiveI18n = true;
 
   const config = projectConfigSchema.parse({
     name: projectName,
@@ -212,7 +236,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     mode,
     framework,
     billing,
-    features,
+    features: features.filter((f) => f !== "eve" && f !== "i18n"),
     database,
     apps,
     preset: effectivePreset,
@@ -221,6 +245,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     api: effectiveApi,
     email: effectiveEmail,
     analytics: effectiveAnalytics,
+    eve: effectiveEve,
+    i18n: effectiveI18n,
   });
 
   if (existsSync(projectRoot) && !options.force) {

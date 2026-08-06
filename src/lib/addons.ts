@@ -80,7 +80,15 @@ export type CoreAddon = (typeof coreAddons)[number];
 export const saasAddons = ["auth", "database", "api", "services", "email", "analytics"] as const;
 export type SaasAddon = (typeof saasAddons)[number];
 
-export const optionalAddons = ["auth", "api", "email", "analytics", "cache"] as const;
+export const optionalAddons = [
+  "auth",
+  "api",
+  "email",
+  "analytics",
+  "cache",
+  "i18n",
+  "eve",
+] as const;
 export type OptionalAddon = (typeof optionalAddons)[number];
 
 export const defaultAddons = [...coreAddons, ...saasAddons] as const;
@@ -96,6 +104,8 @@ export const presetDefaults: Record<
     analytics: boolean;
     cache: CacheProvider;
     database: DatabaseProvider;
+    eve: boolean;
+    i18n: boolean;
   }
 > = {
   saas: {
@@ -105,6 +115,8 @@ export const presetDefaults: Record<
     analytics: true,
     cache: "none",
     database: "postgres",
+    eve: false,
+    i18n: false,
   },
   frontend: {
     auth: false,
@@ -113,6 +125,8 @@ export const presetDefaults: Record<
     analytics: false,
     cache: "none",
     database: "none",
+    eve: false,
+    i18n: false,
   },
   custom: {
     auth: false,
@@ -121,6 +135,8 @@ export const presetDefaults: Record<
     analytics: false,
     cache: "none",
     database: "none",
+    eve: false,
+    i18n: false,
   },
 };
 
@@ -549,6 +565,8 @@ export interface BuildAddonMapInput {
   api?: boolean;
   email?: boolean;
   analytics?: boolean;
+  eve?: boolean;
+  i18n?: boolean;
 }
 
 /**
@@ -620,13 +638,21 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     if (input.api !== undefined) map["api"] = { inUse: input.api };
     if (input.email !== undefined) map["email"] = { inUse: input.email };
     if (input.analytics !== undefined) map["analytics"] = { inUse: input.analytics };
+    if (input.eve !== undefined) map["eve"] = { inUse: input.eve };
+    if (input.i18n !== undefined) map["i18n"] = { inUse: input.i18n };
   }
   // isFrontend preset already handled via noPreset false logic above
   void isFrontendPreset;
   for (const m of availableModes) map[m] = { inUse: m === input.mode };
   for (const d of availableDatabases) map[d] = { inUse: false };
   map[input.database] = { inUse: true };
-  for (const f of availableFeatures) map[f] = { inUse: input.features.includes(f) };
+  // features + unified eve/i18n handling (features kept for backward compat, but new map uses eve/i18n direct)
+  const eveInUse =
+    input.eve !== undefined ? input.eve : input.features.includes("eve" as FeatureName);
+  const i18nInUse =
+    input.i18n !== undefined ? input.i18n : input.features.includes("i18n" as FeatureName);
+  map["eve"] = { inUse: eveInUse };
+  map["i18n"] = { inUse: i18nInUse };
   for (const b of BILLING_PROVIDERS)
     map[b] = { inUse: input.billing.includes(b as BillingProviderName) };
   const effectiveFramework = input.framework ?? "nextjs";

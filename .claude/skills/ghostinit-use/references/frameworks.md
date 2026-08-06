@@ -77,31 +77,58 @@ ghostinit create my-app --database convex
 ghostinit create my-app --database none   # only if --billing none
 ```
 
-## Features
+## Presets & Addons
 
-### eve
+GhostInit is preset-first with opt-in addons. `coreAddons` (lint, format, t3env, ui, tanstack, zod) always included. `saasAddons` (auth, database, api, services, email, analytics) are preset-dependent. Addons are opt-in via `--with-*`; `--features` is deprecated alias.
 
-Durable AI agent hybrid via `withEve()` in apps/web. `eve` 0.24.6 + `ai` 7.0.26 + `@vercel/connect` 0.2.2. Adds extra apps/packages toolingFiles + agenticFiles + eveFiles conditional. Agent definitions in `apps/web/src/agent/` or similar.
+### Presets
 
-```bash
-ghostinit create my-app --features eve
-```
+- **saas** (default): Auth + DB (postgres) + API + Email + Analytics enabled. Billing/cache/eve/i18n optional via `--with-*`/`--billing`/`--cache`. Interactive: framework, database, billing, apps, eve/i18n. `ghostinit create my-app --yes` → saas. `ghostinit create my-app --preset saas --billing stripe --with-cache --with-eve --yes`
+- **frontend**: Minimal frontend only: `apps/web` (+ mobile when stack=expo/both) + `packages/ui` + `packages/config` + `tooling` + supporting contracts/kernel etc. (~134 files vs saas ~216). Database defaults to `none` (stub emits `packages/database` stub so `@repo/database` resolves), all addons disabled unless explicit `--with-*`. Interactive: mode + stack (nextjs|tanstack-start|expo|both) only. `ghostinit create my-app --preset frontend --stack nextjs --yes`
+- **custom**: Full control: all addons off by default (auth/api/email/analytics/cache/eve/i18n false, database none). Pick via `--with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n` plus `--billing/--database/--framework/--apps`. Interactive: 7-toggle addon checklist (auth, api, email, analytics, cache/eve/i18n) + billing + framework + database + apps. `ghostinit create my-app --preset custom --with-auth --with-api --with-cache --cache redis --database postgres --yes`
 
-### i18n
+Cache: `--cache redis` (alias `upstash`, `upstash-redis`) or `--with-cache` → Upstash Redis `@upstash/redis` 1.35.0 HTTP + memory fallback when `UPSTASH_REDIS_REST_URL=REPLACE_WITH_...`. Auth requires DB: `--with-auth` + `--database none` → validation error `Auth requires a database (postgres or convex)`.
 
-next-intl 4.0.0 internationalization routing.
+### Addons
 
-```bash
-ghostinit create my-app --features i18n
-```
+#### eve
 
-Combo:
+Durable AI agent hybrid via `withEve()` in apps/web. `eve` 0.24.6 + `ai` 7.0.26 + `@vercel/connect` 0.2.2. Adds extra `apps/eve` + `packages` toolingFiles + agenticFiles + eveFiles conditional. Agent definitions in `apps/web/src/agent/` or similar. Opt-in via `--with-eve` (preferred) or deprecated `--features eve` alias.
 
 ```bash
-ghostinit create my-app --features eve,i18n
+ghostinit create my-app --preset custom --with-eve --yes
+ghostinit create my-app --preset saas --with-eve --yes          # saas + eve
+ghostinit create my-app --features eve --yes                     # deprecated alias still works
 ```
 
-Both features optional, false default, parsed case-insensitive deduped via `parseFeaturesInput()`. Unknown partially tolerated forward-compat (`eve,unknown` → `eve`), fully unknown (`unknownOnly`) throws ValidationError.
+#### i18n
+
+next-intl 4.0.0 internationalization routing. Opt-in via `--with-i18n` (preferred) or deprecated `--features i18n` alias.
+
+```bash
+ghostinit create my-app --preset custom --with-i18n --yes
+ghostinit create my-app --features i18n --yes                    # alias
+```
+
+Combo via addons:
+
+```bash
+ghostinit create my-app --preset custom --with-eve --with-i18n --yes
+ghostinit create my-app --with-eve --with-i18n --yes             # custom implicitly or via saas with flags
+# alias combo still works:
+ghostinit create my-app --features eve,i18n --yes
+```
+
+All addons optional, false default (except saas preset forces auth/api/email/analytics true). Parsed case-insensitive deduped via `parseFeaturesInput()` for alias and `parseCacheInput()` for cache. Unknown partially tolerated forward-compat (`eve,unknown` → `eve`), fully unknown (`unknownOnly`) throws ValidationError. Same for billing.
+
+#### Other addons
+
+- **auth**: Better Auth + 2FA; requires DB postgres|convex. Stripped when off: no `packages/auth`, no `auth-client`, no `trustedOrigins`, no expo auth plugin.
+- **api**: oRPC contract-first; when off, `packages/api` and `packages/contracts` stubs? Actually api package omitted.
+- **email**: Resend templates; when off, `packages/email` omitted.
+- **analytics**: PostHog; when off, `packages/analytics` omitted.
+- **cache**: Upstash Redis; when off, `packages/cache` omitted.
+- **billing**: Any combo none|stripe|chargily|paddle|polar|all; when none, billing UI shows empty state.
 
 ## Modes
 

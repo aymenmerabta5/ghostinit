@@ -76,9 +76,24 @@ See `references/billing-provider.md` full steps with stripe reference.
 - Versions: `packages/versions/src/index.ts` `uniwind` group `uniwind`, `tailwind-variants`, `tw-animate-css` + `reanimated` group `react-native-reanimated`.
 - Lint: `oxlintrc.json` override `typescript/no-explicit-any: warn` for `src/lib/**/*.ts`, `src/templates/**/*.ts`, `src/cli/**/*.ts`, `src/commands/**/*.ts` to forbid new `any` while allowing gradual cleanup (warn not error).
 
-### New Feature (eve, i18n)
+### New Preset / Addon (preset-first, opt-in)
 
-`availableFeatures` + `src/templates/<feature>/` explicit + composer wiring `services-composer.ts` / `agents-composer.ts` / `core-services-aggregator.ts` + env + tests.
+Presets: `saas` (full), `frontend` (minimal), `custom` (pick). Addons are opt-in via `--with-*` flags unified: `auth`, `api`, `email`, `analytics`, `cache` (Upstash Redis), `eve`, `i18n`. `--features` is deprecated alias for `--with-eve/--with-i18n` kept for backward compat (parseCreateArgs maps `features` includes eve→withEve true).
+
+- `src/lib/addons.ts`: `coreAddons` (lint,format,t3env,ui,tanstack,zod always), `saasAddons` (auth,database,api,services,email,analytics conditional), `optionalAddons` (auth,api,email,analytics,cache,eve,i18n), `presetDefaults` (saas/frontend/custom auth/api/email/analytics/cache/database/eve/i18n booleans), parsers `parsePresetInput`, `parseCacheInput` (redis alias upstash), `parseStackInput`, `isValidAddonCombo` (auth→DB guard), `buildAddonInstallerMap` (preset-aware: saas/no-preset true, frontend false, custom explicit booleans; database true if !=none; services follows api||auth; features/eve/i18n via withEve/withI18n or features includes). All AddonInstallerMap keys include PRESETS, CACHE_PROVIDERS, optionalAddons.
+- `src/lib/config.ts`: `projectConfigSchema` fields `preset`, `cache`, `auth?`, `api?`, `email?`, `analytics?`, `eve?`, `i18n?` plus `billing`, `features` (kept empty for new, filtered), `database`, `framework`, `apps`.
+- `src/lib/interactive.ts` `parseCreateArgs`: handles `with-*` + `--features` alias (if features includes eve/i18n and withEve undefined → set true), `--cache` redis alias, stack mapping.
+- `src/cli/args.ts`: `CLI_OPTIONS` with `preset`, `cache`, `stack`, `with-auth, with-api, with-email, with-analytics, with-cache, with-eve, with-i18n`, `CreateParsed` includes withEve/withI18n.
+- `src/commands/create/index.ts`: decode interactive `__custom_*` prefixes (customFeatures 7-toggle includes eve/i18n), merge with CLI flags, set effectiveAuth/Api/Email/Analytics/Eve/I18n per preset (saas true, frontend false via features includes, custom via flags), validate `isValidAddonCombo` with hasAuth, pass `preset/cache/auth/api/email/analytics/eve/i18n` to `projectConfigSchema` (filters features eve/i18n out of features array, stores as eve/i18n booleans).
+- `src/commands/create/prompts.ts`: preset-first wizard. First `What are you building?` select saas/frontend/custom. Branch: saas → mode, framework, database, billing, apps, features (eve/i18n); frontend → mode, stack (nextjs|tanstack-start|expo|both), install; custom → mode, framework, database, apps, addons 7-toggle (auth/api/email/analytics/cache/eve/i18n) + billing + install. Custom addons encoded as `__custom_*` for outer handler.
+- `src/templates/modes/monorepo/index.ts` + `single/index.ts`: buildAddonInstallerMap with `eve: config.eve, i18n: config.i18n` passthrough, `hasEve/hasI18n` includes `config.eve` fallback, conditional `servicesComposerFiles` etc., `hasAuth/hasApi/hasAnalytics/hasEmail/hasCache` derived from map; frontend minimal: `packagesComposerFiles` without analytics when off, database stub when none, `cacheComposerFiles` only when hasCache, auth/api filtered via `hasAuth` etc. Stripping: disabled packages removed via path/content filters + workspace deps removal in `root-composer.ts`/`services-composer.ts`.
+- `src/cli/help.ts`: list --preset/--cache/--stack/--with-* (7 flags) + --features deprecated note.
+
+To add a new addon: add to `optionalAddons` + `presetDefaults` + `projectConfigSchema` + `CLI_OPTIONS` + `parseCreateArgs` + `create/index.ts` effective handling + `prompts.ts` custom checklist + `buildAddonInstallerMap` + help/skills + template conditional composer + env if needed.
+
+### New Feature (eve, i18n) — now addons
+
+Unified as addons via `--with-eve/--with-i18n` (preferred) + deprecated `--features eve,i18n` alias. New template still lives in `src/templates/eve/` and `src/templates/i18n/` but is now gated by `hasEve/hasI18n` from addon map (not just features). Wiring same: `services-composer.ts` / `agents-composer.ts` / `core-services-aggregator.ts` + env + tests. Add via addon flow above, not via old `availableFeatures`-only flow.
 
 ### New Env Var — 5-Place + Skills (Critical)
 
@@ -110,6 +125,9 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - host `bunfig.toml` isolated hoist=false hermetic, generated hoist=true Next compat (TS7 quirk)
 - TS 6.0.3 stable not 7 — Next detection + Bun runner
 - build verifies real d.ts >10 bytes not fake `export {}` stub
+- Cache via Upstash Redis `@upstash/redis` 1.35.0 HTTP + memory fallback; env `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` placeholder `REPLACE_WITH_...` when cache off, real URL when enabled; turbo globalEnv includes both; `packages/cache` only emitted when `cache===redis` (or `--with-cache`), otherwise stripped with workspace deps removal
+- Preset frontend: database `none` default, stub `packages/database` with `db: any` proxy to keep `@repo/database` import resolvable; auth stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for api/email/analytics/eve/i18n/cache/billing
+- Env prefix is framework-specific: `@repo/config` uses `@t3-oss/env-nextjs` (NEXT_PUBLIC_) for Next.js and `@t3-oss/env-core` with `clientPrefix: "VITE_"` for TanStack, emitting only that framework's public vars; listing both families together fails t3-env typecheck. Expo adds `EXPO_PUBLIC_` via separate config.
 
 ## Testing
 

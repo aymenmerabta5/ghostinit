@@ -34,6 +34,8 @@ export interface GlobalOptions {
   withEmail?: boolean;
   withAnalytics?: boolean;
   withCache?: boolean;
+  withEve?: boolean;
+  withI18n?: boolean;
   rawMode?: string | string[];
   rawFramework?: string | string[];
   rawBilling?: string | string[];

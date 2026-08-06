@@ -33,6 +33,8 @@ export const projectConfigSchema = z.object({
   api: z.boolean().optional(),
   email: z.boolean().optional(),
   analytics: z.boolean().optional(),
+  eve: z.boolean().optional(),
+  i18n: z.boolean().optional(),
   billing: z.array(z.enum(billingProviders)).default([]),
   features: z.array(z.enum(availableFeatures)).default([]),
   database: z.enum(availableDatabases).default("postgres"),

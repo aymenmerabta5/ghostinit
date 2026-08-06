@@ -13,28 +13,43 @@ GhostInit is a CLI that scaffolds well-structured monorepos. This skill enables 
 
 ```bash
 bun add -g ghostinit
-ghostinit create my-app                          # interactive (TTY)
-ghostinit create my-app --yes --no-install       # non-interactive CI-friendly
-ghostinit create my-app --billing stripe,chargily --features eve,i18n --framework tanstack-start --database postgres
+ghostinit create my-app                          # interactive preset-first wizard (TTY)
+ghostinit create my-app --yes --no-install       # non-interactive CI-friendly (defaults to --preset saas)
+ghostinit create my-app --preset frontend --stack nextjs --yes --no-install   # minimal frontend: apps/web + ui + config only
+ghostinit create my-app --preset saas --billing stripe,chargily --framework tanstack-start --database postgres --with-eve --with-i18n --yes --no-install
+ghostinit create my-app --preset custom --with-auth --with-api --with-cache --with-eve --yes --no-install   # pick addons explicitly
+# --features eve,i18n still works as deprecated alias for --with-eve/--with-i18n
 ```
 
 Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with letter.
 
 ## Create Options
 
-| Flag             | Values                                                    | Default    | Guidance                                                                                                                                            |
-| ---------------- | --------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--mode`         | `monorepo`, `single`                                      | `monorepo` | monorepo = `apps/* + packages/* + tooling/*`                                                                                                        |
-| `--framework`    | `nextjs`, `tanstack-start`                                | `nextjs`   | Next 16.2.10 App Router vs TanStack Start Vite+Nitro                                                                                                |
-| `--apps`         | `web,mobile,both,all` comma/repeat                        | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 54 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, both=apps/web+apps/mobile monorepo |
-| `--billing`      | `stripe,chargily,paddle,polar,both,all,none` or any combo | `none`     | `chargily` DZ checkout-only, `stripe` global cards, `chargily,stripe` dual, `all` all 4                                                             |
-| `--features`     | `eve,i18n` or `eve,i18n` combo                            | `none`     | `eve` durable AI agents, `i18n` next-intl                                                                                                           |
-| `--database`     | `postgres,convex,none`                                    | `postgres` | `billing` requires `postgres` or `convex`                                                                                                           |
-| `--cwd`          | path                                                      | `.`        | parent where `<name>` folder created                                                                                                                |
-| `--no-install`   | flag                                                      | installs   | skip bun install                                                                                                                                    |
-| `--yes` / `--ci` | flag                                                      | prompt     | non-interactive, use defaults/flags                                                                                                                 |
-| `--json`         | flag                                                      | text       | machine JSON `{success,exitCode,data                                                                                                                | error,meta}` |
-| `--force`        | flag                                                      | off        | bypass dirty git + drift checks                                                                                                                     |
+| Flag               | Values                                                    | Default    | Guidance                                                                                                                                            |
+| ------------------ | --------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--preset`         | `saas`, `frontend`, `custom`                              | `saas`     | saas=full Auth+DB+API+Email+Analytics+optional billing/cache; frontend=minimal apps/web+ui+config only; custom=pick via --with-*                    |
+| `--mode`           | `monorepo`, `single`                                      | `monorepo` | monorepo = `apps/* + packages/* + tooling/*`                                                                                                        |
+| `--framework`      | `nextjs`, `tanstack-start`                                | `nextjs`   | Next 16.2.10 App Router vs TanStack Start Vite+Nitro                                                                                                |
+| `--apps`           | `web,mobile,both,all` comma/repeat                        | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 54 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, both=apps/web+apps/mobile monorepo |
+| `--billing`        | `stripe,chargily,paddle,polar,both,all,none` or any combo | `none`     | `chargily` DZ checkout-only, `stripe` global cards, `chargily,stripe` dual, `all` all 4                                                             |
+| `--database`       | `postgres,convex,none`                                    | `postgres` | `billing` requires `postgres` or `convex`; `auth` also requires `postgres` or `convex`                                                              |
+| `--cache`          | `redis`, `none` (`upstash` alias for redis)               | `none`     | Cache via Upstash Redis (@upstash/redis 1.35.0) + memory fallback when REPLACE_WITH placeholder; or `none`                                          |
+| `--stack`          | `nextjs`, `tanstack-start`, `expo`, `both`                | —          | Frontend shorthand for --preset frontend: maps to --framework + --apps (expo→apps mobile)                                                           |
+| `--with-auth`      | flag                                                      | off        | Opt-in Better Auth (requires DB postgres or convex) — for --preset custom (saas forces on, frontend forces off)                                     |
+| `--with-api`       | flag                                                      | off        | Opt-in oRPC API contract-first transport — for custom preset                                                                                        |
+| `--with-email`     | flag                                                      | off        | Opt-in Resend email templates — for custom preset                                                                                                   |
+| `--with-analytics` | flag                                                      | off        | Opt-in PostHog analytics — for custom preset                                                                                                        |
+| `--with-cache`     | flag                                                      | off        | Opt-in Upstash Redis cache (same as --cache redis) — for custom preset                                                                              |
+| `--with-eve`       | flag                                                      | off        | Opt-in Eve durable AI agent hybrid via withEve() — for custom preset; --features eve is deprecated alias                                            |
+| `--with-i18n`      | flag                                                      | off        | Opt-in next-intl i18n routing — for custom preset; --features i18n is deprecated alias                                                              |
+| `--features`       | `eve,i18n` (deprecated)                                   | `none`     | Deprecated alias for --with-eve/--with-i18n; case-insensitive deduped, partially unknown tolerated, fully unknown throws                            |
+| `--cwd`            | path                                                      | `.`        | parent where `<name>` folder created                                                                                                                |
+| `--no-install`     | flag                                                      | installs   | skip bun install                                                                                                                                    |
+| `--yes` / `--ci`   | flag                                                      | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                   |
+| `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}`                                                                                                  |
+| `--force`          | flag                                                      | off        | bypass dirty git + drift checks                                                                                                                     |
+
+Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing stripe,chargily`. Addons repeatable: `--with-auth --with-api` or `--with-auth --with-eve`. Frontend preset: database defaults to `none` and disables auth/api/email/analytics/cache/eve/i18n unless explicitly enabled via --with-_. SaaS preset: enables auth/api/email/analytics true and database postgres default. Custom preset: all addons off by default, pick via --with-_ plus billing/database/framework/apps; interactive custom shows 7-toggle checklist (auth, api, email, analytics, cache, eve, i18n) plus billing.
 
 Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing stripe,chargily`. Same for features.
 
@@ -63,15 +78,23 @@ Env to fill in `.env.local`:
 
 ## Generated Structure
 
+Preset determines which packages are emitted:
+
+- **frontend** (`--preset frontend`): `apps/web` (+ `apps/mobile` when stack=expo/both) + `packages/ui` + `packages/config` + `tooling/*` plus lightweight supporting packages (`contracts`, `kernel`, `observability`, `typescript-config`, etc.) — ~134 files, no `api/auth/database/email/analytics/billing/cache/eve/i18n` unless --with-* overrides. Database defaults to `none` (stub). Smallest is ~135 files vs SaaS full ~216.
+- **saas** (`--preset saas` default): full: `apps/web` (+ optional mobile/eve) + all packages (`api`, `auth`, `database` postgres, `email`, `analytics`, `billing` if selected, `cache` if selected, `services`, `modules`, `contracts`, `kernel`, `observability`, etc.) + `tooling` — ~216 files (plus eve/cache/billing add more).
+- **custom** (`--preset custom`): only what you pick via `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n` plus `--billing/--database/--framework/--apps` — e.g. `--with-auth --with-api --with-cache --cache redis` yields ~221 files with auth/api/cache but without email/analytics unless added.
+
 ```
 my-app/
   apps/web                  # frontend: Next.js app router or TanStack Start src/routes
-  apps/mobile (optional)    # Expo SDK 54 Router file-based app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore, expo-linking
-  packages/api              # oRPC contract + router
-  packages/auth             # Better Auth email/password, 2FA, admin
-  packages/database         # Drizzle ORM + schema registry
+  apps/mobile (optional)    # Expo SDK 54 Router file-based app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore, expo-linking (when --apps mobile|both)
+  apps/eve (optional)       # Eve agent hybrid via withEve() when --with-eve selected
+  packages/api              # oRPC contract + router (only when --with-api or saas)
+  packages/auth             # Better Auth email/password, 2FA, admin (only when --with-auth or saas; requires DB)
+  packages/database         # Drizzle ORM + schema registry (postgres/convex, or stub when none)
+  packages/cache            # Upstash Redis (@upstash/redis) + memory fallback (only when --with-cache/--cache redis)
   packages/modules/src/<m>/ # bounded contexts: domain/, application/, ports/
-  packages/billing          # billing capabilities + providers (vendors)
+  packages/billing          # billing capabilities + providers (vendors, only when billing selected)
   packages/services, email, analytics, ui, config, observability, contracts, kernel
   tooling/typescript-config # shared TS base ES2024 @/* @repo/*
   tooling/lint              # oxlint + oxfmt
@@ -80,7 +103,7 @@ my-app/
   .env.example / .env.local / .ghostinit/state.json / start-database.sh
 ```
 
-Single mode: flat Next.js `src/app + server/` no workspaces; Expo single `app/` + `src/server/` with `app.json`.
+Single mode: flat Next.js `src/app + server/` no workspaces; Expo single `app/` + `src/server/` with `app.json`. Frontend single similarly minimal: single file tree with only ui+config.
 
 App targets: `--apps` controls which apps scaffolded:
 
@@ -119,13 +142,22 @@ Any combo intentional Algeria+Global:
 
 Includes conditional panels, webhook raw body handling, `webhook_events` idempotency. See `references/billing.md`.
 
-## Frameworks & Features
+## Preset & Addon System
+
+- `--preset saas` (default): full SaaS starter — Auth+DB (postgres) + API + Email + Analytics enabled. Add billing/cache/eve/i18n optionally via --with-* or --billing/--with-eve etc. Interactive wizard asks framework, database (postgres|convex), billing, apps, features (eve/i18n).
+- `--preset frontend`: minimal frontend only — `apps/web` + `packages/ui` + `packages/config` + `tooling` (~134 files) + supporting contracts/kernel etc., with `database=none` and all addons disabled unless explicitly added via --with-*. Interactive asks stack (nextjs|tanstack-start|expo|both) and mode only (3 prompts).
+- `--preset custom`: fully custom — all addons off by default (auth/api/email/analytics/cache/eve/i18n none, database none). Pick any via `--with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n` plus `--billing/--database/--framework/--apps`. Interactive shows 7-toggle addon checklist + billing + framework + database + apps (most control).
+
+Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables Upstash Redis via `@upstash/redis` 1.35.0 HTTP (edge/serverless safe, no TCP) + in-memory fallback when `UPSTASH_REDIS_REST_URL` is `REPLACE_WITH_...` placeholder. Auth requires DB (postgres or convex) — validation fails if `--with-auth` with `--database none`.
+
+## Frameworks & Features (Addons)
 
 - `nextjs` → `NEXT_PUBLIC_*`, `.next/**`
 - `tanstack-start` → `VITE_*`, Vite+Nitro `.vinxi/** .output/**`
-- Expo app target (`--apps mobile/both`) is NOT a framework — it is an app target: SDK 54, file-based `app/`, metro auto monorepo, SecureStore, `EXPO_PUBLIC_*` client prefix, Better Auth `expo()` plugin, oRPC via `EXPO_PUBLIC_API_URL` + `getCookie`, no Elysia, backend single port 3000 shared
-- `eve` → `withEve()` extra apps/packages, `i18n` → next-intl
-- All emit dual/triple env prefixes for client safety (`NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*`). See `references/frameworks.md`.
+- Expo app target (`--apps mobile/both`) is NOT a framework — it is an app target: SDK 54, file-based `app/`, metro auto monorepo, SecureStore, `EXPO_PUBLIC_*` client prefix, Better Auth `expo()` plugin (stripped when auth off—no auth-client/trustedOrigins/expo plugin emitted), oRPC via `EXPO_PUBLIC_API_URL` + `getCookie`, no Elysia, backend single port 3000 shared
+- `eve` → `withEve()` extra apps/eve + packages when `--with-eve` (or deprecated `--features eve`) — durable AI agent hybrid, conditional files; stripped entirely when off
+- `i18n` → next-intl routing when `--with-i18n` (or deprecated `--features i18n`) — conditional files; stripped when off
+- All emit dual/triple env prefixes for client safety (`NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*`) for client-safe vars. See `references/frameworks.md`.
 
 ## Shared Theming Web + Mobile (RNR + Uniwind)
 
@@ -161,15 +193,17 @@ Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17
 
 - `Invalid project name` → `^[a-z][a-z0-9-]*$`
 - `Billing requires postgres or convex` → `--database postgres`
+- `Auth requires a database (postgres or convex) but database is none` → add `--database postgres` or use `--preset saas` or `--with-auth` requires DB; `frontend` preset blocks auth unless you add DB
 - `Target directory already exists` → `--force` or new name/cwd
 - `Module does not exist` → `ghostinit add module <name>` first
 - `No GhostInit project state found` → project root with `.ghostinit/state.json`
 - `Generated registries out of sync` → `ghostinit sync`
 - `Drift: path: modified externally` → restore or `--force`
-- `BETTER_AUTH_SECRET must be at least 32` → `.env.local`
+- `BETTER_AUTH_SECRET must be at least 32` → `.env.local` (only when auth enabled; frontend without auth has no BETTER_AUTH_* vars)
 - `hoist` error → ensure `bunfig.toml` `hoist=true` generated
 - `workspace:*` error → TS7 not supported generated, TS 6.x
 - `Reserved module name` → collides `api,auth,database,config,ui,...` or JS reserved or `openapi,contract,router,context,index`
+- `Invalid --preset value` / `Invalid --cache value` → allowed `saas,frontend,custom` / `redis,none` (upstash alias for redis)
 
 See `references/workflows.md` for full end-to-end flows.
 
@@ -179,12 +213,12 @@ See `references/workflows.md` for full end-to-end flows.
 
 Whenever you change anything that affects HOW to use ghostinit as an abstraction, you MUST update this skill in the SAME PR — no exceptions:
 
-- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--quiet`, `--debug`, or any new flag
-- New billing provider, new framework, new database, new feature, new env var in `.env.example`/`.env.local`
+- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features` (alias), `--preset`, `--cache`, `--stack`, `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--quiet`, `--debug`, or any new flag
+- New billing provider, new framework, new database, new addon/feature, new env var in `.env.example`/`.env.local` (including `UPSTASH_REDIS_REST_URL` etc.)
 - New `add` subcommand or changed artifact shape (module/use-case/procedure/action)
-- Changed workflow (create→env→DB→dev→add→sync→check), new required step, new default, new interactive prompt
-- Changed generated structure (`apps/*`, `packages/*`, `tooling/*`, `turbo.json` globalEnv, `bunfig.toml`, `.env.example`, `start-database.sh`)
-- Changed troubleshooting, validation rule, reserved name, exit code, command behavior
+- Changed workflow (create→env→DB→dev→add→sync→check), new required step, new default, new interactive prompt (preset-first wizard: saas/frontend/custom branching)
+- Changed generated structure (`apps/*`, `packages/*`, `tooling/*`, `turbo.json` globalEnv, `bunfig.toml`, `.env.example`, `start-database.sh`) — preset determines which packages emitted (frontend minimal ~134 vs saas ~216)
+- Changed troubleshooting, validation rule (auth requires DB), reserved name, exit code, command behavior
 
 **Checklist (same PR, mandatory):**
 

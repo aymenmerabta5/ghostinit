@@ -72,6 +72,8 @@ export function turbo(runtime: "node" | "bun"): TemplateFile {
     "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY",
     "EXPO_PUBLIC_PADDLE_CLIENT_TOKEN",
     "EXPO_PUBLIC_PADDLE_ENVIRONMENT",
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
     // Convex — single source from CONVEX_ENV_KEYS plus explicit coverage for cache correctness
     ...CONVEX_ENV_KEYS,
   ];

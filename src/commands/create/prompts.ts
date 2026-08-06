@@ -390,7 +390,7 @@ export async function promptInteractive(
             }),
           customFeatures: () =>
             p.multiselect({
-              message: "Features — pick any (space to select)",
+              message: "Addons — pick any (space to select)",
               initialValues: [],
               required: false,
               options: [
@@ -399,6 +399,8 @@ export async function promptInteractive(
                 { value: "email", label: "Email", hint: "Resend templates" },
                 { value: "analytics", label: "Analytics", hint: "PostHog client+server" },
                 { value: "cache", label: "Cache (Redis)", hint: "Upstash Redis + memory fallback" },
+                { value: "eve", label: "Eve", hint: "durable AI agent hybrid" },
+                { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
               ],
             }),
           billing: () =>
@@ -412,16 +414,6 @@ export async function promptInteractive(
                 { value: "chargily", label: "Chargily", hint: "Algeria EDAHABIA/CIB" },
                 { value: "paddle", label: "Paddle", hint: "MoR" },
                 { value: "polar", label: "Polar", hint: "MoR + metering" },
-              ],
-            }),
-          features: () =>
-            p.multiselect({
-              message: "Additional features?",
-              initialValues: initial.features,
-              required: false,
-              options: [
-                { value: "eve", label: "Eve", hint: "durable AI agent hybrid" },
-                { value: "i18n", label: "i18n", hint: "next-intl" },
               ],
             }),
           install: () =>

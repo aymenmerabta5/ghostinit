@@ -67,6 +67,8 @@ export interface CreateFlagBag {
   "with-email"?: boolean;
   "with-analytics"?: boolean;
   "with-cache"?: boolean;
+  "with-eve"?: boolean;
+  "with-i18n"?: boolean;
 }
 
 export interface ParsedCreateArgs {
@@ -84,6 +86,8 @@ export interface ParsedCreateArgs {
   withEmail: boolean | undefined;
   withAnalytics: boolean | undefined;
   withCache: boolean | undefined;
+  withEve: boolean | undefined;
+  withI18n: boolean | undefined;
 }
 
 function lastOrUndefined(value?: string | string[]): string | undefined {
@@ -138,13 +142,18 @@ export function parseCreateArgs(
   const preset = parsePresetInput(presetRaw);
   let cache = parseCacheInput(cacheRaw);
 
-  // with-* booleans override cache
-  const withAuth = bag["with-auth"] as boolean | undefined;
-  const withApi = bag["with-api"] as boolean | undefined;
-  const withEmail = bag["with-email"] as boolean | undefined;
-  const withAnalytics = bag["with-analytics"] as boolean | undefined;
+  // with-* booleans override cache + handle --features alias for eve/i18n (backward compat)
+  let withAuth = bag["with-auth"] as boolean | undefined;
+  let withApi = bag["with-api"] as boolean | undefined;
+  let withEmail = bag["with-email"] as boolean | undefined;
+  let withAnalytics = bag["with-analytics"] as boolean | undefined;
   const withCacheFlag = bag["with-cache"] as boolean | undefined;
+  let withEve = bag["with-eve"] as boolean | undefined;
+  let withI18n = bag["with-i18n"] as boolean | undefined;
   if (withCacheFlag) cache = "redis";
+  // --features eve/i18n is alias for --with-eve/--with-i18n (unified addons)
+  if (features.includes("eve" as never) && withEve === undefined) withEve = true;
+  if (features.includes("i18n" as never) && withI18n === undefined) withI18n = true;
 
   // stack helper overrides framework+apps (for frontend shorthand)
   if (stackRaw) {
@@ -174,6 +183,8 @@ export function parseCreateArgs(
     withEmail,
     withAnalytics,
     withCache: withCacheFlag,
+    withEve,
+    withI18n,
   };
 }
 

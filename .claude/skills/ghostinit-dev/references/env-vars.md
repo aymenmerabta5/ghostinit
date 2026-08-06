@@ -29,6 +29,8 @@ export const ENV_PLACEHOLDERS = {
   POLAR_WEBHOOK_SECRET: "REPLACE_WITH_POLAR_WEBHOOK_SECRET",
   POLAR_ORG_ID: "REPLACE_WITH_POLAR_ORG_ID",
   POSTHOG_KEY: "phc_REPLACE_WITH_POSTHOG_KEY",
+  UPSTASH_REDIS_REST_URL: "REPLACE_WITH_UPSTASH_REDIS_REST_URL",
+  UPSTASH_REDIS_REST_TOKEN: "REPLACE_WITH_UPSTASH_REDIS_REST_TOKEN",
   // add new here:
   MYNEW_API_KEY: "REPLACE_WITH_MYNEW_API_KEY",
 } as const;
@@ -46,6 +48,7 @@ Split from 449 LOC god file into:
 - `core.ts`: `coreEnvExampleLines`, `coreEnvLocalLines`, `resendExampleLines`, `resendLocalLines`
   - Core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, `NEXT_PUBLIC_APP_URL` + VITE duplicate, `TRUSTED_PROXY`, `POSTGRES_*`, `DATABASE_SSL`, etc.
   - Resend: `RESEND_API_KEY`, `EMAIL_FROM`.
+  - Cache (Upstash): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts` — always emitted (placeholder when cache off) + turbo globalEnv exhaustive.
 
 - `builders.ts`: `envExampleContent(projectName,secrets,selectedBilling,hasEve,hasI18n,runtime)`, `envLocalContent(...)`, `envPlaceholderContent()`, `filteredEnvExample(projectName,secrets,selectedBilling,...)` which `root-composer.ts` uses to replace raw .env.example file, `filteredEnvLocal`.
 
@@ -134,6 +137,8 @@ export function turbo() {
         "DATABASE_SSL",
         "DATABASE_SSL_CA",
         "DATABASE_POOL_SIZE",
+        "UPSTASH_REDIS_REST_URL",
+        "UPSTASH_REDIS_REST_TOKEN",
         // add new here:
         "MYNEW_API_KEY",
         "NEXT_PUBLIC_MYNEW_KEY",

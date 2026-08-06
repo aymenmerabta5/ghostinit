@@ -56,13 +56,19 @@ export function singleFiles(
       api: config.api,
       email: config.email,
       analytics: config.analytics,
+      eve: config.eve,
+      i18n: config.i18n,
     });
 
   const hasEve = Boolean(
-    hasAddon(addonMap, "eve") || (config.features ?? []).includes("eve" as FeatureName),
+    hasAddon(addonMap, "eve") ||
+    (config.features ?? []).includes("eve" as FeatureName) ||
+    config.eve,
   );
   const hasI18n = Boolean(
-    hasAddon(addonMap, "i18n") || (config.features ?? []).includes("i18n" as FeatureName),
+    hasAddon(addonMap, "i18n") ||
+    (config.features ?? []).includes("i18n" as FeatureName) ||
+    config.i18n,
   );
   const selectedBilling = selectedBillingFromAddons(addonMap);
   const effectiveBilling: BillingProviderName[] =

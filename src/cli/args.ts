@@ -34,6 +34,8 @@ export const CLI_OPTIONS = {
   "with-email": { type: "boolean" as const, default: false },
   "with-analytics": { type: "boolean" as const, default: false },
   "with-cache": { type: "boolean" as const, default: false },
+  "with-eve": { type: "boolean" as const, default: false },
+  "with-i18n": { type: "boolean" as const, default: false },
 };
 
 export interface ParsedCli {
@@ -73,6 +75,8 @@ export interface CreateParsed {
   withEmail?: boolean;
   withAnalytics?: boolean;
   withCache?: boolean;
+  withEve?: boolean;
+  withI18n?: boolean;
 }
 
 export function parseCreateSpecific(
@@ -95,6 +99,8 @@ export function parseCreateSpecific(
       "with-email": getBoolean(values["with-email"]),
       "with-analytics": getBoolean(values["with-analytics"]),
       "with-cache": getBoolean(values["with-cache"]),
+      "with-eve": getBoolean(values["with-eve"]),
+      "with-i18n": getBoolean(values["with-i18n"]),
     } as Record<string, unknown>;
     return parseCreateArgs(raw as never) as CreateParsed;
   }
@@ -145,6 +151,8 @@ export function buildGlobalOptions(
     withEmail: createParsed.withEmail,
     withAnalytics: createParsed.withAnalytics,
     withCache: createParsed.withCache,
+    withEve: createParsed.withEve,
+    withI18n: createParsed.withI18n,
     rawMode: getStringArray(values.mode),
     rawFramework: getStringArray(values.framework),
     rawBilling: getStringArray(values.billing),

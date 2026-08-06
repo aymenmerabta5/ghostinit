@@ -36,6 +36,23 @@ function analyticsPublicLines(audience: EnvAudience): string[] {
   ];
 }
 
+function cacheEnvExampleLines(): string[] {
+  return [
+    "# Cache — Upstash Redis (used when --cache redis or --with-cache)",
+    `UPSTASH_REDIS_REST_URL=${ENV_PLACEHOLDERS.UPSTASH_REDIS_REST_URL}`,
+    `UPSTASH_REDIS_REST_TOKEN=${ENV_PLACEHOLDERS.UPSTASH_REDIS_REST_TOKEN}`,
+  ];
+}
+
+function cacheEnvLocalLines(): string[] {
+  // Upstash is third-party, never minted — placeholder stays until user fills
+  return [
+    "# Cache — Upstash Redis",
+    `UPSTASH_REDIS_REST_URL=${ENV_PLACEHOLDERS.UPSTASH_REDIS_REST_URL}`,
+    `UPSTASH_REDIS_REST_TOKEN=${ENV_PLACEHOLDERS.UPSTASH_REDIS_REST_TOKEN}`,
+  ];
+}
+
 export function envExampleContent(
   projectName: string,
   billingProviders: BillingProviderName[] = [],
@@ -52,6 +69,8 @@ export function envExampleContent(
   lines.push(...billingEnvLines(billingProviders, audience));
   if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
   lines.push(...analyticsEnvLines(audience));
+  lines.push("");
+  lines.push(...cacheEnvExampleLines());
   lines.push("");
   if (mode === "monorepo") {
     lines.push("# oRPC contract-first, single port 3000");
@@ -128,6 +147,8 @@ export function envLocalContent(
   else lines.push(...billingEnvLocalLinesFiltered(secrets, billingProviders, audience));
   lines.push(...analyticsPublicLines(audience));
   lines.push("");
+  lines.push(...cacheEnvLocalLines());
+  lines.push("");
   lines.push(`# Runtime ${effectiveRuntime}`);
   lines.push(`RUNTIME=${effectiveRuntime}`);
   lines.push("");
@@ -171,6 +192,8 @@ export function filteredEnvLocal(
   lines.push(...resendLocalLines(projectName, secrets));
   lines.push(...billingEnvLocalLinesFiltered(secrets, selectedBilling, audience));
   lines.push(...analyticsPublicLines(audience));
+  lines.push("");
+  lines.push(...cacheEnvLocalLines());
   lines.push("");
   if (mode === "monorepo") {
     lines.push("# oRPC contract-first, single port 3000");
