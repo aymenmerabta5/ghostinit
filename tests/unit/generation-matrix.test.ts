@@ -67,6 +67,35 @@ const CORNERS: Corner[] = [
     config: cfg({ features: ["eve", "i18n"] }),
   },
   { label: "monorepo/next/none/no-billing", config: cfg({ database: "none" }) },
+  {
+    label: "monorepo/next/postgres/frontend+desktop",
+    config: cfg({
+      preset: "frontend",
+      apps: ["desktop"],
+      database: "none",
+    } as Partial<ProjectConfig>),
+  },
+  {
+    label: "monorepo/next/postgres/web,desktop+billing-all",
+    config: cfg({ apps: ["web", "desktop"], billing: ["stripe", "chargily", "paddle", "polar"] }),
+  },
+  {
+    label: "monorepo/tanstack/convex/desktop+billing",
+    config: cfg({
+      framework: "tanstack-start",
+      database: "convex",
+      apps: ["web", "desktop"],
+      billing: ["stripe"],
+    }),
+  },
+  {
+    label: "single/desktop/postgres/no-billing",
+    config: cfg({
+      mode: "single",
+      apps: ["desktop"],
+      database: "postgres",
+    } as Partial<ProjectConfig>),
+  },
 ];
 
 function filesFor(config: ProjectConfig): TemplateFile[] {

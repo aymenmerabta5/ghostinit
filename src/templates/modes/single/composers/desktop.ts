@@ -5,7 +5,6 @@ import type { RootSecrets } from "../../../root.js";
 import {
   desktopPackageJsonContent,
   desktopViteConfigContent,
-  desktopTsconfigContent,
   desktopMainContent,
   desktopPreloadContent,
   desktopRendererHtmlContent,
@@ -13,10 +12,12 @@ import {
   desktopRendererCssContent,
   desktopOrpcContent,
   desktopAuthContent,
+  desktopAuthStubContent,
   desktopThemeProviderContent,
   desktopThemeToggleContent,
   desktopProvidersContent,
   desktopUseAuthContent,
+  desktopUseAuthStubContent,
   desktopRouteRootContent,
   desktopRouteIndexContent,
   desktopRouteDashboardContent,
@@ -62,10 +63,33 @@ export function buildDesktopFiles(
   void hasI18n;
   void secrets;
   void _billing;
+  const hasAuth = Boolean((addons as Record<string, { inUse?: boolean }> | undefined)?.auth?.inUse);
+  const authLib = hasAuth ? desktopAuthContent() : desktopAuthStubContent();
+  const useAuthHook = hasAuth ? desktopUseAuthContent() : desktopUseAuthStubContent();
+  const singleTsconfig = JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        module: "ESNext",
+        moduleResolution: "bundler",
+        jsx: "react-jsx",
+        strict: true,
+        esModuleInterop: true,
+        skipLibCheck: true,
+        forceConsistentCasingInFileNames: true,
+        baseUrl: ".",
+        paths: { "@/*": ["src/renderer/*"] },
+        types: ["node"],
+      },
+      include: ["src/**/*", "electron.vite.config.ts"],
+    },
+    null,
+    2,
+  );
   return [
     singleDesktopPackageJson(projectName, runtime, addons),
     file("electron.vite.config.ts", desktopViteConfigContent()),
-    file("tsconfig.json", desktopTsconfigContent()),
+    file("tsconfig.json", singleTsconfig),
     file("electron-builder.yml", desktopElectronBuilderYmlContent(projectName)),
     file("src/main.ts", desktopMainContent()),
     file("src/preload.ts", desktopPreloadContent()),
@@ -73,11 +97,11 @@ export function buildDesktopFiles(
     file("src/renderer/main.tsx", desktopRendererMainContent()),
     file("src/renderer/index.css", desktopRendererCssContent()),
     file("src/renderer/lib/orpc.ts", desktopOrpcContent()),
-    file("src/renderer/lib/auth.ts", desktopAuthContent()),
+    file("src/renderer/lib/auth.ts", authLib),
     file("src/renderer/lib/theme.tsx", desktopThemeProviderContent()),
     file("src/renderer/lib/providers.tsx", desktopProvidersContent()),
     file("src/renderer/components/theme-toggle.tsx", desktopThemeToggleContent()),
-    file("src/renderer/hooks/useAuth.ts", desktopUseAuthContent()),
+    file("src/renderer/hooks/useAuth.ts", useAuthHook),
     file("src/renderer/routes/__root.tsx", desktopRouteRootContent()),
     file("src/renderer/routes/index.tsx", desktopRouteIndexContent()),
     file("src/renderer/routes/dashboard.tsx", desktopRouteDashboardContent()),

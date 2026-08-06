@@ -31,8 +31,27 @@ export function checkServerOnlyClient(
     file.includes("apps/desktop/src/renderer") || file.includes("src/renderer");
   if (!directives.has("use client") && !isDesktopRenderer) return;
 
+  // Desktop renderer is treated as client-side: must not import server-only packages.
+  // Only better-auth/react (client) via ../lib/auth.ts is allowed — direct @repo/auth is forbidden.
+  // This is stricter than web where api routes are server-side; desktop renderer is always client.
   const serverOnly = new Set(["@repo/database", "@repo/auth", "@repo/modules", "@repo/api"]);
   const basePkg = getBasePackage(imp);
+  const isDesktopRendererFile = isDesktopRenderer;
+
+  // For desktop renderer, forbid direct @repo/auth import — must go via lib/auth.ts (better-auth/react)
+  if (
+    isDesktopRendererFile &&
+    (imp === "@repo/auth" || basePkg === "@repo/auth" || imp.startsWith("@repo/auth/"))
+  ) {
+    findings.push({
+      id: "client-imports-server-only",
+      severity: "HIGH",
+      message: `Desktop renderer must not import @repo/auth server directly: ${imp} — use better-auth/react via ../lib/auth.ts instead`,
+      file,
+      rule: "client-boundary",
+    });
+    return;
+  }
 
   const isAllowedApiImport =
     (imp === "@repo/api" || basePkg === "@repo/api") &&

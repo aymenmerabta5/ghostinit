@@ -25,7 +25,7 @@ ghostinit create my-app
 - `ghostinit check` – run the architecture checker (GhostInit Layered 6-layer + vendor/capability isolation)
 - `ghostinit sync [--check]` – rebuild deterministic registries
 - `ghostinit add module <name>` – add an empty bounded-context module
-- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --features eve,i18n --database postgres|convex|none`
+- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
 
 ## Development
 

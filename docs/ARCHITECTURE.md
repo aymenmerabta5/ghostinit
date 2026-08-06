@@ -99,11 +99,12 @@ What we mean by "modular monolith inspired": well-structured monorepo with archi
 
 ```
 Level 1 — UI
-  Path: apps/web/src/{components,app,routes}, src/routes (TanStack single)
+  Path: apps/web/src/{components,app,routes}, src/routes (TanStack single), apps/desktop/src/renderer (Electron TanStack Router SPA), apps/mobile (Expo)
         also apps/web is generic heuristic, src/routes considered UI
   May import: Transport (2), Domain (3), Capabilities (4), Vendors (5), Supporting (6)
   Forbidden: UI importing vendor directly → vendor-isolation HIGH, must go via capability. UI → @repo/billing → Vendors.
   Example: apps/web/src/app/(dashboard)/billing/page.tsx → @repo/billing (capability)
+  Desktop strict isolation: apps/desktop/src/renderer must not import @repo/database/@repo/services/@repo/auth server directly — only via @repo/api (Transport) + better-auth/react via lib/auth.ts + electron-* via main/preload. Enforced by client-boundary + layered checks.
 
 Level 2 — Transport
   Path: apps/api/, packages/api/, apps/web/src/app/rpc, apps/web/src/lib/orpc,

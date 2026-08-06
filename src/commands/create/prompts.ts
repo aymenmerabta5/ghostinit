@@ -237,6 +237,17 @@ export async function promptInteractive(
                 },
               ],
             }),
+          apps: () =>
+            p.multiselect({
+              message: "App targets? (space to select, enter to confirm)",
+              initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
+              required: false,
+              options: [
+                { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
+                { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
+                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
+              ],
+            }),
           install: () =>
             p.confirm({
               message: "Install dependencies with Bun?",
@@ -484,15 +495,36 @@ export async function promptInteractive(
   if (presetValue === "frontend") {
     const stackVal = (group.stack as string | undefined) ?? "nextjs";
     stack = stackVal;
+    let baseFramework: PromptResult["framework"];
+    let baseApps: string[];
     if (stackVal === "expo") {
-      framework = "nextjs";
-      apps = ["mobile"];
+      baseFramework = "nextjs";
+      baseApps = ["mobile"];
     } else if (stackVal === "both") {
-      framework = "nextjs";
-      apps = ["web", "mobile"];
+      baseFramework = "nextjs";
+      baseApps = ["web", "mobile"];
     } else {
-      framework = stackVal as PromptResult["framework"];
-      apps = ["web"];
+      baseFramework = stackVal as PromptResult["framework"];
+      baseApps = ["web"];
+    }
+    // If apps multiselect was answered (new), it overrides stack-derived apps (allows desktop)
+    const appsFromPrompt = (group.apps as string[] | undefined) ?? undefined;
+    if (appsFromPrompt && appsFromPrompt.length > 0) {
+      // Normalize apps selection; if user explicitly selected via multiselect, respect it
+      // but keep framework from stack (stack decides framework, apps decides targets)
+      try {
+        apps = normalizeAppsSelection(appsFromPrompt);
+        framework = baseFramework;
+        // If apps includes mobile but stack was nextjs, keep nextjs framework (mobile uses nextjs web stack)
+        // If apps is desktop-only, keep baseFramework as selected (nextjs or tanstack-start)
+        if (apps.length === 0) apps = baseApps;
+      } catch {
+        apps = baseApps;
+        framework = baseFramework;
+      }
+    } else {
+      apps = baseApps;
+      framework = baseFramework;
     }
     database = "none";
     billing = [];

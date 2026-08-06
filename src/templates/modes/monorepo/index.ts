@@ -178,19 +178,22 @@ export function monorepoFiles(
   if (!hasAuth) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        !f.path.startsWith("packages/auth/") &&
-        !f.path.includes("/auth") &&
-        !f.path.includes("auth-client"),
+        f.path.startsWith("apps/desktop/") ||
+        (!f.path.startsWith("packages/auth/") &&
+          !f.path.includes("/auth") &&
+          !f.path.includes("auth-client")),
     );
     // Also strip auth-related app routes that may have been emitted by apps composer
+    // Keep desktop auth routes (they use stub lib/auth) even when hasAuth false
     filteredFiles = filteredFiles.filter(
       (f) =>
-        !f.path.includes("apps/web/src/app/(auth)") &&
-        !f.path.includes("apps/web/src/app/auth") &&
-        !f.path.includes("sign-in") &&
-        !f.path.includes("sign-up") &&
-        !f.path.includes("two-factor") &&
-        !f.path.includes("2fa"),
+        f.path.startsWith("apps/desktop/") ||
+        (!f.path.includes("apps/web/src/app/(auth)") &&
+          !f.path.includes("apps/web/src/app/auth") &&
+          !f.path.includes("sign-in") &&
+          !f.path.includes("sign-up") &&
+          !f.path.includes("two-factor") &&
+          !f.path.includes("2fa")),
     );
   }
   if (!hasAnalytics) {
@@ -211,21 +214,26 @@ export function monorepoFiles(
     filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/cache/"));
   }
   // Content-based filtering for remaining files that import disabled packages
+  // Desktop is a standalone Electron SPA that ships its own minimal orpc/auth via http://localhost:3000
+  // even when host preset disables @repo/api/@repo/auth. Exempt desktop paths from host-level stripping.
+  const isDesktopPath = (p: string) => p.startsWith("apps/desktop/");
   if (!hasAuth) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        !f.content.includes('from "@repo/auth"') &&
-        !f.content.includes("from '@repo/auth'") &&
-        !f.content.includes('require("@repo/auth"') &&
-        !f.content.includes("auth-client"),
+        isDesktopPath(f.path) ||
+        (!f.content.includes('from "@repo/auth"') &&
+          !f.content.includes("from '@repo/auth'") &&
+          !f.content.includes('require("@repo/auth"') &&
+          !f.content.includes("auth-client")),
     );
   }
   if (!hasApi) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        !f.content.includes('from "@repo/api"') &&
-        !f.content.includes("from '@repo/api'") &&
-        !f.content.includes("lib/orpc"),
+        isDesktopPath(f.path) ||
+        (!f.content.includes('from "@repo/api"') &&
+          !f.content.includes("from '@repo/api'") &&
+          !f.content.includes("lib/orpc")),
     );
   }
   if (!hasAnalytics) {

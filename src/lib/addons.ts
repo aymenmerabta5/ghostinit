@@ -528,6 +528,10 @@ export function isValidAddonCombo(options: {
       message: "At least one app target required --apps web, mobile, desktop, or combos",
     };
   }
+  // Single mode flat layout: single+web, single+mobile, single+desktop each produce a flat 21-28 file
+  // scaffold (desktop single flat reuses desktop-core at root with src/renderer). All single+single-app
+  // combos are valid; only multi-app single is invalid (single expects flat, multi expects apps/*).
+  // The earlier audit's "single+desktop should block" is intentionally not enforced — single+desktop flat works.
   if (
     options.mode === "single" &&
     (apps as string[]).filter((a) => ["web", "mobile", "desktop"].includes(a)).length > 1

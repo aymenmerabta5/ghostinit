@@ -32,6 +32,31 @@ export function checkVendorIsolation(
   imp: string,
 ): void {
   if (isFrameworkEntryPoint(file)) return;
+  // Electron main/preload are legit Vendors consumers (electron, electron-updater, electron-store)
+  // They live at apps/desktop/src/main.ts / preload.ts and are allowed to import electron family.
+  // Only desktop renderer + web UI are restricted from direct vendor SDKs.
+  const isDesktopMainOrPreload =
+    file.includes("apps/desktop/src/main.ts") ||
+    file.includes("apps/desktop/src/preload.ts") ||
+    (file.endsWith("/src/main.ts") && file.includes("desktop")) ||
+    (file.endsWith("/src/preload.ts") && file.includes("desktop"));
+  if (isDesktopMainOrPreload) {
+    const base = getBasePackage(imp);
+    if (
+      imp === "electron" ||
+      imp.startsWith("electron/") ||
+      base === "electron" ||
+      imp === "electron-updater" ||
+      imp.startsWith("electron-updater") ||
+      base === "electron-updater" ||
+      imp === "electron-store" ||
+      imp.startsWith("electron-store") ||
+      base === "electron-store" ||
+      imp.startsWith("electron-vite")
+    ) {
+      return;
+    }
+  }
   const isWebUI =
     file.includes("apps/web") ||
     file.includes("apps/desktop") ||

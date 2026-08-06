@@ -27,7 +27,7 @@ Manual generation smoke:
 
 ```bash
 rm -rf /tmp/gi-test && mkdir /tmp/gi-test
-bunx ghostinit create demo --yes --no-install --cwd /tmp/gi-test --billing stripe,chargily --features eve,i18n
+bunx ghostinit create demo --yes --no-install --cwd /tmp/gi-test --billing stripe,chargily --with-eve --with-i18n --apps web,desktop --preset saas
 cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
 ```
 
@@ -95,7 +95,7 @@ key with no `sk_` prefix).
 - **Typed errors + JSON envelope** — use `ValidationError`, `ExitCode`, `envelope()`.
 - **Package versions** — never hardcode `^x.y.z` in templates; import `* as v` from `./versions.js` (re-export of `@repo/versions`). Internal deps use `workspace:*`.
 - **Billing flexibility** — any combo allowed: `none`, `stripe`, `chargily`, `chargily,stripe` (Algeria+Global), `all`. Parsing via `parseBillingInput()` case-insensitive deduped. Validation only blocks `billing + database=none`. Each provider needs 7 files (<300 LOC guideline each, `// @allow-long` escape if needed): `client.ts`, `checkout.ts`, `customer.ts`, `portal.ts`, `webhook.ts`, `subscriptions.ts`, `mappers.ts` + barrel `index.ts` + wiring in `billing/webhooks/factory.ts` + `shared/env.ts` + UI panel.
-- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]`. Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
+- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`. Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
 
 ## Version Sync Gotcha
 

@@ -346,6 +346,27 @@ export const authClient = createAuthClient({
 `;
 }
 
+export function desktopAuthStubContent(): string {
+  return `// auth disabled — stub that throws like web when --database none
+throw new Error("[ghostinit] auth is disabled (--database none or --preset frontend). Enable auth via --with-auth or --preset saas to use Better Auth. Desktop authClient not configured.");
+
+export const authClient = null as unknown as ReturnType<typeof import("better-auth/react").createAuthClient>;
+`;
+}
+
+export function desktopUseAuthStubContent(): string {
+  return `throw new Error("[ghostinit] auth is disabled — useAuth not available without Better Auth. Enable --with-auth.");
+
+export function useAuth(): never {
+  throw new Error("[ghostinit] auth disabled");
+}
+
+export function useSession(): never {
+  throw new Error("[ghostinit] auth disabled");
+}
+`;
+}
+
 export function desktopThemeProviderContent(): string {
   return `import * as React from "react";
 
@@ -1304,9 +1325,9 @@ export const routeTree = RootRoute.addChildren([IndexRoute, DashboardRoute, Sett
 `;
 }
 
-export function desktopElectronBuilderYmlContent(_projectName: string): string {
-  return `appId: com.ghostinit.\${_projectName}
-productName: \${projectName}
+export function desktopElectronBuilderYmlContent(projectName: string): string {
+  return `appId: com.ghostinit.${projectName}
+productName: ${projectName}
 files:
   - dist/**/*
   - "!**/*.tsbuildinfo"
@@ -1338,6 +1359,9 @@ export function desktopCoreFiles(
   addons?: AddonInstallerMap,
 ): TemplateFile[] {
   const projectNamePlaceholder = "__PROJECT_NAME__";
+  const hasAuth = hasFeature(addons, "auth");
+  const authLib = hasAuth ? desktopAuthContent() : desktopAuthStubContent();
+  const useAuthHook = hasAuth ? desktopUseAuthContent() : desktopUseAuthStubContent();
   return [
     file("apps/desktop/package.json", desktopPackageJsonContent(runtime, addons)),
     file("apps/desktop/electron.vite.config.ts", desktopViteConfigContent()),
@@ -1352,11 +1376,11 @@ export function desktopCoreFiles(
     file("apps/desktop/src/renderer/main.tsx", desktopRendererMainContent()),
     file("apps/desktop/src/renderer/index.css", desktopRendererCssContent()),
     file("apps/desktop/src/renderer/lib/orpc.ts", desktopOrpcContent()),
-    file("apps/desktop/src/renderer/lib/auth.ts", desktopAuthContent()),
+    file("apps/desktop/src/renderer/lib/auth.ts", authLib),
     file("apps/desktop/src/renderer/lib/theme.tsx", desktopThemeProviderContent()),
     file("apps/desktop/src/renderer/lib/providers.tsx", desktopProvidersContent()),
     file("apps/desktop/src/renderer/components/theme-toggle.tsx", desktopThemeToggleContent()),
-    file("apps/desktop/src/renderer/hooks/useAuth.ts", desktopUseAuthContent()),
+    file("apps/desktop/src/renderer/hooks/useAuth.ts", useAuthHook),
     file("apps/desktop/src/renderer/routes/__root.tsx", desktopRouteRootContent()),
     file("apps/desktop/src/renderer/routes/index.tsx", desktopRouteIndexContent()),
     file("apps/desktop/src/renderer/routes/dashboard.tsx", desktopRouteDashboardContent()),
