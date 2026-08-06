@@ -1,5 +1,5 @@
-// @allow-long 900: desktop electron scaffold with tanstack router SPA + theme/updater/bridge
-// adapted from t3code desktop but minimal
+// @allow-long 1500: desktop electron scaffold with tanstack router SPA + theme/updater/bridge + full dashboard/settings/billing/admin
+// adapted from t3code desktop but minimal SPA client via orpc
 /**
  * Desktop core template — Electron 41 + Vite + TanStack Router SPA
  * Adapted from t3code apps/desktop but simplified for GhostInit SaaS starter.
@@ -716,7 +716,7 @@ function RootComponent() {
             <h1 className="text-sm font-semibold leading-none">{branding.name}</h1>
             <p className="text-xs text-muted-foreground">{branding.version ? \`v\${branding.version}\` : "Electron 41 • TanStack Router"}</p>
           </div>
-          <nav className="ml-4 flex items-center gap-1">
+          <nav className="ml-4 hidden md:flex items-center gap-1">
             <Link
               to="/"
               className="rounded-md px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
@@ -728,6 +728,24 @@ function RootComponent() {
               className="rounded-md px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
             >
               Dashboard
+            </Link>
+            <Link
+              to="/settings"
+              className="rounded-md px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+            >
+              Settings
+            </Link>
+            <Link
+              to="/billing"
+              className="rounded-md px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+            >
+              Billing
+            </Link>
+            <Link
+              to="/admin"
+              className="rounded-md px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+            >
+              Admin
             </Link>
           </nav>
         </div>
@@ -869,7 +887,9 @@ function IndexComponent() {
 
 export function desktopRouteDashboardContent(): string {
   return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
 import { useAuth } from "../hooks/useAuth";
+import { authClient } from "../lib/auth";
 import { orpc } from "../lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 
@@ -884,62 +904,383 @@ function DashboardComponent() {
     queryFn: () => orpc.me(),
     enabled: isAuthenticated,
   });
-  const posts = useQuery({
-    queryKey: ["posts"],
-    queryFn: () => orpc.posts.list(),
+  const billing = useQuery({
+    queryKey: ["billing", "subscriptions"],
+    queryFn: async () => {
+      const b = (orpc as unknown as { billing?: { subscriptions: () => Promise<unknown> } }).billing;
+      if (!b?.subscriptions) throw new Error("billing not configured");
+      return b.subscriptions();
+    },
     enabled: isAuthenticated,
+    retry: false,
   });
 
-  if (isPending) return <p className="text-sm">Loading auth…</p>;
+  if (isPending) return <p className="text-sm p-6">Loading auth…</p>;
   if (!isAuthenticated) {
     return (
       <div className="mx-auto max-w-2xl space-y-4 rounded-xl border p-6">
         <h2 className="text-lg font-semibold">Dashboard — sign in required</h2>
-        <p className="text-sm text-muted-foreground">
-          This dashboard calls <code>orpc.me()</code> and <code>orpc.posts.list()</code> with credentials. Sign in via the web first so the httpOnly cookie is shared.
-        </p>
-        <Link to="/" className="text-sm text-primary underline">
-          Back to home
-        </Link>
+        <p className="text-sm text-muted-foreground">Sign in via web at http://localhost:3000/sign-in. Desktop shares the httpOnly cookie + safeStorage bridge.</p>
+        <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">Dashboard</h2>
-        <span className="text-xs text-muted-foreground">Hello {user?.email}</span>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <Link to="/settings" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Settings</Link>
+            <button type="button" onClick={() => authClient.signOut()} className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90">Sign out</button>
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground max-w-[65ch]">Welcome back. Manage account, billing, and modules. Desktop mirrors web via oRPC + TanStack Query + Better Auth.</p>
+      </div>
+
+      <div className="h-px bg-border" />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="md:col-span-2 rounded-xl border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Profile</h3>
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs capitalize flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {String((user as { role?: string })?.role ?? "user")}</span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">Signed in as {String(user?.email ?? "")}. Name {String((user as { name?: string | null })?.name ?? "not set")}.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link to="/settings" className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent">Edit profile</Link>
+            <Link to="/billing" className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent">Billing</Link>
+            <Link to="/admin" className="rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent">Admin</Link>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Quick actions</h3>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link to="/settings" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Security & 2FA</Link>
+            <Link to="/billing" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Manage billing</Link>
+            <Link to="/admin/users" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Manage users</Link>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border bg-card p-4">
-          <div className="text-sm font-medium">Session (Better Auth)</div>
-          <p className="mt-1 text-xs text-muted-foreground">via useAuth() → authClient.useSession()</p>
-          <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify({ id: user?.id, email: user?.email, name: (user as { name?: string })?.name }, null, 2)}</pre>
+          <h3 className="text-sm font-semibold">Session (Better Auth)</h3>
+          <p className="text-xs text-muted-foreground mt-1">via useAuth() → authClient.useSession()</p>
+          <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify({ id: user?.id, email: user?.email, name: (user as { name?: string })?.name, role: (user as { role?: string })?.role }, null, 2)}</pre>
         </div>
         <div className="rounded-xl border bg-card p-4">
-          <div className="text-sm font-medium">oRPC me()</div>
-          <p className="mt-1 text-xs text-muted-foreground">QueryClient + RPCLink → http://localhost:3000/api</p>
-          <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">
-            {me.isPending ? "loading…" : JSON.stringify(me.data ?? (me.error as Error)?.message ?? me.error, null, 2)}
-          </pre>
-          {me.error ? <p className="mt-2 text-xs text-destructive">{String((me.error as Error).message ?? me.error)}</p> : null}
+          <h3 className="text-sm font-semibold">oRPC me()</h3>
+          <p className="text-xs text-muted-foreground mt-1">QueryClient + RPCLink → http://localhost:3000/api • credentials: include</p>
+          <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">{me.isPending ? "loading…" : JSON.stringify(me.data ?? (me.error as Error)?.message ?? me.error, null, 2)}</pre>
         </div>
       </div>
 
       <div className="rounded-xl border p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Posts (orpc.posts.list)</h3>
-          <span className="text-xs text-muted-foreground">{posts.isPending ? "loading…" : \`\${Array.isArray(posts.data) ? (posts.data as unknown[]).length : 0} items\`}</span>
+        <h3 className="text-sm font-semibold">Billing preview (oRPC)</h3>
+        <p className="text-xs text-muted-foreground mt-1">Calls billing.subscriptions when a provider is configured; otherwise shows empty state like web.</p>
+        {billing.isPending ? <p className="text-xs mt-3 text-muted-foreground">loading…</p> : billing.error ? <p className="text-xs mt-3 text-muted-foreground">No billing configured — add via ghostinit add billing. ({String((billing.error as Error).message)})</p> : <pre className="mt-3 max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">{JSON.stringify(billing.data, null, 2)}</pre>}
+        <p className="text-xs text-muted-foreground mt-2">No direct <code>@repo/database</code> import — only <code>@repo/api</code> via fetch. Architecture rule enforced.</p>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteSettingsContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "../hooks/useAuth";
+
+export const Route = createFileRoute("/settings")({
+  component: SettingsPage,
+});
+
+function SettingsPage() {
+  const { user, isPending, isAuthenticated } = useAuth();
+  if (isPending) return <p className="text-sm p-6">Loading…</p>;
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+        <h2 className="text-lg font-semibold">Settings — sign in required</h2>
+        <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="text-sm text-muted-foreground max-w-[65ch]">Manage account and workspace preferences. Desktop uses the same Better Auth session as web.</p>
+      </div>
+      <div className="h-px bg-border" />
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2 rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Profile</h3>
+          <p className="text-sm text-muted-foreground">Signed in as {String(user.email ?? "")}. Role {String((user as { role?: string })?.role ?? "user")}.</p>
+          <div className="mt-4 flex flex-col gap-2">
+            <label className="text-sm font-medium">Name</label>
+            <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" defaultValue={String((user as { name?: string | null })?.name ?? "")} readOnly placeholder="Not set" />
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="rounded-md bg-secondary px-2 py-1 text-xs">{String((user as { role?: string })?.role ?? "user")}</span>
+            <span className="rounded-md border px-2 py-1 text-xs">{String(user.email ?? "")}</span>
+          </div>
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+            <p className="text-xs font-medium">Profile editing</p>
+            <p className="text-xs text-muted-foreground mt-1">Use authClient.updateUser from client components. This SPA shows protected data via useAuth() → Better Auth + TanStack Query.</p>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Link to="/dashboard" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Dashboard</Link>
+            <Link to="/billing" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Billing</Link>
+          </div>
         </div>
-        {posts.error ? <p className="mt-2 text-xs text-destructive">{String((posts.error as Error).message ?? posts.error)}</p> : null}
-        <pre className="mt-3 max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">
-          {posts.isPending ? "…" : JSON.stringify(posts.data ?? posts.error, null, 2)}
-        </pre>
-        <p className="mt-2 text-xs text-muted-foreground">
-          No direct <code>@repo/database</code> or <code>@repo/services</code> import — only <code>@repo/api</code> via fetch. Architecture rule enforces this.
-        </p>
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Security</h3>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link to="/dashboard" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Two-factor</Link>
+            <button type="button" onClick={() => { const w = window as unknown as { desktopBridge?: { shellOpenExternal?: (u: string) => Promise<void> } }; w.desktopBridge?.shellOpenExternal?.("http://localhost:3000/forgot-password") ?? window.open("http://localhost:3000/forgot-password", "_blank"); }} className="rounded-md border px-3 py-2 text-sm hover:bg-accent text-left">Reset password (web)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteBillingContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "../hooks/useAuth";
+import { orpc } from "../lib/orpc";
+import { useQuery } from "@tanstack/react-query";
+
+export const Route = createFileRoute("/billing")({
+  component: BillingPage,
+});
+
+function BillingPage() {
+  const { isAuthenticated } = useAuth();
+  const subs = useQuery({
+    queryKey: ["billing", "subscriptions"],
+    queryFn: async () => {
+      const b = (orpc as unknown as { billing?: { subscriptions: () => Promise<unknown> } }).billing;
+      if (!b?.subscriptions) throw new Error("add billing via ghostinit add billing");
+      return b.subscriptions();
+    },
+    enabled: isAuthenticated,
+    retry: false,
+  });
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
+          <p className="text-sm text-muted-foreground max-w-[65ch]">Flexible billing — any combo stripe, chargily EDAHABIA, paddle, polar. Desktop uses same oRPC as web.</p>
+        </div>
+        <Link to="/dashboard" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Dashboard</Link>
+      </div>
+      <div className="h-px bg-border" />
+      <div className="rounded-xl border bg-card p-4">
+        <h3 className="text-sm font-semibold">Subscriptions</h3>
+        <p className="text-sm text-muted-foreground">Idempotent webhook handling, shared tables, oRPC contract-first.</p>
+        <div className="mt-4">
+          {!isAuthenticated ? <p className="text-sm text-muted-foreground">Sign in to view subscriptions.</p> : subs.isPending ? <p className="text-sm text-muted-foreground">Loading…</p> : subs.error ? (
+            <div className="rounded-md border bg-muted p-6 text-center">
+              <p className="text-sm font-medium">No billing configured</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[60ch] mx-auto">Add a billing provider via ghostinit add billing. Stripe global, Chargily Algeria EDAHABIA/CIB, Paddle MoR 5%+50c, Polar metering. ({String((subs.error as Error).message)})</p>
+              <div className="mt-3 flex justify-center gap-2">
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> stripe</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> chargily</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">paddle</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">polar</span>
+              </div>
+            </div>
+          ) : <pre className="overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">{JSON.stringify(subs.data, null, 2)}</pre>}
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteAdminContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAuth } from "../hooks/useAuth";
+
+export const Route = createFileRoute("/admin")({
+  component: AdminPage,
+});
+
+function AdminPage() {
+  const { user, isPending } = useAuth();
+  if (isPending) return <p className="text-sm p-6">Loading…</p>;
+  const role = (user as { role?: string } | null)?.role;
+  if (role !== "admin") {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+        <h2 className="text-lg font-semibold">Admin — forbidden</h2>
+        <p className="text-sm text-muted-foreground mt-2">You need admin role. Current role: {String(role ?? "none")}. Sign in as admin on web first.</p>
+        <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+        <Link to="/admin/users" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90">Manage users</Link>
+      </div>
+      <p className="text-sm text-muted-foreground max-w-[65ch]">Admin dashboard — manage users and roles. Uses authClient.admin.* via Better Auth.</p>
+      <div className="h-px bg-border" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Users</h3>
+          <p className="text-xs text-muted-foreground">List, ban, and promote users.</p>
+          <Link to="/admin/users" className="mt-3 inline-flex rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Open users</Link>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <h3 className="text-sm font-semibold">Create user</h3>
+          <p className="text-xs text-muted-foreground">Add accounts directly.</p>
+          <Link to="/admin/users/create" className="mt-3 inline-flex rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Create user</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteAdminUsersContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
+import { useAuth } from "../hooks/useAuth";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/admin/users")({
+  component: AdminUsersPage,
+});
+
+type AdminUser = { id: string; name: string | null; email: string; role: string; banned: boolean };
+
+function AdminUsersPage() {
+  const { user, isPending: authPending } = useAuth();
+  const [data, setData] = React.useState<{ users: AdminUser[]; total: number } | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const role = (user as { role?: string } | null)?.role;
+
+  const refresh = React.useCallback(async () => {
+    setError(null);
+    try {
+      const result = await authClient.admin.listUsers({ query: { limit: 100 } });
+      if ((result as { error?: { message?: string } }).error) {
+        setError((result as { error: { message?: string } }).error.message ?? "Failed to load users");
+        return;
+      }
+      const d = (result as { data?: { users: Array<{ id: string; name: string | null; email: string; role?: string; banned?: boolean }>; total: number } }).data;
+      if (d) setData({ users: d.users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: d.total });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  React.useEffect(() => { void refresh(); }, [refresh]);
+
+  if (authPending) return <p className="text-sm p-6">Loading…</p>;
+  if (role !== "admin") {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+        <h2 className="text-lg font-semibold">Forbidden</h2>
+        <p className="text-sm text-muted-foreground">Admin only.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+        <Link to="/admin/users/create" className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90">Create user</Link>
+      </div>
+      <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
+      <div className="h-px bg-border" />
+      {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3"><p className="text-sm font-medium">Failed to load</p><p className="text-xs text-muted-foreground">{error}</p></div> : null}
+      <div className="rounded-xl border bg-card">
+        <div className="p-4 border-b">
+          <h3 className="text-sm font-semibold">All users</h3>
+          <p className="text-xs text-muted-foreground">{data?.users.length === 0 ? "No users found." : \`\${data?.users.length ?? 0} users\`}</p>
+        </div>
+        <div className="divide-y divide-border">
+          {!data ? <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div> : data.users.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No users found.</div> : data.users.map((u) => (
+            <div key={u.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2"><p className="font-medium truncate">{u.name ?? u.email}</p><span className="rounded-full bg-secondary px-2 py-0.5 text-xs capitalize">{u.role}</span>{u.banned ? <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">banned</span> : null}</div>
+                <p className="text-sm text-muted-foreground truncate">{u.email}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={async () => { const role = u.role === "admin" ? "user" : "admin"; await authClient.admin.setRole({ userId: u.id, role: role as "admin" | "user" }); await refresh(); }} className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent">{u.role === "admin" ? "Demote" : "Make admin"}</button>
+                <button type="button" onClick={async () => { if (u.banned) await authClient.admin.unbanUser({ userId: u.id }); else await authClient.admin.banUser({ userId: u.id }); await refresh(); }} className={\`rounded-md px-3 py-1.5 text-xs \${u.banned ? "bg-primary text-primary-foreground" : "bg-destructive text-destructive-foreground"}\`}>{u.banned ? "Unban" : "Ban"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteAdminCreateUserContent(): string {
+  return `import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import * as React from "react";
+import { useAuth } from "../hooks/useAuth";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/admin/users/create")({
+  component: AdminCreateUserPage,
+});
+
+function AdminCreateUserPage() {
+  const { user, isPending: authPending } = useAuth();
+  const router = useRouter();
+  const [error, setError] = React.useState<string | null>(null);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [role, setRole] = React.useState<"admin" | "user">("user");
+  const userRole = (user as { role?: string } | null)?.role;
+
+  if (authPending) return <p className="text-sm p-6">Loading…</p>;
+  if (userRole !== "admin") {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+        <h2 className="text-lg font-semibold">Forbidden</h2>
+        <p className="text-sm text-muted-foreground">Admin only.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-xl space-y-6 p-6">
+      <div className="flex items-center justify-between gap-4"><h1 className="text-2xl font-semibold tracking-tight">Create user</h1><Link to="/admin/users" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Back to users</Link></div>
+      <p className="text-sm text-muted-foreground max-w-[65ch]">Add a new account. Admins can manage all users.</p>
+      <div className="h-px bg-border" />
+      <div className="rounded-xl border bg-card p-4">
+        <h3 className="text-sm font-semibold">User details</h3>
+        <p className="text-xs text-muted-foreground">Password must be at least 8 characters.</p>
+        <div className="mt-4 flex flex-col gap-4">
+          {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3"><p className="text-sm font-medium">Failed to create</p><p className="text-xs text-muted-foreground">{error}</p></div> : null}
+          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
+          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" value={role} onChange={(e) => setRole(e.target.value as "admin" | "user")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>
+          <button type="button" onClick={async () => { setError(null); const result = await authClient.admin.createUser({ name, email, password, role }); if ((result as { error?: { message?: string } }).error) { setError((result as { error: { message?: string } }).error.message ?? "Failed"); return; } router.navigate({ to: "/admin/users" }); }} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90">Create user</button>
+        </div>
       </div>
     </div>
   );
@@ -953,8 +1294,13 @@ export function desktopRouteTreeGenContent(): string {
 import { Route as RootRoute } from "./routes/__root";
 import { Route as IndexRoute } from "./routes/index";
 import { Route as DashboardRoute } from "./routes/dashboard";
+import { Route as SettingsRoute } from "./routes/settings";
+import { Route as BillingRoute } from "./routes/billing";
+import { Route as AdminRoute } from "./routes/admin";
+import { Route as AdminUsersRoute } from "./routes/admin.users";
+import { Route as AdminUsersCreateRoute } from "./routes/admin.users.create";
 
-export const routeTree = RootRoute.addChildren([IndexRoute, DashboardRoute]);
+export const routeTree = RootRoute.addChildren([IndexRoute, DashboardRoute, SettingsRoute, BillingRoute, AdminRoute, AdminUsersRoute, AdminUsersCreateRoute]);
 `;
 }
 
@@ -1014,6 +1360,14 @@ export function desktopCoreFiles(
     file("apps/desktop/src/renderer/routes/__root.tsx", desktopRouteRootContent()),
     file("apps/desktop/src/renderer/routes/index.tsx", desktopRouteIndexContent()),
     file("apps/desktop/src/renderer/routes/dashboard.tsx", desktopRouteDashboardContent()),
+    file("apps/desktop/src/renderer/routes/settings.tsx", desktopRouteSettingsContent()),
+    file("apps/desktop/src/renderer/routes/billing.tsx", desktopRouteBillingContent()),
+    file("apps/desktop/src/renderer/routes/admin.tsx", desktopRouteAdminContent()),
+    file("apps/desktop/src/renderer/routes/admin.users.tsx", desktopRouteAdminUsersContent()),
+    file(
+      "apps/desktop/src/renderer/routes/admin.users.create.tsx",
+      desktopRouteAdminCreateUserContent(),
+    ),
     file("apps/desktop/src/renderer/routeTree.gen.ts", desktopRouteTreeGenContent()),
   ];
 }

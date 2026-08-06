@@ -1,4 +1,4 @@
-// @allow-long 350: single desktop flat — minimal, reuses desktop-core at root
+// @allow-long 500: single desktop flat — minimal, reuses desktop-core at root + full routes
 import { file, type TemplateFile } from "../../../shared.js";
 import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
@@ -20,6 +20,11 @@ import {
   desktopRouteRootContent,
   desktopRouteIndexContent,
   desktopRouteDashboardContent,
+  desktopRouteSettingsContent,
+  desktopRouteBillingContent,
+  desktopRouteAdminContent,
+  desktopRouteAdminUsersContent,
+  desktopRouteAdminCreateUserContent,
   desktopRouteTreeGenContent,
   desktopElectronBuilderYmlContent,
 } from "../../../apps/desktop-core.js";
@@ -76,6 +81,11 @@ export function buildDesktopFiles(
     file("src/renderer/routes/__root.tsx", desktopRouteRootContent()),
     file("src/renderer/routes/index.tsx", desktopRouteIndexContent()),
     file("src/renderer/routes/dashboard.tsx", desktopRouteDashboardContent()),
+    file("src/renderer/routes/settings.tsx", desktopRouteSettingsContent()),
+    file("src/renderer/routes/billing.tsx", desktopRouteBillingContent()),
+    file("src/renderer/routes/admin.tsx", desktopRouteAdminContent()),
+    file("src/renderer/routes/admin.users.tsx", desktopRouteAdminUsersContent()),
+    file("src/renderer/routes/admin.users.create.tsx", desktopRouteAdminCreateUserContent()),
     file("src/renderer/routeTree.gen.ts", desktopRouteTreeGenContent()),
     filteredEnvExample(projectName, secrets, [], true, runtime, "single", database),
     filteredEnvLocal(projectName, secrets, [], runtime, "single", database),
