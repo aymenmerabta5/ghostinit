@@ -30,19 +30,28 @@
 import { ValidationError } from "./errors.js";
 import {
   BILLING_PROVIDERS,
+  PRESETS,
+  CACHE_PROVIDERS,
   type BillingProviderName as BillingProviderNameFromConstants,
+  type PresetName as PresetNameFromConstants,
+  type CacheProvider as CacheProviderFromConstants,
 } from "./constants.js";
 
-// Re-export canonical billing constants from constants.ts (single source) for compat
+// Re-export canonical billing constants from constants.ts (single source) for compat — values
 export {
   BILLING_PROVIDERS,
   BILLING_PROVIDERS as billingProviders,
   ALL_BILLING_PROVIDERS,
+  PRESETS,
+  CACHE_PROVIDERS,
 } from "./constants.js";
-export type { BillingProviderName } from "./constants.js";
+// Re-export types for external consumers
+export type { BillingProviderName, PresetName, CacheProvider } from "./constants.js";
 
 // Local type alias for internal use – canonical type from constants
 type BillingProviderName = BillingProviderNameFromConstants;
+type PresetName = PresetNameFromConstants;
+type CacheProvider = CacheProviderFromConstants;
 
 export const availableModes = ["monorepo", "single"] as const;
 export type ProjectMode = (typeof availableModes)[number];
@@ -59,21 +68,61 @@ export type FeatureName = (typeof availableFeatures)[number];
 export const availableDatabases = ["postgres", "convex", "none"] as const;
 export type DatabaseProvider = (typeof availableDatabases)[number];
 
-export const defaultAddons = [
-  "auth",
-  "lint",
-  "format",
-  "t3env",
-  "database",
-  "api",
-  "ui",
-  "services",
-  "tanstack",
-  "zod",
-  "email",
-  "analytics",
-] as const;
+export const availablePresets = PRESETS;
+export const availableCacheProviders = CACHE_PROVIDERS;
+
+export const availableStacks = ["nextjs", "tanstack-start", "expo", "both"] as const;
+export type StackName = (typeof availableStacks)[number];
+
+export const coreAddons = ["lint", "format", "t3env", "ui", "tanstack", "zod"] as const;
+export type CoreAddon = (typeof coreAddons)[number];
+
+export const saasAddons = ["auth", "database", "api", "services", "email", "analytics"] as const;
+export type SaasAddon = (typeof saasAddons)[number];
+
+export const optionalAddons = ["auth", "api", "email", "analytics", "cache"] as const;
+export type OptionalAddon = (typeof optionalAddons)[number];
+
+export const defaultAddons = [...coreAddons, ...saasAddons] as const;
 export type DefaultAddon = (typeof defaultAddons)[number];
+
+// Preset defaults — what each preset implies when no explicit overrides
+export const presetDefaults: Record<
+  PresetName,
+  {
+    auth: boolean;
+    api: boolean;
+    email: boolean;
+    analytics: boolean;
+    cache: CacheProvider;
+    database: DatabaseProvider;
+  }
+> = {
+  saas: {
+    auth: true,
+    api: true,
+    email: true,
+    analytics: true,
+    cache: "none",
+    database: "postgres",
+  },
+  frontend: {
+    auth: false,
+    api: false,
+    email: false,
+    analytics: false,
+    cache: "none",
+    database: "none",
+  },
+  custom: {
+    auth: false,
+    api: false,
+    email: false,
+    analytics: false,
+    cache: "none",
+    database: "none",
+  },
+};
 
 export type AddonKey =
   | DefaultAddon
@@ -82,7 +131,10 @@ export type AddonKey =
   | DatabaseProvider
   | ProjectMode
   | FrameworkName
-  | AppName;
+  | AppName
+  | PresetName
+  | CacheProvider
+  | OptionalAddon;
 
 export interface AddonInstaller {
   inUse: boolean;
@@ -347,6 +399,72 @@ export function parseAppsInput(input?: string): AppName[] {
   return result;
 }
 
+/**
+ * Parse preset input:
+ * - undefined / "" / whitespace -> undefined (caller decides default, saas for --yes, frontend for explicit)
+ * - case-insensitive, trimmed
+ * - valid values: saas, frontend, custom
+ * - invalid -> throws ValidationError
+ */
+export function parsePresetInput(input?: string): PresetName | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (trimmed === "") return undefined;
+  const normalized = trimmed.toLowerCase();
+  if ((availablePresets as readonly string[]).includes(normalized)) {
+    return normalized as PresetName;
+  }
+  throw new ValidationError(
+    `Invalid --preset value: ${input}. Allowed: ${availablePresets.join(", ")}`,
+  );
+}
+
+/**
+ * Parse cache input:
+ * - undefined / "" / whitespace -> "none" default
+ * - "redis" / "upstash" -> "redis" (alias)
+ * - "none" -> "none"
+ * - invalid -> throws ValidationError
+ */
+export function parseCacheInput(input?: string): CacheProvider {
+  if (!input) return "none";
+  const trimmed = input.trim();
+  if (trimmed === "") return "none";
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "none") return "none";
+  if (normalized === "redis" || normalized === "upstash" || normalized === "upstash-redis")
+    return "redis";
+  throw new ValidationError(
+    `Invalid --cache value: ${input}. Allowed: ${availableCacheProviders.join(", ")} (redis = Upstash)`,
+  );
+}
+
+/**
+ * Parse stack input (frontend preset helper):
+ * - nextjs -> { framework: nextjs, apps: [web] }
+ * - tanstack-start -> { framework: tanstack-start, apps: [web] }
+ * - expo -> { framework: nextjs, apps: [mobile] }
+ * - both -> { framework: nextjs, apps: [web,mobile] }
+ */
+export function parseStackInput(
+  input?: string,
+): { framework: FrameworkName; apps: AppName[] } | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (trimmed === "") return undefined;
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "nextjs") return { framework: "nextjs", apps: ["web"] };
+  if (normalized === "tanstack-start" || normalized === "tanstack")
+    return { framework: "tanstack-start", apps: ["web"] };
+  if (normalized === "expo" || normalized === "mobile")
+    return { framework: "nextjs", apps: ["mobile"] };
+  if (normalized === "both" || normalized === "web+mobile" || normalized === "all")
+    return { framework: "nextjs", apps: ["web", "mobile"] };
+  throw new ValidationError(
+    `Invalid stack value: ${input}. Allowed: nextjs, tanstack-start, expo, both`,
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Compatibility validation                                           */
 /* ------------------------------------------------------------------ */
@@ -357,6 +475,9 @@ export function isValidAddonCombo(options: {
   mode: ProjectMode;
   framework?: FrameworkName;
   apps?: AppName[];
+  preset?: PresetName;
+  cache?: CacheProvider;
+  hasAuth?: boolean;
 }): { valid: boolean; message?: string } {
   const apps = options.apps ?? ["web" as AppName];
   if (options.billing.length > 0 && options.database === "none") {
@@ -364,6 +485,23 @@ export function isValidAddonCombo(options: {
       valid: false,
       message:
         "Billing requires at least postgres or convex for subscriptions table, but database is none",
+    };
+  }
+  // Auth requires DB (postgres or convex)
+  const effectiveHasAuth =
+    options.hasAuth ??
+    (options.preset === "saas" ? true : options.preset === "frontend" ? false : undefined);
+  if (effectiveHasAuth && options.database === "none") {
+    return {
+      valid: false,
+      message: "Auth requires a database (postgres or convex) but database is none",
+    };
+  }
+  // Explicit hasAuth true without DB also invalid for custom preset
+  if (options.hasAuth === true && options.database === "none") {
+    return {
+      valid: false,
+      message: "Auth requires a database (postgres or convex) but database is none",
     };
   }
   if (apps.length === 0) {
@@ -383,6 +521,14 @@ export function isValidAddonCombo(options: {
         "Single mode supports only one app target --apps web or --apps mobile, not both. Use monorepo for web+mobile",
     };
   }
+  // TanStack Start + Expo (mobile) via separate runtimes not yet supported in single template glue
+  if (
+    options.framework === "tanstack-start" &&
+    apps.includes("mobile" as AppName) &&
+    !apps.includes("web" as AppName)
+  ) {
+    // Allow but warn via valid — actual template still works (mobile uses nextjs for config). Keep valid for now.
+  }
   return { valid: true };
 }
 
@@ -397,13 +543,23 @@ export interface BuildAddonMapInput {
   mode: ProjectMode;
   framework?: FrameworkName;
   apps?: AppName[];
+  preset?: PresetName;
+  cache?: CacheProvider;
+  auth?: boolean;
+  api?: boolean;
+  email?: boolean;
+  analytics?: boolean;
 }
 
 /**
  * Build a map of all known addon keys to { inUse }.
  *
  * Semantics:
- * - defaultAddons (auth, lint, format, t3env, database, api, ui, services, tanstack, zod, email) always inUse true
+ * - coreAddons (lint, format, t3env, ui, tanstack, zod) always inUse true
+ * - saasAddons (auth, database, api, services, email, analytics) depend on preset/overrides
+ *   - preset=saas or no preset (backward compat): saasAddons true (except database handled separately)
+ *   - preset=frontend: saasAddons false
+ *   - preset=custom: use explicit auth/api/email/analytics/cache booleans, else false
  * - billingProviders: true if included in billing array
  * - availableFeatures: true if included in features array
  * - availableDatabases: true if database exactly matches
@@ -414,16 +570,59 @@ export interface BuildAddonMapInput {
 export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstallerMap {
   const allKeys = new Set<string>([
     ...defaultAddons,
+    ...coreAddons,
+    ...saasAddons,
     ...BILLING_PROVIDERS,
     ...availableFeatures,
     ...availableDatabases,
     ...availableModes,
     ...availableFrameworks,
     ...availableApps,
+    ...PRESETS,
+    ...CACHE_PROVIDERS,
+    ...optionalAddons,
   ]);
   const map: Record<string, AddonInstaller> = {};
   for (const key of allKeys) map[key] = { inUse: false };
-  for (const addon of defaultAddons) map[addon] = { inUse: true };
+  // core always true
+  for (const addon of coreAddons) map[addon] = { inUse: true };
+  // saas conditional on preset / explicit overrides
+  const preset = input.preset;
+  const isSaasPreset = preset === "saas";
+  const isFrontendPreset = preset === "frontend";
+  const isCustomPreset = preset === "custom";
+  const noPreset = preset === undefined;
+  // Determine each saas addon
+  const authInUse = input.auth !== undefined ? input.auth : isSaasPreset || noPreset ? true : false;
+  const apiInUse = input.api !== undefined ? input.api : isSaasPreset || noPreset ? true : false;
+  const emailInUse =
+    input.email !== undefined ? input.email : isSaasPreset || noPreset ? true : false;
+  const analyticsInUse =
+    input.analytics !== undefined ? input.analytics : isSaasPreset || noPreset ? true : false;
+  // cache is separate provider
+  const cacheInUse = input.cache ? input.cache !== "none" : false;
+  // For custom with explicit flags, already handled; for frontend/custom without flags they stay false
+  map["auth"] = { inUse: authInUse };
+  map["api"] = { inUse: apiInUse };
+  map["email"] = { inUse: emailInUse };
+  map["analytics"] = { inUse: analyticsInUse };
+  map["cache"] = { inUse: cacheInUse };
+  map["redis"] = { inUse: cacheInUse };
+  // services follows api/auth — if either off, services still emitted via core? Keep tied to api
+  map["services"] = { inUse: apiInUse || authInUse };
+  // database is handled separately but also via saas logic — keep compat: database addon true if db != none
+  map["database"] = { inUse: input.database !== "none" };
+  // Keep backward compat: still mark saasAddons via legacy if needed for tests expecting defaultAddons
+  // For saas/noPreset we already set them true; for frontend they correctly stay false.
+  // Ensure isCustom with explicit overrides already set
+  if (isCustomPreset) {
+    if (input.auth !== undefined) map["auth"] = { inUse: input.auth };
+    if (input.api !== undefined) map["api"] = { inUse: input.api };
+    if (input.email !== undefined) map["email"] = { inUse: input.email };
+    if (input.analytics !== undefined) map["analytics"] = { inUse: input.analytics };
+  }
+  // isFrontend preset already handled via noPreset false logic above
+  void isFrontendPreset;
   for (const m of availableModes) map[m] = { inUse: m === input.mode };
   for (const d of availableDatabases) map[d] = { inUse: false };
   map[input.database] = { inUse: true };
@@ -434,6 +633,10 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   for (const f of availableFrameworks) map[f] = { inUse: f === effectiveFramework };
   const effectiveApps = input.apps ?? (["web"] as AppName[]);
   for (const a of availableApps) map[a] = { inUse: (effectiveApps as string[]).includes(a) };
+  // presets
+  for (const p of PRESETS) map[p] = { inUse: p === preset };
+  // cache providers
+  for (const c of CACHE_PROVIDERS) map[c] = { inUse: c === (input.cache ?? "none") };
   return map as AddonInstallerMap;
 }
 

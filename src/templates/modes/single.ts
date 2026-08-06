@@ -10,5 +10,4 @@ export {
   buildSecrets,
   selectedBillingFromAddons,
 } from "./single/index.js";
-export * from "./single/index.js";
 export { default } from "./single/index.js";

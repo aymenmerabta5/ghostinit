@@ -14,12 +14,17 @@ import {
   parseFrameworkInput,
   parseModeInput,
   parseAppsInput,
+  parsePresetInput,
+  parseCacheInput,
+  parseStackInput,
   type ProjectMode,
   type BillingProviderName,
   type FeatureName,
   type DatabaseProvider,
   type FrameworkName,
   type AppName,
+  type PresetName,
+  type CacheProvider,
 } from "./addons.js";
 
 export const PROJECT_NAME_RE = /^[a-z][a-z0-9-]*$/;
@@ -54,6 +59,14 @@ export interface CreateFlagBag {
   database?: string | string[];
   framework?: string | string[];
   apps?: string | string[];
+  preset?: string | string[];
+  cache?: string | string[];
+  stack?: string | string[];
+  "with-auth"?: boolean;
+  "with-api"?: boolean;
+  "with-email"?: boolean;
+  "with-analytics"?: boolean;
+  "with-cache"?: boolean;
 }
 
 export interface ParsedCreateArgs {
@@ -63,6 +76,14 @@ export interface ParsedCreateArgs {
   database: DatabaseProvider;
   framework: FrameworkName;
   apps: AppName[];
+  preset: PresetName | undefined;
+  cache: CacheProvider;
+  stack: string | undefined;
+  withAuth: boolean | undefined;
+  withApi: boolean | undefined;
+  withEmail: boolean | undefined;
+  withAnalytics: boolean | undefined;
+  withCache: boolean | undefined;
 }
 
 function lastOrUndefined(value?: string | string[]): string | undefined {
@@ -88,6 +109,9 @@ function combineToSingleString(value?: string | string[]): string {
  * - database: postgres|convex|none (single value, last wins)
  * - framework: nextjs|tanstack-start (single value, last wins)
  * - apps: web,mobile|both|all (comma-separated, repeatable)
+ * - preset: saas|frontend|custom (single value, last wins)
+ * - cache: redis|none (single value, last wins)
+ * - stack: nextjs|tanstack-start|expo|both (single value)
  */
 export function parseCreateArgs(
   flags: Record<string, string | string[] | boolean | undefined> | CreateFlagBag,
@@ -97,6 +121,9 @@ export function parseCreateArgs(
   const modeRaw = lastOrUndefined(bag.mode);
   const databaseRaw = lastOrUndefined(bag.database);
   const frameworkRaw = lastOrUndefined(bag.framework);
+  const presetRaw = lastOrUndefined(bag.preset);
+  const cacheRaw = lastOrUndefined(bag.cache);
+  const stackRaw = lastOrUndefined(bag.stack);
 
   const billingCombined = combineToSingleString(bag.billing);
   const featuresCombined = combineToSingleString(bag.features);
@@ -105,11 +132,49 @@ export function parseCreateArgs(
   const mode = parseModeInput(modeRaw);
   const billing = parseBillingInput(billingCombined);
   const features = parseFeaturesInput(featuresCombined);
-  const database = parseDatabaseInput(databaseRaw);
-  const framework = parseFrameworkInput(frameworkRaw);
-  const apps = parseAppsInput(appsCombined);
+  let database = parseDatabaseInput(databaseRaw);
+  let framework = parseFrameworkInput(frameworkRaw);
+  let apps = parseAppsInput(appsCombined);
+  const preset = parsePresetInput(presetRaw);
+  let cache = parseCacheInput(cacheRaw);
 
-  return { mode, billing, features, database, framework, apps };
+  // with-* booleans override cache
+  const withAuth = bag["with-auth"] as boolean | undefined;
+  const withApi = bag["with-api"] as boolean | undefined;
+  const withEmail = bag["with-email"] as boolean | undefined;
+  const withAnalytics = bag["with-analytics"] as boolean | undefined;
+  const withCacheFlag = bag["with-cache"] as boolean | undefined;
+  if (withCacheFlag) cache = "redis";
+
+  // stack helper overrides framework+apps (for frontend shorthand)
+  if (stackRaw) {
+    const stackParsed = parseStackInput(stackRaw);
+    if (stackParsed) {
+      framework = stackParsed.framework;
+      apps = stackParsed.apps;
+    }
+  }
+
+  // preset frontend forces database none if not explicitly set (unless --with-auth without db will error later)
+  // preserve explicit database if user passed --database flag, else let presetDefaults handle via build map
+  // For parse stage we keep parsed database; preset handling for saas/frontend done in buildAddonInstallerMap
+
+  return {
+    mode,
+    billing,
+    features,
+    database,
+    framework,
+    apps,
+    preset,
+    cache,
+    stack: stackRaw,
+    withAuth,
+    withApi,
+    withEmail,
+    withAnalytics,
+    withCache: withCacheFlag,
+  };
 }
 
 /**

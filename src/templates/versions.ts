@@ -7,4 +7,35 @@
  * @see src/lib/normalizeSourceImports (regex stripping .js)
  */
 
-export * from "../../packages/versions/src/index.js";
+// Explicit re-exports only — no `export *` per host guideline
+export {
+  ghostinitVersion,
+  catalog,
+  runtime,
+  typescript,
+  nextStack,
+  database,
+  convex,
+  auth,
+  orpc,
+  validation,
+  tanstack,
+  tanstackStart,
+  styling,
+  ui,
+  tooling,
+  testing,
+  eve,
+  billing,
+  analytics,
+  email,
+  cache,
+  backend,
+  i18n,
+  interactive,
+  postgresDocker,
+  expo,
+  reanimated,
+  worklets,
+  uniwind,
+} from "../../packages/versions/src/index.js";

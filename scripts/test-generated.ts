@@ -45,9 +45,6 @@ const CORNERS: Corner[] = [
   {
     id: "tanstack",
     args: ["--framework", "tanstack-start", "--database", "postgres", "--billing", "stripe"],
-    // See "Known gap: TanStack Start route typing" in AGENTS.md.
-    expectedFailures: ["typecheck"],
-    note: "TanStack Start route typing drift is a documented known gap",
   },
   {
     id: "no-billing",

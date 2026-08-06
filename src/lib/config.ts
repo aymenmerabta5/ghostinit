@@ -10,6 +10,8 @@ import {
   availableDatabases,
   availableFrameworks,
   availableApps,
+  availablePresets,
+  availableCacheProviders,
 } from "./addons.js";
 
 export const projectConfigSchema = z.object({
@@ -24,6 +26,13 @@ export const projectConfigSchema = z.object({
   version: z.string().default("0.1.0"),
   generatedAt: z.string().datetime().optional(),
   mode: z.enum(availableModes).default("monorepo"),
+  preset: z.enum(availablePresets).default("saas"),
+  cache: z.enum(availableCacheProviders).default("none"),
+  // Fine-grained toggles for custom preset — undefined means derive from preset defaults
+  auth: z.boolean().optional(),
+  api: z.boolean().optional(),
+  email: z.boolean().optional(),
+  analytics: z.boolean().optional(),
   billing: z.array(z.enum(billingProviders)).default([]),
   features: z.array(z.enum(availableFeatures)).default([]),
   database: z.enum(availableDatabases).default("postgres"),

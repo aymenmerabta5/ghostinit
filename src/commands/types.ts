@@ -5,6 +5,8 @@ import type {
   FeatureName,
   DatabaseProvider,
   FrameworkName,
+  PresetName,
+  CacheProvider,
 } from "../lib/addons.js";
 
 export interface GlobalOptions {
@@ -24,12 +26,22 @@ export interface GlobalOptions {
   features?: FeatureName[];
   database?: DatabaseProvider;
   apps?: import("../lib/addons.js").AppName[];
+  preset?: PresetName;
+  cache?: CacheProvider;
+  stack?: string;
+  withAuth?: boolean;
+  withApi?: boolean;
+  withEmail?: boolean;
+  withAnalytics?: boolean;
+  withCache?: boolean;
   rawMode?: string | string[];
   rawFramework?: string | string[];
   rawBilling?: string | string[];
   rawFeatures?: string | string[];
   rawDatabase?: string | string[];
   rawApps?: string | string[];
+  rawPreset?: string | string[];
+  rawCache?: string | string[];
   logger: Logger;
 }
 

@@ -113,6 +113,14 @@ export type ReservedWorkspacePackage = (typeof RESERVED_WORKSPACE_PACKAGES)[numb
 export const STAGING_SUFFIX = ".ghostinit-staging";
 export const STAGING_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+/** Preset names — single source of truth for create wizard */
+export const PRESETS = ["saas", "frontend", "custom"] as const;
+export type PresetName = (typeof PRESETS)[number];
+
+/** Cache providers — redis = Upstash HTTP */
+export const CACHE_PROVIDERS = ["redis", "none"] as const;
+export type CacheProvider = (typeof CACHE_PROVIDERS)[number];
+
 /** Placeholder constants for env generation */
 export const ENV_PLACEHOLDERS = {
   BETTER_AUTH_SECRET: "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS",
@@ -130,6 +138,8 @@ export const ENV_PLACEHOLDERS = {
   POLAR_WEBHOOK_SECRET: "REPLACE_WITH_POLAR_WEBHOOK_SECRET",
   POLAR_ORG_ID: "REPLACE_WITH_POLAR_ORG_ID",
   POSTHOG_KEY: "phc_REPLACE_WITH_POSTHOG_KEY",
+  UPSTASH_REDIS_REST_URL: "REPLACE_WITH_UPSTASH_REDIS_REST_URL",
+  UPSTASH_REDIS_REST_TOKEN: "REPLACE_WITH_UPSTASH_REDIS_REST_TOKEN",
   CONVEX_DEPLOYMENT: "REPLACE_WITH_CONVEX_DEPLOYMENT_dev:example-123",
   CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
   NEXT_PUBLIC_CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",

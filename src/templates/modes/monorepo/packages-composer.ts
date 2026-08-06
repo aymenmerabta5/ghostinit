@@ -9,6 +9,7 @@ export function packagesComposerFiles(
   runtime: Runtime,
   framework: "nextjs" | "tanstack-start" = "nextjs",
   database: "postgres" | "convex" | "none" = "postgres",
+  hasAnalytics = true,
 ): TemplateFile[] {
   const pkgRaw = genPackageFiles(runtime, framework, database);
   const pkgFiltered = pkgRaw.filter(
@@ -17,6 +18,6 @@ export function packagesComposerFiles(
   return [
     ...pkgFiltered,
     ...genToolingFiles(),
-    ...genAnalyticsFiles({ mode: "monorepo", runtime, framework } as never),
+    ...(hasAnalytics ? genAnalyticsFiles({ mode: "monorepo", runtime, framework } as never) : []),
   ];
 }

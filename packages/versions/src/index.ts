@@ -172,6 +172,10 @@ export const email = {
   resend: "4.0.1",
 } as const;
 
+export const cache = {
+  "@upstash/redis": "1.35.0",
+} as const;
+
 /**
  * @deprecated - DEPRECATED: Elysia removed, pure oRPC only.
  * Kept for backwards compatibility / reference, not emitted in templates.
@@ -251,6 +255,7 @@ export const catalog = {
   ...billing,
   ...analytics,
   ...email,
+  ...cache,
   ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
   ...interactive,

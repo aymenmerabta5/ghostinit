@@ -39,6 +39,10 @@ Create options:
   --features <list>          Features: eve,i18n (repeatable or comma-separated)
   --database postgres|convex|none (default: postgres)
   --apps web,mobile|both|all Apps: web, mobile, or both/all (repeatable or comma-separated, default: web)
+  --preset saas|frontend|custom  Preset: saas (full), frontend (minimal ui+config), custom (pick features) (default: saas)
+  --cache redis|none         Cache: redis (Upstash) or none (default: none)
+  --stack nextjs|tanstack-start|expo|both  Stack shorthand for frontend (framework+apps)
+  --with-auth --with-api --with-email --with-analytics --with-cache  Opt-in features for custom preset (repeatable)
 `;
 }
 

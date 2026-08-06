@@ -26,6 +26,14 @@ export const CLI_OPTIONS = {
   features: { type: "string" as const, multiple: true as const },
   database: { type: "string" as const, multiple: true as const },
   apps: { type: "string" as const, multiple: true as const },
+  preset: { type: "string" as const, multiple: true as const },
+  cache: { type: "string" as const, multiple: true as const },
+  stack: { type: "string" as const, multiple: true as const },
+  "with-auth": { type: "boolean" as const, default: false },
+  "with-api": { type: "boolean" as const, default: false },
+  "with-email": { type: "boolean" as const, default: false },
+  "with-analytics": { type: "boolean" as const, default: false },
+  "with-cache": { type: "boolean" as const, default: false },
 };
 
 export interface ParsedCli {
@@ -57,6 +65,14 @@ export interface CreateParsed {
   features: import("../lib/addons.js").FeatureName[];
   database: "postgres" | "convex" | "none";
   apps: import("../lib/addons.js").AppName[];
+  preset: import("../lib/addons.js").PresetName | undefined;
+  cache: import("../lib/addons.js").CacheProvider;
+  stack: string | undefined;
+  withAuth?: boolean;
+  withApi?: boolean;
+  withEmail?: boolean;
+  withAnalytics?: boolean;
+  withCache?: boolean;
 }
 
 export function parseCreateSpecific(
@@ -64,14 +80,23 @@ export function parseCreateSpecific(
   command: string,
 ): CreateParsed {
   if (command === "create") {
-    return parseCreateArgs({
+    const raw = {
       mode: getStringArray(values.mode),
       framework: getStringArray(values.framework),
       billing: getStringArray(values.billing),
       features: getStringArray(values.features),
       database: getStringArray(values.database),
       apps: getStringArray(values.apps),
-    }) as CreateParsed;
+      preset: getStringArray(values.preset),
+      cache: getStringArray(values.cache),
+      stack: getStringArray(values.stack),
+      "with-auth": getBoolean(values["with-auth"]),
+      "with-api": getBoolean(values["with-api"]),
+      "with-email": getBoolean(values["with-email"]),
+      "with-analytics": getBoolean(values["with-analytics"]),
+      "with-cache": getBoolean(values["with-cache"]),
+    } as Record<string, unknown>;
+    return parseCreateArgs(raw as never) as CreateParsed;
   }
   return {
     mode: "monorepo" as const,
@@ -80,6 +105,9 @@ export function parseCreateSpecific(
     features: [] as never[],
     database: "postgres" as const,
     apps: ["web"] as import("../lib/addons.js").AppName[],
+    preset: undefined,
+    cache: "none" as const,
+    stack: undefined,
   };
 }
 
@@ -109,12 +137,22 @@ export function buildGlobalOptions(
     features: createParsed.features,
     database: createParsed.database,
     apps: createParsed.apps,
+    preset: createParsed.preset,
+    cache: createParsed.cache,
+    stack: createParsed.stack,
+    withAuth: createParsed.withAuth,
+    withApi: createParsed.withApi,
+    withEmail: createParsed.withEmail,
+    withAnalytics: createParsed.withAnalytics,
+    withCache: createParsed.withCache,
     rawMode: getStringArray(values.mode),
     rawFramework: getStringArray(values.framework),
     rawBilling: getStringArray(values.billing),
     rawFeatures: getStringArray(values.features),
     rawDatabase: getStringArray(values.database),
     rawApps: getStringArray(values.apps),
+    rawPreset: getStringArray(values.preset),
+    rawCache: getStringArray(values.cache),
     logger,
   };
 }

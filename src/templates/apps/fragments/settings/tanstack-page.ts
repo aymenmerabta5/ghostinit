@@ -25,7 +25,7 @@ export const Route = createFileRoute('/settings')({
 })
 
 function SettingsPage(): React.JSX.Element {
-  const { session } = Route.useRouteContext() as any
+  const { session } = Route.useRouteContext() as { session: { user: { email?: string; name?: string | null; role?: string } } }
   const user = session?.user
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">

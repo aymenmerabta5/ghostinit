@@ -172,6 +172,7 @@ export function buildNextFiles(
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthSingle()));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
+    files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthSingle()));

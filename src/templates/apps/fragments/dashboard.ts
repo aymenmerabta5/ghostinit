@@ -139,7 +139,7 @@ import { SignOutButton } from '../components/sign-out-button.js'
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
   const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as any).api.getSession({ headers })
+  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<{ user?: { email?: string; name?: string | null; role?: string } } | null> } }).api.getSession({ headers })
   return session ?? null
 })
 
@@ -155,7 +155,7 @@ export const Route = createFileRoute('/dashboard')({
 })
 
 function DashboardPage(): React.JSX.Element {
-  const { session } = Route.useRouteContext() as any
+  const { session } = Route.useRouteContext() as { session: { user: { email: string; name?: string | null; role?: string } } }
   const user = session?.user
 
   return (

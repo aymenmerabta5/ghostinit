@@ -150,7 +150,7 @@ ${clientPrefixLine}  server: {${convexServer}
     BETTER_AUTH_URL: z.string().url(),
     DATABASE_SSL: z.enum(["true","false"]).default("false"),
     DATABASE_SSL_CA: z.string().optional(),
-    DATABASE_POOL_SIZE: z.string().regex(/^\\d+$/).default("20").transform((s) => Number.parseInt(s, 10)),
+    DATABASE_POOL_SIZE: z.string().regex(/^\\d+$/).default("20").transform((s: string) => Number.parseInt(s, 10)),
     TRUSTED_PROXY: z.enum(["true","false"]).default("false"),
     RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
     EMAIL_FROM: z.string().min(1).default("noreply@example.com"),

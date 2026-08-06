@@ -20,6 +20,7 @@ import { dashboardPageContent } from "./fragments/dashboard.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { settingsFiles } from "./fragments/settings/index.js";
 import { billingFiles } from "./fragments/billing/index.js";
+import { tanstackAdminFiles } from "./fragments/admin/index.js";
 
 export function tanstackPageFiles(): TemplateFile[] {
   return [
@@ -32,6 +33,7 @@ export function tanstackPageFiles(): TemplateFile[] {
     dashboardRoute(),
     ...settingsFiles("tanstack"),
     ...billingFiles("tanstack"),
+    ...tanstackAdminFiles(),
     notFoundRoute(),
   ];
 }

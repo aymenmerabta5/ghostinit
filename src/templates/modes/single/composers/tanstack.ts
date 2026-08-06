@@ -51,6 +51,11 @@ import {
   singlePolarWebhookTanstackContent,
 } from "../tanstack/api.js";
 import {
+  singleTanstackAdminContent,
+  singleTanstackAdminUsersContent,
+  singleTanstackAdminCreateContent,
+} from "../tanstack/pages/admin.js";
+import {
   singleApiContextContent,
   singleApiHealthProcedureContent,
   singleApiMeProcedureContent,
@@ -125,6 +130,10 @@ export function buildTanstackFiles(
   files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent()));
   files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent()));
   files.push(file("src/routes/billing.tsx", singleBillingRouteTanstackContent()));
+  // Admin routes — mirror monorepo TanStack admin for typed Link to="/admin" support
+  files.push(file("src/routes/admin.tsx", singleTanstackAdminContent()));
+  files.push(file("src/routes/admin.users.tsx", singleTanstackAdminUsersContent()));
+  files.push(file("src/routes/admin.users.create.tsx", singleTanstackAdminCreateContent()));
   files.push(file("src/routes/$notFound.tsx", singleNotFoundRouteTanstackContent()));
   files.push(file("src/routes/api/auth/$splat.ts", singleAuthApiRouteTanstackContent()));
   files.push(file("src/routes/api/rpc/$splat.ts", singleRpcApiRouteTanstackContent()));
@@ -194,6 +203,7 @@ export function buildTanstackFiles(
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
+    files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));

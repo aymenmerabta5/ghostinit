@@ -1,4 +1,4 @@
-// @allow-long 315: interactive prompt flow; the ordering and conditional branching read best as one sequence
+// @allow-long 450: preset-first wizard with branching saas/frontend/custom reads best as one sequence
 import { ExitCode } from "../../lib/errors.js";
 import {
   isInteractiveMode,
@@ -28,6 +28,9 @@ export interface PromptResult {
   billing: string[];
   features: string[];
   apps: string[];
+  preset: "saas" | "frontend" | "custom";
+  cache: string;
+  stack?: string;
   noInstall: boolean;
   cancelled?: boolean;
   exitCode?: number;
@@ -42,6 +45,12 @@ export function getIsInteractive(options: GlobalOptions): boolean {
   });
 }
 
+function presetHint(preset: string): string {
+  if (preset === "saas") return "Full stack — Auth + DB + API + Email + Billing optional";
+  if (preset === "frontend") return "Minimal — apps/web + UI + config only";
+  return "Pick every feature yourself";
+}
+
 export async function promptInteractive(
   initialName: string | undefined,
   initial: {
@@ -51,6 +60,8 @@ export async function promptInteractive(
     billing: string[];
     features: string[];
     apps: string[];
+    preset?: string;
+    cache?: string;
     noInstall: boolean;
   },
 ): Promise<PromptResult> {
@@ -84,6 +95,8 @@ export async function promptInteractive(
         billing: initial.billing,
         features: initial.features,
         apps: initial.apps,
+        preset: (initial.preset as PromptResult["preset"]) ?? "saas",
+        cache: initial.cache ?? "none",
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -109,6 +122,8 @@ export async function promptInteractive(
           billing: initial.billing,
           features: initial.features,
           apps: initial.apps,
+          preset: (initial.preset as PromptResult["preset"]) ?? "saas",
+          cache: initial.cache ?? "none",
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -139,6 +154,8 @@ export async function promptInteractive(
           billing: initial.billing,
           features: initial.features,
           apps: initial.apps,
+          preset: (initial.preset as PromptResult["preset"]) ?? "saas",
+          cache: initial.cache ?? "none",
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -149,104 +166,23 @@ export async function promptInteractive(
     }
   }
 
-  let group: Record<string, unknown>;
+  // Preset selection — first real choice
+  let presetValue: PromptResult["preset"] = (initial.preset as PromptResult["preset"]) ?? "saas";
   try {
-    group = await p.group(
-      {
-        mode: () =>
-          p.select({
-            message: "Project structure?",
-            initialValue: initial.mode,
-            options: [
-              {
-                value: "monorepo",
-                label: "Monorepo",
-                hint: "recommended for AI — apps/web + apps/eve + packages/* + apps/api",
-              },
-              {
-                value: "single",
-                label: "Single",
-                hint: "all-in-one — src/app + server/ + agent/",
-              },
-            ],
-          }),
-        framework: () =>
-          p.select({
-            message: "Frontend framework?",
-            initialValue: initial.framework,
-            options: [
-              { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC" },
-              {
-                value: "tanstack-start",
-                label: "TanStack Start",
-                hint: "Vite + file-based router SSR",
-              },
-            ],
-          }),
-        database: () =>
-          p.select({
-            message: "Database provider?",
-            initialValue: initial.database,
-            options: [
-              { value: "postgres", label: "PostgreSQL", hint: "Drizzle + PG 18.4 (default)" },
-              { value: "convex", label: "Convex", hint: "Realtime + serverless" },
-              { value: "none", label: "None", hint: "No database" },
-            ],
-          }),
-        billing: () =>
-          p.multiselect({
-            message: "Billing providers? (space to select, enter to confirm)",
-            initialValues: initial.billing.length > 0 ? initial.billing : [],
-            required: false,
-            options: [
-              { value: "none", label: "None", hint: "No billing" },
-              { value: "stripe", label: "Stripe", hint: "global cards, subscription-native" },
-              { value: "chargily", label: "Chargily", hint: "Algeria EDAHABIA/CIB, checkout-only" },
-              { value: "paddle", label: "Paddle", hint: "MoR global tax 5% + 50c" },
-              { value: "polar", label: "Polar", hint: "MoR open-source 4% + metering + license" },
-            ],
-          }),
-        features: () =>
-          p.multiselect({
-            message: "Additional features?",
-            initialValues: initial.features,
-            required: false,
-            options: [
-              { value: "eve", label: "Eve", hint: "durable AI agent hybrid via withEve()" },
-              { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
-            ],
-          }),
-        apps: () =>
-          p.multiselect({
-            message: "App targets? (space to select, enter to confirm)",
-            initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
-            required: false,
-            options: [
-              {
-                value: "web",
-                label: "Web",
-                hint: "Next.js or TanStack Start via --framework (default)",
-              },
-              {
-                value: "mobile",
-                label: "Mobile",
-                hint: "Expo SDK 52 Router + SecureStore, shares backend via EXPO_PUBLIC_API_URL",
-              },
-            ],
-          }),
-        install: () =>
-          p.confirm({
-            message: "Install dependencies with Bun?",
-            initialValue: !initial.noInstall,
-          }),
-      },
-      {
-        onCancel: () => {
-          p.cancel("Operation cancelled.");
-          throw new CancelledError();
-        },
-      },
-    );
+    const presetResult = await p.select({
+      message: "What are you building?",
+      initialValue: presetValue,
+      options: [
+        { value: "saas", label: "SaaS Starter", hint: presetHint("saas") },
+        { value: "frontend", label: "Frontend Only", hint: presetHint("frontend") },
+        { value: "custom", label: "Custom", hint: presetHint("custom") },
+      ],
+    });
+    if (p.isCancel(presetResult)) {
+      p.cancel("Operation cancelled.");
+      throw new CancelledError();
+    }
+    presetValue = presetResult as PromptResult["preset"];
   } catch (err) {
     if (err instanceof CancelledError) {
       return {
@@ -257,6 +193,263 @@ export async function promptInteractive(
         billing: initial.billing,
         features: initial.features,
         apps: initial.apps,
+        preset: presetValue,
+        cache: initial.cache ?? "none",
+        noInstall: initial.noInstall,
+        cancelled: true,
+        exitCode: ExitCode.CANCELLED,
+      };
+    }
+    throw err;
+  }
+
+  // Branch based on preset
+  let group: Record<string, unknown>;
+  try {
+    if (presetValue === "frontend") {
+      group = await p.group(
+        {
+          mode: () =>
+            p.select({
+              message: "Project structure?",
+              initialValue: initial.mode,
+              options: [
+                { value: "monorepo", label: "Monorepo", hint: "apps/web + packages/* + tooling" },
+                { value: "single", label: "Single", hint: "all-in-one — src/app + server/" },
+              ],
+            }),
+          stack: () =>
+            p.select({
+              message: "Stack?",
+              initialValue: "nextjs",
+              options: [
+                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC — Web" },
+                {
+                  value: "tanstack-start",
+                  label: "TanStack Start",
+                  hint: "Vite + file-based router — Web",
+                },
+                { value: "expo", label: "Expo", hint: "SDK 52 Router — Mobile" },
+                {
+                  value: "both",
+                  label: "Web + Mobile",
+                  hint: "Next.js web + Expo mobile (requires monorepo)",
+                },
+              ],
+            }),
+          install: () =>
+            p.confirm({
+              message: "Install dependencies with Bun?",
+              initialValue: !initial.noInstall,
+            }),
+        },
+        {
+          onCancel: () => {
+            p.cancel("Operation cancelled.");
+            throw new CancelledError();
+          },
+        },
+      );
+    } else if (presetValue === "saas") {
+      group = await p.group(
+        {
+          mode: () =>
+            p.select({
+              message: "Project structure?",
+              initialValue: initial.mode,
+              options: [
+                {
+                  value: "monorepo",
+                  label: "Monorepo",
+                  hint: "recommended for AI — apps/web + apps/eve + packages/* + apps/api",
+                },
+                {
+                  value: "single",
+                  label: "Single",
+                  hint: "all-in-one — src/app + server/ + agent/",
+                },
+              ],
+            }),
+          framework: () =>
+            p.select({
+              message: "Frontend framework?",
+              initialValue: initial.framework,
+              options: [
+                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC" },
+                {
+                  value: "tanstack-start",
+                  label: "TanStack Start",
+                  hint: "Vite + file-based router SSR",
+                },
+              ],
+            }),
+          database: () =>
+            p.select({
+              message: "Database provider?",
+              initialValue: initial.database === "none" ? "postgres" : initial.database,
+              options: [
+                { value: "postgres", label: "PostgreSQL", hint: "Drizzle + PG 18.4 (default)" },
+                { value: "convex", label: "Convex", hint: "Realtime + serverless" },
+              ],
+            }),
+          billing: () =>
+            p.multiselect({
+              message: "Billing providers? (space to select, enter to confirm)",
+              initialValues: initial.billing.length > 0 ? initial.billing : [],
+              required: false,
+              options: [
+                { value: "none", label: "None", hint: "No billing" },
+                { value: "stripe", label: "Stripe", hint: "global cards, subscription-native" },
+                {
+                  value: "chargily",
+                  label: "Chargily",
+                  hint: "Algeria EDAHABIA/CIB, checkout-only",
+                },
+                { value: "paddle", label: "Paddle", hint: "MoR global tax 5% + 50c" },
+                { value: "polar", label: "Polar", hint: "MoR open-source 4% + metering + license" },
+              ],
+            }),
+          apps: () =>
+            p.multiselect({
+              message: "App targets? (space to select, enter to confirm)",
+              initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
+              required: false,
+              options: [
+                { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
+                { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
+              ],
+            }),
+          features: () =>
+            p.multiselect({
+              message: "Additional features?",
+              initialValues: initial.features,
+              required: false,
+              options: [
+                { value: "eve", label: "Eve", hint: "durable AI agent hybrid via withEve()" },
+                { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
+              ],
+            }),
+          install: () =>
+            p.confirm({
+              message: "Install dependencies with Bun?",
+              initialValue: !initial.noInstall,
+            }),
+        },
+        {
+          onCancel: () => {
+            p.cancel("Operation cancelled.");
+            throw new CancelledError();
+          },
+        },
+      );
+    } else {
+      // custom
+      group = await p.group(
+        {
+          mode: () =>
+            p.select({
+              message: "Project structure?",
+              initialValue: initial.mode,
+              options: [
+                { value: "monorepo", label: "Monorepo", hint: "apps/web + packages/* + tooling" },
+                { value: "single", label: "Single", hint: "all-in-one — src/app + server/" },
+              ],
+            }),
+          framework: () =>
+            p.select({
+              message: "Frontend framework?",
+              initialValue: initial.framework,
+              options: [
+                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC" },
+                {
+                  value: "tanstack-start",
+                  label: "TanStack Start",
+                  hint: "Vite + file-based router",
+                },
+              ],
+            }),
+          database: () =>
+            p.select({
+              message: "Database provider?",
+              initialValue: initial.database,
+              options: [
+                { value: "postgres", label: "PostgreSQL", hint: "Drizzle + PG 18.4" },
+                { value: "convex", label: "Convex", hint: "Realtime + serverless" },
+                { value: "none", label: "None", hint: "No database (blocks Auth/Billing)" },
+              ],
+            }),
+          apps: () =>
+            p.multiselect({
+              message: "App targets? (space to select, enter to confirm)",
+              initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
+              required: false,
+              options: [
+                { value: "web", label: "Web", hint: "Web app" },
+                { value: "mobile", label: "Mobile", hint: "Expo mobile app" },
+              ],
+            }),
+          customFeatures: () =>
+            p.multiselect({
+              message: "Features — pick any (space to select)",
+              initialValues: [],
+              required: false,
+              options: [
+                { value: "auth", label: "Authentication", hint: "Better Auth + 2FA (requires DB)" },
+                { value: "api", label: "API (oRPC)", hint: "contract-first transport" },
+                { value: "email", label: "Email", hint: "Resend templates" },
+                { value: "analytics", label: "Analytics", hint: "PostHog client+server" },
+                { value: "cache", label: "Cache (Redis)", hint: "Upstash Redis + memory fallback" },
+              ],
+            }),
+          billing: () =>
+            p.multiselect({
+              message: "Billing providers? (space to select)",
+              initialValues: initial.billing.length > 0 ? initial.billing : [],
+              required: false,
+              options: [
+                { value: "none", label: "None", hint: "No billing" },
+                { value: "stripe", label: "Stripe", hint: "global cards" },
+                { value: "chargily", label: "Chargily", hint: "Algeria EDAHABIA/CIB" },
+                { value: "paddle", label: "Paddle", hint: "MoR" },
+                { value: "polar", label: "Polar", hint: "MoR + metering" },
+              ],
+            }),
+          features: () =>
+            p.multiselect({
+              message: "Additional features?",
+              initialValues: initial.features,
+              required: false,
+              options: [
+                { value: "eve", label: "Eve", hint: "durable AI agent hybrid" },
+                { value: "i18n", label: "i18n", hint: "next-intl" },
+              ],
+            }),
+          install: () =>
+            p.confirm({
+              message: "Install dependencies with Bun?",
+              initialValue: !initial.noInstall,
+            }),
+        },
+        {
+          onCancel: () => {
+            p.cancel("Operation cancelled.");
+            throw new CancelledError();
+          },
+        },
+      );
+    }
+  } catch (err) {
+    if (err instanceof CancelledError) {
+      return {
+        name: name as string,
+        mode: initial.mode as PromptResult["mode"],
+        framework: initial.framework as PromptResult["framework"],
+        database: initial.database as PromptResult["database"],
+        billing: initial.billing,
+        features: initial.features,
+        apps: initial.apps,
+        preset: presetValue,
+        cache: initial.cache ?? "none",
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -276,30 +469,83 @@ export async function promptInteractive(
       billing: initial.billing,
       features: initial.features,
       apps: initial.apps,
+      preset: presetValue,
+      cache: initial.cache ?? "none",
       noInstall: initial.noInstall,
       cancelled: true,
       exitCode: ExitCode.CANCELLED,
     };
   }
 
+  // Parse results branching
   const mode = ((group.mode as string | undefined) ?? initial.mode) as PromptResult["mode"];
-  const framework = ((group.framework as string | undefined) ??
-    initial.framework) as PromptResult["framework"];
-  const database = ((group.database as string | undefined) ??
-    initial.database) as PromptResult["database"];
-  const billing = normalizeBillingSelection((group.billing as string[]) ?? []);
-  const features = normalizeFeaturesSelection((group.features as string[]) ?? []);
-  const apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
+  let framework: PromptResult["framework"];
+  let database: PromptResult["database"];
+  let billing: string[];
+  let features: string[];
+  let apps: string[];
+  let cache: string = "none";
+  let stack: string | undefined;
+
+  if (presetValue === "frontend") {
+    const stackVal = (group.stack as string | undefined) ?? "nextjs";
+    stack = stackVal;
+    if (stackVal === "expo") {
+      framework = "nextjs";
+      apps = ["mobile"];
+    } else if (stackVal === "both") {
+      framework = "nextjs";
+      apps = ["web", "mobile"];
+    } else {
+      framework = stackVal as PromptResult["framework"];
+      apps = ["web"];
+    }
+    database = "none";
+    billing = [];
+    features = [];
+    cache = "none";
+    // single + web+mobile check — force monorepo if both selected with single
+    if (mode === "single" && apps.length > 1) {
+      // Keep as is, validation will error; prompt layer could auto-switch but keep explicit error
+    }
+  } else if (presetValue === "saas") {
+    framework = ((group.framework as string | undefined) ??
+      initial.framework) as PromptResult["framework"];
+    database = ((group.database as string | undefined) ??
+      initial.database) as PromptResult["database"];
+    billing = normalizeBillingSelection((group.billing as string[]) ?? []);
+    features = normalizeFeaturesSelection((group.features as string[]) ?? []);
+    apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
+    cache = "none";
+  } else {
+    framework = ((group.framework as string | undefined) ??
+      initial.framework) as PromptResult["framework"];
+    database = ((group.database as string | undefined) ??
+      initial.database) as PromptResult["database"];
+    billing = normalizeBillingSelection((group.billing as string[]) ?? []);
+    features = normalizeFeaturesSelection((group.features as string[]) ?? []);
+    apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
+    const customFeatures = (group.customFeatures as string[]) ?? [];
+    // Map customFeatures to future with-* handling via outer createCommand; for now expose via cache flag
+    if (customFeatures.includes("cache")) cache = "redis";
+    // Store customFeatures in features temporarily with prefix for outer handler to parse
+    // We'll encode as special features entries: __custom_auth etc.
+    const customPrefix = customFeatures.filter((f) => f !== "cache").map((f) => `__custom_${f}`);
+    features = [...features, ...customPrefix];
+  }
+
   const shouldInstall = group.install as boolean | undefined;
   const noInstall = shouldInstall !== undefined ? !shouldInstall : initial.noInstall;
 
+  const presetLabel = presetValue;
   const billingLabel = billing.length ? ` + billing:${billing.join(",")}` : "";
   const featuresLabel = features.length ? ` + ${features.join(",")}` : "";
+  const cacheLabel = cache !== "none" ? ` + cache:${cache}` : "";
   const frameworkLabel = framework ? ` + ${framework}` : "";
   const appsLabel = apps.length ? ` + apps:${apps.join(",")}` : "";
   void appsLabel;
   p.outro(
-    `Scaffolding ${name} with ${mode}${frameworkLabel} + ${apps.join(",")} + ${database}${billingLabel}${featuresLabel}...`,
+    `Scaffolding ${name} with ${presetLabel} ${mode}${frameworkLabel} + ${apps.join(",")} + ${database}${billingLabel}${featuresLabel}${cacheLabel}...`,
   );
 
   return {
@@ -310,6 +556,9 @@ export async function promptInteractive(
     billing,
     features,
     apps,
+    preset: presetValue,
+    cache,
+    stack,
     noInstall,
   };
 }

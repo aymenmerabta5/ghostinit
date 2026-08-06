@@ -1,7 +1,6 @@
 /**
  * Auth fragments shim — split 577 LOC god file into auth/ folder <300 LOC each.
  */
-export * from "./auth/index.js";
 export { sharedValidators } from "./auth/validators.js";
 export { signInFormFields, signInPageContent } from "./auth/sign-in.js";
 export { signUpPageContent } from "./auth/sign-up.js";

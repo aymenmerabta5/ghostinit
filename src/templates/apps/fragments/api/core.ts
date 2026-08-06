@@ -26,7 +26,7 @@ export function authFileContent(router: RouterType): string {
     return `import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '@repo/auth'
 const allowed = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
-async function handle(request: Request): Promise<Response> {
+async function handle({ request }: { request: Request }): Promise<Response> {
   if (!allowed.has(request.method)) return new Response('Method not allowed', { status: 405 })
   return (auth as unknown as { handler: (req: Request) => Promise<Response> }).handler(request)
 }
@@ -44,7 +44,18 @@ export const GET = handle; export const POST = handle; export const PUT = handle
 }
 
 export function orpcFileContent(router: RouterType): string {
-  const sharedLogic = `const rpcHandler = new RPCHandler(appRouter);
+  const sharedLogicTanstack = `const rpcHandler = new RPCHandler(appRouter);
+const openapiHandler = new OpenAPIHandler(appRouter);
+async function handle({ request }: { request: Request }): Promise<Response> {
+  const context = await createContext(request.headers);
+  const matchOptions = { context };
+  const rpcResult = await rpcHandler.handle(request, matchOptions);
+  if (rpcResult.matched && rpcResult.response) { const response = rpcResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
+  const openApiResult = await openapiHandler.handle(request, matchOptions);
+  if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
+  return new Response("Not found", { status: 404 });
+}`;
+  const sharedLogicNext = `const rpcHandler = new RPCHandler(appRouter);
 const openapiHandler = new OpenAPIHandler(appRouter);
 async function handle(request: Request): Promise<Response> {
   const context = await createContext(request.headers);
@@ -60,14 +71,14 @@ async function handle(request: Request): Promise<Response> {
 import { RPCHandler } from '@orpc/server/fetch'
 import { OpenAPIHandler } from '@orpc/openapi/fetch'
 import { appRouter, createContext } from '@repo/api'
-${sharedLogic}
+${sharedLogicTanstack}
 export const Route = createFileRoute('/api/rpc/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
 `;
   }
   return `import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { appRouter, createContext } from "@repo/api";
-${sharedLogic}
+${sharedLogicNext}
 export const GET = handle; export const POST = handle; export const PUT = handle; export const PATCH = handle; export const DELETE = handle;
 `;
 }

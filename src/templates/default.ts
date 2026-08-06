@@ -12,6 +12,8 @@ import {
   type FrameworkName,
   type ProjectMode,
   type AppName,
+  type PresetName,
+  type CacheProvider,
 } from "../lib/addons.js";
 import { monorepoFiles } from "./modes/monorepo.js";
 import { singleFiles } from "./modes/single.js";
@@ -45,6 +47,12 @@ export function generateProjectFiles(
     mode,
     framework: (config.framework ?? "nextjs") as FrameworkName,
     apps: (config.apps ?? ["web"]) as AppName[],
+    preset: (config.preset ?? "saas") as PresetName,
+    cache: (config.cache ?? "none") as CacheProvider,
+    auth: config.auth,
+    api: config.api,
+    email: config.email,
+    analytics: config.analytics,
   });
 
   return singleFiles(config, secrets, { dryRun: ctx.dryRun }, addonMap).map((f) => ({

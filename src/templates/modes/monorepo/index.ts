@@ -10,6 +10,8 @@ import type {
   ProjectMode,
   DatabaseProvider,
   FeatureName,
+  PresetName,
+  CacheProvider,
 } from "../../../lib/addons.js";
 import { buildSecrets, selectedBillingFromAddons } from "./utils.js";
 import { rootComposerFiles } from "./root-composer.js";
@@ -23,6 +25,7 @@ import { appsComposerFiles } from "./apps-composer.js";
 import { billingComposerFiles } from "./billing-composer.js";
 import { servicesComposerFiles } from "./services-composer.js";
 import { agentsComposerFiles } from "./agents-composer.js";
+import { cacheComposerFiles } from "./cache-composer.js";
 
 export interface MonorepoSecrets extends RootSecrets {}
 export interface MonorepoContext {
@@ -39,6 +42,8 @@ export function monorepoFiles(
 ): TemplateFile[] {
   const runtime = (config.runtime ?? "bun") as Runtime;
   const mode = (config.mode ?? "monorepo") as ProjectMode;
+  const preset = (config.preset ?? "saas") as PresetName;
+  const cache = (config.cache ?? "none") as CacheProvider;
   const addonMap: AddonInstallerMap =
     addons ??
     buildAddonInstallerMap({
@@ -48,6 +53,12 @@ export function monorepoFiles(
       mode,
       framework: (config.framework ?? "nextjs") as FrameworkName,
       apps: (config.apps ?? ["web"]) as AppName[],
+      preset,
+      cache,
+      auth: config.auth,
+      api: config.api,
+      email: config.email,
+      analytics: config.analytics,
     });
 
   const hasEve = Boolean(
@@ -90,6 +101,12 @@ export function monorepoFiles(
         ? "none"
         : "postgres")) as DatabaseProvider;
 
+  const hasAuth = hasAddon(addonMap, "auth");
+  const hasAnalytics = hasAddon(addonMap, "analytics");
+  const hasEmail = hasAddon(addonMap, "email");
+  const hasApi = hasAddon(addonMap, "api");
+  const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
+
   const all: TemplateFile[] = [
     ...rootComposerFiles(
       config.name,
@@ -102,15 +119,24 @@ export function monorepoFiles(
       effectiveFramework,
       effectiveApps,
     ),
-    ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase),
+    ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase, hasAnalytics),
     ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
-    ...authComposerFiles(effectiveFramework, addonMap),
-    ...apiComposerFiles(effectiveBilling),
+    ...(hasAuth ? authComposerFiles(effectiveFramework, addonMap) : []),
+    ...(hasApi ? apiComposerFiles(effectiveBilling) : []),
     ...uiComposerFiles(),
     ...modulesComposerFiles(runtime, effectiveBilling.length > 0),
     ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps),
-    ...servicesComposerFiles(config.name, runtime, addonMap, hasEve, hasI18n, effectiveFramework),
+    ...servicesComposerFiles(
+      config.name,
+      runtime,
+      addonMap,
+      hasEve,
+      hasI18n,
+      effectiveFramework,
+      hasEmail,
+    ),
     ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
+    ...(hasCache ? cacheComposerFiles(runtime) : []),
   ];
 
   const enrichedAgents = agentsComposerFiles(
@@ -141,6 +167,113 @@ export function monorepoFiles(
   let filteredFiles = deduped;
   if (!hasWeb) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/web/"));
   if (!hasMobile) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/mobile/"));
+  if (!hasAuth) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.startsWith("packages/auth/") &&
+        !f.path.includes("/auth") &&
+        !f.path.includes("auth-client"),
+    );
+    // Also strip auth-related app routes that may have been emitted by apps composer
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.includes("apps/web/src/app/(auth)") &&
+        !f.path.includes("apps/web/src/app/auth") &&
+        !f.path.includes("sign-in") &&
+        !f.path.includes("sign-up") &&
+        !f.path.includes("two-factor") &&
+        !f.path.includes("2fa"),
+    );
+  }
+  if (!hasAnalytics) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.startsWith("packages/analytics/") &&
+        !f.path.includes("/ingest") &&
+        !f.path.includes("analytics"),
+    );
+  }
+  if (!hasEmail) {
+    filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/email/"));
+  }
+  if (!hasApi) {
+    filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/api/"));
+  }
+  if (!hasCache) {
+    filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/cache/"));
+  }
+  // Content-based filtering for remaining files that import disabled packages
+  if (!hasAuth) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.content.includes('from "@repo/auth"') &&
+        !f.content.includes("from '@repo/auth'") &&
+        !f.content.includes('require("@repo/auth"') &&
+        !f.content.includes("auth-client"),
+    );
+  }
+  if (!hasApi) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.content.includes('from "@repo/api"') &&
+        !f.content.includes("from '@repo/api'") &&
+        !f.content.includes("lib/orpc"),
+    );
+  }
+  if (!hasAnalytics) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.content.includes('from "@repo/analytics"') &&
+        !f.content.includes("from '@repo/analytics'"),
+    );
+  }
+  if (!hasEmail) {
+    filteredFiles = filteredFiles.filter(
+      (f) => !f.content.includes('from "@repo/email"') && !f.content.includes("from '@repo/email'"),
+    );
+  }
+
+  // Strip workspace deps for disabled packages from remaining package.json files
+  const disabledPackages = new Set<string>();
+  if (!hasAuth) disabledPackages.add("@repo/auth");
+  if (!hasApi) disabledPackages.add("@repo/api");
+  if (!hasAnalytics) disabledPackages.add("@repo/analytics");
+  if (!hasEmail) disabledPackages.add("@repo/email");
+  if (!hasCache) disabledPackages.add("@repo/cache");
+  // billing is handled separately via effectiveBilling, but if no billing selected strip all billing providers
+  if (effectiveBilling.length === 0) {
+    disabledPackages.add("@repo/billing");
+  }
+  if (disabledPackages.size > 0) {
+    filteredFiles = filteredFiles.map((f) => {
+      if (!f.path.endsWith("package.json")) return f;
+      try {
+        const pkg = JSON.parse(f.content) as Record<string, unknown>;
+        let changed = false;
+        for (const depKey of [
+          "dependencies",
+          "devDependencies",
+          "peerDependencies",
+          "optionalDependencies",
+        ] as const) {
+          const deps = pkg[depKey] as Record<string, string> | undefined;
+          if (deps && typeof deps === "object") {
+            for (const pkgName of disabledPackages) {
+              if (pkgName in deps) {
+                delete deps[pkgName];
+                changed = true;
+              }
+            }
+            // Also strip transitive billing provider deps if billing disabled? keep simple
+          }
+        }
+        if (changed) {
+          return { ...f, content: `${JSON.stringify(pkg, null, 2)}\n` };
+        }
+      } catch {}
+      return f;
+    });
+  }
 
   const tsIdx = filteredFiles.findIndex((f) => f.path === "tsconfig.json");
   if (tsIdx !== -1) {

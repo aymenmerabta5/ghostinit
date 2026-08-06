@@ -9,6 +9,8 @@ import {
   type DatabaseProvider,
   type FrameworkName,
   type FeatureName,
+  type PresetName,
+  type CacheProvider,
   buildAddonInstallerMap,
   hasAddon,
 } from "../../../lib/addons.js";
@@ -37,6 +39,8 @@ export function singleFiles(
 ): TemplateFile[] {
   const runtime = (config.runtime ?? "bun") as Runtime;
   const mode = (config.mode ?? "single") as ProjectMode;
+  const preset = (config.preset ?? "saas") as PresetName;
+  const cache = (config.cache ?? "none") as CacheProvider;
   const addonMap: AddonInstallerMap =
     addons ??
     buildAddonInstallerMap({
@@ -46,6 +50,12 @@ export function singleFiles(
       mode,
       framework: (config.framework ?? "nextjs") as FrameworkName,
       apps: (config.apps ?? ["web"]) as AppName[],
+      preset,
+      cache,
+      auth: config.auth,
+      api: config.api,
+      email: config.email,
+      analytics: config.analytics,
     });
 
   const hasEve = Boolean(
@@ -106,7 +116,38 @@ export function singleFiles(
 
   // Same-path emissions collapse here; differing content is a real conflict and
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
-  const finalFiles = dedupeFilesOrThrow(withoutOld).sort((a, b) => a.path.localeCompare(b.path));
+  let deduped = dedupeFilesOrThrow(withoutOld);
+  // Conditional stripping for frontend preset
+  const hasAuth = hasAddon(addonMap, "auth");
+  const hasAnalytics = hasAddon(addonMap, "analytics");
+  const hasEmail = hasAddon(addonMap, "email");
+  const hasApi = hasAddon(addonMap, "api");
+  const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
+  if (!hasAuth) {
+    deduped = deduped.filter(
+      (f) =>
+        !f.path.includes("auth") &&
+        !f.content.includes('from "@repo/auth"') &&
+        !f.content.includes("auth-client"),
+    );
+  }
+  if (!hasAnalytics) {
+    deduped = deduped.filter(
+      (f) => !f.path.includes("analytics") && !f.content.includes('from "@repo/analytics"'),
+    );
+  }
+  if (!hasEmail) {
+    deduped = deduped.filter(
+      (f) => !f.path.includes("email") && !f.content.includes('from "@repo/email"'),
+    );
+  }
+  if (!hasApi) {
+    deduped = deduped.filter((f) => !f.content.includes('from "@repo/api"'));
+  }
+  if (!hasCache) {
+    deduped = deduped.filter((f) => !f.path.includes("cache"));
+  }
+  const finalFiles = deduped.sort((a, b) => a.path.localeCompare(b.path));
 
   return finalFiles.map((f) => ({
     path: f.path.replace(/__PROJECT_NAME__/g, config.name),

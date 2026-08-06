@@ -4,6 +4,6 @@
  * Original 809 LOC god file now decomposed into single-responsibility composers.
  */
 
-export * from "./monorepo/index.js";
-export { monorepoFiles } from "./monorepo/index.js";
+// Explicit re-exports only — no `export *` per host guideline
+export { monorepoFiles, monorepoTemplateFiles } from "./monorepo/index.js";
 export { monorepoFiles as default } from "./monorepo/index.js";

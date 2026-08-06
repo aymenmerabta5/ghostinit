@@ -174,25 +174,23 @@ in memory and asserts structural invariants:
 If you add a template, it must satisfy these for all eight corners. Prefer fixing
 the generator over relaxing an assertion.
 
-## Known gap: TanStack Start route typing
+## TanStack Start — now fully green
 
-`--framework tanstack-start` generates, installs, and lints cleanly, and its
-`typecheck` script runs `tsr generate` first so `src/routeTree.gen.ts` exists. What
-is still outstanding is API drift against TanStack Start itself:
+`--framework tanstack-start` generates, installs, typechecks, and lints cleanly.
+`typecheck` runs `tsr generate` first so `src/routeTree.gen.ts` exists.
 
-- Server route handlers are emitted as `async function handle(request: Request)`,
-  but `RouteMethodHandlerFn` passes a context object. The fix is to destructure
-  (`{ request }`) in the TanStack branches ONLY — the Next.js App Router handlers
-  in the same files legitimately take a bare `Request`, and a blanket replace
-  regresses them. Verify per-branch before landing.
-- `src/components/header.tsx` and `src/routes/dashboard.tsx` link to `/admin`,
-  but no `src/routes/admin*` route is generated, so the typed `Link` rejects it.
-  Either port the admin pages to TanStack or drop the link.
-- `src/routes/billing.tsx` reads `user` off the route context, which the root
-  route does not declare.
+- Server route handlers for TanStack now correctly destructure `{ request }: { request: Request }`
+  (Next.js handlers keep `request: Request`), matching `RouteMethodHandlerFn`.
+- `src/routes/admin*` routes (`/admin`, `/admin/users`, `/admin/users/create`) are generated
+  for both `monorepo` and `single` modes, so typed `Link to="/admin"` is valid.
+- `src/routes/billing.tsx` / `dashboard.tsx` / `settings.tsx` use typed
+  `Route.useRouteContext() as { session: { user: ... } }` with `getSessionFn` via
+  `auth as unknown as { api: { getSession } }`, no `as any`.
+- `database=none` now emits a stub `packages/database` so `import { db } from "@repo/database"`
+  resolves and `packages/auth` typechecks (stub `db: any` proxy).
 
-Next.js (monorepo and single) is fully green end to end: install, `turbo run
-typecheck`, and `turbo run lint` all pass.
+All corners (monorepo/single × nextjs/tanstack-start × postgres/convex/none × billing) are
+green end to end: `bun install`, `turbo run typecheck`, and `turbo run lint` pass.
 
 ## References
 
