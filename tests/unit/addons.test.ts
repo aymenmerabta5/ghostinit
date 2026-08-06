@@ -258,8 +258,10 @@ describe("parseAppsInput — no silent fallback (AGENTS.md: only billing/feature
   it("accepts the known app names", () => {
     expect(parseAppsInput("web")).toEqual(["web"]);
     expect(parseAppsInput("web,mobile").sort()).toEqual(["mobile", "web"]);
-    expect(parseAppsInput("all").sort()).toEqual(["mobile", "web"]);
+    expect(parseAppsInput("desktop").sort()).toEqual(["desktop"]);
+    expect(parseAppsInput("all").sort()).toEqual(["desktop", "mobile", "web"]);
     expect(parseAppsInput("both").sort()).toEqual(["mobile", "web"]);
+    expect(parseAppsInput("web,desktop").sort()).toEqual(["desktop", "web"]);
   });
 
   it("throws on a fully unknown value", () => {

@@ -27,7 +27,9 @@ export function checkServerOnlyClient(
 
   if (isServerRouteWithServerFn) return;
 
-  if (!directives.has("use client")) return;
+  const isDesktopRenderer =
+    file.includes("apps/desktop/src/renderer") || file.includes("src/renderer");
+  if (!directives.has("use client") && !isDesktopRenderer) return;
 
   const serverOnly = new Set(["@repo/database", "@repo/auth", "@repo/modules", "@repo/api"]);
   const basePkg = getBasePackage(imp);

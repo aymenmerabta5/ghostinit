@@ -30,6 +30,7 @@ export {
   analytics,
   email,
   cache,
+  electron,
   backend,
   i18n,
   interactive,

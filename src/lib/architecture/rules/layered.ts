@@ -72,6 +72,17 @@ export function getLayerFromFilePath(p: string): LayerInfo | null {
   ) {
     return { level: 1, name: "UI" };
   }
+  if (
+    file.includes("apps/desktop/src/") ||
+    file.includes("apps/desktop/") ||
+    file.includes("/apps/desktop/") ||
+    file.startsWith("apps/desktop") ||
+    file.includes("src/renderer/") ||
+    file.includes("src/main.ts") ||
+    file.includes("src/preload.ts")
+  ) {
+    return { level: 1, name: "UI" };
+  }
 
   if (
     file.includes("apps/web/src/routes") ||
@@ -218,6 +229,69 @@ export function checkLayeredDependency(
   }
 
   if (!targetLayer) return;
+
+  const normalized = imp.replace(/\\/g, "/");
+
+  // Strict desktop frontend isolation: desktop must not import Capabilities/Domain directly — must go through Transport (oRPC)
+  // This enforces desktop as pure frontend that only uses @repo/api + Supporting, like mobile
+  // Web is intentionally not strict here (legacy allows some direct imports), desktop is stricter
+  if (
+    sourceLayer.level === 1 &&
+    (targetLayer.level === 3 || targetLayer.level === 4) &&
+    (imp.startsWith("@repo/services") ||
+      imp.startsWith("@repo/database") ||
+      imp.startsWith("@repo/modules") ||
+      imp.startsWith("@repo/email") ||
+      imp.startsWith("@repo/billing") ||
+      imp.includes("packages/services") ||
+      imp.includes("packages/database") ||
+      imp.includes("packages/modules") ||
+      imp.includes("packages/email") ||
+      imp.includes("packages/billing") ||
+      normalized.includes("/domain/") ||
+      normalized.includes("/application/"))
+  ) {
+    const isDesktopUi =
+      file.includes("apps/desktop") ||
+      file.includes("src/renderer") ||
+      file.includes("src/main.ts") ||
+      file.includes("src/preload.ts");
+    if (isDesktopUi) {
+      findings.push({
+        id: "ui-imports-capabilities",
+        severity: "HIGH",
+        message: `UI layer (${file}) must not import Capabilities/Domain directly: ${imp} — use oRPC via @repo/api (Transport) instead`,
+        file,
+        rule: "ui-capabilities-isolation",
+      });
+      return;
+    }
+  }
+
+  // Strict desktop isolation: desktop even stricter — also forbid direct Vendors import (must via api)
+  if (
+    file.includes("apps/desktop") &&
+    (targetLayer.level === 5 || isVendorDirectImport(imp)) &&
+    !file.includes("/api/") &&
+    !file.includes("src/main.ts") // main can import electron, but not billing vendors directly
+  ) {
+    // Allow electron, vite, but not billing vendors
+    if (
+      imp.startsWith("stripe") ||
+      imp.startsWith("@chargily") ||
+      imp.startsWith("@paddle") ||
+      imp.startsWith("@polar")
+    ) {
+      findings.push({
+        id: "desktop-imports-vendor",
+        severity: "HIGH",
+        message: `Desktop UI must not import billing vendor directly: ${imp} — must go via @repo/billing Capabilities → Vendors`,
+        file,
+        rule: "desktop-vendor-isolation",
+      });
+      return;
+    }
+  }
 
   if (resolvedNormalized) {
     const srcModMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(file);

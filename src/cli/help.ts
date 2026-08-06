@@ -38,7 +38,7 @@ Create options:
   --billing <providers>      Billing: stripe,chargily,paddle,polar|both|all|none (repeatable or comma-separated)
   --features <list>          Features: eve,i18n (deprecated alias for --with-eve/--with-i18n)
   --database postgres|convex|none (default: postgres)
-  --apps web,mobile|both|all Apps: web, mobile, or both/all (repeatable or comma-separated, default: web)
+  --apps web,mobile,desktop|both|all Apps: web, mobile, desktop or combos (repeatable or comma-separated, default: web; both=web,mobile, all=web,mobile,desktop)
   --preset saas|frontend|custom  Preset: saas (full), frontend (minimal ui+config), custom (pick features) (default: saas)
   --cache redis|none         Cache: redis (Upstash) or none (default: none)
   --stack nextjs|tanstack-start|expo|both  Stack shorthand for frontend (framework+apps)

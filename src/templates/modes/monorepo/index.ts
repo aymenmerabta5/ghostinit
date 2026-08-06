@@ -89,10 +89,12 @@ export function monorepoFiles(
   } else {
     const hasWeb = hasAddon(addonMap, "web");
     const hasMobile = hasAddon(addonMap, "mobile");
-    if (hasWeb || hasMobile) {
+    const hasDesktop = hasAddon(addonMap, "desktop");
+    if (hasWeb || hasMobile || hasDesktop) {
       effectiveApps = [
         ...(hasWeb ? (["web"] as AppName[]) : []),
         ...(hasMobile ? (["mobile"] as AppName[]) : []),
+        ...(hasDesktop ? (["desktop"] as AppName[]) : []),
       ] as AppName[];
     } else {
       effectiveApps = ["web"] as AppName[];

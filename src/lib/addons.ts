@@ -59,7 +59,7 @@ export type ProjectMode = (typeof availableModes)[number];
 export const availableFrameworks = ["nextjs", "tanstack-start"] as const;
 export type FrameworkName = (typeof availableFrameworks)[number];
 
-export const availableApps = ["web", "mobile"] as const;
+export const availableApps = ["web", "mobile", "desktop"] as const;
 export type AppName = (typeof availableApps)[number];
 
 export const availableFeatures = ["eve", "i18n"] as const;
@@ -366,10 +366,10 @@ export function parseDatabaseInput(input?: string): DatabaseProvider {
  * Parse apps input:
  * - undefined / "" / whitespace -> ["web"] default (backward compat)
  * - "none" -> [] (let isValidAddonCombo report missing app)
- * - "all" / "both" -> ["web","mobile"]
+ * - "all" -> ["web","mobile","desktop"], "both" -> ["web","mobile"] (compat)
  * - comma/whitespace separated, case-insensitive, deduped
- *   e.g. "web" => ["web"], "mobile" => ["mobile"]
- *        "web,mobile" / "both" / "all" => ["web","mobile"]
+ *   e.g. "web" => ["web"], "mobile" => ["mobile"], "desktop" => ["desktop"]
+ *        "web,mobile" / "both" => ["web","mobile"], "all" => ["web","mobile","desktop"]
  * - Unknown tokens ignored when at least one known exists (forward-compat)
  * - Fully unknown non-empty (no explicit none) throws ValidationError
  */
@@ -379,7 +379,8 @@ export function parseAppsInput(input?: string): AppName[] {
   if (trimmedInput === "") return ["web"];
   const normalized = trimmedInput.toLowerCase();
   if (normalized === "none") return [];
-  if (normalized === "all" || normalized === "both") return [...availableApps];
+  if (normalized === "all") return [...availableApps];
+  if (normalized === "both") return ["web", "mobile"] as AppName[];
 
   const parts = normalized.split(/[,\s]+/).filter(Boolean);
   const result: AppName[] = [];
@@ -390,7 +391,8 @@ export function parseAppsInput(input?: string): AppName[] {
   for (const raw of parts) {
     const p = raw.trim().toLowerCase();
     if (p === "" || p === "none") continue;
-    if (p === "all" || p === "both") return [...availableApps];
+    if (p === "all") return [...availableApps];
+    if (p === "both") return ["web", "mobile"] as AppName[];
     if ((availableApps as readonly string[]).includes(p)) {
       const typed = p as AppName;
       if (!result.includes(typed)) result.push(typed);
@@ -523,18 +525,17 @@ export function isValidAddonCombo(options: {
   if (apps.length === 0) {
     return {
       valid: false,
-      message: "At least one app target required --apps web, mobile, or both",
+      message: "At least one app target required --apps web, mobile, desktop, or combos",
     };
   }
   if (
     options.mode === "single" &&
-    apps.includes("web" as AppName) &&
-    apps.includes("mobile" as AppName)
+    (apps as string[]).filter((a) => ["web", "mobile", "desktop"].includes(a)).length > 1
   ) {
     return {
       valid: false,
       message:
-        "Single mode supports only one app target --apps web or --apps mobile, not both. Use monorepo for web+mobile",
+        "Single mode supports only one app target --apps web, mobile, or desktop alone, not combos. Use monorepo for web+mobile+desktop",
     };
   }
   // TanStack Start + Expo (mobile) via separate runtimes not yet supported in single template glue

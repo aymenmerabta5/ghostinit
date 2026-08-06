@@ -34,7 +34,10 @@ export function checkVendorIsolation(
   if (isFrameworkEntryPoint(file)) return;
   const isWebUI =
     file.includes("apps/web") ||
+    file.includes("apps/desktop") ||
+    file.includes("apps/mobile") ||
     file.includes("src/routes") ||
+    file.includes("src/renderer") ||
     file.includes("apps/web/src/routes");
   if (!isWebUI) return;
   if (

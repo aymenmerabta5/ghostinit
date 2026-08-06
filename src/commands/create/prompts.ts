@@ -317,6 +317,7 @@ export async function promptInteractive(
               options: [
                 { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
                 { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
+                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
               ],
             }),
           features: () =>
@@ -384,8 +385,9 @@ export async function promptInteractive(
               initialValues: initial.apps && initial.apps.length > 0 ? initial.apps : ["web"],
               required: false,
               options: [
-                { value: "web", label: "Web", hint: "Web app" },
-                { value: "mobile", label: "Mobile", hint: "Expo mobile app" },
+                { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
+                { value: "mobile", label: "Mobile", hint: "Expo SDK 54 Router + SecureStore" },
+                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
               ],
             }),
           customFeatures: () =>

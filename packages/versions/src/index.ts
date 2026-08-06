@@ -176,6 +176,14 @@ export const cache = {
   "@upstash/redis": "1.35.0",
 } as const;
 
+export const electron = {
+  electron: "41.5.0",
+  "electron-vite": "3.1.0",
+  "electron-builder": "26.15.6",
+  "electron-updater": "6.6.2",
+  "electron-store": "8.2.0",
+} as const;
+
 /**
  * @deprecated - DEPRECATED: Elysia removed, pure oRPC only.
  * Kept for backwards compatibility / reference, not emitted in templates.
@@ -256,6 +264,7 @@ export const catalog = {
   ...analytics,
   ...email,
   ...cache,
+  ...electron,
   ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
   ...interactive,

@@ -24,6 +24,7 @@ import {
 import { buildNextFiles } from "./composers/next.js";
 import { buildTanstackFiles } from "./composers/tanstack.js";
 import { buildExpoFiles } from "./composers/expo.js";
+import { buildDesktopFiles } from "./composers/desktop.js";
 
 export interface SingleContext {
   dryRun?: boolean;
@@ -79,6 +80,7 @@ export function singleFiles(
   const effectiveApps: string[] = ((): string[] => {
     const cfgApps = config.apps as string[] | undefined;
     if (cfgApps && cfgApps.length > 0) return cfgApps;
+    if (hasAddon(addonMap, "desktop")) return ["desktop"];
     if (hasAddon(addonMap, "mobile")) return ["mobile"];
     return ["web"];
   })();
@@ -88,20 +90,26 @@ export function singleFiles(
     (hasAddon(addonMap, "tanstack-start") ? "tanstack-start" : "nextjs")) as FrameworkName;
 
   const isMobileOnly = effectiveApps.includes("mobile") && !effectiveApps.includes("web");
+  const isDesktopOnly =
+    effectiveApps.includes("desktop") &&
+    !effectiveApps.includes("web") &&
+    !effectiveApps.includes("mobile");
 
-  const files = isMobileOnly
-    ? buildExpoFiles(config.name, runtime, effectiveBilling, hasEve, hasI18n, secrets, addonMap)
-    : framework === "tanstack-start"
-      ? buildTanstackFiles(
-          config.name,
-          runtime,
-          effectiveBilling,
-          hasEve,
-          hasI18n,
-          secrets,
-          addonMap,
-        )
-      : buildNextFiles(config.name, runtime, effectiveBilling, hasEve, secrets, addonMap);
+  const files = isDesktopOnly
+    ? buildDesktopFiles(config.name, runtime, effectiveBilling, hasEve, hasI18n, secrets, addonMap)
+    : isMobileOnly
+      ? buildExpoFiles(config.name, runtime, effectiveBilling, hasEve, hasI18n, secrets, addonMap)
+      : framework === "tanstack-start"
+        ? buildTanstackFiles(
+            config.name,
+            runtime,
+            effectiveBilling,
+            hasEve,
+            hasI18n,
+            secrets,
+            addonMap,
+          )
+        : buildNextFiles(config.name, runtime, effectiveBilling, hasEve, secrets, addonMap);
 
   const enrichedAgents = updatedAgentsMd(config.name, effectiveBilling, hasEve, hasI18n);
   const withoutOld = files.filter(

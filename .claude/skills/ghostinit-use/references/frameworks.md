@@ -23,9 +23,11 @@ Both emit dual env prefixes (`NEXT_PUBLIC_*` + `VITE_*`) for client tokens so sw
 
 ## App Targets
 
-Expo is **not** a framework — it is an app target selected via `--apps`. Web target uses `--framework` (nextjs/tanstack-start). Mobile target is Expo.
+Expo and Electron are **not** frameworks — they are app targets selected via `--apps`. Web target uses `--framework` (nextjs/tanstack-start). Mobile is Expo, Desktop is Electron.
 
-### expo (via --apps web,mobile|both|all)
+### expo (via --apps mobile)
+
+### desktop (via --apps desktop — Electron 41 + TanStack Router SPA)
 
 - Expo SDK 54, Expo Router file-based `app/` directory (`app/_layout.tsx`, `app/index.tsx`, `app/(auth)/*`, `app/+not-found.tsx`), `expo-router/entry` main, typedRoutes experiment enabled.
 - `metro.config.js` auto monorepo support from SDK 52+ — `getDefaultConfig(__dirname)` auto-detects workspace root, no manual watchFolders needed. `babel-preset-expo` preset.
@@ -36,21 +38,27 @@ Expo is **not** a framework — it is an app target selected via `--apps`. Web t
 - Backend: when both web+mobile, single DB + same `packages/api` + same auth server. Mobile calls `/api/rpc` and `/api/auth/*` via `EXPO_PUBLIC_API_URL`.
 - Env: client prefix `EXPO_PUBLIC_*` (Expo convention). Scaffold emits triple prefixes for client-safe tokens: `NEXT_PUBLIC_*` + `VITE_*` + `EXPO_PUBLIC_*`.
 
+- Electron 41.5.0 + electron-vite 3.1.0 + electron-builder 26.15.6, TanStack Router SPA (`src/renderer/routes/__root.tsx` + `index.tsx`/`dashboard.tsx` + `routeTree.gen.ts` via `@tanstack/router-plugin`), `src/main.ts` + `preload.ts` (contextBridge), `electron-store` + `safeStorage` (t3code `ElectronSafeStorage.ts` pattern) for auth, `electron-updater` autoUpdater. Renderer shares `packages/ui/theme.css` + `packages/api` oRPC via `http://localhost:3000/api/rpc` single port, no direct DB.
+
 Choose via:
 
 ```bash
 ghostinit create my-app --apps web              # default, web only
 ghostinit create my-app --apps mobile           # mobile only → apps/mobile
-ghostinit create my-app --apps both             # monorepo apps/web + apps/mobile
-ghostinit create my-app --apps all              # alias for both
+ghostinit create my-app --apps desktop          # desktop only → apps/desktop (Electron 41 SPA)
+ghostinit create my-app --apps web,desktop      # web + desktop
+ghostinit create my-app --apps both             # monorepo apps/web + apps/mobile (compat)
+ghostinit create my-app --apps all              # monorepo apps/web + apps/mobile + apps/desktop
 ghostinit create my-app --apps web,mobile       # same as both, comma repeatable
+ghostinit create my-app --apps web,mobile,desktop # same as all
 ghostinit create my-app --mode single --apps mobile  # flat Expo app/ + src/server/
+ghostinit create my-app --mode single --apps desktop # flat Electron src/main.ts + src/renderer/
 ghostinit create my-app --apps web,mobile --framework tanstack-start  # web tanstack + mobile expo
 ```
 
 Validation:
 
-- `single` mode supports only one target: `--apps web` or `--apps mobile`, not both. Use `monorepo` for `web+mobile`.
+- `single` mode supports only one target: `--apps web` or `--apps mobile` or `--apps desktop` alone, not combos. Use `monorepo` for `web+mobile`/`web,desktop`/`all`.
 - `billing + database=none` still blocked regardless of apps.
 - At least one app required (`none` alone invalid).
 

@@ -6,6 +6,7 @@ import {
   tanstackStartFiles as genTanstackFiles,
   expoFiles as genExpoFiles,
 } from "../../apps/index.js";
+import { desktopCoreFiles } from "../../apps/desktop-core.js";
 import type { AddonInstallerMap, FrameworkName } from "../../../lib/addons.js";
 import { hasAddon } from "../../../lib/addons.js";
 
@@ -352,28 +353,39 @@ export function appsComposerFiles(
   let effectiveApps: string[] = ["web"];
 
   const maybe = appsOrFrameworkMaybe as unknown;
-  if (Array.isArray(maybe) && (maybe as string[]).some((a) => a === "web" || a === "mobile")) {
+  if (
+    Array.isArray(maybe) &&
+    (maybe as string[]).some((a) => a === "web" || a === "mobile" || a === "desktop")
+  ) {
     effectiveApps = maybe as string[];
-  } else if (maybe === "web" || maybe === "mobile") {
+  } else if (maybe === "web" || maybe === "mobile" || maybe === "desktop") {
     effectiveApps = [maybe as string];
   } else {
     const hasMobileAddon = hasAddon(addons, "mobile");
     const hasWebAddon = hasAddon(addons, "web");
-    if (hasMobileAddon || hasWebAddon) {
-      effectiveApps = [...(hasWebAddon ? ["web"] : []), ...(hasMobileAddon ? ["mobile"] : [])];
+    const hasDesktopAddon = hasAddon(addons, "desktop");
+    if (hasMobileAddon || hasWebAddon || hasDesktopAddon) {
+      effectiveApps = [
+        ...(hasWebAddon ? ["web"] : []),
+        ...(hasMobileAddon ? ["mobile"] : []),
+        ...(hasDesktopAddon ? ["desktop"] : []),
+      ];
     }
     if (effectiveApps.length === 0) effectiveApps = ["web"];
   }
 
   const hasWeb = effectiveApps.includes("web");
   const hasMobile = effectiveApps.includes("mobile");
+  const hasDesktop = effectiveApps.includes("desktop");
 
   const webFiles = hasWeb ? appsFilesWithConditionalEve(runtime, addons, effectiveFramework) : [];
   const mobileFiles = hasMobile ? genExpoFiles(runtime, addons) : [];
+  const desktopFiles = hasDesktop ? desktopCoreFiles(runtime, addons) : [];
 
   return [
     ...webFiles,
     ...mobileFiles,
+    ...desktopFiles,
     ...typescriptConfigWithAliases(effectiveFramework, effectiveApps),
   ];
 }
