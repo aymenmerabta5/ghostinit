@@ -282,7 +282,6 @@ export const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProp
       )}
       <span className={cn(isPending && "opacity-0")}>{children}</span>
       {isPending && <span className="sr-only">Submitting</span>}
-      {!isPending && children}
     </Button>
   ),
 );
