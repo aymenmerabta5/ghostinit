@@ -71,7 +71,7 @@ export function extractDistinctId(opts: {
     // Intersecting a getter signature with Map made \`.get\` a union of two
     // incompatible call signatures, so TS refused to call it (TS2349). Narrow the
     // Map case first, then treat anything else as a cookies()-style accessor.
-    const cookieStore = opts.cookies as unknown;
+    const cookieStore = opts.cookies as unknown as string;
     if (cookieStore) {
       if (cookieStore instanceof Map) {
         const m = cookieStore as Map<string, string>;

@@ -164,7 +164,10 @@ function createWindow() {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      enableWebSQL: false,
     },
   });
 
@@ -196,17 +199,24 @@ app.whenReady().then(() => {
     autoUpdater.checkForUpdatesAndNotify().catch(() => {});
   }
 
-  // IPC — minimal 8 channels (vs t3code 80)
+  // IPC — validated channels (zod-lite) — vercel server-auth-actions analogue
   ipcMain.handle("desktop:get-app-branding", () => ({
     name: "GhostInit Desktop",
     version: app.getVersion(),
   }));
 
   ipcMain.handle("desktop:get-client-settings", () => store.get("clientSettings"));
-  ipcMain.handle("desktop:set-client-settings", (_e: unknown, val: unknown) => store.set("clientSettings", val as never));
+  ipcMain.handle("desktop:set-client-settings", (_e: unknown, val: unknown) => {
+    if (val !== null && typeof val !== "object") throw new Error("Invalid clientSettings: expected object");
+    if (val && typeof val === "object" && Object.keys(val as object).length > 50) throw new Error("Invalid clientSettings: too many keys");
+    store.set("clientSettings", val as never);
+  });
 
   ipcMain.handle("desktop:auth-get-session", () => getSafeValue("auth:session"));
-  ipcMain.handle("desktop:auth-set-session", (_e: unknown, token: string) => setSafeValue("auth:session", token));
+  ipcMain.handle("desktop:auth-set-session", (_e: unknown, token: unknown) => {
+    if (typeof token !== "string" || token.length > 4096) throw new Error("Invalid auth token");
+    setSafeValue("auth:session", token);
+  });
 
   ipcMain.handle("desktop:window-minimize", () => mainWindow?.minimize());
   ipcMain.handle("desktop:window-maximize", () => {
@@ -219,7 +229,10 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:updates-download", () => autoUpdater.downloadUpdate());
   ipcMain.handle("desktop:updates-install", () => autoUpdater.quitAndInstall());
 
-  ipcMain.handle("desktop:shell-open-external", (_e: unknown, url: string) => shell.openExternal(url));
+  ipcMain.handle("desktop:shell-open-external", (_e: unknown, url: unknown) => {
+    if (typeof url !== "string" || !(url.startsWith("https://") || url.startsWith("http://"))) throw new Error("Invalid URL");
+    return shell.openExternal(url);
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -296,11 +309,17 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import type { appRouter } from "@repo/api";
 
-// Desktop oRPC — single port 3000, credentials via Electron session
-// Like mobile's EXPO_PUBLIC_API_URL pattern, but for Electron we use http://localhost:3000
-// and include credentials for Better Auth cookie. Auth token also available via safeStorage bridge.
+// Desktop oRPC — env-configurable base URL (not hardcoded 3000 for self-hosting)
+// Uses DESKTOP_API_URL / VITE_API_URL / NEXT_PUBLIC_API_URL if set, else localhost:3000
+// Credentials via include + safeStorage bridge fallback.
 
 function getBaseUrl(): string {
+  // Allow self-hosted override — vercel bundling best-practice: env over hardcoded
+  const envUrl =
+    (typeof process !== "undefined" && (process.env.DESKTOP_API_URL || process.env.VITE_API_URL || process.env.NEXT_PUBLIC_API_URL)) ||
+    (typeof window !== "undefined" && (window as unknown as { __DESKTOP_API_URL__?: string }).__DESKTOP_API_URL__) ||
+    "";
+  if (envUrl) return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
   // In Electron prod, window.location is file://, so we must use explicit localhost
   // In dev, vite serves renderer at http://localhost:5173, but API is at :3000
   return "http://localhost:3000";
@@ -337,8 +356,16 @@ export type ApiClient = typeof orpc;
 export function desktopAuthContent(): string {
   return `import { createAuthClient } from "better-auth/react";
 
+function getAuthBaseUrl(): string {
+  const envUrl =
+    (typeof process !== "undefined" && (process.env.DESKTOP_API_URL || process.env.VITE_API_URL || process.env.NEXT_PUBLIC_API_URL)) ||
+    "";
+  if (envUrl) return envUrl.endsWith("/") ? envUrl.slice(0, -1) : envUrl;
+  return "http://localhost:3000";
+}
+
 export const authClient = createAuthClient({
-  baseURL: "http://localhost:3000",
+  baseURL: getAuthBaseUrl(),
   fetchOptions: {
     credentials: "include",
   },
@@ -394,7 +421,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (!candidate) {
           try {
             if (typeof localStorage !== "undefined") {
-              candidate = localStorage.getItem("ghostinit-theme") as Theme | null;
+              const raw = localStorage.getItem("ghostinit-theme-v1");
+              if (raw) {
+                try { candidate = (JSON.parse(raw) as { theme: Theme }).theme ?? null; } catch { candidate = localStorage.getItem("ghostinit-theme") as Theme | null; }
+              } else {
+                candidate = localStorage.getItem("ghostinit-theme") as Theme | null;
+              }
             }
           } catch {}
         }
@@ -419,7 +451,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.colorScheme = theme;
     try {
       if (typeof localStorage !== "undefined") {
-        localStorage.setItem("ghostinit-theme", theme);
+        // Versioned key — vercel client-localstorage-schema: version + minimize
+        localStorage.setItem("ghostinit-theme-v1", JSON.stringify({ v: 1, theme }));
+        localStorage.setItem("ghostinit-theme", theme); // legacy compat
       }
       const w = window as unknown as {
         desktopBridge?: {
@@ -536,16 +570,19 @@ export function desktopProvidersContent(): string {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./theme";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 1000 * 30,
-    },
-  },
-});
-
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = React.useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: 1,
+            staleTime: 1000 * 30,
+          },
+        },
+      }),
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>{children}</ThemeProvider>
@@ -582,6 +619,7 @@ export function desktopRendererHtmlContent(): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:3000 https://localhost:3000;" />
     <title>GhostInit Desktop</title>
   </head>
   <body>
@@ -697,10 +735,14 @@ function UpdaterBadge() {
       updatesCheck?: () => Promise<unknown>;
     };
   }).desktopBridge;
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
 
   const check = React.useCallback(async () => {
     if (!bridge?.updatesCheck) {
       setStatus("updater not available in dev");
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setStatus(null), 3000);
       return;
     }
     setStatus("checking…");
@@ -710,7 +752,8 @@ function UpdaterBadge() {
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "check failed");
     }
-    setTimeout(() => setStatus(null), 3000);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setStatus(null), 3000);
   }, [bridge]);
 
   return (
@@ -1194,12 +1237,11 @@ export function desktopRouteAdminUsersContent(): string {
 import * as React from "react";
 import { useAuth } from "../hooks/useAuth";
 import { authClient } from "../lib/auth";
+import type { AdminUser } from "@repo/kernel";
 
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
 });
-
-type AdminUser = { id: string; name: string | null; email: string; role: string; banned: boolean };
 
 function AdminUsersPage() {
   const { user, isPending: authPending } = useAuth();

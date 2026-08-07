@@ -205,7 +205,7 @@ export function singleRootRouteTanstackContent(): string {
     "      <main className='min-h-screen bg-background flex items-center justify-center p-6'>",
     "        <div className='rounded-xl border bg-card p-6 shadow-sm max-w-[480px] w-full'>",
     "          <h1 className='text-lg font-semibold tracking-tight'>Something went wrong</h1>",
-    "          <p className='text-sm text-muted-foreground max-w-[65ch] mt-2'>{String((error as any)?.message ?? error)}</p>",
+    "          <p className='text-sm text-muted-foreground max-w-[65ch] mt-2'>{String((error as unknown as string)?.message ?? error)}</p>",
     "        </div>",
     "      </main>",
     "    </RootDocument>",

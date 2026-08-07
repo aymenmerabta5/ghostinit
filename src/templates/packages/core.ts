@@ -79,7 +79,22 @@ export function corePackagesFiles(runtime: "node" | "bun" = "bun"): TemplateFile
       "packages/kernel/src/result.ts",
       `export type Result<T, E = Error> = | { ok: true; value: T } | { ok: false; error: E }; export function ok<T>(value: T): Result<T> { return { ok: true, value }; } export function err<E = Error>(error: E): Result<never, E> { return { ok: false, error }; }`,
     ),
-    file("packages/kernel/src/index.ts", `export * from "./result.js";\n`),
+    file(
+      "packages/kernel/src/billing.ts",
+      `export interface BillingSubscription { id: string; provider: string; status: string; currentPeriodEnd?: string | null; priceId?: string | null; customerId?: string | null; }\nexport interface UseBillingReturn { subscriptions: BillingSubscription[]; loading: boolean; error: string | null; refresh: () => Promise<void>; hasActiveSubscription: boolean; isLoading: boolean; }\n`,
+    ),
+    file(
+      "packages/kernel/src/admin.ts",
+      `export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }\nexport interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; }\n`,
+    ),
+    file(
+      "packages/kernel/src/hooks.ts",
+      `export interface UseCopyReturn { copy: (text: string) => Promise<boolean>; copied: boolean; }\n`,
+    ),
+    file(
+      "packages/kernel/src/index.ts",
+      `export * from "./result.js";\nexport type { BillingSubscription, UseBillingReturn } from "./billing.js";\nexport type { AdminUser, UseAdminUsersReturn } from "./admin.js";\nexport type { UseCopyReturn } from "./hooks.js";\n`,
+    ),
     file(
       "packages/testing/package.json",
       packageJson({

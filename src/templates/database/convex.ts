@@ -196,7 +196,7 @@ export function convexDatabaseFiles(
 
   const schemaAuthContent = [
     "// Auth tables live in convex/schema.ts for Convex mode.",
-    '// Previous stub exported { id: "users" } as any, masking type errors while runtime returned null.',
+    '// Previous stub exported { id: "users" } as unknown as string, masking type errors while runtime returned null.',
     "// Removed — use convexClient.query(api.users.me) and authComponent.getAuthUser.",
     "export {};",
     "",

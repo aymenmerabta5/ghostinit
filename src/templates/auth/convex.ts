@@ -84,8 +84,8 @@ import { env } from "@repo/config";
 
 function resolveConvexUrl(): string {
   const url =
-    (process as any).env?.VITE_CONVEX_URL ??
-    process.env.VITE_CONVEX_URL ??
+    (process.env.VITE_CONVEX_URL as string | undefined) ??
+    (typeof process !== "undefined" && (process as unknown as { env?: Record<string, string | undefined> }).env?.VITE_CONVEX_URL) ??
     process.env.CONVEX_URL ??
     process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url || (typeof url === "string" && url.startsWith("REPLACE_WITH"))) {

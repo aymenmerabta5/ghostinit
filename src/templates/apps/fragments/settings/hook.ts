@@ -28,10 +28,18 @@ export function useSettings() {
   const [backupCodes, setBackupCodes] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  // Derived during render — not via effect (vercel rerender-derived-state-no-effect)
+  const serverTwoFactorEnabled = (user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled ?? false;
+  const [optimisticTwoFactor, setOptimisticTwoFactor] = useState<boolean | null>(null);
+  const twoFactorEnabled = optimisticTwoFactor ?? serverTwoFactorEnabled;
+  // Clear optimistic once server confirms
+  useEffect(() => {
+    if (optimisticTwoFactor !== null && optimisticTwoFactor === serverTwoFactorEnabled) {
+      setOptimisticTwoFactor(null);
+    }
+  }, [serverTwoFactorEnabled, optimisticTwoFactor]);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  useEffect(() => { setTwoFactorEnabled((user as any)?.twoFactorEnabled ?? false); }, [(user as any)?.twoFactorEnabled]);
   const profileForm = useForm({
     defaultValues: { name: (user?.name as string) ?? "" } as ProfileForm,
     onSubmit: async ({ value }) => {
@@ -53,20 +61,21 @@ export function useSettings() {
     e.preventDefault(); setTwoFactorError(null);
     const result = await authClient.twoFactor.enable({ password: twoFactorPassword });
     if (result.error) { setTwoFactorError(result.error.message ?? "Failed to enable 2FA"); return; }
-    const data = result.data as any;
+    type TwoFactorEnableData = { totpURI?: string | null; backupCodes?: string[] | string | null };
+    const data = result.data as unknown as TwoFactorEnableData | null;
     if (data) { setTotpUri(data.totpURI ? String(data.totpURI) : null); setBackupCodes(data.backupCodes ? String(data.backupCodes) : null); }
   }
   async function handleVerifyTwoFactor(e: React.FormEvent): Promise<void> {
     e.preventDefault(); setTwoFactorError(null);
     const result = await authClient.twoFactor.verifyTotp({ code: verifyCode, trustDevice: true });
     if (result.error) { setTwoFactorError(result.error.message ?? "Invalid code"); return; }
-    setTwoFactorEnabled(true); setTotpUri(null); setBackupCodes(null); setVerifyCode(""); setTwoFactorPassword("");
+    setOptimisticTwoFactor(true); setTotpUri(null); setBackupCodes(null); setVerifyCode(""); setTwoFactorPassword("");
   }
   async function handleDisableTwoFactor(e: React.FormEvent): Promise<void> {
     e.preventDefault(); setTwoFactorError(null);
     const result = await authClient.twoFactor.disable({ password: twoFactorPassword });
     if (result.error) { setTwoFactorError(result.error.message ?? "Failed to disable 2FA"); return; }
-    setTwoFactorEnabled(false); setTwoFactorPassword("");
+    setOptimisticTwoFactor(false); setTwoFactorPassword("");
   }
   async function handleDeleteAccount(): Promise<void> {
     setDeleteError(null);
@@ -74,7 +83,9 @@ export function useSettings() {
     if (result.error) { setDeleteError(result.error.message ?? "Failed to delete account"); return; }
     router.push("/");
   }
-  return { session: session as any, isPending, user: user as any, profileForm, currentPassword, setCurrentPassword, newPassword, setNewPassword, passwordError, passwordSuccess, twoFactorPassword, setTwoFactorPassword, totpUri, backupCodes, verifyCode, setVerifyCode, twoFactorError, twoFactorEnabled, deletePassword, setDeletePassword, deleteError, handleChangePassword, handleEnableTwoFactor, handleVerifyTwoFactor, handleDisableTwoFactor, handleDeleteAccount, clearPasswordMessages };
+  type SessionUser = { id: string; email: string; name: string | null; role: string; twoFactorEnabled?: boolean };
+  type SessionData = { user: SessionUser } | null;
+  return { session: session as unknown as SessionData, isPending, user: user as unknown as SessionUser | undefined, profileForm, currentPassword, setCurrentPassword, newPassword, setNewPassword, passwordError, passwordSuccess, twoFactorPassword, setTwoFactorPassword, totpUri, backupCodes, verifyCode, setVerifyCode, twoFactorError, twoFactorEnabled, deletePassword, setDeletePassword, deleteError, handleChangePassword, handleEnableTwoFactor, handleVerifyTwoFactor, handleDisableTwoFactor, handleDeleteAccount, clearPasswordMessages };
 }
 `,
   );

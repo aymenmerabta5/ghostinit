@@ -5,8 +5,7 @@ export function useAdminUsersHook(): TemplateFile {
     `"use client";
 import { useEffect, useState, useCallback } from "react";
 import { authClient } from "../../../../lib/auth-client.js";
-export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }
-export interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; }
+import type { AdminUser, UseAdminUsersReturn } from "@repo/kernel";
 export function useAdminUsers(): UseAdminUsersReturn {
   const [data, setData] = useState<{ users: AdminUser[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +15,7 @@ export function useAdminUsers(): UseAdminUsersReturn {
     try {
       const result = await authClient.admin.listUsers({ query: { limit: 100 } });
       if (result.error) { setError(result.error.message ?? "Failed to load users"); return; }
-      if (result.data) setData({ users: result.data.users.map((u: any) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: result.data.total });
+      if (result.data) setData({ users: result.data.users.map((u: { id: string; name: string | null; email: string; role?: string | null; banned?: boolean | null }) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: result.data.total });
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);

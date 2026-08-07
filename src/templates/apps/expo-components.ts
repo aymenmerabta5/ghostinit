@@ -47,24 +47,7 @@ export function useAuth() {
 
 function expoUseBillingHook(): string {
   return `import * as React from "react";
-
-export interface BillingSubscription {
-  id: string;
-  provider: string;
-  status: string;
-  currentPeriodEnd?: string | null;
-  priceId?: string | null;
-  customerId?: string | null;
-}
-
-export interface UseBillingReturn {
-  subscriptions: BillingSubscription[];
-  loading: boolean;
-  error: string | null;
-  refresh: () => Promise<void>;
-  hasActiveSubscription: boolean;
-  isLoading: boolean;
-}
+import type { BillingSubscription, UseBillingReturn } from "@repo/kernel";
 
 export function useBilling(): UseBillingReturn {
   const [subscriptions, setSubscriptions] = React.useState<BillingSubscription[]>([]);
@@ -115,11 +98,7 @@ export function useBilling(): UseBillingReturn {
 
 function expoUseCopyHook(): string {
   return `import * as React from "react";
-
-export interface UseCopyReturn {
-  copy: (text: string) => Promise<boolean>;
-  copied: boolean;
-}
+import type { UseCopyReturn } from "@repo/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);

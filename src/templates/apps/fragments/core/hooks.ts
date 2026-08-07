@@ -7,21 +7,25 @@ export function useCopyHookContent(): string {
 
 import * as React from "react";
 import { toast } from "sonner";
-
-export interface UseCopyReturn {
-  copy: (text: string) => Promise<boolean>;
-  copied: boolean;
-}
+import type { UseCopyReturn } from "@repo/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const copy = React.useCallback(async (text: string): Promise<boolean> => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success("Copied to clipboard");
-      window.setTimeout(() => setCopied(false), 2000);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
       return true;
     } catch {
       toast.error("Failed to copy");
@@ -38,65 +42,47 @@ export function useBillingHookContent(): string {
   return `"use client";
 
 import * as React from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { orpc } from "../lib/orpc.js";
+import type { BillingSubscription, UseBillingReturn } from "@repo/kernel";
 
-export interface BillingSubscription {
-  id: string;
-  provider: string;
-  status: string;
-  currentPeriodEnd?: string | null;
-  priceId?: string | null;
-  customerId?: string | null;
-}
-
-export interface UseBillingReturn {
-  subscriptions: BillingSubscription[];
-  loading: boolean;
-  error: string | null;
-  refresh: () => Promise<void>;
-  hasActiveSubscription: boolean;
-  isLoading: boolean;
+// oRPC contract-first — L2 Transport via @repo/api (no fetch fallback)
+async function fetchSubscriptions(): Promise<BillingSubscription[]> {
+  const data = await (orpc as unknown as { billing: { subscriptions: () => Promise<unknown> } }).billing.subscriptions();
+  if (data && typeof data === "object" && "subscriptions" in (data as Record<string, unknown>)) {
+    const subs = (data as { subscriptions?: BillingSubscription[] }).subscriptions;
+    if (Array.isArray(subs)) return subs;
+  }
+  if (Array.isArray(data)) return data as BillingSubscription[];
+  return [];
 }
 
 export function useBilling(): UseBillingReturn {
-  const [subscriptions, setSubscriptions] = React.useState<BillingSubscription[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["billing", "subscriptions"] as const,
+    queryFn: fetchSubscriptions,
+    staleTime: 1000 * 30,
+    retry: 1,
+  });
 
   const refresh = React.useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/billing/subscriptions", { method: "GET" });
-      if (!res.ok) {
-        throw new Error(\`Failed to load billing: \${res.status}\`);
-      }
-      const data = (await res.json()) as
-        | { subscriptions?: BillingSubscription[] }
-        | BillingSubscription[];
-      const list = Array.isArray(data) ? data : (data.subscriptions ?? []);
-      setSubscriptions(list);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load billing");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    await queryClient.invalidateQueries({ queryKey: ["billing", "subscriptions"] });
+    await query.refetch();
+  }, [queryClient, query]);
 
   const hasActiveSubscription = React.useMemo(() => {
-    return subscriptions.some((s) => s.status === "active" || s.status === "trialing");
-  }, [subscriptions]);
+    const list = query.data ?? [];
+    return list.some((s) => s.status === "active" || s.status === "trialing");
+  }, [query.data]);
 
   return {
-    subscriptions,
-    loading,
-    error,
+    subscriptions: query.data ?? [],
+    loading: query.isPending,
+    error: query.error ? (query.error instanceof Error ? query.error.message : String(query.error)) : null,
     refresh,
     hasActiveSubscription,
-    isLoading: loading,
+    isLoading: query.isPending,
   };
 }
 `;
@@ -128,21 +114,25 @@ export function tanstackUseCopyHookContent(): string {
 
 import * as React from 'react'
 import { toast } from 'sonner'
-
-export interface UseCopyReturn {
-  copy: (text: string) => Promise<boolean>
-  copied: boolean
-}
+import type { UseCopyReturn } from '@repo/kernel'
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false)
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   const copy = React.useCallback(async (text: string): Promise<boolean> => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       toast.success('Copied to clipboard')
-      window.setTimeout(() => setCopied(false), 2000)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
       return true
     } catch {
       toast.error('Failed to copy')
@@ -159,53 +149,41 @@ export function tanstackUseBillingHookContent(): string {
   return `"use client"
 
 import * as React from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { orpc } from '../lib/orpc.js'
+import type { BillingSubscription, UseBillingReturn } from '@repo/kernel'
 
-export interface BillingSubscription {
-  id: string
-  provider: string
-  status: string
-  currentPeriodEnd?: string | null
-  priceId?: string | null
-  customerId?: string | null
-}
-
-export interface UseBillingReturn {
-  subscriptions: BillingSubscription[]
-  loading: boolean
-  error: string | null
-  refresh: () => Promise<void>
-  hasActiveSubscription: boolean
-  isLoading: boolean
+// oRPC contract-first — L2 Transport via @repo/api (no fetch fallback)
+async function fetchSubscriptions(): Promise<BillingSubscription[]> {
+  const data = await (orpc as unknown as { billing: { subscriptions: () => Promise<unknown> } }).billing.subscriptions()
+  if (data && typeof data === 'object' && 'subscriptions' in (data as Record<string, unknown>)) {
+    const subs = (data as { subscriptions?: BillingSubscription[] }).subscriptions
+    if (Array.isArray(subs)) return subs
+  }
+  if (Array.isArray(data)) return data as BillingSubscription[]
+  return []
 }
 
 export function useBilling(): UseBillingReturn {
-  const [subscriptions, setSubscriptions] = React.useState<BillingSubscription[]>([])
-  const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: ['billing', 'subscriptions'] as const,
+    queryFn: fetchSubscriptions,
+    staleTime: 1000 * 30,
+    retry: 1,
+  })
 
   const refresh = React.useCallback(async (): Promise<void> => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/billing/subscriptions', { method: 'GET' })
-      if (!res.ok) throw new Error(\`Failed to load billing: \${res.status}\`)
-      const data = (await res.json()) as { subscriptions?: BillingSubscription[] } | BillingSubscription[]
-      const list = Array.isArray(data) ? data : (data.subscriptions ?? [])
-      setSubscriptions(list)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load billing')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    await queryClient.invalidateQueries({ queryKey: ['billing', 'subscriptions'] })
+    await query.refetch()
+  }, [queryClient, query])
 
-  React.useEffect(() => {
-    void refresh()
-  }, [refresh])
+  const hasActiveSubscription = React.useMemo(() => {
+    const list = query.data ?? []
+    return list.some((s) => s.status === 'active' || s.status === 'trialing')
+  }, [query.data])
 
-  const hasActiveSubscription = React.useMemo(() => subscriptions.some((s) => s.status === 'active' || s.status === 'trialing'), [subscriptions])
-
-  return { subscriptions, loading, error, refresh, hasActiveSubscription, isLoading: loading }
+  return { subscriptions: query.data ?? [], loading: query.isPending, error: query.error ? (query.error instanceof Error ? query.error.message : String(query.error)) : null, refresh, hasActiveSubscription, isLoading: query.isPending }
 }
 `;
 }

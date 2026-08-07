@@ -31,6 +31,7 @@ import {
 } from "../../../apps/desktop-core.js";
 import { filteredEnvExample, filteredEnvLocal } from "../../../shared/env/builders.js";
 import { gitignoreSingle, readmeSingle } from "../fragments/docs.js";
+import { singleKernelTypesContent } from "../fragments/kernel.js";
 
 function singleDesktopPackageJson(
   projectName: string,
@@ -102,6 +103,7 @@ export function buildDesktopFiles(
     file("src/renderer/lib/providers.tsx", desktopProvidersContent()),
     file("src/renderer/components/theme-toggle.tsx", desktopThemeToggleContent()),
     file("src/renderer/hooks/useAuth.ts", useAuthHook),
+    file("src/renderer/lib/kernel.ts", singleKernelTypesContent()),
     file("src/renderer/routes/__root.tsx", desktopRouteRootContent()),
     file("src/renderer/routes/index.tsx", desktopRouteIndexContent()),
     file("src/renderer/routes/dashboard.tsx", desktopRouteDashboardContent()),

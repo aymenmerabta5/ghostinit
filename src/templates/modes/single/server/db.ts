@@ -36,7 +36,7 @@ export function serverDbIndexSingleConvex(): string {
     "export const convexClient = new ConvexHttpClient(url);",
     "export function getConvexClient(): ConvexHttpClient { return convexClient; }",
     "// Back-compat alias: some legacy code imports db, prefer convexClient directly",
-    "export const db = convexClient as unknown as any;",
+    "export const db = convexClient as unknown as unknown as string;",
     "",
   ].join("\n");
 }

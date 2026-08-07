@@ -4,6 +4,9 @@ import {
   notFoundFileContent,
   errorFileContent,
   loadingFileContent,
+  globalErrorFileContent,
+  unauthorizedFileContent,
+  forbiddenFileContent,
 } from "./fragments/layout.js";
 import { buildMarketingPageContent } from "./fragments/marketing.js";
 import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
@@ -21,6 +24,9 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
   const hasEve = resolveHasEve(addonsOrHasEve);
   return [
     layout(),
+    globalErrorPage(),
+    unauthorizedPage(),
+    forbiddenPage(),
     notFoundPage(),
     errorPage(),
     loadingPage(),
@@ -41,6 +47,15 @@ function notFoundPage(): TemplateFile {
 }
 function errorPage(): TemplateFile {
   return file("apps/web/src/app/error.tsx", errorFileContent("next"));
+}
+function globalErrorPage(): TemplateFile {
+  return file("apps/web/src/app/global-error.tsx", globalErrorFileContent());
+}
+function unauthorizedPage(): TemplateFile {
+  return file("apps/web/src/app/unauthorized.tsx", unauthorizedFileContent("next"));
+}
+function forbiddenPage(): TemplateFile {
+  return file("apps/web/src/app/forbidden.tsx", forbiddenFileContent("next"));
 }
 function loadingPage(): TemplateFile {
   return file("apps/web/src/app/loading.tsx", loadingFileContent());
@@ -70,5 +85,8 @@ export {
   notFoundFileContent,
   errorFileContent,
   loadingFileContent,
+  globalErrorFileContent,
+  unauthorizedFileContent,
+  forbiddenFileContent,
   nextRootLayoutContent,
 } from "./fragments/layout.js";

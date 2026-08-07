@@ -84,8 +84,9 @@ export const Route = createFileRoute('/reset-password')({
 
 function ResetPasswordPage(): React.JSX.Element {
   const navigate = useNavigate()
-  const search = Route.useSearch() as { token?: string }
-  const token = (search as any)?.token ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null)
+  type ResetSearch = { token?: string }
+  const search = Route.useSearch() as ResetSearch
+  const token = search?.token ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null)
 
   const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +110,8 @@ function ResetPasswordPage(): React.JSX.Element {
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault()
     setError(null)
-    const result = await authClient.resetPassword({ newPassword, token } as any)
+    if (!token) { setError("Missing token"); return; }
+    const result = await authClient.resetPassword({ newPassword, token })
     if (result.error) {
       setError(result.error.message ?? 'Failed to reset password')
       return

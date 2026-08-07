@@ -403,16 +403,16 @@ import { api } from "${convexApiImport(monorepoAdapterPath)}";
 
 export const billingConvex = {
   upsertWebhookEvent: (args: { provider: string; providerEventId: string; type: string; payload: any; processed?: boolean }) =>
-    convexClient.mutation(api.billing.upsertWebhookEvent, args as any),
+    convexClient.mutation(api.billing.upsertWebhookEvent, args as unknown as { provider: string; providerEventId: string; type: string; payload: unknown }),
   checkWebhookEvent: (args: { provider: string; providerEventId: string }) =>
-    convexClient.query(api.billing.checkWebhookEvent, args as any),
+    convexClient.query(api.billing.checkWebhookEvent, args as unknown as Record<string, unknown>),
   upsertCustomer: (args: any) => convexClient.mutation(api.billing.upsertCustomer, args),
   upsertSubscription: (args: any) => convexClient.mutation(api.billing.upsertSubscription, args),
   upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),
   upsertInvoice: (args: any) => convexClient.mutation(api.billing.upsertInvoice, args),
   insertUsageEvent: (args: any) => convexClient.mutation(api.billing.insertUsageEvent, args),
   listSubscriptionsByUser: (userId: string) =>
-    convexClient.query(api.billing.listSubscriptionsByUser, { userId: userId as any }),
+    convexClient.query(api.billing.listSubscriptionsByUser, { userId: userId as unknown as string }),
 };
 
 export type BillingConvex = typeof billingConvex;
@@ -423,9 +423,9 @@ import { api } from "${convexApiImport(singleAdapterPath)}";
 
 export const billingConvex = {
   upsertWebhookEvent: (args: { provider: string; providerEventId: string; type: string; payload: any; processed?: boolean }) =>
-    convexClient.mutation(api.billing.upsertWebhookEvent, args as any),
+    convexClient.mutation(api.billing.upsertWebhookEvent, args as unknown as { provider: string; providerEventId: string; type: string; payload: unknown }),
   checkWebhookEvent: (args: { provider: string; providerEventId: string }) =>
-    convexClient.query(api.billing.checkWebhookEvent, args as any),
+    convexClient.query(api.billing.checkWebhookEvent, args as unknown as Record<string, unknown>),
   upsertCustomer: (args: any) => convexClient.mutation(api.billing.upsertCustomer, args),
   upsertSubscription: (args: any) => convexClient.mutation(api.billing.upsertSubscription, args),
   upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),

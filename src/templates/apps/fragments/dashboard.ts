@@ -412,6 +412,7 @@ export function dashboardInnerContent(router: RouterType): string {
 export function dashboardPageContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import * as React from 'react'
+import { cache } from 'react'
 import { createFileRoute, redirect, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
@@ -420,12 +421,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SignOutButton } from '../components/sign-out-button.js'
+import { Skeleton } from "@/components/ui/skeleton";
 
-const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
+const getCachedSession = cache(async () => {
   const headers = getRequestHeaders() as unknown as Headers
   const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<{ user?: { email?: string; name?: string | null; role?: string } } | null> } }).api.getSession({ headers })
   return session ?? null
 })
+
+const getSessionFn = createServerFn({ method: 'GET' }).handler(getCachedSession)
 
 export const Route = createFileRoute('/dashboard')({
   beforeLoad: async () => {
@@ -438,21 +442,34 @@ export const Route = createFileRoute('/dashboard')({
   component: DashboardPage,
 })
 
+function DashboardSkeleton(): React.JSX.Element {
+  return (
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  )
+}
+
 function DashboardPage(): React.JSX.Element {
   const { session } = Route.useRouteContext() as { session: { user: { email: string; name?: string | null; role?: string } } }
   const user = session?.user
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
+      <React.Suspense fallback={<DashboardSkeleton />}>
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
 ${dashboardInnerContent("tanstack")}
-      </div>
+        </div>
+      </React.Suspense>
     </main>
   )
 }
 `;
   }
   return `import * as React from "react";
+import { cache } from "react";
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -461,17 +478,40 @@ import { SignOutButton } from "../../components/sign-out-button.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default async function DashboardPage(): Promise<React.JSX.Element> {
-  const session = await auth.api.getSession({ headers: await headers() });
+export const getCachedSession = cache(async () => {
+  const h = await headers();
+  return auth.api.getSession({ headers: h });
+});
+
+async function DashboardContent(): Promise<React.JSX.Element> {
+  const session = await getCachedSession();
   if (!session?.user) {
     redirect("/sign-in");
   }
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
 ${dashboardInnerContent("next")}
-      </div>
+    </div>
+  );
+}
+
+function DashboardSkeleton(): React.JSX.Element {
+  return (
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+export default async function DashboardPage(): Promise<React.JSX.Element> {
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
     </main>
   );
 }

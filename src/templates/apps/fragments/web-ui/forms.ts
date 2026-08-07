@@ -232,7 +232,7 @@ import { cn } from "../../lib/utils.js";
 export { Field, useForm };
 
 export interface FormProps<TFormData = unknown> {
-  form: FormApi<TFormData, any, any, any, any, any, any, any, any, any, any, any>;
+  form: FormApi<TFormData, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
   className?: string;

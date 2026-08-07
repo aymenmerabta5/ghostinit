@@ -14,19 +14,23 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 export function TwoFactorCard(): React.JSX.Element {
   const { data: session } = authClient.useSession();
-  const user = session?.user as any;
+  type SessionUser = { twoFactorEnabled?: boolean | null };
+  const user = session?.user as unknown as SessionUser | undefined;
   const [password, setPassword] = useState("");
   const [totpUri, setTotpUri] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => { setEnabled(user?.twoFactorEnabled ?? false); }, [user?.twoFactorEnabled]);
+  const serverEnabled = user?.twoFactorEnabled ?? false;
+  const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
+  const enabled = optimisticEnabled ?? serverEnabled;
+  useEffect(() => { if (optimisticEnabled !== null && optimisticEnabled === serverEnabled) setOptimisticEnabled(null); }, [optimisticEnabled, serverEnabled]);
   async function handleEnable(e: React.FormEvent): Promise<void> {
     e.preventDefault(); setError(null);
     const result = await authClient.twoFactor.enable({ password });
     if (result.error) { setError(result.error.message ?? "Failed to enable 2FA"); return; }
-    const data = result.data as any;
+    type EnableData = { totpURI?: string | null; backupCodes?: string[] | string | null };
+    const data = result.data as unknown as EnableData | null;
     setTotpUri(data?.totpURI ? String(data.totpURI) : null);
     setBackupCodes(data?.backupCodes ? String(data.backupCodes) : null);
   }
@@ -34,13 +38,13 @@ export function TwoFactorCard(): React.JSX.Element {
     e.preventDefault(); setError(null);
     const result = await authClient.twoFactor.verifyTotp({ code: verifyCode, trustDevice: true });
     if (result.error) { setError(result.error.message ?? "Invalid code"); return; }
-    setEnabled(true); setTotpUri(null); setBackupCodes(null); setVerifyCode(""); setPassword("");
+    setOptimisticEnabled(true); setTotpUri(null); setBackupCodes(null); setVerifyCode(""); setPassword("");
   }
   async function handleDisable(e: React.FormEvent): Promise<void> {
     e.preventDefault(); setError(null);
     const result = await authClient.twoFactor.disable({ password });
     if (result.error) { setError(result.error.message ?? "Failed to disable 2FA"); return; }
-    setEnabled(false); setPassword("");
+    setOptimisticEnabled(false); setPassword("");
   }
   return (
     <Card>

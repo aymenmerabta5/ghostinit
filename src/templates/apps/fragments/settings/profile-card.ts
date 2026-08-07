@@ -29,7 +29,7 @@ export function ProfileCard(): React.JSX.Element {
   useEffect(() => { if (user?.name) form.setFieldValue("name", user.name as string); }, [user?.name, form]);
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Profile</CardTitle><CardDescription className="max-w-[60ch]">Update your display name. Email {(user?.email as string) ?? ""}. Role {(user as any)?.role ?? "user"}.</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="text-base">Profile</CardTitle><CardDescription className="max-w-[60ch]">Update your display name. Email {(user?.email as string) ?? ""}. Role {(user as unknown as { role?: string })?.role ?? "user"}.</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? <Alert variant="destructive"><AlertTitle>Unable to update</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         {success ? <Alert><AlertTitle>Success</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}

@@ -40,6 +40,7 @@ import {
   serverAuthSingleConvex,
 } from "../server/auth.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
+import { singleKernelTypesContent } from "../fragments/kernel.js";
 import { singleMarketingPage } from "../pages/marketing.js";
 import {
   forgotPasswordPageSingle,
@@ -181,6 +182,7 @@ export function buildNextFiles(
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));

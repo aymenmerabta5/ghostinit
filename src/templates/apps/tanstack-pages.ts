@@ -13,7 +13,12 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
-import { tanstackRootDocumentContent, notFoundFileContent } from "./fragments/layout.js";
+import {
+  tanstackRootDocumentContent,
+  notFoundFileContent,
+  unauthorizedFileContent,
+  forbiddenFileContent,
+} from "./fragments/layout.js";
 import { buildMarketingPageContent } from "./fragments/marketing.js";
 import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
 import { dashboardPageContent } from "./fragments/dashboard.js";
@@ -34,6 +39,8 @@ export function tanstackPageFiles(): TemplateFile[] {
     ...settingsFiles("tanstack"),
     ...billingFiles("tanstack"),
     ...tanstackAdminFiles(),
+    unauthorizedRoute(),
+    forbiddenRoute(),
     notFoundRoute(),
   ];
 }
@@ -60,6 +67,14 @@ function twoFactorRoute(): TemplateFile {
 
 function dashboardRoute(): TemplateFile {
   return file("apps/web/src/routes/dashboard.tsx", dashboardPageContent("tanstack"));
+}
+
+function unauthorizedRoute(): TemplateFile {
+  return file("apps/web/src/routes/unauthorized.tsx", unauthorizedFileContent("tanstack"));
+}
+
+function forbiddenRoute(): TemplateFile {
+  return file("apps/web/src/routes/forbidden.tsx", forbiddenFileContent("tanstack"));
 }
 
 function notFoundRoute(): TemplateFile {

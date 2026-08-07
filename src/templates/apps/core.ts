@@ -160,6 +160,9 @@ function nextConfig(hasEve = false, hasI18n = false): TemplateFile {
   const baseHeaders = nextConfigHeadersFunction();
   const transpile = transpilePackagesList;
   const rewritesBlock = posthogRewritesBlock();
+  const imagesBlock = `  images: {
+    remotePatterns: [],
+  },`;
 
   if (hasEve && hasI18n) {
     return file(
@@ -172,6 +175,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
+${imagesBlock}
 ${rewritesBlock}
 ${transpile}
 };
@@ -205,6 +209,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
+${imagesBlock}
 ${rewritesBlock}
 ${transpile}
 };
@@ -236,6 +241,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
+${imagesBlock}
 ${rewritesBlock}
 ${transpile}
 };
@@ -254,6 +260,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
+${imagesBlock}
 ${rewritesBlock}
 ${transpile}
 };

@@ -32,11 +32,12 @@ export function useBillingPage(): UseBillingPageReturn {
   async function handleCheckout(provider: ProviderName) {
     setIsCheckoutLoading(true);
     try {
-      const mod = await import("@/lib/orpc").catch(() => null as any);
-      if (mod?.client) {
+      type OrpcClient = { billing: { createCheckout: (args: { provider: ProviderName; priceId: string; successUrl: string; failureUrl: string }) => Promise<{ url: string }>; checkout?: (args: unknown) => Promise<{ url: string }> } };
+      const mod = await import("@/lib/orpc").catch(() => null as unknown as { orpc?: OrpcClient; client?: OrpcClient } | null);
+      const orpcClient = (mod as unknown as { orpc?: OrpcClient; client?: OrpcClient } | null)?.orpc ?? (mod as unknown as { client?: OrpcClient } | null)?.client;
+      if (orpcClient?.billing) {
         try {
-          const client = mod.client as any;
-          const res = await (client.billing?.createCheckout?.({ provider, priceId: "price_demo", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", }) ?? client.billing?.checkout?.({ provider, priceId: "price_demo", successUrl: window.location.origin + "/billing/success", }));
+          const res = await orpcClient.billing.createCheckout({ provider, priceId: "price_demo", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", });
           if (res?.url) { window.location.href = res.url; return; }
         } catch {}
       }

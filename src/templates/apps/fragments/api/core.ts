@@ -55,15 +55,16 @@ async function handle({ request }: { request: Request }): Promise<Response> {
   if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
   return new Response("Not found", { status: 404 });
 }`;
-  const sharedLogicNext = `const rpcHandler = new RPCHandler(appRouter);
+  const sharedLogicNext = `import { after } from "next/server";
+const rpcHandler = new RPCHandler(appRouter);
 const openapiHandler = new OpenAPIHandler(appRouter);
 async function handle(request: Request): Promise<Response> {
   const context = await createContext(request.headers);
   const matchOptions = { context };
   const rpcResult = await rpcHandler.handle(request, matchOptions);
-  if (rpcResult.matched && rpcResult.response) { const response = rpcResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
+  if (rpcResult.matched && rpcResult.response) { const response = rpcResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
   const openApiResult = await openapiHandler.handle(request, matchOptions);
-  if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
+  if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
   return new Response("Not found", { status: 404 });
 }`;
   if (router === "tanstack") {
@@ -90,10 +91,15 @@ export const Route = createFileRoute('/api/health')({ server: { handlers: { GET:
 `;
   }
   return `import { NextResponse } from "next/server";
+import { after } from "next/server";
 export async function GET(): Promise<NextResponse> {
   const response = NextResponse.json({ status: "ok", time: new Date().toISOString() });
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Non-blocking post-response work — vercel server-after-nonblocking
+  after(() => {
+    // e.g. analytics, audit log — runs after response is sent
+  });
   return response;
 }
 `;

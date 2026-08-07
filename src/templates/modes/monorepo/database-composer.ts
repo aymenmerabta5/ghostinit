@@ -73,7 +73,7 @@ function databaseStubPackage(runtime: Runtime): TemplateFile[] {
 // This file exists so imports like \`import { db, users } from "@repo/database"\`
 // still resolve when --database none. Any actual DB call will throw with a
 // clear message guiding to enable postgres or convex.
-export const db: any = new Proxy({} as any, {
+export const db: any = new Proxy({} as unknown as Record<string, unknown>, {
   get() { throw new Error("[ghostinit] database is disabled (--database none). Enable --database postgres or convex to use @repo/database."); },
 });
 export const pool: any = db;

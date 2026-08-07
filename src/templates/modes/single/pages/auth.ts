@@ -27,7 +27,7 @@ export function signInPageSingle(): string {
     "      setError(null);",
     "      const result = await authClient.signIn.email({ email: value.email, password: value.password, callbackURL: '/dashboard' });",
     "      if (result.error) { setError(result.error.message ?? 'Sign in failed'); return; }",
-    "      if ((result.data as any)?.twoFactorRedirect) { router.push('/2fa'); return; }",
+    "      if ((result.data as unknown as string)?.twoFactorRedirect) { router.push('/2fa'); return; }",
     "      router.push('/dashboard');",
     "    },",
     "  });",

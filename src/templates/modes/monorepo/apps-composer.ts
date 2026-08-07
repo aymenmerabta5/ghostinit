@@ -352,7 +352,7 @@ export function appsComposerFiles(
   let effectiveFramework: FrameworkName = framework;
   let effectiveApps: string[] = ["web"];
 
-  const maybe = appsOrFrameworkMaybe as unknown;
+  const maybe = appsOrFrameworkMaybe as unknown as string;
   if (
     Array.isArray(maybe) &&
     (maybe as string[]).some((a) => a === "web" || a === "mobile" || a === "desktop")

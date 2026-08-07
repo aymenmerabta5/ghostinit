@@ -1,5 +1,5 @@
-// @allow-long 540: expo single flat maps 20+ RN fragments + api +api.ts routes + server billing/env/eve
 import { file, type TemplateFile } from "../../../shared.js";
+import { singleKernelTypesContent } from "../fragments/kernel.js";
 import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
@@ -280,24 +280,7 @@ export function useAuth() {
 
 function expoUseBillingHook(): string {
   return `import * as React from "react";
-
-export interface BillingSubscription {
-  id: string;
-  provider: string;
-  status: string;
-  currentPeriodEnd?: string | null;
-  priceId?: string | null;
-  customerId?: string | null;
-}
-
-export interface UseBillingReturn {
-  subscriptions: BillingSubscription[];
-  loading: boolean;
-  error: string | null;
-  refresh: () => Promise<void>;
-  hasActiveSubscription: boolean;
-  isLoading: boolean;
-}
+import type { BillingSubscription, UseBillingReturn } from "@/lib/kernel";
 
 export function useBilling(): UseBillingReturn {
   const [subscriptions, setSubscriptions] = React.useState<BillingSubscription[]>([]);
@@ -348,11 +331,7 @@ export function useBilling(): UseBillingReturn {
 
 function expoUseCopyHook(): string {
   return `import * as React from "react";
-
-export interface UseCopyReturn {
-  copy: (text: string) => Promise<boolean>;
-  copied: boolean;
-}
+import type { UseCopyReturn } from "@/lib/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);
@@ -500,6 +479,7 @@ export const authClient = createAuthClient({
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
+  files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   files.push(file("src/server/api/context.ts", singleApiContextContent()));
   files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
   files.push(file("src/server/api/procedures/me.ts", singleApiMeProcedureContent()));

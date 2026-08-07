@@ -107,7 +107,7 @@ export const Route = createRootRouteWithContext<{
       <main className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="rounded-xl border bg-card p-6 shadow-sm max-w-[480px] w-full">
           <h1 className="text-lg font-semibold tracking-tight">${sharedErrorInner.title}</h1>
-          <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{String((error as any)?.message ?? error)}</p>
+          <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{String((error as Error)?.message ?? error)}</p>
         </div>
       </main>
     </RootDocument>
@@ -244,6 +244,148 @@ export default function Error({
             <AlertDescription className="truncate max-w-[65ch]">{error.message}</AlertDescription>
           </Alert>
           <Button onClick={() => reset()}>Try again</Button>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+`;
+}
+
+export function globalErrorFileContent(): string {
+  return `"use client";
+
+import * as React from "react";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
+
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}): React.JSX.Element {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased bg-background text-foreground">
+        <main className="min-h-screen bg-background flex items-center justify-center p-6">
+          <div className="rounded-xl border bg-card p-6 shadow-sm max-w-[480px] w-full">
+            <h1 className="text-lg font-semibold tracking-tight">${sharedErrorInner.title}</h1>
+            <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">${sharedErrorInner.description}</p>
+            <p className="text-xs text-muted-foreground truncate mt-4">{error.message}</p>
+            <Button onClick={() => reset()} className="mt-6">
+              Try again
+            </Button>
+          </div>
+        </main>
+      </body>
+    </html>
+  );
+}
+`;
+}
+
+export function unauthorizedFileContent(router: RouterType): string {
+  if (router === "tanstack") {
+    return `import * as React from 'react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+export const Route = createFileRoute('/unauthorized')({
+  component: UnauthorizedPage,
+})
+
+function UnauthorizedPage(): React.JSX.Element {
+  return (
+    <main className="${sharedNotFoundInner.mainClass}">
+      <Card className="${sharedNotFoundInner.cardClass}">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-tight">Unauthorized</CardTitle>
+          <CardDescription className="max-w-[60ch]">Please sign in to access this resource.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button asChild><Link to="/sign-in">Sign in</Link></Button>
+        </CardContent>
+      </Card>
+    </main>
+  )
+}
+`;
+  }
+  return `import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+export default function Unauthorized(): React.JSX.Element {
+  return (
+    <main className="${sharedNotFoundInner.mainClass}">
+      <Card className="${sharedNotFoundInner.cardClass}">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-tight">Unauthorized</CardTitle>
+          <CardDescription className="max-w-[60ch]">Please sign in to access this resource.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button asChild>
+            <Link href="/sign-in">Sign in</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+`;
+}
+
+export function forbiddenFileContent(router: RouterType): string {
+  if (router === "tanstack") {
+    return `import * as React from 'react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+export const Route = createFileRoute('/forbidden')({
+  component: ForbiddenPage,
+})
+
+function ForbiddenPage(): React.JSX.Element {
+  return (
+    <main className="${sharedNotFoundInner.mainClass}">
+      <Card className="${sharedNotFoundInner.cardClass}">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-tight">Forbidden</CardTitle>
+          <CardDescription className="max-w-[60ch]">You do not have permission to access this resource.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button asChild><Link to="/">Back to home</Link></Button>
+        </CardContent>
+      </Card>
+    </main>
+  )
+}
+`;
+  }
+  return `import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+export default function Forbidden(): React.JSX.Element {
+  return (
+    <main className="${sharedNotFoundInner.mainClass}">
+      <Card className="${sharedNotFoundInner.cardClass}">
+        <CardHeader>
+          <CardTitle className="text-2xl tracking-tight">Forbidden</CardTitle>
+          <CardDescription className="max-w-[60ch]">You do not have permission to access this resource.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Button asChild>
+            <Link href="/">Back to home</Link>
+          </Button>
         </CardContent>
       </Card>
     </main>

@@ -94,6 +94,7 @@ import {
   useBillingHookSingleContent,
   useAuthHookSingleContent,
 } from "../components/hooks.js";
+import { singleKernelTypesContent } from "../fragments/kernel.js";
 import { gitignoreSingle, readmeSingle } from "../fragments/docs.js";
 
 export function buildTanstackFiles(
@@ -212,6 +213,7 @@ export function buildTanstackFiles(
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   files.push(file("src/lib/orpc.ts", singleOrpcClientTanstackContent()));
