@@ -1,84 +1,91 @@
 /**
  * Shared OKLCH design tokens + Tailwind v4 global CSS
+ * DARK-FIRST — near-black, high-contrast, terminal-native
+ * Palette: bg #09090b (oklch 0.15 0.01 285), card #111113 (0.18 0.01 285), fg #fafafa (0.985), muted #a1a1aa(0.71)/#71717a(0.55)/#52525b(0.44), border rgba(255,255,255,0.08) → 0.27 / 0.14→0.32, accent oklch 0.68 0.17 262 (~#6b7cff), ok #4ac06c, warn #e8a127, danger #ff3b4a
+ * Radius: 12px (0.75rem), 8px (sm), 16px (xl)
+ * Fonts: DM Sans 400/500/600 + JetBrains Mono 400/500, tracking -0.035em display, mono 11px meta
+ * Grain: feTurbulence baseFrequency 0.9 4 octaves opacity 0.035 fixed z-9999
+ * Grid: 48px grid with radial mask for hero
  * Deduplicates 95% identical global CSS between Next (app/globals.css) and TanStack (styles/app.css)
- * Both use same paper white oklch(0.99) + indigo primary 0.55 chroma 0.22
+ * Both use same tokens: dark is default, light is toggle.
  * After RNR+Uniwind refactor: theme tokens live in @repo/ui/src/theme.css (single source).
  * Web and mobile both @import that file.
  */
 
 export const tailwindImports = `@import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
 `;
 
 export const oklchLightTokens = `:root {
-  --background: oklch(0.99 0.002 106);
-  --foreground: oklch(0.21 0.01 264);
-  --card: oklch(0.99 0.002 106);
-  --card-foreground: oklch(0.21 0.01 264);
-  --popover: oklch(0.99 0.002 106);
-  --popover-foreground: oklch(0.21 0.01 264);
-  --primary: oklch(0.55 0.22 264);
-  --primary-foreground: oklch(0.985 0.002 106);
-  --secondary: oklch(0.967 0.005 264);
-  --secondary-foreground: oklch(0.21 0.01 264);
-  --muted: oklch(0.967 0.005 264);
-  --muted-foreground: oklch(0.55 0.02 264);
-  --accent: oklch(0.96 0.01 264);
-  --accent-foreground: oklch(0.21 0.01 264);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.985 0.002 106);
-  --border: oklch(0.92 0.005 264);
-  --input: oklch(0.92 0.005 264);
-  --ring: oklch(0.55 0.22 264);
-  --radius: 0.625rem;
-  --chart-1: oklch(0.55 0.22 264);
-  --chart-2: oklch(0.68 0.14 186);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.15 0.01 285);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.01 285);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.01 285);
+  --primary: oklch(0.60 0.19 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.01 285);
+  --secondary-foreground: oklch(0.15 0.01 285);
+  --muted: oklch(0.967 0.01 285);
+  --muted-foreground: oklch(0.55 0.014 285);
+  --accent: oklch(0.967 0.01 285);
+  --accent-foreground: oklch(0.15 0.01 285);
+  --destructive: oklch(0.60 0.24 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.92 0.01 285);
+  --input: oklch(0.92 0.01 285);
+  --ring: oklch(0.60 0.19 262);
+  --radius: 0.75rem;
+  --chart-1: oklch(0.60 0.19 262);
+  --chart-2: oklch(0.72 0.16 150);
   --chart-3: oklch(0.62 0.12 150);
-  --chart-4: oklch(0.75 0.15 65);
-  --chart-5: oklch(0.66 0.18 35);
-  --sidebar: oklch(0.985 0.003 106);
-  --sidebar-foreground: oklch(0.21 0.01 264);
-  --sidebar-primary: oklch(0.55 0.22 264);
-  --sidebar-primary-foreground: oklch(0.985 0.002 106);
-  --sidebar-accent: oklch(0.96 0.01 264);
-  --sidebar-accent-foreground: oklch(0.21 0.01 264);
-  --sidebar-border: oklch(0.92 0.005 264);
-  --sidebar-ring: oklch(0.55 0.22 264);
+  --chart-4: oklch(0.76 0.15 75);
+  --chart-5: oklch(0.60 0.18 35);
+  --sidebar: oklch(0.985 0.01 285);
+  --sidebar-foreground: oklch(0.15 0.01 285);
+  --sidebar-primary: oklch(0.60 0.19 262);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.01 285);
+  --sidebar-accent-foreground: oklch(0.15 0.01 285);
+  --sidebar-border: oklch(0.92 0.01 285);
+  --sidebar-ring: oklch(0.60 0.19 262);
 }`;
 
 export const oklchDarkTokens = `.dark {
-  --background: oklch(0.17 0.01 264);
-  --foreground: oklch(0.96 0.005 264);
-  --card: oklch(0.21 0.012 264);
-  --card-foreground: oklch(0.96 0.005 264);
-  --popover: oklch(0.21 0.012 264);
-  --popover-foreground: oklch(0.96 0.005 264);
-  --primary: oklch(0.62 0.19 264);
-  --primary-foreground: oklch(0.17 0.01 264);
-  --secondary: oklch(0.27 0.01 264);
-  --secondary-foreground: oklch(0.96 0.005 264);
-  --muted: oklch(0.27 0.01 264);
-  --muted-foreground: oklch(0.68 0.01 264);
-  --accent: oklch(0.27 0.014 264);
-  --accent-foreground: oklch(0.96 0.005 264);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.96 0.005 264);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.19 264);
-  --chart-1: oklch(0.62 0.19 264);
-  --chart-2: oklch(0.65 0.16 180);
-  --chart-3: oklch(0.70 0.15 75);
-  --chart-4: oklch(0.68 0.18 310);
-  --chart-5: oklch(0.70 0.16 40);
-  --sidebar: oklch(0.21 0.012 264);
-  --sidebar-foreground: oklch(0.96 0.005 264);
-  --sidebar-primary: oklch(0.62 0.19 264);
-  --sidebar-primary-foreground: oklch(0.17 0.01 264);
-  --sidebar-accent: oklch(0.27 0.014 264);
-  --sidebar-accent-foreground: oklch(0.96 0.005 264);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.19 264);
+  --background: oklch(0.15 0.01 285);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.18 0.01 285);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.18 0.01 285);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.17 262);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.21 0.01 285);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.21 0.01 285);
+  --muted-foreground: oklch(0.71 0.013 285);
+  --accent: oklch(0.21 0.01 285);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.63 0.24 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.27 0.01 285);
+  --input: oklch(0.32 0.01 285);
+  --ring: oklch(0.68 0.17 262);
+  --chart-1: oklch(0.68 0.17 262);
+  --chart-2: oklch(0.72 0.16 150);
+  --chart-3: oklch(0.62 0.12 150);
+  --chart-4: oklch(0.76 0.15 75);
+  --chart-5: oklch(0.66 0.18 35);
+  --sidebar: oklch(0.18 0.01 285);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.68 0.17 262);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.21 0.01 285);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.27 0.01 285);
+  --sidebar-ring: oklch(0.68 0.17 262);
 }`;
 
 export const themeInlineTokens = `@theme inline {
@@ -118,7 +125,46 @@ export const themeInlineTokens = `@theme inline {
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --tracking-display: -0.035em;
+}`;
+
+// grain overlay: feTurbulence baseFrequency 0.9 numOctaves 4, opacity 0.035, fixed, z-9999
+export const grainOverlayCss = `/* grain — feTurbulence baseFrequency 0.9, 4 octaves, opacity 0.035, fixed, z-9999 */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+}
+.grain-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}`;
+
+// hero grid: 48px grid with radial mask
+export const heroGridCss = `/* hero — 48px grid with radial mask */
+.hero-grid {
+  background-size: 48px 48px;
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 70%, transparent 110%);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 70%, transparent 110%);
+}
+.display-tight {
+  letter-spacing: -0.035em;
+}
+.text-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
 }`;
 
 export const baseLayer = `@layer base {
@@ -127,19 +173,28 @@ export const baseLayer = `@layer base {
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01" 1, "ss02" 1;
+  }
+  h1, h2, h3, .display {
+    letter-spacing: var(--tracking-display);
+  }
+  code, pre, kbd, samp {
+    font-family: var(--font-mono);
   }
 }`;
 
 /**
  * Web global.css — single source: imports @repo/ui/theme.css
  * Contains only imports + base layer, tokens live in @repo/ui/theme.css
+ * Fonts are loaded per-framework: Next via next/font, TanStack via <link> in __root, Mobile via expo-font
  */
 export function globalCssContent(): string {
   return `@import "tailwindcss";
 @import "@repo/ui/theme.css";
 @import "tw-animate-css";
 @custom-variant dark (&:is(.dark *));
-@custom-variant light (&:is(:root));
+@custom-variant light (&:is(.light *));
 
 ${baseLayer}
 `;
@@ -160,6 +215,6 @@ export function mobileGlobalCssContent(): string {
 @source "./components/**/*.{js,jsx,ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant light (&:is(:root));
+@custom-variant light (&:is(.light *));
 `;
 }

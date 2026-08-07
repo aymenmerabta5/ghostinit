@@ -14,14 +14,16 @@ import {
 } from "./shared.js";
 
 export function marketingHeaderFragment(router: RouterType): string {
+  const githubStars = `<a href="https://github.com/aymenmerabta5/ghostinit" target="_blank" rel="noreferrer" className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><span className="font-mono">★</span> GitHub</a>`;
   if (router === "tanstack") {
     return `      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
           <Link to="/" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">GhostInit</span>
-            <Badge variant="secondary" className="hidden sm:inline-flex">modular monolith</Badge>
+            <Badge variant="secondary" className="hidden sm:inline-flex">control plane</Badge>
           </Link>
           <div className="flex items-center gap-2">
+            ${githubStars}
             <ThemeToggle />
             <Button variant="ghost" size="sm" asChild>
               <Link to="/sign-in">Sign in</Link>
@@ -37,9 +39,10 @@ export function marketingHeaderFragment(router: RouterType): string {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">GhostInit</span>
-            <Badge variant="secondary" className="hidden sm:inline-flex">modular monolith</Badge>
+            <Badge variant="secondary" className="hidden sm:inline-flex">control plane</Badge>
           </Link>
           <div className="flex items-center gap-2">
+            ${githubStars}
             <ThemeToggle />
             <Button variant="ghost" size="sm" asChild>
               <Link href="/sign-in">Sign in</Link>
@@ -76,17 +79,29 @@ export function marketingHeroFragment(router: RouterType): string {
 
   const versionBadges = router === "next" ? versionBadgesNext() : versionBadgesTanstack();
 
-  return `        <section className="flex flex-col gap-6 pt-8 md:pt-16">
-          <Badge variant="secondary" className="w-fit">Bun only • oRPC • Better Auth${badgeExtra}</Badge>
+  return `        <section className="flex flex-col gap-8 pt-8 md:pt-16">
+          <Badge variant="secondary" className="w-fit font-mono text-xs">Bun only • oRPC • Better Auth${badgeExtra}</Badge>
           <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight md:text-5xl lg:text-[3.5rem]">
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl lg:text-[3.75rem]">
               ${sharedHeroTitle}
             </h1>
-            <p className="max-w-[65ch] text-lg text-muted-foreground leading-relaxed">
+            <p className="max-w-[60ch] text-lg text-muted-foreground leading-relaxed">
               ${desc}
             </p>
           </div>
 ${ctas}
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2">
+              <div className="flex gap-1.5"><span className="size-3 rounded-full bg-red-500/80" /><span className="size-3 rounded-full bg-yellow-500/80" /><span className="size-3 rounded-full bg-green-500/80" /></div>
+              <span className="ml-2 font-mono text-xs text-muted-foreground">~/code — zsh</span>
+            </div>
+            <div className="p-4 font-mono text-sm leading-relaxed">
+              <div className="text-muted-foreground">$ bunx ghostinit create my-app --billing stripe,chargily</div>
+              <div className="text-foreground">✓ Scaffolded my-app in 1.2s — 216 files, 0 drift</div>
+              <div className="text-muted-foreground">$ cd my-app && bun install && bun run dev</div>
+              <div className="text-foreground">✓ Ready on http://localhost:3000 — <span className="text-primary">ghostinit check</span> passed</div>
+            </div>
+          </div>
 ${versionBadges}
         </section>`;
 }

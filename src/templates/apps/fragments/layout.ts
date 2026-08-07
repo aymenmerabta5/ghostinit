@@ -31,8 +31,23 @@ export const sharedLoadingSkeletons = `<div className="mx-auto flex max-w-5xl fl
 export function nextRootLayoutContent(): string {
   return `import * as React from "react";
 import type { Metadata } from "next";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { Providers } from "../components/providers.js";
 import "./globals.css";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "GhostInit App",
@@ -44,7 +59,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="antialiased bg-background text-foreground">
+      <body className={\`\${dmSans.variable} \${jetbrainsMono.variable} antialiased bg-background text-foreground\`}>
         <Providers>{children}</Providers>
       </body>
     </html>
@@ -77,7 +92,15 @@ export const Route = createRootRouteWithContext<{
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'GhostInit App' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
+      {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap',
+      },
+      { rel: 'stylesheet', href: appCss },
+    ],
   }),
   errorComponent: ({ error }) => (
     <RootDocument>

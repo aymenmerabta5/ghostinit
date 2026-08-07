@@ -18,103 +18,97 @@ export interface MarketingSections {
   footerInner: string;
 }
 
-export const sharedHeroTitle = `Opinionated modular monolith that scales with you`;
+export const sharedHeroTitle = `The open-source<br />control plane<br />for your monorepo.`;
 
-export const sharedHeroDescNext = `Next.js App Router, Drizzle, oRPC contract-first, Better Auth, flexible billing. Two modes: monorepo workspaces or flat single. Webhooks via Next.js routes raw Buffer, single port.`;
+export const sharedHeroDescNext = `Orchestrate Next.js, Drizzle, oRPC, Better Auth from one surface. Bring your own billing. Fork the whole thing.`;
 
-export const sharedHeroDescTanStack = `TanStack Start, Drizzle, oRPC contract-first, Better Auth, flexible billing. Single port 3000, OKLCH paper tokens.`;
+export const sharedHeroDescTanStack = `Orchestrate TanStack Start, Drizzle, oRPC, Better Auth from one surface. Bring your own stack. Fork the whole thing.`;
 
 export const sharedWhyHeader = `<div className="flex flex-col gap-2">
             <h2 className="text-2xl font-semibold tracking-tight">Why GhostInit</h2>
-            <p className="max-w-[60ch] text-sm text-muted-foreground">GhostInit Layered Architecture (UI-&gt;Supporting, inspired by DDD), capability services, pure oRPC. No boilerplate sprawl.</p>
+            <p className="max-w-[60ch] text-sm text-muted-foreground">A well-structured monorepo with architectural linting that doesn't fight you. Like t3.codes for your app.</p>
           </div>`;
 
-export const sharedFeatureCardsNext = `            <Card className="md:col-span-7">
+export const sharedFeatureCardsNext = `            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Modular monolith with GhostInit Layered Architecture</CardTitle>
-                <CardDescription className="max-w-[60ch]">Bounded contexts per module, domain purity, application layer commands queries, build-time enforced layers. Sync keeps registries deterministic.</CardDescription>
+                <CardTitle className="text-base">One command to scaffold</CardTitle>
+                <CardDescription className="max-w-[60ch]">Every thread writes to its own branch. When it's good, one button opens the PR. No terminal dance.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">modules</Badge>
-                  <Badge variant="secondary">services</Badge>
-                  <Badge variant="secondary">API contract</Badge>
-                </div>
+                <div className="rounded-md bg-muted p-3 font-mono text-xs">bunx ghostinit create my-app --billing stripe,chargily<br />cd my-app && bun install && bun run dev</div>
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-5">
+            <Card className="md:col-span-5 border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">Pure oRPC only</CardTitle>
-                <CardDescription>Single port 3000, no Eden Treaty duplication. Webhooks via Next routes raw Buffer.</CardDescription>
+                <CardDescription>Single port 3000. Webhooks via Next routes raw Buffer.</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground font-mono">RPCHandler + Buffer.from(await request.arrayBuffer())</p>
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-5">
+            <Card className="md:col-span-5 border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">Flexible billing</CardTitle>
-                <CardDescription>Any combo: none, one, multi, all. Stripe, Chargily EDAHABIA, Paddle MoR, Polar license keys. Shared DB tables idempotent.</CardDescription>
+                <CardDescription>Any combo: Stripe, Chargily, Paddle, Polar. Shared tables, idempotent webhooks.</CardDescription>
               </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Badge variant="secondary">stripe</Badge>
+                <Badge variant="secondary">chargily</Badge>
+                <Badge variant="secondary">paddle</Badge>
+                <Badge variant="secondary">polar</Badge>
+              </CardContent>
             </Card>
 
-            <Card className="md:col-span-7">
+            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Dual modes unified</CardTitle>
-                <CardDescription className="max-w-[60ch]">Monorepo workspaces apps/* packages/* or flat single src/app + server/. Same design tokens, same shell, same oRPC client. OKLCH tinted neutrals chroma 0.005-0.01 paper white.</CardDescription>
+                <CardTitle className="text-base">If you don't like it, fork it</CardTitle>
+                <CardDescription className="max-w-[60ch]">MIT licensed. Change the UI, add a provider, ship your own build. Like t3.codes.</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> monorepo</span></Badge>
-                  <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> single</span></Badge>
-                </div>
-              </CardContent>
+              <CardContent className="rounded-md bg-muted p-3 font-mono text-xs">gh repo fork aymenmerabta5/ghostinit --clone<br />cd ghostinit && bun install && bun run dev</CardContent>
             </Card>`;
 
-export const sharedFeatureCardsTanStack = `            <Card className="md:col-span-7">
+export const sharedFeatureCardsTanStack = `            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Modular monolith with GhostInit Layered Architecture</CardTitle>
-                <CardDescription className="max-w-[60ch]">Bounded contexts per module, domain purity, application layer commands queries, build-time enforced layers.</CardDescription>
+                <CardTitle className="text-base">One command to scaffold</CardTitle>
+                <CardDescription className="max-w-[60ch]">TanStack Start + Vite, same oRPC, same tokens. One surface.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">modules</Badge>
-                  <Badge variant="secondary">services</Badge>
-                  <Badge variant="secondary">API contract</Badge>
-                </div>
+                <div className="rounded-md bg-muted p-3 font-mono text-xs">bunx ghostinit create my-app --framework tanstack-start<br />cd my-app && bun install && bun run dev</div>
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-5">
+            <Card className="md:col-span-5 border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">Pure oRPC only</CardTitle>
-                <CardDescription>Single port 3000, no Treaty duplication. Webhooks via Start server routes raw Buffer.</CardDescription>
+                <CardDescription>Single port 3000. Webhooks via Start server routes.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-xs text-muted-foreground font-mono">RPCHandler + Buffer.from(await request.arrayBuffer())</p>
+                <p className="text-xs text-muted-foreground font-mono">createServerFn + getRequestHeaders</p>
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-5">
+            <Card className="md:col-span-5 border bg-card">
               <CardHeader>
                 <CardTitle className="text-base">Flexible billing</CardTitle>
-                <CardDescription>Any combo: none, one, multi, all. Stripe, Chargily EDAHABIA, Paddle MoR, Polar license keys.</CardDescription>
+                <CardDescription>Any combo: Stripe, Chargily, Paddle, Polar.</CardDescription>
               </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Badge variant="secondary">stripe</Badge>
+                <Badge variant="secondary">chargily</Badge>
+                <Badge variant="secondary">paddle</Badge>
+                <Badge variant="secondary">polar</Badge>
+              </CardContent>
             </Card>
 
-            <Card className="md:col-span-7">
+            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Dual frameworks</CardTitle>
-                <CardDescription className="max-w-[60ch]">Next.js or TanStack Start. Same tokens, same oRPC, same OKLCH tinted neutrals chroma 0.005.</CardDescription>
+                <CardTitle className="text-base">If you don't like it, fork it</CardTitle>
+                <CardDescription className="max-w-[60ch]">MIT. Change the UI, add an agent, ship your own build.</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> nextjs</span></Badge>
-                  <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> tanstack-start</span></Badge>
-                </div>
-              </CardContent>
+              <CardContent className="rounded-md bg-muted p-3 font-mono text-xs">gh repo fork aymenmerabta5/ghostinit --clone<br />cd ghostinit && bun install</CardContent>
             </Card>`;
 
 export function versionBadgesNext(): string {
