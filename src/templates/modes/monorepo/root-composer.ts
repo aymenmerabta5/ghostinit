@@ -1,3 +1,4 @@
+// @allow-long 6-imports: root composer aggregates files+env+turbo with framework/app filtering
 import type { TemplateFile } from "../../shared.js";
 import type { RootSecrets } from "../../root.js";
 import { rootFiles as genRootFiles } from "../../root.js";

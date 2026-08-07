@@ -1,3 +1,4 @@
+// @allow-long 425: shared layout fragments deduplicated Next/TanStack
 /**
  * Shared layout fragments: layout.tsx metadata html suppressHydrationWarning, not-found, error use client, loading Skeleton
  * Deduplicates 70-80% between Next and TanStack root/not-found/error/loading

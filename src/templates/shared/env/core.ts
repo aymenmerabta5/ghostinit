@@ -113,6 +113,12 @@ export function coreEnvExampleLines(
     base.push(`# CONVEX_URL=${ENV_PLACEHOLDERS.CONVEX_URL}`);
   }
   base.push("TRUSTED_PROXY=false");
+  base.push("");
+  base.push("# OAuth — optional, set to enable social login (google, github)");
+  base.push(`GOOGLE_CLIENT_ID=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_ID}`);
+  base.push(`GOOGLE_CLIENT_SECRET=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_SECRET}`);
+  base.push(`GITHUB_CLIENT_ID=${ENV_PLACEHOLDERS.GITHUB_CLIENT_ID}`);
+  base.push(`GITHUB_CLIENT_SECRET=${ENV_PLACEHOLDERS.GITHUB_CLIENT_SECRET}`);
   return base;
 }
 export function coreEnvLocalLines(
@@ -137,6 +143,12 @@ export function coreEnvLocalLines(
     base.push(...postgresLocalLines(projectName, secrets));
   }
   base.push("TRUSTED_PROXY=false");
+  base.push("");
+  base.push("# OAuth — optional, set to enable social login (google, github)");
+  base.push(`GOOGLE_CLIENT_ID=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_ID}`);
+  base.push(`GOOGLE_CLIENT_SECRET=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_SECRET}`);
+  base.push(`GITHUB_CLIENT_ID=${ENV_PLACEHOLDERS.GITHUB_CLIENT_ID}`);
+  base.push(`GITHUB_CLIENT_SECRET=${ENV_PLACEHOLDERS.GITHUB_CLIENT_SECRET}`);
   return base;
 }
 

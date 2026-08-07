@@ -28,16 +28,11 @@ export const typescript = {
 } as const;
 
 export const nextStack = {
-  // Fix: Downgrade to TS6 compatible Next for bun dev to work
-  // TS7 native Go port lacks lib/typescript.js -> Next 16.2.10 can't find TS and tries npm install workspace:* fails
-  // Use 16.2.10 stable + TS6.0.3 for now. TS7 support requires Next >=16.3.0-canary.81 + experimental.useTypeScriptCli
-  // See https://github.com/vercel/next.js/pull/95639 - canary.81+ has flag but dev still needs JS API
-  // For bun dev to work with TS7, need dual TS setup or wait for stable with TS7 API
   next: "16.2.10",
-  react: "19.2.7",
-  "react-dom": "19.2.7",
-  "@types/react": "19.2.17",
-  "@types/react-dom": "19.2.3",
+  react: "19.2.8",
+  "react-dom": "19.2.8",
+  "@types/react": "19.2.18",
+  "@types/react-dom": "19.2.4",
 } as const;
 
 export const database = {
@@ -169,7 +164,10 @@ export const analytics = {
 } as const;
 
 export const email = {
-  resend: "4.0.1",
+  resend: "6.18.1",
+  "@react-email/components": "1.0.12",
+  "@react-email/render": "2.1.0",
+  "@react-email/tailwind": "2.0.7",
 } as const;
 
 export const cache = {

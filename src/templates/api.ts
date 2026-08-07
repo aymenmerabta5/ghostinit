@@ -1,3 +1,4 @@
+// @allow-long 466: oRPC contract + router + procedures aggregation with billing conditional
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import * as v from "./versions.js";
 
@@ -50,7 +51,9 @@ export interface ApiContext {
     id: string;
     email: string;
     name?: string | null;
+    role?: string | null;
   };
+  sessionId?: string;
 }
 
 export async function createContext(headers: Headers): Promise<ApiContext> {
@@ -63,8 +66,25 @@ export async function createContext(headers: Headers): Promise<ApiContext> {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
+      role: (session.user as unknown as { role?: string }).role ?? "user",
     },
+    sessionId: (session.session as unknown as { id?: string })?.id,
   };
+}
+
+// RBAC helpers — throw ORPCError if not authenticated / not admin
+export function requireUser(ctx: ApiContext) {
+  if (!ctx.user?.id) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return ctx.user;
+}
+export function requireAdmin(ctx: ApiContext) {
+  requireUser(ctx);
+  if ((ctx.user as { role?: string }).role !== "admin") {
+    throw new Error("FORBIDDEN");
+  }
+  return ctx.user;
 }
 `,
     ),
@@ -90,6 +110,35 @@ export const health = implementer.health.handler(async () => ({
   status: "ok" as const,
   time: new Date().toISOString(),
 }));
+`,
+    ),
+    file(
+      "packages/api/src/middleware/auth.ts",
+      `import { ORPCError } from "@orpc/server";
+import type { ApiContext } from "../context.js";
+
+// oRPC middleware style — used via implement.use(middleware) or manual check in handler
+export async function protectedProcedure(ctx: ApiContext) {
+  if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  return ctx.user;
+}
+export async function adminProcedure(ctx: ApiContext) {
+  if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  if ((ctx.user as { role?: string }).role !== "admin") throw new ORPCError("FORBIDDEN", { message: "Forbidden — admin only" });
+  return ctx.user;
+}
+// Rate limit stub — per-route 60/min memory; integrate Upstash Redis when cache=redis
+const hits = new Map<string, { count: number; reset: number }>();
+export function rateLimit(key: string, limit = 60, windowMs = 60_000): void {
+  const now = Date.now();
+  const cur = hits.get(key);
+  if (!cur || now > cur.reset) {
+    hits.set(key, { count: 1, reset: now + windowMs });
+    return;
+  }
+  cur.count++;
+  if (cur.count > limit) throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many requests" });
+}
 `,
     ),
     file(

@@ -38,6 +38,11 @@ ${routerHook}
         <Card className="shadow-sm"><CardHeader className="gap-2"><CardTitle className="text-2xl tracking-tight">Create account</CardTitle><CardDescription className="max-w-[60ch]">Start your workspace. Passwords hashed with scrypt. Secret strength validation length 32+ server side.</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-6">
             {error ? (<Alert variant="destructive"><AlertTitle>Unable to create account</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>) : null}
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={async () => { await authClient.signIn.social({ provider: "google", callbackURL: "/dashboard" }); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-card px-3 py-2 text-sm font-medium hover:bg-accent">Google</button>
+              <button type="button" onClick={async () => { await authClient.signIn.social({ provider: "github", callbackURL: "/dashboard" }); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-card px-3 py-2 text-sm font-medium hover:bg-accent">GitHub</button>
+            </div>
+            <div className="relative flex items-center gap-3 py-2"><span className="h-px flex-1 bg-border" /><span className="text-xs text-muted-foreground">or</span><span className="h-px flex-1 bg-border" /></div>
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
                 <TanStackField form={form} name="name" validators={{ onSubmit: ({ value }) => (${sharedValidators.name}), }} >{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="signup-name">Name</FieldLabel><Input id="signup-name" name={field.name} type="text" placeholder="Ada Lovelace" autoComplete="name" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your display name.</FieldDescription>)}</Field>)}</TanStackField>

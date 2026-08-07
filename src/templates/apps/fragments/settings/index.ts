@@ -5,6 +5,7 @@ import { settingsProfileCard } from "./profile-card.js";
 import { settingsPasswordCard } from "./password-card.js";
 import { settingsTwoFactorCard } from "./two-factor-card.js";
 import { settingsDangerZoneCard } from "./danger-card.js";
+import { settingsSessionsCard } from "./sessions-card.js";
 import { settingsPage } from "./page.js";
 import { tanstackSettingsPage, tanstackSettingsPageContent } from "./tanstack-page.js";
 
@@ -17,6 +18,7 @@ export {
   settingsPasswordCard,
   settingsTwoFactorCard,
   settingsDangerZoneCard,
+  settingsSessionsCard,
   settingsPage,
   tanstackSettingsPage,
   tanstackSettingsPageContent,
@@ -32,6 +34,7 @@ export function settingsFiles(router: RouterType = "next"): TemplateFile[] {
     settingsProfileCard(),
     settingsPasswordCard(),
     settingsTwoFactorCard(),
+    settingsSessionsCard(),
     settingsDangerZoneCard(),
     settingsPage(),
   ];

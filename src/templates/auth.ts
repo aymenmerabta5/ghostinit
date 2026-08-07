@@ -157,7 +157,7 @@ declare global {
 
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 ${cookieImport}${expoImport}
-import { admin, twoFactor } from "better-auth/plugins";
+import { admin, twoFactor, magicLink, passkey, organization } from "better-auth/plugins";
 import { env } from "@repo/config";
 import {
   db,
@@ -167,7 +167,6 @@ import {
   verifications,
   twoFactor as twoFactorTable,
 } from "@repo/database";
-import { forgotPasswordTemplate } from "@repo/email";
 
 if (env.BETTER_AUTH_URL.includes("localhost")) {
   console.warn(
@@ -202,22 +201,37 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignInAfterRegistration: false,
+    requireEmailVerification: false,
     sendResetPassword: async ({ user, url, token }) => {
       const { sendEmail } = await import("@repo/email");
-      await sendEmail({
-        to: user.email,
-        subject: \`Reset your password - \${env.APP_NAME}\`,
-        html: forgotPasswordTemplate({
-          url,
-          token,
-          appName: env.APP_NAME,
-          email: user.email,
-        }),
-      });
+      const { default: ResetPasswordEmail } = await import("@repo/email/templates/ResetPassword.js");
+      await sendEmail(user.email, \`Reset your password - \${env.APP_NAME}\`, ResetPasswordEmail, { link: url, appName: env.APP_NAME });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url, token }) => {
+      const { sendEmail } = await import("@repo/email");
+      const { default: VerifyEmail } = await import("@repo/email/templates/VerifyEmail.js");
+      await sendEmail(user.email, \`Verify your email - \${env.APP_NAME}\`, VerifyEmail, { link: url, appName: env.APP_NAME });
+    },
+  },
+  socialProviders: {
+    ...(env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_ID.startsWith("REPLACE_WITH") && env.GOOGLE_CLIENT_SECRET && !env.GOOGLE_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
+    ...(env.GITHUB_CLIENT_ID && !env.GITHUB_CLIENT_ID.startsWith("REPLACE_WITH") && env.GITHUB_CLIENT_SECRET && !env.GITHUB_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),
+  },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google", "github"],
     },
   },
   user: {
     deleteUser: {
+      enabled: true,
+    },
+    changeEmail: {
       enabled: true,
     },
   },
@@ -266,7 +280,20 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [${expoPlugin}admin(), twoFactor({ issuer: env.BETTER_AUTH_URL }), ${cookiePlugin}],${trustedOrigins}
+  plugins: [
+    ${expoPlugin}admin(),
+    twoFactor({ issuer: env.BETTER_AUTH_URL }),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        const { sendEmail } = await import("@repo/email");
+        const { default: MagicLinkEmail } = await import("@repo/email/templates/MagicLink.js").catch(() => ({ default: null as unknown as React.ComponentType<unknown> }));
+        if (MagicLinkEmail) await (sendEmail as unknown as (a:string,b:string,c:unknown,d:unknown)=>Promise<void>)(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail as unknown as React.ComponentType<{link:string}>, { link: url });
+      },
+    }),
+    passkey(),
+    organization(),
+    ${cookiePlugin},
+  ],${trustedOrigins}
 });
 
 export type Auth = typeof auth;
@@ -275,7 +302,7 @@ export type Auth = typeof auth;
     file(
       "packages/auth/src/client.ts",
       `import { createAuthClient } from "better-auth/react";
-import { adminClient, twoFactorClient } from "better-auth/client/plugins";
+import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -287,6 +314,9 @@ export const authClient = createAuthClient({
       },
     }),
     adminClient(),
+    magicLinkClient(),
+    passkeyClient(),
+    organizationClient(),
   ],
 });
 `,
@@ -298,7 +328,7 @@ function convexClientContent(): string {
   return [
     `import { createAuthClient } from "better-auth/react";`,
     `import { convexClient } from "@convex-dev/better-auth/client/plugins";`,
-    `import { adminClient, twoFactorClient } from "better-auth/client/plugins";`,
+    `import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";`,
     ``,
     `// Convex mode – client includes convexClient() plugin for ConvexBetterAuthProvider`,
     `// baseURL uses CONVEX_SITE_URL / SITE_URL for crossDomain cookie flow`,

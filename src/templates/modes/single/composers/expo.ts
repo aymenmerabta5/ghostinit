@@ -1,3 +1,4 @@
+// @allow-long 614: single-mode Expo composer aggregates all packages for expo isolated app
 import { file, type TemplateFile } from "../../../shared.js";
 import { singleKernelTypesContent } from "../fragments/kernel.js";
 import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";

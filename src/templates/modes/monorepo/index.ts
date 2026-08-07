@@ -1,3 +1,4 @@
+// @allow-long 21-imports: monorepo/index assembles via dedup+sort+__PROJECT_NAME__ replace — intentional delegation obscures graph, acknowledged
 import type { ProjectConfig } from "../../../lib/config.js";
 import { dedupeFilesOrThrow, type TemplateFile } from "../../shared.js";
 import type { RootSecrets } from "../../root.js";
@@ -26,6 +27,9 @@ import { billingComposerFiles } from "./billing-composer.js";
 import { servicesComposerFiles } from "./services-composer.js";
 import { agentsComposerFiles } from "./agents-composer.js";
 import { cacheComposerFiles } from "./cache-composer.js";
+import { proxyFiles } from "../../proxy.js";
+import { accessFiles } from "../../access.js";
+import { shellFiles } from "../../shell.js";
 
 export interface MonorepoSecrets extends RootSecrets {}
 export interface MonorepoContext {
@@ -114,6 +118,7 @@ export function monorepoFiles(
   const hasEmail = hasAddon(addonMap, "email");
   const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
+  const hasWebEarly = effectiveApps.includes("web" as AppName);
 
   const deploy = (config.deploy ?? "none") as string;
   const all: TemplateFile[] = [
@@ -147,6 +152,9 @@ export function monorepoFiles(
     ),
     ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
     ...(hasCache ? cacheComposerFiles(runtime) : []),
+    ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n) : []),
+    ...accessFiles(mode),
+    ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode) : []),
   ];
 
   const enrichedAgents = agentsComposerFiles(

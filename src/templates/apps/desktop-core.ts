@@ -61,7 +61,7 @@ export function desktopPackageJsonContent(
       "@types/react": v.nextStack["@types/react"],
       "@types/react-dom": v.nextStack["@types/react-dom"],
       "@types/node": v.runtime["@types/node"],
-      tailwindcss: "^4.3.2",
+      tailwindcss: `^${v.styling.tailwindcss}`,
     },
   });
 }

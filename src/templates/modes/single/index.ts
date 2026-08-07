@@ -1,3 +1,4 @@
+// @allow-long 13-imports: single/index mirrors monorepo assembly for single mode — intentional
 import { dedupeFilesOrThrow, type TemplateFile } from "../../shared.js";
 import type { ProjectConfig } from "../../../lib/config.js";
 import type { RootSecrets } from "../../root.js";
@@ -23,6 +24,9 @@ import {
 } from "./fragments/docs.js";
 import { buildNextFiles } from "./composers/next.js";
 import { buildTanstackFiles } from "./composers/tanstack.js";
+import { proxyFiles } from "../../proxy.js";
+import { accessFiles } from "../../access.js";
+import { shellFiles } from "../../shell.js";
 import { buildExpoFiles } from "./composers/expo.js";
 import { buildDesktopFiles } from "./composers/desktop.js";
 
@@ -127,6 +131,14 @@ export function singleFiles(
     cursorRulesFromAgents(enrichedAgents),
     windsurfFromAgents(enrichedAgents),
   );
+  // --- GhostInit Phase A: proxy + permissions + shell for both modes ---
+  const hasWebSingle = effectiveApps.includes("web");
+  const isNextSingle =
+    (config.framework ?? "nextjs") === "nextjs" ||
+    (!config.framework && !hasAddon(addonMap, "tanstack-start"));
+  if (hasWebSingle && isNextSingle) for (const f of proxyFiles(mode, hasI18n)) withoutOld.push(f);
+  for (const f of accessFiles(mode)) withoutOld.push(f);
+  if (hasWebSingle) for (const f of shellFiles(mode)) withoutOld.push(f);
 
   // Same-path emissions collapse here; differing content is a real conflict and
   // fails loudly rather than dropping one implementation. See ../../shared.ts.

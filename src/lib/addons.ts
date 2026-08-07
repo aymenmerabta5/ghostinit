@@ -124,7 +124,7 @@ export const presetDefaults: Record<
   frontend: {
     auth: false,
     api: false,
-    email: false,
+    email: true,
     analytics: false,
     cache: "none",
     database: "none",
@@ -134,7 +134,7 @@ export const presetDefaults: Record<
   custom: {
     auth: false,
     api: false,
-    email: false,
+    email: true,
     analytics: false,
     cache: "none",
     database: "none",
@@ -644,8 +644,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // Determine each saas addon
   const authInUse = input.auth !== undefined ? input.auth : isSaasPreset || noPreset ? true : false;
   const apiInUse = input.api !== undefined ? input.api : isSaasPreset || noPreset ? true : false;
-  const emailInUse =
-    input.email !== undefined ? input.email : isSaasPreset || noPreset ? true : false;
+  const emailInUse = input.email !== undefined ? input.email : true;
   const analyticsInUse =
     input.analytics !== undefined ? input.analytics : isSaasPreset || noPreset ? true : false;
   // cache is separate provider

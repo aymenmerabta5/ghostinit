@@ -1,3 +1,4 @@
+// @allow-long 6-imports: database composer aggregates postgres/convex/start variants with versioned deps
 import { file, packageJson, tsconfig, codeScripts, type TemplateFile } from "../../shared.js";
 import { databasePackage, startDatabaseFiles } from "../../database.js";
 import { convexDatabaseFiles, convexStartDatabaseFiles } from "../../database/convex.js";

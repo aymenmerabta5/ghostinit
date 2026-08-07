@@ -1,3 +1,4 @@
+// @allow-long 416: email package + React Email templates + Resend wiring
 import {
   codeScripts,
   file,
@@ -32,23 +33,14 @@ export const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
 `;
 }
 
-function indexContent(mode: ProjectMode): string {
-  const envRef = mode === "monorepo" ? "env.RESEND_API_KEY" : "process.env.RESEND_API_KEY";
-  const importEnv = mode === "monorepo" ? 'import { env } from "@repo/config";\n\n' : "";
-  const resendArg = mode === "monorepo" ? "env.RESEND_API_KEY" : 'process.env.RESEND_API_KEY ?? ""';
-  return `import { Resend } from "resend";
-${importEnv}if (!${envRef} || ${envRef}.includes("REPLACE_WITH")) {
-  console.warn("[ghostinit] RESEND_API_KEY is not set. Emails will fail until configured.");
-}
-
-export const resend = new Resend(${resendArg});
-
-export { sendEmail, type SendEmailInput, type SendEmailResult } from "./send.js";
-export { forgotPasswordTemplate, type ForgotPasswordEmailProps } from "./templates/forgot-password.js";
-export {
-  resetPasswordConfirmationTemplate,
-  type ResetPasswordConfirmationProps,
-} from "./templates/reset-password.js";
+function indexContent(_mode: ProjectMode): string {
+  return `export { sendEmail } from "./send.js";
+export type { SendEmailOptions } from "./send.js";
+export { default as EmailLayout } from "./templates/EmailLayout.js";
+export { default as VerifyEmail } from "./templates/VerifyEmail.js";
+export { default as ResetPasswordEmail } from "./templates/ResetPassword.js";
+export { default as WelcomeEmail } from "./templates/Welcome.js";
+export { default as MagicLinkEmail } from "./templates/MagicLink.js";
 export {
   EMAIL_FROM,
   EMAIL_FROM_NAME,
@@ -58,164 +50,271 @@ export {
 `;
 }
 
-const sharedSend = `import { resend } from "./index.js";
-import { EMAIL_FROM_FORMATTED } from "./constants.js";
+// React Email + Resend sending mechanism — copied/adapted from licence-last/src/server/email
+// Same for monorepo/single and for Next/TanStack — server-only email is framework-agnostic.
+function sendContent(mode: ProjectMode): string {
+  const isMonorepo = mode === "monorepo";
+  const envImport = isMonorepo
+    ? `import { env } from "@repo/config";`
+    : `const env = {
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
+  EMAIL_FROM: process.env.EMAIL_FROM ?? "noreply@example.com",
+} as const;`;
+  const fromRef = isMonorepo ? `env.EMAIL_FROM` : `env.EMAIL_FROM`;
+  const apiKeyRef = isMonorepo ? `env.RESEND_API_KEY` : `env.RESEND_API_KEY`;
+  // Single mode stays plain node; monorepo can use server-only guard when available.
+  const serverOnlyImport = isMonorepo ? `import "server-only";\n` : ``;
+  return `${serverOnlyImport}import * as React from "react";
+import { render } from "@react-email/render";
+import { Resend } from "resend";
+${envImport}
 
-export interface SendEmailInput {
-  to: string | string[];
-  subject: string;
-  html: string;
+export interface SendEmailOptions {
   from?: string;
-  text?: string;
+  replyTo?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
 }
 
-export interface SendEmailResult {
-  id: string;
-}
-
-export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult | null> {
-  const from = input.from ?? EMAIL_FROM_FORMATTED;
-  const to = Array.isArray(input.to) ? input.to : [input.to];
-
-  const { data, error } = await resend.emails.send({
-    from,
-    to,
-    subject: input.subject,
-    html: input.html,
-    ...(input.text ? { text: input.text } : {}),
-  });
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to send email");
+export async function sendEmail<T>(
+  to: string | string[],
+  subject: string,
+  EmailComponent: React.ComponentType<T>,
+  componentProps: T,
+  options?: SendEmailOptions,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!${apiKeyRef} || ${apiKeyRef}.includes("REPLACE_WITH")) {
+      console.warn("[ghostinit] RESEND_API_KEY not configured — skipping email delivery");
+      return { success: false, error: "Email not configured" };
+    }
+    const resend = new Resend(${apiKeyRef});
+    const html = await render(React.createElement(EmailComponent as React.ElementType, componentProps));
+    const from = options?.from ?? ${fromRef};
+    if (!from) throw new Error("EMAIL_FROM is not configured");
+    const { data, error } = await resend.emails.send({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      replyTo: options?.replyTo,
+      cc: options?.cc,
+      bcc: options?.bcc,
+    });
+    if (error) {
+      console.error("[ghostinit] Resend API error", error);
+      throw new Error(\`Email sending failed: \${(error as { message?: string }).message ?? "unknown"}\`);
+    }
+    if (!data) throw new Error("Email sending failed: No response data");
+    console.info("[ghostinit] Email sent", { to, subject, id: (data as { id?: string }).id });
+    return { success: true };
+  } catch (error) {
+    console.error("[ghostinit] Error sending email", error);
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
+}
 
-  return data as SendEmailResult | null;
+// Legacy html-string helper for callers that already have html (kept for back-compat with auth.ts string templates)
+export async function sendEmailHtml(
+  to: string | string[],
+  subject: string,
+  html: string,
+  options?: SendEmailOptions,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!${apiKeyRef} || ${apiKeyRef}.includes("REPLACE_WITH")) {
+      console.warn("[ghostinit] RESEND_API_KEY not configured — skipping email delivery");
+      return { success: false, error: "Email not configured" };
+    }
+    const resend = new Resend(${apiKeyRef});
+    const from = options?.from ?? ${fromRef};
+    const { data, error } = await resend.emails.send({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+      replyTo: options?.replyTo,
+      cc: options?.cc,
+      bcc: options?.bcc,
+    });
+    if (error) throw new Error((error as { message?: string }).message ?? "Resend error");
+    if (!data) throw new Error("No response data");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+`;
+}
+
+// EmailLayout — Tailwind + pixelBasedPreset, same for Next/TanStack/single (copied from licence-last EmailLayout)
+const emailLayoutContent = `import { Body, Container, Head, Html } from "@react-email/components";
+import type { TailwindConfig } from "@react-email/tailwind";
+import { Tailwind, pixelBasedPreset } from "@react-email/tailwind";
+import type { ReactNode } from "react";
+
+const tailwindConfig: TailwindConfig = {
+  presets: [pixelBasedPreset],
+  theme: {
+    extend: {
+      colors: {
+        background: "#f9f6f1",
+        foreground: "#0a0a0a",
+        card: "#f9f6f1",
+        cardForeground: "#0a0a0a",
+        primary: "#d33d00",
+        primaryForeground: "#f9f6f1",
+        secondary: "#0a0a0a",
+        secondaryForeground: "#f9f6f1",
+        muted: "#efebe2",
+        mutedForeground: "#6a6560",
+        accent: "#efebe2",
+        accentForeground: "#0a0a0a",
+        destructive: "#e7000f",
+        border: "#e1deda",
+      },
+    },
+  },
+};
+
+export default function EmailLayout({ children, title = "GhostInit" }: { children: ReactNode; title?: string }) {
+  return (
+    <Html>
+      <Head>
+        <title>{title}</title>
+      </Head>
+      <Tailwind config={tailwindConfig}>
+        <Body className="bg-background text-foreground">
+          <Container className="mx-auto max-w-2xl px-6 py-10">{children}</Container>
+        </Body>
+      </Tailwind>
+    </Html>
+  );
+}
+
+export { tailwindConfig };
+`;
+
+const verifyEmailContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+import EmailLayout from "./EmailLayout.js";
+
+export default function VerifyEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+  return (
+    <EmailLayout title={\`Verify your email — \${appName}\`}>
+      <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
+        <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
+          {appName}
+        </Heading>
+        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
+          Verify your email
+        </Heading>
+        <Text className="text-mutedForeground mb-6 text-base">
+          Thanks for signing up! Please verify your email address by clicking the button below.
+        </Text>
+        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>
+          Verify Email
+        </Button>
+        <Text className="text-mutedForeground mt-6 text-sm">If you didn&apos;t create an account, you can safely ignore this email.</Text>
+        <Text className="text-mutedForeground mt-2 text-xs break-all">
+          <a href={link} className="text-foreground underline">
+            {link}
+          </a>
+        </Text>
+      </Section>
+    </EmailLayout>
+  );
 }
 `;
 
-const forgotPasswordTemplateContent = `export interface ForgotPasswordEmailProps {
-  url: string;
-  token?: string;
-  appName?: string;
-  email?: string;
+const resetPasswordContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+import EmailLayout from "./EmailLayout.js";
+
+export default function ResetPasswordEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+  return (
+    <EmailLayout title={\`Reset your password — \${appName}\`}>
+      <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
+        <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
+          {appName}
+        </Heading>
+        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
+          Reset your password
+        </Heading>
+        <Text className="text-mutedForeground mb-6 text-base">
+          We received a request to reset your password. If you didn&apos;t make this request, you can safely ignore this email.
+        </Text>
+        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>
+          Reset Password
+        </Button>
+        <Text className="text-mutedForeground mt-6 text-sm">This link will expire in 1 hour for security reasons.</Text>
+        <Text className="text-mutedForeground mt-2 text-xs break-all">
+          <a href={link} className="text-foreground underline">
+            {link}
+          </a>
+        </Text>
+      </Section>
+    </EmailLayout>
+  );
 }
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-export function forgotPasswordTemplate(props: ForgotPasswordEmailProps): string;
-export function forgotPasswordTemplate(url: string, appName?: string): string;
-export function forgotPasswordTemplate(
-  arg1: ForgotPasswordEmailProps | string,
-  arg2?: string,
-): string {
-  const props: ForgotPasswordEmailProps =
-    typeof arg1 === "string" ? { url: arg1, appName: arg2 } : arg1;
-  const { url, appName = "GhostInit" } = props;
-  const safeAppName = escapeHtml(appName);
-
-  return \`<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reset your password</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f8fafc;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
-    <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="background-color:#f8fafc;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-            <tr>
-              <td style="padding:32px 32px 8px 32px;">
-                <h1 style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#0f172a;line-height:28px;">Reset your password</h1>
-                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">You requested a password reset for \${safeAppName}. Click the button below to choose a new password. This link expires in 1 hour and can only be used once.</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:24px 32px;">
-                <a href="\${url}" style="display:inline-block;background-color:#0f172a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;">Reset password</a>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 32px 24px 32px;">
-                <p style="margin:0 0 8px 0;font-size:13px;color:#64748b;line-height:18px;">If the button does not work, copy and paste this link into your browser:</p>
-                <p style="margin:0;word-break:break-all;font-size:13px;line-height:18px;"><a href="\${url}" style="color:#0f172a;text-decoration:underline;">\${url}</a></p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-                <p style="margin:0;font-size:12px;color:#94a3b8;line-height:16px;">If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
-              </td>
-            </tr>
-          </table>
-          <p style="margin:16px 0 0 0;font-size:12px;color:#94a3b8;">\${safeAppName}</p>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>\`;
-}
-
-export const forgotPasswordHtml = forgotPasswordTemplate;
 `;
 
-const resetPasswordTemplateContent = `export interface ResetPasswordConfirmationProps {
-  appName?: string;
-  email?: string;
-}
+const welcomeContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+import EmailLayout from "./EmailLayout.js";
 
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+export default function WelcomeEmail({ appName = "GhostInit", name, dashboardUrl = "/dashboard" }: { appName?: string; name?: string; dashboardUrl?: string }) {
+  return (
+    <EmailLayout title={\`Welcome to \${appName}\`}>
+      <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
+        <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
+          {appName}
+        </Heading>
+        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
+          Welcome{name ? \`, \${name}\` : ""}!
+        </Heading>
+        <Text className="text-mutedForeground mb-6 text-base">
+          Your account for {appName} is ready. You can now sign in, enable 2FA, and manage your workspace.
+        </Text>
+        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={dashboardUrl}>
+          Go to Dashboard
+        </Button>
+      </Section>
+    </EmailLayout>
+  );
 }
+`;
 
-export function resetPasswordConfirmationTemplate(
-  props: ResetPasswordConfirmationProps = {},
-): string {
-  const { appName = "GhostInit" } = props;
-  const safeAppName = escapeHtml(appName);
-  return \`<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Password reset successful</title>
-  </head>
-  <body style="margin:0;padding:0;background-color:#f8fafc;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
-    <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="background-color:#f8fafc;padding:32px 16px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellPadding="0" cellSpacing="0" style="max-width:560px;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-            <tr>
-              <td style="padding:32px;">
-                <h1 style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#0f172a;">Password reset successful</h1>
-                <p style="margin:0;font-size:14px;color:#475569;line-height:20px;">Your password for \${safeAppName} has been changed successfully. You can now sign in with your new password.</p>
-                <p style="margin:16px 0 0 0;font-size:13px;color:#64748b;">If you did not perform this action, please contact support immediately and secure your account.</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:16px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-                <p style="margin:0;font-size:12px;color:#94a3b8;">This is an automated message from \${safeAppName}, please do not reply.</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>\`;
+// Backwards-compat string templates kept as wrappers around React Email render — ensures auth.ts still works if it passes html
+const magicLinkContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+import EmailLayout from "./EmailLayout.js";
+
+export default function MagicLinkEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+  return (
+    <EmailLayout title={\`Sign in — \${appName}\`}>
+      <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
+        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">Sign in with magic link</Heading>
+        <Text className="text-mutedForeground mb-6 text-base">Click below to sign in to {appName}. This link expires in 15 minutes and can only be used once.</Text>
+        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>Sign in</Button>
+        <Text className="text-mutedForeground mt-2 text-xs break-all"><a href={link} className="text-foreground underline">{link}</a></Text>
+      </Section>
+    </EmailLayout>
+  );
 }
+`;
+
+const legacyForgotWrapper = `import { render } from "@react-email/render";
+import * as React from "react";
+import ResetPasswordEmail from "./ResetPassword.js";
+export async function forgotPasswordTemplate(props: { url: string; appName?: string }): Promise<string> {
+  return render(React.createElement(ResetPasswordEmail, { link: props.url, appName: props.appName }));
+}
+export type ForgotPasswordEmailProps = { url: string; token?: string; appName?: string; email?: string };
+`;
+const legacyVerificationWrapper = `import { render } from "@react-email/render";
+import * as React from "react";
+import VerifyEmail from "./VerifyEmail.js";
+export async function verificationTemplate(props: { url: string; appName?: string }): Promise<string> {
+  return render(React.createElement(VerifyEmail, { link: props.url, appName: props.appName }));
+}
+export type VerificationEmailProps = { url: string; token?: string; appName?: string; email?: string };
 `;
 
 export function emailFiles(
@@ -225,6 +324,18 @@ export function emailFiles(
 ): TemplateFile[] {
   const { mode, runtime } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
   const testCmd = runtime === "bun" ? "bun test" : "npm run test:unit";
+
+  const emailDependencies: Record<string, string> = {
+    resend: `^${v.email.resend}`,
+    react: `^${v.nextStack.react}`,
+    "react-dom": `^${v.nextStack["react-dom"]}`,
+    "@react-email/components": `^${v.email["@react-email/components"]}`,
+    "@react-email/render": `^${v.email["@react-email/render"]}`,
+    "@react-email/tailwind": `^${v.email["@react-email/tailwind"]}`,
+  };
+  if (mode === "monorepo") {
+    (emailDependencies as Record<string, string>)["@repo/config"] = "workspace:*";
+  }
 
   const files: TemplateFile[] = [];
 
@@ -239,53 +350,65 @@ export function emailFiles(
           exports: {
             ".": "./src/index.ts",
           },
-          dependencies: {
-            resend: `^${v.email.resend}`,
-            "@repo/config": "workspace:*",
-          },
+          dependencies: emailDependencies,
           devDependencies: {
             "@types/node": `^${v.runtime["@types/node"]}`,
+            "@types/react": `^${v.nextStack["@types/react"]}`,
             typescript: `^${v.typescript.typescript}`,
             oxlint: `^${v.tooling.oxlint}`,
             oxfmt: `^${v.tooling.oxfmt}`,
           },
         }),
       ),
-      // A real assertion, not a placeholder: this package declared a `test` script
-      // with zero test files, so `bun test` exited 1 ("No tests found!") and
-      // `turbo run test` was red on every freshly generated project. Importing the
-      // barrel also catches the broken re-export class of bug.
+      file(
+        "packages/email/tsconfig.json",
+        tsconfig({
+          compilerOptions: {
+            jsx: "react-jsx",
+            types: ["node"],
+            esModuleInterop: true,
+            allowSyntheticDefaultImports: true,
+          },
+          include: ["src/**/*"],
+        }),
+      ),
       file(
         "packages/email/tests/barrel.test.ts",
         `import { describe, it, expect } from "bun:test";
 import * as mod from "../src/index.js";
 
 describe("@repo/email barrel", () => {
-  it("loads and exposes its public API", () => {
+  it("loads and exposes React Email API", () => {
     expect(typeof mod.sendEmail).toBe("function");
-    expect(typeof mod.forgotPasswordTemplate).toBe("function");
+    expect(typeof mod.EmailLayout).toBe("function");
   });
 });
 `,
       ),
-      file(
-        "packages/email/tsconfig.json",
-        tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
-      ),
       file("packages/email/src/constants.ts", constantsContent("monorepo")),
       file("packages/email/src/index.ts", indexContent("monorepo")),
-      file("packages/email/src/send.ts", sharedSend),
-      file("packages/email/src/templates/forgot-password.ts", forgotPasswordTemplateContent),
-      file("packages/email/src/templates/reset-password.ts", resetPasswordTemplateContent),
+      file("packages/email/src/send.ts", sendContent("monorepo")),
+      file("packages/email/src/templates/EmailLayout.tsx", emailLayoutContent),
+      file("packages/email/src/templates/VerifyEmail.tsx", verifyEmailContent),
+      file("packages/email/src/templates/ResetPassword.tsx", resetPasswordContent),
+      file("packages/email/src/templates/Welcome.tsx", welcomeContent),
+      file("packages/email/src/templates/MagicLink.tsx", magicLinkContent),
+      // Legacy string-API compat — keeps existing auth.ts imports working during migration
+      file("packages/email/src/templates/forgot-password.ts", legacyForgotWrapper),
+      file("packages/email/src/templates/verification.ts", legacyVerificationWrapper),
     );
   } else {
-    // Single mode — src/server/email/
     files.push(
       file("src/server/email/constants.ts", constantsContent("single")),
       file("src/server/email/index.ts", indexContent("single")),
-      file("src/server/email/send.ts", sharedSend),
-      file("src/server/email/templates/forgot-password.ts", forgotPasswordTemplateContent),
-      file("src/server/email/templates/reset-password.ts", resetPasswordTemplateContent),
+      file("src/server/email/send.ts", sendContent("single")),
+      file("src/server/email/templates/EmailLayout.tsx", emailLayoutContent),
+      file("src/server/email/templates/VerifyEmail.tsx", verifyEmailContent),
+      file("src/server/email/templates/ResetPassword.tsx", resetPasswordContent),
+      file("src/server/email/templates/Welcome.tsx", welcomeContent),
+      file("src/server/email/templates/MagicLink.tsx", magicLinkContent),
+      file("src/server/email/templates/forgot-password.ts", legacyForgotWrapper),
+      file("src/server/email/templates/verification.ts", legacyVerificationWrapper),
     );
   }
 

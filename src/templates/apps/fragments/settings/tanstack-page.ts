@@ -67,9 +67,15 @@ function SettingsPage(): React.JSX.Element {
             <CardContent className="flex flex-col gap-2">
               <Button variant="outline" size="sm" asChild><Link to="/2fa">Two-factor</Link></Button>
               <Button variant="outline" size="sm" asChild><Link to="/forgot-password">Reset password</Link></Button>
+              <Button variant="outline" size="sm" asChild><Link to="/settings/sessions">Sessions</Link></Button>
+              <Alert><AlertTitle>Passkey & Magic Link</AlertTitle><AlertDescription className="text-xs">Passkey (WebAuthn) + Magic Link + Organization enabled via better-auth. Use authClient.signIn.magicLink / authClient.passkey.* / authClient.organization.*.</AlertDescription></Alert>
             </CardContent>
           </Card>
         </div>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Sessions</CardTitle><CardDescription>Active sessions — revoke via client component in /settings (Next) or call authClient.listSessions().</CardDescription></CardHeader>
+          <CardContent><p className="text-sm text-muted-foreground">TanStack sessions are managed client-side via authClient.listSessions()/revokeSession(). See Next Settings → Sessions card for full UI.</p></CardContent>
+        </Card>
       </div>
     </main>
   )

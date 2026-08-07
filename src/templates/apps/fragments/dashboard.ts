@@ -1,3 +1,4 @@
+// @allow-long 525: dashboard fragments DDD control plane tiles shared Next/TanStack
 /**
  * Dashboard fragments – control plane (t3.codes inspired)
  * Dark-first, terminal-native, high-contrast, dense but scannable

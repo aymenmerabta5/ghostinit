@@ -113,10 +113,12 @@ export type Auth = typeof auth;
 `;
 }
 
+import * as v from "../versions.js";
+
 export function convexAuthPackageJsonDeps(): Record<string, string> {
   // Used by authPackage to inject deps
   return {
-    convex: "^1.23.0",
-    "@convex-dev/better-auth": "^0.8.7",
+    convex: `^${v.convex.convex}`,
+    "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
   };
 }
