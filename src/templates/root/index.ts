@@ -14,7 +14,9 @@ import {
   githubWorkflow,
 } from "./config.js";
 import { envExample, envLocal, webEnvLocal } from "./env.js";
+import { deployFiles } from "./deploy.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
+import type { DeployTarget } from "../../lib/addons.js";
 export type { RootSecrets } from "./secrets.js";
 export { billingEnvPlaceholders } from "./secrets.js";
 
@@ -24,6 +26,7 @@ export function rootFiles(
   ctx: GenerateContext,
   runtime: "node" | "bun" = "bun",
   addonMap?: AddonInstallerMap | Record<string, { inUse: boolean }>,
+  deploy: DeployTarget = "none",
 ): TemplateFile[] {
   return [
     rootPackageJson(projectName, runtime, addonMap),
@@ -40,6 +43,7 @@ export function rootFiles(
     gitignore(),
     readme(projectName, runtime),
     githubWorkflow(runtime),
+    ...deployFiles(projectName, deploy),
   ];
 }
 

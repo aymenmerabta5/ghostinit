@@ -386,14 +386,23 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     (async () => {
       try {
-        const bridge = (window as unknown as { desktopBridge?: { getClientSettings?: () => Promise<ClientSettings> } }).desktopBridge;
+        if (typeof window === "undefined") return;
+        const w = window as unknown as { desktopBridge?: { getClientSettings?: () => Promise<ClientSettings> } };
+        const bridge = w.desktopBridge;
         const stored = await bridge?.getClientSettings?.();
-        const candidate = (stored?.theme as Theme | undefined) ?? (localStorage.getItem("ghostinit-theme") as Theme | null);
+        let candidate: Theme | null = (stored?.theme as Theme | undefined) ?? null;
+        if (!candidate) {
+          try {
+            if (typeof localStorage !== "undefined") {
+              candidate = localStorage.getItem("ghostinit-theme") as Theme | null;
+            }
+          } catch {}
+        }
         if (candidate === "dark" || candidate === "light") {
           if (mounted) setThemeRaw(candidate);
           return;
         }
-        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
           if (mounted) setThemeRaw("dark");
         }
       } catch {}
@@ -404,17 +413,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   React.useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
     try {
-      localStorage.setItem("ghostinit-theme", theme);
-      const bridge = (window as unknown as {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("ghostinit-theme", theme);
+      }
+      const w = window as unknown as {
         desktopBridge?: {
           getClientSettings?: () => Promise<ClientSettings>;
           setClientSettings?: (v: unknown) => Promise<void>;
         };
-      }).desktopBridge;
+      };
+      const bridge = w.desktopBridge;
       if (bridge?.getClientSettings && bridge?.setClientSettings) {
         bridge
           .getClientSettings()

@@ -72,18 +72,15 @@ export const ALL_BILLING_PROVIDERS = BILLING_PROVIDERS;
 export const BILLING_PROVIDER_NAMES = BILLING_PROVIDERS;
 
 /* ------------------------------------------------------------------ */
-/* Convex constants                                                   */
+/* Convex + env manifest — single source via env-manifest.ts           */
 /* ------------------------------------------------------------------ */
 
-export const CONVEX_ENV_KEYS = [
-  "CONVEX_DEPLOYMENT",
-  "CONVEX_URL",
-  "NEXT_PUBLIC_CONVEX_URL",
-  "VITE_CONVEX_URL",
-  "EXPO_PUBLIC_CONVEX_URL",
-  "CONVEX_SITE_URL",
-  "SITE_URL",
-] as const;
+export {
+  CONVEX_ENV_KEYS,
+  ENV_PLACEHOLDERS,
+  GLOBAL_ENV_KEYS,
+  getGlobalEnvKeys,
+} from "./env-manifest.js";
 
 /* ------------------------------------------------------------------ */
 /* Reserved workspace packages — single source of truth               */
@@ -120,29 +117,3 @@ export type PresetName = (typeof PRESETS)[number];
 /** Cache providers — redis = Upstash HTTP */
 export const CACHE_PROVIDERS = ["redis", "none"] as const;
 export type CacheProvider = (typeof CACHE_PROVIDERS)[number];
-
-/** Placeholder constants for env generation */
-export const ENV_PLACEHOLDERS = {
-  BETTER_AUTH_SECRET: "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS",
-  POSTGRES_PASSWORD: "REPLACE_WITH_A_STRONG_POSTGRES_PASSWORD",
-  RESEND_API_KEY: "REPLACE_WITH_RESEND_API_KEY",
-  STRIPE_SECRET_KEY: "REPLACE_WITH_STRIPE_SECRET_KEY",
-  STRIPE_WEBHOOK_SECRET: "REPLACE_WITH_STRIPE_WEBHOOK_SECRET",
-  STRIPE_PUBLISHABLE: "pk_test_REPLACE",
-  CHARGILY_API_KEY: "REPLACE_WITH_CHARGILY_API_KEY",
-  CHARGILY_SECRET: "REPLACE_WITH_CHARGILY_SECRET_KEY",
-  PADDLE_API_KEY: "REPLACE_WITH_PADDLE_API_KEY",
-  PADDLE_WEBHOOK_SECRET: "REPLACE_WITH_PADDLE_WEBHOOK_SECRET",
-  PADDLE_CLIENT_TOKEN: "pdl_ntf_REPLACE",
-  POLAR_ACCESS_TOKEN: "REPLACE_WITH_POLAR_ACCESS_TOKEN",
-  POLAR_WEBHOOK_SECRET: "REPLACE_WITH_POLAR_WEBHOOK_SECRET",
-  POLAR_ORG_ID: "REPLACE_WITH_POLAR_ORG_ID",
-  POSTHOG_KEY: "phc_REPLACE_WITH_POSTHOG_KEY",
-  UPSTASH_REDIS_REST_URL: "REPLACE_WITH_UPSTASH_REDIS_REST_URL",
-  UPSTASH_REDIS_REST_TOKEN: "REPLACE_WITH_UPSTASH_REDIS_REST_TOKEN",
-  CONVEX_DEPLOYMENT: "REPLACE_WITH_CONVEX_DEPLOYMENT_dev:example-123",
-  CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
-  NEXT_PUBLIC_CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
-  CONVEX_SITE_URL: "REPLACE_WITH_CONVEX_SITE_URL_https://example-123.convex.site",
-  SITE_URL: "http://localhost:3000",
-} as const;

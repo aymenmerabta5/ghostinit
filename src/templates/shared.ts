@@ -77,6 +77,8 @@ export interface TemplateFile {
 
 export interface GenerateContext {
   dryRun: boolean;
+  /** When true, validate generated TS/TSX files with oxc-parser before returning. */
+  validate?: boolean;
 }
 
 export function file(path: string, content: string): TemplateFile {

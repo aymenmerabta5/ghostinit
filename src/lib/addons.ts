@@ -71,6 +71,9 @@ export type DatabaseProvider = (typeof availableDatabases)[number];
 export const availablePresets = PRESETS;
 export const availableCacheProviders = CACHE_PROVIDERS;
 
+export const availableDeployTargets = ["vercel", "fly", "docker", "none"] as const;
+export type DeployTarget = (typeof availableDeployTargets)[number];
+
 export const availableStacks = ["nextjs", "tanstack-start", "expo", "both"] as const;
 export type StackName = (typeof availableStacks)[number];
 
@@ -150,6 +153,7 @@ export type AddonKey =
   | AppName
   | PresetName
   | CacheProvider
+  | DeployTarget
   | OptionalAddon;
 
 export interface AddonInstaller {
@@ -458,6 +462,26 @@ export function parseCacheInput(input?: string): CacheProvider {
 }
 
 /**
+ * Parse deploy input:
+ * - undefined / "" / whitespace -> "none" default
+ * - case-insensitive, trimmed
+ * - valid values: vercel, fly, docker, none
+ * - invalid -> throws ValidationError
+ */
+export function parseDeployInput(input?: string): DeployTarget {
+  if (!input) return "none";
+  const trimmed = input.trim();
+  if (trimmed === "") return "none";
+  const normalized = trimmed.toLowerCase();
+  if ((availableDeployTargets as readonly string[]).includes(normalized)) {
+    return normalized as DeployTarget;
+  }
+  throw new ValidationError(
+    `Invalid --deploy value: ${input}. Allowed: ${availableDeployTargets.join(", ")}`,
+  );
+}
+
+/**
  * Parse stack input (frontend preset helper):
  * - nextjs -> { framework: nextjs, apps: [web] }
  * - tanstack-start -> { framework: tanstack-start, apps: [web] }
@@ -566,6 +590,7 @@ export interface BuildAddonMapInput {
   apps?: AppName[];
   preset?: PresetName;
   cache?: CacheProvider;
+  deploy?: DeployTarget;
   auth?: boolean;
   api?: boolean;
   email?: boolean;
@@ -603,6 +628,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     ...availableApps,
     ...PRESETS,
     ...CACHE_PROVIDERS,
+    ...availableDeployTargets,
     ...optionalAddons,
   ]);
   const map: Record<string, AddonInstaller> = {};
@@ -668,6 +694,9 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   for (const p of PRESETS) map[p] = { inUse: p === preset };
   // cache providers
   for (const c of CACHE_PROVIDERS) map[c] = { inUse: c === (input.cache ?? "none") };
+  // deploy targets
+  const effectiveDeploy = input.deploy ?? "none";
+  for (const d of availableDeployTargets) map[d] = { inUse: d === effectiveDeploy };
   return map as AddonInstallerMap;
 }
 

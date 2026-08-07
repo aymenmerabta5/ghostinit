@@ -18,6 +18,7 @@ export function rootComposerFiles(
   database: "postgres" | "convex" | "none" | string = "postgres",
   framework?: FrameworkName,
   apps?: AppName[],
+  deploy: string = "none",
 ): TemplateFile[] {
   const raw = genRootFiles(
     projectName,
@@ -25,6 +26,7 @@ export function rootComposerFiles(
     { dryRun: Boolean(ctx.dryRun) },
     runtime,
     addonMap as AddonInstallerMap,
+    deploy as unknown as import("../../../lib/addons.js").DeployTarget,
   );
   const effectiveDb = database ?? "postgres";
   // Only emit the public env prefix the project actually validates.

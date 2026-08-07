@@ -12,6 +12,7 @@ import {
   availableApps,
   availablePresets,
   availableCacheProviders,
+  availableDeployTargets,
 } from "./addons.js";
 
 export const projectConfigSchema = z.object({
@@ -28,6 +29,7 @@ export const projectConfigSchema = z.object({
   mode: z.enum(availableModes).default("monorepo"),
   preset: z.enum(availablePresets).default("saas"),
   cache: z.enum(availableCacheProviders).default("none"),
+  deploy: z.enum(availableDeployTargets).default("none"),
   // Fine-grained toggles for custom preset — undefined means derive from preset defaults
   auth: z.boolean().optional(),
   api: z.boolean().optional(),

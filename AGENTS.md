@@ -41,11 +41,23 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
 **GhostInit Layered Architecture (pragmatic UI->Supporting)** inspired by DDD enforced by `src/lib/architecture/index.ts` via `oxc-parser` (not TS compiler):
 1 UI (`apps/web`, `src/routes`) → 2 Transport (`packages/api`, `apps/web/src/app/api`, `src/routes/api`, oRPC) → 3 Domain (`**/domain/*`, `packages/core`) → 4 Capabilities (`packages/services/*`, `packages/billing` non-provider, `**/application/*`) → 5 Vendors (`billing/providers/*`, SDKs) → 6 Supporting (`database`, `config`, `kernel`, `observability`, `tooling/*`). No upward imports.
 
-**Tooling quirks:**
+**Tooling:**
 
-- `bunfig.toml` host: `linker=isolated, hoist=false` (hermetic). Generated: `hoist=true` required for Next.js 16.2.10 TS resolution (TS7 Go port lacks `lib/typescript.js` + breaks on `workspace:*`).
-- TS version SSOT is `packages/versions/src/index.ts`: TS `6.0.3` stable (not 7) — see `docs/ARCHITECTURE.md`.
-- `turbo.json` host vs generated: generated must have exhaustive `globalEnv` 50+ vars (`DATABASE_URL`, `BETTER_AUTH_*`, `STRIPE_*`, `CHARGILY_*`, `PADDLE_*`, `POLAR_*`, `RESEND_*`, `POSTHOG_*`, `NEXT_PUBLIC_*`, `VITE_*`). Any new env var needs updates in 5 places: `src/lib/constants.ts` ENV_PLACEHOLDERS + `src/templates/shared/env.ts` + `src/templates/root.ts` turbo() + root `turbo.json` globalEnv + docs.
+- Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for Next.js 16.2.10 TS resolution.
+- TS SSOT `packages/versions/src/index.ts`: `6.0.3` stable (not 7) — see `docs/ARCHITECTURE.md`.
+- `turbo.json` generated: exhaustive `globalEnv` (50+ vars) — see table below.
+
+**Env vars — 5 places (keep in sync):**
+
+| #   | Location                                     | Purpose                                     |
+| --- | -------------------------------------------- | ------------------------------------------- |
+| 1   | `src/lib/constants.ts` `ENV_PLACEHOLDERS`    | Placeholder values (`REPLACE_WITH_*`)       |
+| 2   | `src/templates/shared/env.ts`                | `.env.example` / `.env.local` line emitters |
+| 3   | `src/templates/root/turbo.ts` `turbo()`      | Generated `turbo.json` `globalEnv` list     |
+| 4   | `turbo.json` (host) + generated `turbo.json` | Actual cache keys for host vs output        |
+| 5   | `docs/ARCHITECTURE.md` + `AGENTS.md`         | Docs / onboarding                           |
+
+Add a var? Update all five. Wildcards `NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*` cover framework-specific public prefixes — prefer explicit entries for server secrets.
 
 **Public env prefix is framework-specific.** `@repo/config` uses
 `@t3-oss/env-nextjs` (implicit `NEXT_PUBLIC_` prefix) for Next.js and

@@ -17,6 +17,7 @@ import {
 } from "../lib/addons.js";
 import { monorepoFiles } from "./modes/monorepo.js";
 import { singleFiles } from "./modes/single.js";
+import { maybeValidateGeneratedFiles } from "../lib/template-validator.js";
 
 export function generateProjectFiles(
   config: ProjectConfig,
@@ -25,7 +26,9 @@ export function generateProjectFiles(
   const mode = (config.mode ?? "monorepo") as ProjectMode;
 
   if (mode === "monorepo") {
-    return monorepoFiles(config, undefined, { dryRun: ctx.dryRun });
+    const files = monorepoFiles(config, undefined, { dryRun: ctx.dryRun });
+    maybeValidateGeneratedFiles(files, ctx);
+    return files;
   }
 
   // Single mode — flat Next.js no workspaces via singleFiles.
@@ -55,8 +58,10 @@ export function generateProjectFiles(
     analytics: config.analytics,
   });
 
-  return singleFiles(config, secrets, { dryRun: ctx.dryRun }, addonMap).map((f) => ({
+  const singleResult = singleFiles(config, secrets, { dryRun: ctx.dryRun }, addonMap).map((f) => ({
     path: f.path.replace(/__PROJECT_NAME__/g, config.name),
     content: f.content.replace(/__PROJECT_NAME__/g, config.name),
   }));
+  maybeValidateGeneratedFiles(singleResult, ctx);
+  return singleResult;
 }

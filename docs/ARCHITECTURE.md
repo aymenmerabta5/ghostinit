@@ -61,6 +61,35 @@ This is NOT canonical DDD. Canonical DDD/Clean has Domain at center with inward 
 
 Inversion vs canonical: Domain is at level 3, Capabilities (Application) at level 4, so Domain CAN import Capabilities (3→4 allowed downward). In canonical DDD Application → Domain would be allowed, but GhostInit intentionally FORBIDS cross-package Capabilities→Domain (4→3) to enforce isolation via @repo/contracts and Supporting. Services use contracts instead of direct domain coupling. This is intentional for simplicity. Option (c) from pushback adopted: called Ghostinit Layered Architecture, not 6-Layer DDD.
 
+**Simple diagram (top → bottom, ↓ allowed, ↑ forbidden):**
+
+```
+UI (1)  apps/web, mobile, desktop/renderer  ─┐
+  ↓ allowed                                   │
+Transport (2)  packages/api, src/routes/api    │  allowed flow is ↓ only
+  ↓ allowed                                   │  any ↑ is a violation
+Domain (3)  **/domain/*, packages/core        │  e.g. Capabilities(4) → Domain(3) forbidden
+  ↓ allowed  (inverted vs canonical DDD)      │
+Capabilities (4)  services/*, billing, email   │
+  ↓ allowed                                   │
+Vendors (5)  billing/providers/*, SDKs        │
+  ↓ allowed                                   │
+Supporting (6)  database, config, kernel...  ─┘
+Supporting (6) depends on nothing; UI (1) may depend on everything below.
+```
+
+**FAQ — inverted Domain → Capabilities:**
+
+| Question                                                                 | Answer                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Why is Domain (3) above Capabilities (4)?                                | Linear chain `1→6` keeps rules simple: `source.level <= target.level` = allowed. Putting Domain above Capabilities lets Domain use capability contracts without a cycle. Canonical DDD has Domain at center; we trade that purity for build-time simplicity.           |
+| Doesn’t this break DDD (Application should depend on Domain)?            | Yes vs canonical DDD. GhostInit is _pragmatic_ not canonical — called “GhostInit Layered Architecture” for that reason. Cross-package `Capabilities(4) → Domain(3)` is _forbidden_ to enforce isolation via `@repo/contracts` + Supporting instead of direct coupling. |
+| How do I share a type between Domain and Capabilities?                   | Put the shared contract in `packages/contracts` or `packages/kernel` (Supporting, level 6) and import from both. Or keep it intra-module (`packages/modules/src/<bc>/domain` ↔ `.../application` in same BC is skipped).                                               |
+| How to fix `4→3` violation `services/billing → modules/identity/domain`? | Replace `import { User } from "@repo/modules/identity/domain/types"` with `import type { UserContract } from "@repo/contracts"`. Contracts is Supporting (6), allowed from both.                                                                                       |
+| What’s the intra-module exception?                                       | Same bounded context (`packages/modules/src/<name>/`) may import `../domain` ↔ `../application` freely. Checker skips same-BC imports. Cross-package `modules/<other>` is still forbidden.                                                                             |
+| Can Supporting import anything above it?                                 | No. Supporting (6) importing 1-5 is always upward violation (e.g., `database → billing` 6→4). Foundations depend only on peers or external packages.                                                                                                                   |
+| Where is this enforced?                                                  | Build-time only via `oxc-parser` in `src/lib/architecture/rules/layered.ts` (`checkLayeredDependency`, `getLayerFromFilePath`). Run `ghostinit check` / `bun run check`. No runtime isolation.                                                                         |
+
 ### Intra-Module Exception
 
 Same bounded context imports are skipped — the checker does NOT flag imports within the same BC, to allow application/ports → ../domain/types without violating 4→3 cross-package rule.
@@ -166,6 +195,26 @@ Forbidden = any upward arrow (e.g., Capabilities(4)→Domain(3), Supporting(6)�
 Example violations: services/billing → modules/identity/domain (4>3), database → billing/providers (6>5), UI → stripe directly
 Allowed flow is downward only, forbidden upward.
 ```
+
+**Env vars — 5 places (keep in sync):**
+
+Any new env var must be added in all five places or `turbo run` cache misses and `.env` drifts:
+
+| #   | Location                                                                                      | What to add                                                          | Example                                               |
+| --- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- |
+| 1   | `src/lib/constants.ts` `ENV_PLACEHOLDERS`                                                     | Placeholder (`REPLACE_WITH_*`) for `.env.example`                    | `STRIPE_SECRET_KEY: "REPLACE_WITH_STRIPE_SECRET_KEY"` |
+| 2   | `src/templates/shared/env.ts` (`shared/env/index.ts`, `billing.ts`, `core.ts`, `builders.ts`) | Emit lines for `.env.example` + `.env.local` (filtered per audience) | `billingEnvLines()` / `coreEnvExampleLines()`         |
+| 3   | `src/templates/root/turbo.ts` `turbo()`                                                       | `globalEnv` entry (plus `CONVEX_ENV_KEYS` spread)                    | `"STRIPE_SECRET_KEY"`                                 |
+| 4   | `turbo.json` (host)                                                                           | Host cache key (mirrors generated)                                   | `"STRIPE_SECRET_KEY"` in `globalEnv`                  |
+| 5   | `docs/ARCHITECTURE.md` + `AGENTS.md` + `CONTRIBUTING.md`                                      | Document in table / checklist                                        | Update this table + AGENTS “5 places” table           |
+
+Public prefixes are framework-specific — see `src/templates/shared/env/core.ts` `EnvAudience` + `publicPrefixes()`:
+
+- Next.js → `NEXT_PUBLIC_*` (via `@t3-oss/env-nextjs`)
+- TanStack Start → `VITE_*` (via `@t3-oss/env-core` `clientPrefix: "VITE_"`)
+- Expo → `EXPO_PUBLIC_*` (only when `apps` includes `mobile`)
+- Wildcards `NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*` in `globalEnv` cover future public vars; server secrets need explicit entries.
+- `packages/config` emits exactly one family — listing both `NEXT_PUBLIC_` and `VITE_` together fails `t3-env` type check.
 
 ### Additional Architecture Rules (architecture/* modular — 23 files each <200 LOC, refactored from 1204→1330 LOC god file)
 

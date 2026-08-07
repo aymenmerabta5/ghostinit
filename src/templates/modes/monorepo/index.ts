@@ -115,6 +115,7 @@ export function monorepoFiles(
   const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
 
+  const deploy = (config.deploy ?? "none") as string;
   const all: TemplateFile[] = [
     ...rootComposerFiles(
       config.name,
@@ -126,6 +127,7 @@ export function monorepoFiles(
       effectiveDatabase,
       effectiveFramework,
       effectiveApps,
+      deploy,
     ),
     ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase, hasAnalytics),
     ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
