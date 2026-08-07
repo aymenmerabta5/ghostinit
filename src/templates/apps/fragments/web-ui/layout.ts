@@ -82,7 +82,7 @@ export interface DialogTriggerProps
 export const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
   ({ asChild, children, ...props }, ref) => {
     if (asChild && React.isValidElement(children)) {
-      return <BaseDialog.Trigger ref={ref} render={children as React.ReactElement} {...props} />;
+      return <BaseDialog.Trigger ref={ref} render={children as React.ReactElement} nativeButton={false} {...props} />;
     }
     return (
       <BaseDialog.Trigger ref={ref} {...props}>

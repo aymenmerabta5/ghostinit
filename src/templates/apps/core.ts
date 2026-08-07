@@ -118,6 +118,7 @@ function webPackage(
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
+        "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),

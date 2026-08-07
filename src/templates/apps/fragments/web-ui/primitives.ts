@@ -57,6 +57,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className={classes}
           ref={ref}
           render={children as React.ReactElement}
+          nativeButton={false}
           {...props}
         />
       );

@@ -128,6 +128,7 @@ function webPackageTanstack(
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
+        "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
         "next-themes": `^${v.ui["next-themes"]}`,
@@ -183,9 +184,6 @@ export default defineConfig({
   server: {
     port: 3000,
   },
-  resolve: {
-    tsconfigPaths: true,
-  },
   plugins: [
     tailwindcss(),
     tanstackStart({
@@ -194,12 +192,7 @@ export default defineConfig({
         routesDirectory: 'routes',
       },
     }),
-    nitro({
-      preset: 'bun',
-      routeRules: {
-${viteSecurityHeaders()}
-      },
-    }),
+    nitro(),
     viteReact(),
   ],
 })

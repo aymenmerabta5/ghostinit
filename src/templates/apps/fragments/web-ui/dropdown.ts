@@ -24,7 +24,7 @@ export interface DropdownMenuTriggerProps
 export const DropdownMenuTrigger = React.forwardRef<HTMLButtonElement, DropdownMenuTriggerProps>(
   ({ asChild, children, ...props }, ref) => {
     if (asChild && React.isValidElement(children)) {
-      return <BaseMenu.Trigger ref={ref} render={children as React.ReactElement} {...props} />;
+      return <BaseMenu.Trigger ref={ref} render={children as React.ReactElement} nativeButton={false} {...props} />;
     }
     return (
       <BaseMenu.Trigger ref={ref} {...props}>

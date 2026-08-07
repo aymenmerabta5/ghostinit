@@ -106,12 +106,12 @@ export const tanstackStart = {
   vite: "7.3.6",
   "@vitejs/plugin-react": "5.2.0",
   nitro: "3.0.0",
-  "@tailwindcss/vite": "4.3.2",
+  "@tailwindcss/vite": "4.3.3",
 } as const;
 
 export const styling = {
-  tailwindcss: "4.3.2",
-  "@tailwindcss/postcss": "4.3.2",
+  tailwindcss: "4.3.3",
+  "@tailwindcss/postcss": "4.3.3",
   postcss: "8.5.17",
   autoprefixer: "10.5.2", // only used if legacy pipeline required
 } as const;

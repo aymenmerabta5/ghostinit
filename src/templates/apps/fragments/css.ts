@@ -139,6 +139,7 @@ export function globalCssContent(): string {
 @import "@repo/ui/theme.css";
 @import "tw-animate-css";
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(:root));
 
 ${baseLayer}
 `;
@@ -159,5 +160,6 @@ export function mobileGlobalCssContent(): string {
 @source "./components/**/*.{js,jsx,ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(:root));
 `;
 }
