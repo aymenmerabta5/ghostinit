@@ -143,9 +143,18 @@ export interface InstallInput {
   noInstall: boolean;
 }
 
+export interface DryRunFile {
+  path: string;
+  size: number;
+  bytes: number;
+}
+
 export async function runProjectInstall(input: InstallInput): Promise<{
   filesWritten: number;
   installFailed: boolean;
+  stagedFiles?: DryRunFile[];
+  totalBytes?: number;
+  isDryRun?: boolean;
 }> {
   const { projectRoot, config, options, noInstall } = input;
 
@@ -175,14 +184,22 @@ export async function runProjectInstall(input: InstallInput): Promise<{
     }
 
     if (options.dryRun) {
+      const staged = tx.getStagedFiles();
+      const stagedFiles: DryRunFile[] = staged.map((f) => ({
+        path: f.path,
+        size: Buffer.byteLength(f.content, "utf-8"),
+        bytes: Buffer.byteLength(f.content, "utf-8"),
+      }));
+      const totalBytes = stagedFiles.reduce((sum, f) => sum + f.bytes, 0);
       await tx.rollback();
-      filesWritten = tx.stagedPaths.length;
+      filesWritten = staged.length;
       await safeRelease();
       if (!rootPreExisted) {
         try {
           await rmdir(projectRoot);
         } catch {}
       }
+      return { filesWritten, installFailed: false, stagedFiles, totalBytes, isDryRun: true };
     } else {
       const { written } = await tx.commit();
       filesWritten = written.length;
@@ -254,7 +271,7 @@ export async function runProjectInstall(input: InstallInput): Promise<{
       }
     }
 
-    return { filesWritten, installFailed };
+    return { filesWritten, installFailed, isDryRun: false };
   } catch (error) {
     try {
       await tx.rollback();

@@ -38,6 +38,9 @@ export interface GlobalOptions {
   withI18n?: boolean;
   withPdf?: boolean;
   withMessaging?: boolean;
+  fix?: boolean;
+  verbose?: boolean;
+  list?: boolean;
   rawMode?: string | string[];
   rawFramework?: string | string[];
   rawBilling?: string | string[];

@@ -23,6 +23,12 @@ jobs:
       - name: Check lint/format/types
         run: bun run check
 
+      - name: Check turbo.json env sync
+        run: bun run scripts/sync-turbo-env.ts --check
+
+      - name: Check dependency versions
+        run: bun run check:versions
+
       - name: Run tests
         run: bun run test
 

@@ -14,6 +14,7 @@ import {
   githubWorkflow,
 } from "./config.js";
 import { envExample, envLocal, webEnvLocal } from "./env.js";
+import { huskyFiles } from "./husky.js";
 import { deployFiles } from "./deploy.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import type { DeployTarget } from "../../lib/addons.js";
@@ -43,6 +44,7 @@ export function rootFiles(
     gitignore(),
     readme(projectName, runtime),
     githubWorkflow(runtime),
+    ...huskyFiles(),
     ...deployFiles(projectName, deploy),
   ];
 }

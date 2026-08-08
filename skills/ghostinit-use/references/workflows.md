@@ -4,6 +4,8 @@
 
 ```bash
 # Scaffold non-interactive
+ghostinit create my-app --dry-run --yes --no-install  # preview without writing
+ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --framework nextjs --apps web --database postgres --billing stripe,chargily --features eve,i18n
 cd /tmp/my-app
 
@@ -49,6 +51,8 @@ For local dev both vars point to localhost:3000. For production set to deployed 
 ### 2a. Monorepo Mobile-Only (`apps/mobile`)
 
 ```bash
+ghostinit create my-app --dry-run --yes --no-install  # preview without writing
+ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --apps mobile --database postgres --billing stripe
 cd /tmp/my-app
 bun install
@@ -70,6 +74,8 @@ Generated structure:
 ### 2b. Monorepo Both Web+Mobile (`apps/web + apps/mobile`)
 
 ```bash
+ghostinit create my-app --dry-run --yes --no-install  # preview without writing
+ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --apps both --framework nextjs --database postgres
 # or --apps web,mobile or --apps all (alias)
 # web framework chooser still applies to web target; mobile always Expo SDK 54 regardless

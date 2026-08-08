@@ -45,6 +45,8 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--with-cache`        | flag                                                      | off        | Opt-in Upstash Redis (same as --cache redis)                                                                                    |
 | `--with-eve`          | flag                                                      | off        | Opt-in Eve AI hybrid; --features eve deprecated alias                                                                           |
 | `--with-i18n`         | flag                                                      | off        | Opt-in next-intl; --features i18n deprecated alias                                                                              |
+| `--with-pdf`          | flag                                                      | off        | Opt-in React PDF renderer; custom only                                                                                          |
+| `--with-messaging`    | flag                                                      | off        | Opt-in DM messaging (requires DB+auth+api); custom only, saas/frontend opt-in                                                  |
 | `--features`          | `eve,i18n,none` deprecated alias                          | `none`     | Alias for --with-eve/--with-i18n (case-insensitive deduped)                                                                     |
 | `--database`          | `postgres,convex,none`                                    | `postgres` | DB provider; frontend defaults to none if not set                                                                               |
 | `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                                                                                                  |
@@ -53,7 +55,10 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--force`             | flag                                                      | off        | Bypass exists + dirty git + drift                                                                                               |
 | `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                                                                                            |
 | `--yes` / `--ci`      | flag                                                      | off        | Non-interactive; --yes defaults to saas unless --preset set                                                                     |
-| `--dry-run`           | flag                                                      | off        | Preview would-write without writing                                                                                             |
+| `--dry-run`           | flag                                                      | off        | Preview: no write, returns `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` first 100 + `hasMore` (`--json`); text shows `237 files (394 kB)` + list |
+| `--fix`               | flag                                                      | off        | Auto-fix (only `check`/`doctor`): `check --fix` turbo.json 96 keys, `doctor --fix` mint secrets                               |
+| `--verbose`           | flag                                                      | off        | Verbose (only `status`/`check`/`doctor`): `status --verbose` full config                                                       |
+| `--list`              | flag                                                      | off        | List (only `add`/`status`): `add --list` modules, `status --list` alias                                                       |
 | `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                                                                                                   |
 
 Invalid `--mode/framework/database/apps/preset/cache` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`.
@@ -76,6 +81,9 @@ ghostinit create my-app --apps web,mobile
 ghostinit create my-app --apps mobile --mode monorepo
 ghostinit create my-app --apps mobile --mode single
 ghostinit create my-app --apps both --framework tanstack-start
+ghostinit create my-app --dry-run --yes --no-install
+ghostinit create my-app --dry-run --json --yes | jq .data.files
+ghostinit create my-app --preset saas --billing stripe --with-pdf --with-messaging --yes --no-install
 ```
 
 ## `add module <name>`
@@ -96,6 +104,9 @@ Returns noop true if dir exists → skips sync.
 ghostinit add module orders
 ghostinit add module orders --json   # {added:"module", name:"orders", noop:false, modules:["orders"], procedures:[]}
 ghostinit add module orders --force --cwd /tmp/my-app
+ghostinit add --list
+ghostinit add --list --json | jq .data.modules
+ghostinit add list  # alias
 ```
 
 Constraints: reserved names rejected (workspace packages `api,auth,database,config,ui,...`, JS keywords, generated infra `openapi,contract,router,context,index`), language reserved, etc.
@@ -172,28 +183,33 @@ ghostinit status --json
 
 Warns if no `.ghostinit/state.json`. Exits 0 if state present else 1.
 
-## `check [--json]`
+## `check [--json] [--fix] [--verbose]`
 
 Architecture checker (6-layer + isolation). Must have state else exit 23 INVALID_STATE.
 
 - Passed if `blockers==0 && highs==0` → 0 else 1.
 - Text mode logs each `[SEVERITY] message (rule)` with file + summary duration.
-- JSON: `{findings: [{id,severity,message,file,rule}], summary:{blockers,highs,mediums}}`
+- JSON: `{findings: [{id,severity,message,file,rule}], summary:{blockers,highs,mediums}, fixed?: string[], fixMessages?: string[]}` when `--fix`.
+- `--fix`: auto-fixes `turbo.json` globalEnv drift (96 keys from `src/lib/env-manifest.ts`); other layered violations require manual fix. Logs `Auto-fixed 1 issue(s): turbo.json` or `No auto-fixable issues`.
+- `--verbose`: same as default (check always verbose).
 
 ```bash
 ghostinit check
 ghostinit check --json | jq .data.summary
+ghostinit check --fix
+ghostinit check --fix --json | jq .data.fixed
 ```
 
-Rules (user-visible): layered-dependency, vendor-isolation, capability-isolation, client-boundary, domain-purity, application-purity, database-isolation, module-isolation, etc. Run after template changes or after manual code edits. Works for web, mobile (apps/mobile), and both.
+Rules (user-visible): layered-dependency, vendor-isolation, capability-isolation, client-boundary, domain-purity, application-purity, database-isolation, module-isolation, etc. Run after template changes or after manual code edits. Works for web, mobile (apps/mobile), and both. Flag validation: `--fix` only on `check|doctor`, `--verbose` only on `status|check|doctor`.
 
-## `doctor [--json]`
+## `doctor [--json] [--fix]`
 
 Tooling + env verification:
 
 - Collects bun, node, tsc versions.
 - Checks: bun present, node present, typescript present, ghostinit-version, ghostinit-state existence, BETTER_AUTH_SECRET length 32+, BETTER_AUTH_URL presence, NEXT_PUBLIC_APP_URL presence, POSTGRES_PASSWORD length, database existence/connectivity (optional), connectivity optional/skipped not blocking required.
 - When mobile selected: checks EXPO_PUBLIC_APP_URL, EXPO_PUBLIC_API_URL presence (warning not blocking).
+- `--fix`: mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders (`REPLACE_WITH_*` or empty), creates `.env.local` from `.env.example` if missing, fixes `turbo.json` globalEnv. Re-evaluates checks post-fix. Returns `fixed:["BETTER_AUTH_SECRET","turbo.json"]`.
 
 ```bash
 ghostinit doctor
@@ -204,9 +220,22 @@ ghostinit doctor
 # [OK] ghostinit-state: Project state found for my-app
 # [FAIL] BETTER_AUTH_SECRET: too short (<32)
 # etc
+ghostinit doctor --fix
+ghostinit doctor --fix --json | jq .data.fixed
 ```
 
 All required must OK → 0 else 1. DB connectivity optional.
+
+## `status [--verbose] [--list] [--json]`
+
+Shows project name, runtime, version, modules, lock. `--verbose` adds mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksumCount, generatedBy. `--list` alias for verbose-light.
+
+```bash
+ghostinit status
+ghostinit status --verbose
+ghostinit status --verbose --json | jq .data
+ghostinit status --list
+```
 
 ## Global Flags (All Commands)
 

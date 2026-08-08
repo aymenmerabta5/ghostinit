@@ -18,6 +18,8 @@ ghostinit create my-app --yes --no-install       # non-interactive CI-friendly (
 ghostinit create my-app --preset frontend --stack nextjs --yes --no-install   # minimal frontend: apps/web + ui + config only
 ghostinit create my-app --preset saas --billing stripe,chargily --framework tanstack-start --database postgres --with-eve --with-i18n --yes --no-install
 ghostinit create my-app --preset custom --with-auth --with-api --with-cache --with-eve --yes --no-install   # pick addons explicitly
+ghostinit create my-app --dry-run --yes --no-install  # preview 237 files + sizes without writing
+ghostinit create my-app --dry-run --json --yes | jq .data.files  # machine diff: files[], totalBytes, previewFiles
 # --features eve,i18n still works as deprecated alias for --with-eve/--with-i18n
 ```
 
@@ -47,8 +49,9 @@ Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with lett
 | `--features`       | `eve,i18n` (deprecated)                                   | `none`     | Deprecated alias for --with-eve/--with-i18n; case-insensitive deduped, partially unknown tolerated, fully unknown throws                                                                                                                            |
 | `--cwd`            | path                                                      | `.`        | parent where `<name>` folder created                                                                                                                                                                                                                |
 | `--no-install`     | flag                                                      | installs   | skip bun install                                                                                                                                                                                                                                    |
+| `--dry-run`        | flag                                                      | off        | preview without writing — emits `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` (first 100) + `hasMore` in `--json`; text shows `237 files (394 kB)` + list                                                                             |
 | `--yes` / `--ci`   | flag                                                      | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                                                                                                                   |
-| `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}`                                                                                                                                                                                                  |
+| `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}` — works with `--dry-run`, `status --verbose`, `add --list`                                                                                                                                        |
 | `--force`          | flag                                                      | off        | bypass dirty git + drift checks                                                                                                                                                                                                                     |
 
 Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing stripe,chargily`. Addons repeatable: `--with-auth --with-api` or `--with-auth --with-eve`. Apps repeatable: `--apps web,desktop` or `--apps all` (web,mobile,desktop). Frontend preset: database defaults to `none` and disables auth/api/email/analytics/cache/eve/i18n/pdf/messaging unless explicitly enabled via --with-_. SaaS preset: enables auth/api/email/analytics true and database postgres default; messaging stays opt-in (even saas). Custom preset: all addons off by default, pick via --with-_ plus billing/database/framework/apps; interactive custom shows 8-toggle checklist (auth, api, email, analytics, cache, eve, i18n, pdf, messaging) plus apps (web/mobile/desktop) + billing.
@@ -100,9 +103,13 @@ my-app/
   packages/services, email, analytics, ui, config, observability, contracts, kernel
   tooling/typescript-config # shared TS base ES2024 @/* @repo/*
   tooling/lint              # oxlint + oxfmt
-  turbo.json                # 50+ globalEnv exhaustive
+  turbo.json                # 96 globalEnv exhaustive (from src/lib/env-manifest.ts)
   bunfig.toml               # hoist=true required for Next compat
+  .husky/pre-commit         # husky 9.1.7: oxlint + oxfmt --check + ghostinit check
+  lefthook.yml              # lefthook alternative (parallel: false)
   .env.example / .env.local / .ghostinit/state.json / start-database.sh
+  .github/workflows/ci.yml  # lint + typecheck + build + ghostinit check
+  package.json              # scripts: check, check:fix, doctor:fix, prepare=husky
 ```
 
 Single mode: flat Next.js `src/app + server/` no workspaces; Expo single `app/` + `src/server/` with `app.json`. Frontend single similarly minimal: single file tree with only ui+config.
@@ -117,16 +124,25 @@ App targets: `--apps` controls which apps scaffolded:
 ## Commands (Post-Scaffold)
 
 ```bash
-ghostinit status             # project name, runtime, version, modules, lock
-ghostinit doctor             # bun, node, tsc + env checks + secret strength + DB connectivity
-ghostinit check              # architecture checker 6-layer + isolation → fails if BLOCKER/HIGH
-ghostinit sync               # rebuild registries: modules index, api contract/router, db schema index
-ghostinit sync --check       # drift detect → exit 8 if out of sync
+ghostinit status                         # project name, runtime, version, modules, lock
+ghostinit status --verbose               # full config: mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksums
+ghostinit status --verbose --json        # machine-readable full report
+ghostinit status --list                  # alias for --verbose (includes procedures, checksumCount)
+ghostinit doctor                         # bun, node, tsc + env checks + secret strength + DB connectivity
+ghostinit doctor --fix                   # auto-fix: mint BETTER_AUTH_SECRET/POSTGRES_PASSWORD placeholders, create .env.local, fix turbo.json globalEnv
+ghostinit check                          # architecture checker 6-layer + isolation → fails if BLOCKER/HIGH
+ghostinit check --fix                    # auto-fix turbo.json globalEnv drift (others require manual fix)
+ghostinit sync                           # rebuild registries: modules index, api contract/router, db schema index
+ghostinit sync --check                   # drift detect → exit 8 if out of sync
 ghostinit add module <name>
 ghostinit add use-case <module> <name> --kind command|query
 ghostinit add procedure <module> <name>
 ghostinit add action <module> <name>
+ghostinit add --list                     # list existing modules + procedures (also `ghostinit add list`)
+ghostinit add --list --json | jq .data.modules  # machine list
 ```
+
+`--fix` only on `check|doctor`, `--verbose` only on `status|check|doctor`, `--list` only on `add|status` — other combos exit 2 `INVALID_ARGS`. `add --list` scans both `.ghostinit/state.json` and `packages/modules/src` so pre-sync modules appear. `status --verbose` reads `state.project` for mode/framework/billing/database/apps/preset/cache/deploy + `checksumCount`/`generatedBy`.
 
 Add auto-syncs registries unless noop (already exists). Requires module exists first. Clean git required unless `--force`.
 
@@ -178,17 +194,25 @@ Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables Upsta
 ## Sync & Check
 
 ```bash
-ghostinit sync && ghostinit sync --check && ghostinit check && ghostinit status
+ghostinit sync && ghostinit sync --check && ghostinit check && ghostinit status --verbose
+ghostinit check --fix               # fix turbo.json globalEnv drift
+ghostinit doctor --fix              # mint missing secrets
+ghostinit add --list && ghostinit status --verbose  # inspect current project
 ```
 
-Lock `.ghostinit/lock` prevents concurrent mutations. `status` shows `lockActive`. Crash leftover → `--force` or manual rm.
+Lock `.ghostinit/lock` prevents concurrent mutations. `status --verbose` shows full config + `lockActive`. Crash leftover → `--force` or manual rm. `check --fix` only fixes `turbo.json` globalEnv (96 keys from `env-manifest.ts`) — layered violations still require manual fix. `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes `turbo.json`.
 
 ## JSON & CI
 
 ```bash
 ghostinit create my-app --yes --billing stripe --json --cwd /tmp | jq .data.projectName
+ghostinit create my-app --dry-run --json --yes | jq '{files: .data.filesWritten, bytes: .data.totalBytes}'
+ghostinit status --verbose --json | jq .data
+ghostinit add --list --json | jq .data.modules
 ghostinit sync --check --json
 ghostinit check --json | jq .data.summary
+ghostinit check --fix --json | jq .data.fixed
+ghostinit doctor --fix --json | jq .data.fixed
 ```
 
 Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17 VALIDATION, 18 CONFLICT, 19 LOCK, 20 GIT_DIRTY, 21 INCOMPAT_SCHEMA, 22 GENERATION, 23 INVALID_STATE, 130 CANCELLED`.
@@ -203,7 +227,10 @@ Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17
 - `No GhostInit project state found` → project root with `.ghostinit/state.json`
 - `Generated registries out of sync` → `ghostinit sync`
 - `Drift: path: modified externally` → restore or `--force`
-- `BETTER_AUTH_SECRET must be at least 32` → `.env.local` (only when auth enabled; frontend without auth has no BETTER_AUTH_* vars)
+- `BETTER_AUTH_SECRET must be at least 32` → `.env.local` — try `ghostinit doctor --fix` to mint it (only when auth enabled; frontend without auth has no BETTER_AUTH_* vars)
+- `turbo.json globalEnv drift` → `ghostinit check --fix` or `ghostinit doctor --fix` (rewrites 96 keys from `env-manifest.ts`)
+- `--fix can only be used with 'check' or 'doctor'` → move flag to correct command
+- `--verbose can only be used with 'status', 'check' or 'doctor'` / `--list can only be used with 'add' or 'status'` → use `status --verbose`, `add --list`
 - `hoist` error → ensure `bunfig.toml` `hoist=true` generated
 - `workspace:*` error → TS7 not supported generated, TS 6.x
 - `Reserved module name` → collides `api,auth,database,config,ui,...` or JS reserved or `openapi,contract,router,context,index`
@@ -217,7 +244,7 @@ See `references/workflows.md` for full end-to-end flows.
 
 Whenever you change anything that affects HOW to use ghostinit as an abstraction, you MUST update this skill in the SAME PR — no exceptions:
 
-- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features` (alias), `--preset`, `--cache`, `--stack`, `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--quiet`, `--debug`, or any new flag
+- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features` (alias), `--preset`, `--cache`, `--stack`, `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n/--with-pdf/--with-messaging`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--fix`, `--verbose`, `--list`, `--quiet`, `--debug`, or any new flag
 - New billing provider, new framework, new database, new addon/feature, new env var in `.env.example`/`.env.local` (including `UPSTASH_REDIS_REST_URL` etc.)
 - New `add` subcommand or changed artifact shape (module/use-case/procedure/action)
 - Changed workflow (create→env→DB→dev→add→sync→check), new required step, new default, new interactive prompt (preset-first wizard: saas/frontend/custom branching)

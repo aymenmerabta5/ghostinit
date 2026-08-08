@@ -31,6 +31,10 @@ export function rootPackageJson(
     lint: "turbo run lint",
     format: "turbo run format",
     "format:check": "turbo run format:check",
+    check: "ghostinit check",
+    "check:fix": "ghostinit check --fix",
+    "doctor:fix": "ghostinit doctor --fix",
+    prepare: "husky",
     "install:cmd": installCmd,
   };
 
@@ -62,6 +66,7 @@ export function rootPackageJson(
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
       turbo: `^${v.tooling.turbo}`,
+      husky: `^${v.tooling.husky}`,
       typescript: `^${v.typescript.typescript}`,
     },
   }).replace(`"name": "${projectName}"`, '"name": "__PROJECT_NAME__"');

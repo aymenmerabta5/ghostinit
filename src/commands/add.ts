@@ -58,6 +58,51 @@ function showAddUsage(): string {
 export async function addCommand(args: string[], options: GlobalOptions): Promise<number> {
   const start = Date.now();
 
+  // --list / list subcommand: list existing modules without mutation
+  const wantsList = Boolean(options.list) || args[0] === "list" || args[0] === "--list";
+  if (wantsList) {
+    const state = await loadState(options.cwd);
+    const rawModules: string[] = state?.modules ?? [];
+    // Also scan FS for modules that exist but not yet in state (e.g., before sync)
+    let fsModules: string[] = [];
+    try {
+      const { readdir } = await import("node:fs/promises");
+      const { join: joinPath } = await import("node:path");
+      const { existsSync: existsSyncFs } = await import("node:fs");
+      const modulesDir = joinPath(options.cwd, "packages", "modules", "src");
+      if (existsSyncFs(modulesDir)) {
+        const entries = await readdir(modulesDir, { withFileTypes: true });
+        fsModules = entries
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .sort();
+      }
+    } catch {}
+    const modules = [...new Set([...rawModules, ...fsModules])].sort();
+    const procedures = state?.procedures ?? [];
+    if (options.json) {
+      printJson(
+        envelope({
+          success: true,
+          exitCode: ExitCode.OK,
+          data: { modules, procedures, count: modules.length },
+          command: "add",
+          durationMs: Date.now() - start,
+        }),
+      );
+    } else {
+      if (modules.length === 0) {
+        options.logger.info("No modules found. Create one with: ghostinit add module <name>");
+      } else {
+        options.logger.info(`Modules (${modules.length}): ${modules.join(", ")}`);
+        if (procedures.length > 0)
+          options.logger.info(`Procedures (${procedures.length}): ${procedures.join(", ")}`);
+      }
+      options.logger.info(`Available subcommands: ${SUBCOMMANDS.join(", ")}`);
+    }
+    return ExitCode.OK;
+  }
+
   const rawSubcommand = args[0];
   if (!rawSubcommand) {
     const message = `Missing add subcommand. ${showAddUsage()}`;

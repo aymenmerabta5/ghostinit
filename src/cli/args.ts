@@ -38,6 +38,9 @@ export const CLI_OPTIONS = {
   "with-i18n": { type: "boolean" as const, default: false },
   "with-pdf": { type: "boolean" as const, default: false },
   "with-messaging": { type: "boolean" as const, default: false },
+  fix: { type: "boolean" as const, default: false },
+  verbose: { type: "boolean" as const, default: false },
+  list: { type: "boolean" as const, default: false },
 };
 
 export interface ParsedCli {
@@ -81,6 +84,9 @@ export interface CreateParsed {
   withI18n?: boolean;
   withPdf?: boolean;
   withMessaging?: boolean;
+  fix?: boolean;
+  verbose?: boolean;
+  list?: boolean;
 }
 
 export function parseCreateSpecific(
@@ -161,6 +167,9 @@ export function buildGlobalOptions(
     withI18n: createParsed.withI18n,
     withPdf: createParsed.withPdf,
     withMessaging: createParsed.withMessaging,
+    fix: getBoolean(values.fix),
+    verbose: getBoolean(values.verbose),
+    list: getBoolean(values.list),
     rawMode: getStringArray(values.mode),
     rawFramework: getStringArray(values.framework),
     rawBilling: getStringArray(values.billing),

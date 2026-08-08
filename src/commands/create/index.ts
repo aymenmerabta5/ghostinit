@@ -306,13 +306,62 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     throw new ConflictError(`Target directory already exists: ${projectRoot}`);
   }
 
-  const { filesWritten, installFailed } = await runProjectInstall({
-    projectName,
-    projectRoot,
-    config,
-    options,
-    noInstall,
-  });
+  const { filesWritten, installFailed, stagedFiles, totalBytes, isDryRun } =
+    await runProjectInstall({
+      projectName,
+      projectRoot,
+      config,
+      options,
+      noInstall,
+    });
+
+  if (isDryRun) {
+    const previewFiles = (stagedFiles ?? []).slice(0, 100).map((f) => ({ ...f }));
+    const hasMore = (stagedFiles?.length ?? 0) > 100;
+    if (options.json) {
+      printJson(
+        envelope({
+          success: true,
+          exitCode: ExitCode.OK,
+          data: {
+            projectName,
+            projectRoot,
+            filesWritten,
+            installFailed: false,
+            dryRun: true,
+            totalBytes: totalBytes ?? 0,
+            files: stagedFiles ?? [],
+            previewFiles,
+            hasMore,
+            mode,
+            framework,
+            billing,
+            features,
+            database,
+            apps,
+            preset: effectivePreset,
+            cache: effectiveCache,
+          },
+          command: "create",
+          durationMs: Date.now() - start,
+        }),
+      );
+    } else {
+      const kb = totalBytes ? (totalBytes / 1024).toFixed(1) : "0";
+      options.logger.info(
+        `Dry run — would create ${filesWritten} files (${kb} kB) at ${projectRoot}`,
+      );
+      const toShow = previewFiles;
+      for (const f of toShow) {
+        options.logger.info(`  ${f.path} (${f.bytes} B)`);
+      }
+      if (hasMore) {
+        options.logger.info(`  ... and ${(stagedFiles?.length ?? 0) - 100} more files`);
+      }
+      options.logger.info(`Run without --dry-run to create the project`);
+    }
+    return ExitCode.OK;
+  }
 
   if (options.json) {
     printJson(
@@ -337,6 +386,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
         durationMs: Date.now() - start,
       }),
     );
+  } else if (!options.json) {
+    options.logger.info(`Created ${projectName} with ${filesWritten} files at ${projectRoot}`);
   }
 
   return installFailed ? ExitCode.GENERATION_ERROR : ExitCode.OK;

@@ -148,8 +148,25 @@ export function readme(projectName: string, runtime: string): TemplateFile {
   return file("README.md", `# ${projectName}\nGenerated with ghostinit. Runtime: ${runtime}\n`);
 }
 export function githubWorkflow(runtime: string): TemplateFile {
+  const installCmd = runtime === "bun" ? "bun install" : "npm install";
+  const setupBun =
+    runtime === "bun"
+      ? "      - uses: oven-sh/setup-bun@v2\n        with:\n          bun-version: 1.3.14\n"
+      : "";
   return file(
     ".github/workflows/ci.yml",
-    `name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: ${runtime === "bun" ? "bun install && bun run build" : "npm install && npm run build"}\n`,
+    `name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+${setupBun}      - run: ${installCmd}
+      - run: ${runtime === "bun" ? "bun run lint" : "npm run lint"}
+      - run: ${runtime === "bun" ? "bun run typecheck" : "npm run typecheck"}
+      - run: ${runtime === "bun" ? "bun run build" : "npm run build"}
+      - run: npx --yes ghostinit check 2>/dev/null || ${runtime === "bun" ? "bun run check" : "npm run check"} || true
+`,
   );
 }

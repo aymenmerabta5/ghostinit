@@ -18,13 +18,16 @@ bun run typecheck      # tsc -b
 bun run dev            # watch src/cli.ts
 bun test --timeout 100000 tests/integration tests/unit
 bun run test:ci        # + fixtures (per-fixture bun install slow)
+bun run scripts/sync-turbo-env.ts --check   # verify turbo.json globalEnv matches src/lib/env-manifest.ts
+bun run check:versions  # verify every pinned version exists on npm (needs network)
 ```
 
 Pretest auto-builds. `--timeout 100000` required (generation heavy).
 
 ## Hard Conventions (Will Break CI)
 
-- **FsTransaction mandatory**: never `fs.writeFileSync`/`mkdirSync`/`rmSync` direct. All via `FsTransaction` (`fs.ts`) staging `.ghostinit-staging` TTL 1h cleanup ctor fire-and-forget + commit sync + rollback safety, traversal `toAbsolute()` rejects `/`, `\`, `C:`, `..`, escapes root via `resolve`. Dry-run `getStagedFiles()`.
+- **FsTransaction mandatory**: never `fs.writeFileSync`/`mkdirSync`/`rmSync` direct. All via `FsTransaction` (`fs.ts`) staging `.ghostinit-staging` TTL 1h cleanup ctor fire-and-forget + commit sync + rollback safety, traversal `toAbsolute()` rejects `/`, `\`, `C:`, `..`, escapes root via `resolve`. Dry-run `getStagedFiles()` returns `files[]:{path,size,bytes}` + `totalBytes` for `create --dry-run --json`.
+- **CLI flag validation**: `--fix` only on `check|doctor`, `--verbose` only on `status|check|doctor`, `--list` only on `add|status` — validated in `src/cli/main.ts` (`CREATE_ONLY_FLAGS` pattern). Adding a new flag → add to `CLI_OPTIONS` + `CreateParsed` + `GlobalOptions` + `help.ts` + validation gate + both skills.
 - **<400 LOC**: `// @allow-long <LOC>: <reason>` escape with justification. Composers <5 imports, `monorepo/index.ts` dedup+sort+`__PROJECT_NAME__`.
 - **No `export *`**: explicit named only, check `billing/webhooks/index.ts`.
 - **Secret-safe**: `SECRET_SUBSTRINGS=[secret,password,token,auth,bearer,cookie,credential,key,otp,session,signature,private]` + `SECRET_PATTERN` + `URL_SECRET_PARAM_PATTERN`. Mirrored in generated `packages/observability/src/logger.ts`. Redact via `json.ts` before envelope. Never log raw env.
@@ -109,16 +112,18 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 
 ## Project Structure Quick Map
 
-- `src/cli.ts` + `cli/index.ts` + `registry.ts`, `args.ts`, `help.ts`, `validation.ts` — arg parsing, levenshtein, envelope
-- `src/commands/create/` — orchestrator, validation, prompts @clack, installer FsTransaction + bun install
-- `src/commands/add.ts` — pre-lock validation + lock + generators + sync, TOCTOU, noop
+- `src/cli.ts` + `cli/index.ts` + `registry.ts`, `args.ts`, `help.ts`, `validation.ts` — arg parsing, levenshtein, envelope, flag gates (`--fix/--verbose/--list`)
+- `src/commands/create/` — orchestrator, validation, prompts @clack, installer FsTransaction + bun install, dry-run diff (`stagedFiles` + `totalBytes`)
+- `src/commands/add.ts` — pre-lock validation + lock + generators + sync, TOCTOU, noop, `--list` (scans state + FS)
 - `src/commands/sync.ts` — 4 registries deterministic + drift parallel hash + --check exit 8 + --dry-run
-- `src/commands/check.ts` — architecture analyzer 23x <200 LOC via oxc-parser
-- `src/commands/doctor/` — env, versions, checks secret strength + DB connectivity
+- `src/commands/check.ts` — architecture analyzer 23x <200 LOC via oxc-parser, `--fix` (turbo.json globalEnv)
+- `src/commands/doctor/` — env, versions, checks secret strength + DB connectivity, `--fix` (mint secrets, turbo.json)
+- `src/commands/status.ts` — state + lock, `--verbose` (full config), `--list` (alias)
 - `src/lib/` — see AGENTS.md list
 - `src/generators/` — module, use-case, procedure, action, shared.ts AST
+- `src/templates/root/` — `package.ts` (husky 9.1.7 + prepare + check scripts), `husky.ts` (`.husky/pre-commit` + `lefthook.yml`), `turbo.ts`/`config.ts` (turbo.json, lint configs, workflow), `secrets.ts` + `env.ts` + `shared/env/` builders
 - `src/templates/` — see AGENTS.md + `references/templates.md`
-- `packages/versions/` — SSOT, `tooling/`, `tests/`, `scripts/build.ts`
+- `packages/versions/` — SSOT, `tooling/` (oxlint 1.73.0, oxfmt 0.58.0, turbo 2.10.4, husky 9.1.7, oxc-parser 0.139.0), `tests/`, `scripts/build.ts`, `scripts/sync-turbo-env.ts`, `scripts/check-versions.ts`
 
 ## Tooling Quirks
 
@@ -127,6 +132,11 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - Email default-on: `packages/email` uses React Email + Resend (`@react-email/components 1.0.12`, `@react-email/render 2.1.0`, `@react-email/tailwind 2.0.7`, `resend 6.18.1`) + `EmailLayout` Tailwind `pixelBasedPreset` hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, `MagicLink` template included; `frontend`/`custom` presets now `email:true` (was false) and `buildAddonInstallerMap` defaults `emailInUse = input.email ?? true`
 - React latest: `react 19.2.8`, `react-dom 19.2.8`, `@types/react 19.2.18`, `@types/react-dom 19.2.4` (SSOT `packages/versions/src/index.ts` `nextStack`)
 - Auth P2: `better-auth` plugins `magicLink`, `passkey`, `organization` added to `src/templates/auth.ts` (server `magicLink({sendMagicLink})` + `passkey()` + `organization()` and client `magicLinkClient`, `passkeyClient`, `organizationClient`), plus OAuth `GOOGLE_CLIENT_ID/SECRET` + `GITHUB_*` (`env-manifest` + `shared/env/core.ts` + `GLOBAL_ENV_KEYS` + `turbo` + `auth.ts` `socialProviders` spread) and `accountLinking` + `changeEmail` + `emailVerification`
+- Hooks: generated `husky 9.1.7` + `.husky/pre-commit` (oxlint + oxfmt --check + ghostinit check, set -e) + `lefthook.yml` alternative (`parallel: false`, oxlint/oxfmt/arch), `package.json` scripts `check`/`check:fix`/`doctor:fix`/`prepare: husky`, CI `.github/workflows/ci.yml` now `on: [push, pull_request]` with lint+typecheck+build+ghostinit check
+- Create dry-run: `create --dry-run --json` uses `FsTransaction.getStagedFiles()` → `DryRunFile[]:{path,size,bytes}` + `totalBytes`, text `237 files (394 kB)` + first 100 list, `previewFiles` cloned to avoid `[Circular]` via WeakSet redact
+- Check/Doctor fix: `check --fix` fixes `turbo.json` globalEnv (96 keys from `env-manifest.ts`), `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes turbo.json, both re-evaluate checks post-fix
+- Status verbose: `status --verbose` / `--list` exposes `mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksumCount, generatedBy`
+- CI freshness: host `check-and-test` now runs `scripts/sync-turbo-env.ts --check` + `check:versions` (needs network) before test; `scripts/sync-turbo-env.ts` is SSOT for `turbo.json` vs `GLOBAL_ENV_KEYS`
 - build verifies real d.ts >10 bytes not fake `export {}` stub
 - Cache via Upstash Redis `@upstash/redis` 1.35.0 HTTP + memory fallback; env `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` placeholder `REPLACE_WITH_...` when cache off, real URL when enabled; turbo globalEnv includes both; `packages/cache` only emitted when `cache===redis` (or `--with-cache`), otherwise stripped with workspace deps removal
 - Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; `email` is now always emitted (React Email default-on) — not stripped; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
@@ -141,7 +151,8 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - `--timeout 100000` required
 - fixtures per-fixture `bun install` slow — skip unless compat
 - `bun run build && node dist/cli.js check` after template changes
-- QA: turbo globalEnv billing, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`
+- QA: turbo globalEnv 96 keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
+- `check --fix` / `doctor --fix` tested via drift injection (turbo.json truncated + placeholder `.env.local`) → mint+rewrite
 - See `references/testing.md`
 
 ## Maintaining This Skill (For Contributors — NOT for generated project users)

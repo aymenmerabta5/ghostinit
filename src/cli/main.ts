@@ -117,6 +117,40 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
       );
     }
 
+    const hasFix = getBoolean(values.fix);
+    const hasVerbose = getBoolean(values.verbose);
+    const hasList = getBoolean(values.list);
+
+    if (hasFix && !["check", "doctor"].includes(command)) {
+      return rejectInvalid(
+        "--fix can only be used with 'check' or 'doctor' commands",
+        command,
+        jsonFlag,
+        logger,
+        start,
+      );
+    }
+
+    if (hasVerbose && !["status", "check", "doctor"].includes(command)) {
+      return rejectInvalid(
+        "--verbose can only be used with 'status', 'check' or 'doctor' commands",
+        command,
+        jsonFlag,
+        logger,
+        start,
+      );
+    }
+
+    if (hasList && !["add", "status"].includes(command)) {
+      return rejectInvalid(
+        "--list can only be used with 'add' or 'status' commands",
+        command,
+        jsonFlag,
+        logger,
+        start,
+      );
+    }
+
     let kind: "command" | "query" | undefined;
     try {
       kind = validateKind(values.kind);

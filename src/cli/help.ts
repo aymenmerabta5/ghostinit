@@ -13,10 +13,11 @@ Commands:
   add use-case <module> <name> --kind command|query
   add procedure <module> <name>
   add action <module> <name>
+  add --list | add list  List existing modules
   sync [--check]         Rebuild generated indexes
-  status                 Print project status
-  check                  Run architecture checks
-  doctor                 Verify environment
+  status [--verbose] [--list]  Print project status (verbose shows full config)
+  check [--fix]          Run architecture checks (with --fix, auto-fix turbo.json)
+  doctor [--fix]         Verify environment (with --fix, mint missing secrets)
   version                Print CLI version
   help
 
@@ -25,12 +26,15 @@ Global options:
   --json                 Emit stable JSON envelope
   --yes                  Accept defaults without prompts
   --ci                   CI / non-interactive mode (disables TTY prompts)
-  --dry-run              Show changes without writing
+  --dry-run              Show what would be created without writing (supports --json)
   --force                Bypass dirty-tree and drift checks
   --no-install           Skip installation during create
   --runtime node|bun     Runtime preference
   --quiet                Suppress stderr logs
   --debug                Verbose logging
+  --fix                  Auto-fix fixable issues (check, doctor only)
+  --verbose              Verbose output (status, check, doctor only)
+  --list                 List mode (add, status only)
 
 Create options:
   --mode monorepo|single     Project structure mode (default: monorepo)

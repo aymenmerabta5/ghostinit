@@ -129,6 +129,7 @@ export const tooling = {
   oxlint: "1.73.0",
   oxfmt: "0.58.0",
   turbo: "2.10.4",
+  husky: "9.1.7",
   // oxc-parser is breaking-change-prone (AST shape changes across minor).
   // Pin to exact version, no ^. Parser extraction in src/lib/architecture/parsers/imports.ts
   // must tolerate shape changes via defensive checks; only that file needs update on bump.
