@@ -202,6 +202,13 @@ export const i18n = {
   "next-intl": "4.0.0",
 } as const;
 
+export const pdf = {
+  "@react-pdf/renderer": "4.3.2",
+  "dejavu-fonts-ttf": "2.37.3",
+  qrcode: "1.5.4",
+  "@types/qrcode": "1.5.6",
+} as const;
+
 export const interactive = {
   // Must match the host package.json — 0.8.3 was never published.
   "@clack/prompts": "0.8.2",
@@ -243,6 +250,15 @@ export const uniwind = {
   "tw-animate-css": "1.4.0",
 } as const;
 
+export const realtime = {
+  ws: "8.18.3",
+  crossws: "0.3.4",
+} as const;
+
+export const storage = {
+  "@aws-sdk/client-s3": "3.850.0",
+} as const;
+
 export const catalog = {
   ...runtime,
   ...typescript,
@@ -265,11 +281,14 @@ export const catalog = {
   ...electron,
   ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
+  ...pdf,
   ...interactive,
   ...expo,
   ...reanimated,
   ...worklets,
   ...uniwind,
+  ...realtime,
+  ...storage,
 } as const;
 
 export type CatalogPackage = keyof typeof catalog;

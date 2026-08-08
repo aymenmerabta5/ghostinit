@@ -10,7 +10,11 @@ import * as v from "./versions.js";
  * selected the `billing` directory must not be emitted, otherwise the generated
  * project would import @repo/billing which does not exist in that corner.
  */
-export function modulesPackage(runtime: "node" | "bun" = "bun", hasBilling = true): TemplateFile[] {
+export function modulesPackage(
+  runtime: "node" | "bun" = "bun",
+  hasBilling = true,
+  hasMessaging = false,
+): TemplateFile[] {
   return [
     file(
       "packages/modules/package.json",
@@ -41,11 +45,13 @@ export function modulesPackage(runtime: "node" | "bun" = "bun", hasBilling = tru
     // When billing is not selected the billing demo is omitted entirely —
     // otherwise the generated project imports @repo/billing which does not exist
     // in that corner and the generation-matrix fails on "every import resolves".
+    // Same for messaging (postgres DM-only, convex uses convex/messaging.ts).
     ...(() => {
-      const exports = hasBilling
-        ? `export * as billing from "./billing/index";
-export * as identity from "./identity/index";`
-        : `export * as identity from "./identity/index";`;
+      const parts: string[] = [];
+      if (hasBilling) parts.push(`export * as billing from "./billing/index";`);
+      if (hasMessaging) parts.push(`export * as messaging from "./messaging/index";`);
+      parts.push(`export * as identity from "./identity/index";`);
+      const exports = parts.join("\n");
       return [
         file(
           "packages/modules/src/index.ts",
@@ -108,6 +114,43 @@ export { createPortalSessionUseCase, type CreatePortalSessionUseCaseInput, type 
 `,
           ),
           ...billingApplicationsFiles("monorepo"),
+        ]
+      : []),
+    ...(hasMessaging
+      ? [
+          file(
+            "packages/modules/src/messaging/index.ts",
+            `export * from "./domain/index.js";\nexport * from "./application/index.js";\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/domain/types.ts",
+            `export interface Conversation { id: string; createdBy: string; createdAt: Date; updatedAt: Date; }\nexport interface Participant { conversationId: string; userId: string; joinedAt: Date; lastReadAt?: Date | null; }\nexport interface Message { id: string; conversationId: string; senderId: string; body?: string | null; replyToId?: string | null; createdAt: Date; }\nexport interface MessageAttachment { id: string; messageId: string; storageKey: string; url: string; mimeType: string; byteSize: number; originalName: string; createdAt: Date; }\nexport interface TypingIndicator { conversationId: string; userId: string; isTyping: boolean; updatedAt: Date; }\n`,
+          ),
+          file("packages/modules/src/messaging/domain/index.ts", `export * from "./types.js";\n`),
+          file(
+            "packages/modules/src/messaging/application/get-or-create-conversation.ts",
+            `import type { Conversation } from "../domain/types.js";\nimport { db } from "@repo/database";\nimport { conversations, conversationParticipants } from "@repo/database";\nimport { eq, and } from "drizzle-orm";\nexport interface GetOrCreateInput { peerUserId: string; currentUserId: string; }\nexport async function getOrCreateConversationUseCase(input: GetOrCreateInput): Promise<Conversation> {\n  const a = input.currentUserId < input.peerUserId ? input.currentUserId : input.peerUserId;\n  const b = input.currentUserId < input.peerUserId ? input.peerUserId : input.currentUserId;\n  const myParts = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { userId: unknown }).userId, a) });\n  // fallback simple: try find by scanning (ok for demo)\n  for (const p of myParts as unknown as { conversationId: string }[]) {\n    const others = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { conversationId: unknown }).conversationId, p.conversationId) });\n    const ids = (others as unknown as { userId: string }[]).map((o) => o.userId).sort();\n    if (ids.length === 2 && ids[0] === a && ids[1] === b) {\n      const conv = await (db as unknown as { query: { conversations: { findFirst: (o: unknown) => Promise<Conversation | undefined> } } }).query.conversations.findFirst({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { id: unknown }).id, p.conversationId) });\n      if (conv) return conv;\n    }\n  }\n  const [conv] = await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => { returning: () => Promise<Conversation[]> } } }).insert(conversations).values({ createdBy: input.currentUserId }).returning();\n  await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<void> } }).insert(conversationParticipants).values([{ conversationId: conv.id, userId: input.currentUserId }, { conversationId: conv.id, userId: input.peerUserId }]);\n  return conv;\n}\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/application/list-conversations.ts",
+            `import type { Conversation } from "../domain/types.js";\nimport { db } from "@repo/database";\nexport interface ListConversationsInput { userId: string; }\nexport async function listConversationsUseCase(input: ListConversationsInput): Promise<Conversation[]> {\n  const parts = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { userId: unknown }).userId, input.userId) });\n  const ids = [...new Set((parts as unknown as { conversationId: string }[]).map((p) => p.conversationId))];\n  const convs: Conversation[] = [];\n  for (const id of ids) {\n    const c = await (db as unknown as { query: { conversations: { findFirst: (o: unknown) => Promise<Conversation | undefined> } } }).query.conversations.findFirst({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { id: unknown }).id, id) });\n    if (c) convs.push(c);\n  }\n  return convs.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());\n}\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/application/list-messages.ts",
+            `import type { Message } from "../domain/types.js";\nimport { db } from "@repo/database";\nexport interface ListMessagesInput { conversationId: string; limit?: number; cursor?: string; }\nexport interface ListMessagesOutput { messages: Message[]; nextCursor: string | null; }\nexport async function listMessagesUseCase(input: ListMessagesInput): Promise<ListMessagesOutput> {\n  const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);\n  const msgs = await (db as unknown as { query: { messages: { findMany: (o: unknown) => Promise<Message[]> } } }).query.messages.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { conversationId: unknown }).conversationId, input.conversationId), orderBy: (t: unknown, { desc }: { desc: (c: unknown) => unknown }) => [desc((t as { createdAt: unknown }).createdAt)], limit });\n  return { messages: (msgs as Message[]).reverse(), nextCursor: null };\n}\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/application/send-message.ts",
+            `import type { Message } from "../domain/types.js";\nimport { db } from "@repo/database";\nimport { messages } from "@repo/database";\nimport { publish } from "@repo/realtime";\nexport interface SendMessageInput { conversationId: string; senderId: string; body?: string; replyToId?: string; attachmentIds?: string[]; }\nexport async function sendMessageUseCase(input: SendMessageInput): Promise<Message> {\n  if (!input.body && !input.attachmentIds?.length) throw new Error("body or attachment required");\n  if (input.body && input.body.length > 4000) throw new Error("body too long");\n  const [msg] = await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => { returning: () => Promise<Message[]> } } }).insert(messages).values({ conversationId: input.conversationId, senderId: input.senderId, body: input.body ?? null, replyToId: input.replyToId ?? null }).returning();\n  try { publish(input.conversationId, { type: "message", conversationId: input.conversationId, payload: { message: msg }, timestamp: Date.now() }); } catch {}\n  return msg;\n}\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/application/mark-read.ts",
+            `import { db } from "@repo/database";\nimport { conversationParticipants } from "@repo/database";\nimport { eq, and } from "drizzle-orm";\nimport { publish } from "@repo/realtime";\nexport interface MarkReadInput { conversationId: string; userId: string; messageId: string; }\nexport async function markReadUseCase(input: MarkReadInput): Promise<{ ok: true }> {\n  await (db as unknown as { update: (t: unknown) => { set: (v: unknown) => { where: (c: unknown) => Promise<void> } } }).update(conversationParticipants).set({ lastReadAt: new Date() }).where(and(eq(conversationParticipants.conversationId, input.conversationId), eq(conversationParticipants.userId, input.userId)));\n  try { publish(input.conversationId, { type: "read", conversationId: input.conversationId, payload: { userId: input.userId, messageId: input.messageId }, timestamp: Date.now() }); } catch {}\n  return { ok: true };\n}\n`,
+          ),
+          file(
+            "packages/modules/src/messaging/application/index.ts",
+            `export { getOrCreateConversationUseCase } from "./get-or-create-conversation.js";\nexport { listConversationsUseCase } from "./list-conversations.js";\nexport { listMessagesUseCase } from "./list-messages.js";\nexport { sendMessageUseCase } from "./send-message.js";\nexport { markReadUseCase } from "./mark-read.js";\n`,
+          ),
         ]
       : []),
   ];

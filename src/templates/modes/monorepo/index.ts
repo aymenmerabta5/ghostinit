@@ -23,10 +23,14 @@ import { apiComposerFiles } from "./api-composer.js";
 import { uiComposerFiles } from "./ui-composer.js";
 import { modulesComposerFiles } from "./modules-composer.js";
 import { appsComposerFiles } from "./apps-composer.js";
+import { realtimePackage } from "../../realtime.js";
+import { storagePackage } from "../../storage.js";
+import { messagingFilesFor } from "../../apps/fragments/messaging/index.js";
 import { billingComposerFiles } from "./billing-composer.js";
 import { servicesComposerFiles } from "./services-composer.js";
 import { agentsComposerFiles } from "./agents-composer.js";
 import { cacheComposerFiles } from "./cache-composer.js";
+import { pdfComposerFiles } from "./pdf-composer.js";
 import { proxyFiles } from "../../proxy.js";
 import { accessFiles } from "../../access.js";
 import { shellFiles } from "../../shell.js";
@@ -65,6 +69,8 @@ export function monorepoFiles(
       analytics: config.analytics,
       eve: config.eve,
       i18n: config.i18n,
+      pdf: config.pdf,
+      messaging: config.messaging,
     });
 
   const hasEve = Boolean(
@@ -118,6 +124,8 @@ export function monorepoFiles(
   const hasEmail = hasAddon(addonMap, "email");
   const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
+  const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
+  const hasMessaging = hasAddon(addonMap, "messaging") || config.messaging === true;
   const hasWebEarly = effectiveApps.includes("web" as AppName);
 
   const deploy = (config.deploy ?? "none") as string;
@@ -137,9 +145,13 @@ export function monorepoFiles(
     ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase, hasAnalytics),
     ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
     ...(hasAuth ? authComposerFiles(effectiveFramework, addonMap) : []),
-    ...(hasApi ? apiComposerFiles(effectiveBilling) : []),
+    ...(hasApi ? apiComposerFiles(effectiveBilling, hasMessaging, effectiveDatabase) : []),
     ...uiComposerFiles(),
-    ...modulesComposerFiles(runtime, effectiveBilling.length > 0),
+    ...modulesComposerFiles(
+      runtime,
+      effectiveBilling.length > 0,
+      hasMessaging && effectiveDatabase === "postgres",
+    ),
     ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps),
     ...servicesComposerFiles(
       config.name,
@@ -152,6 +164,20 @@ export function monorepoFiles(
     ),
     ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
     ...(hasCache ? cacheComposerFiles(runtime) : []),
+    ...(hasPdf
+      ? pdfComposerFiles(
+          "monorepo",
+          effectiveApps.includes("mobile"),
+          effectiveApps.includes("desktop"),
+          effectiveFramework,
+          effectiveApps.includes("web"),
+        )
+      : []),
+    ...(hasMessaging && effectiveDatabase === "postgres" ? realtimePackage() : []),
+    ...(hasMessaging && effectiveDatabase === "postgres" ? storagePackage() : []),
+    ...(hasMessaging
+      ? messagingFilesFor(effectiveFramework, effectiveDatabase, effectiveApps)
+      : []),
     ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n) : []),
     ...accessFiles(mode),
     ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode) : []),
@@ -223,6 +249,14 @@ export function monorepoFiles(
   if (!hasCache) {
     filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/cache/"));
   }
+  if (!hasPdf) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.startsWith("packages/pdf/") &&
+        !f.path.includes("/pdf") &&
+        !f.path.includes("usePdf"),
+    );
+  }
   // Content-based filtering for remaining files that import disabled packages
   // Desktop is a standalone Electron SPA that ships its own minimal orpc/auth via http://localhost:3000
   // even when host preset disables @repo/api/@repo/auth. Exempt desktop paths from host-level stripping.
@@ -258,6 +292,42 @@ export function monorepoFiles(
       (f) => !f.content.includes('from "@repo/email"') && !f.content.includes("from '@repo/email'"),
     );
   }
+  if (!hasPdf) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.content.includes('from "@repo/pdf"') &&
+        !f.content.includes("from '@repo/pdf'") &&
+        !f.content.includes("@react-pdf/renderer") &&
+        !f.content.includes("qrcode") &&
+        !f.content.includes("dejavu"),
+    );
+  }
+  if (!hasMessaging) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.includes("messaging") &&
+        !f.path.includes("realtime") &&
+        !f.path.includes("storage") &&
+        !f.path.includes("/ws") &&
+        !f.content.includes('from "@repo/realtime"') &&
+        !f.content.includes('from "@repo/storage"') &&
+        !f.content.includes("@orpc/server/ws") &&
+        !f.content.includes("@orpc/server/crossws") &&
+        !f.content.includes("@orpc/client/websocket"),
+    );
+  } else if (effectiveDatabase === "convex") {
+    // Convex messaging does not use WS realtime/storage
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.includes("packages/realtime") &&
+        !f.path.includes("packages/storage") &&
+        !f.path.includes("/api/ws") &&
+        !f.path.includes("server.ts"),
+    );
+  } else if (effectiveDatabase === "postgres") {
+    // Postgres messaging does not use convex/messaging.ts
+    filteredFiles = filteredFiles.filter((f) => !f.path.includes("convex/messaging.ts"));
+  }
 
   // Strip workspace deps for disabled packages from remaining package.json files
   const disabledPackages = new Set<string>();
@@ -266,6 +336,14 @@ export function monorepoFiles(
   if (!hasAnalytics) disabledPackages.add("@repo/analytics");
   if (!hasEmail) disabledPackages.add("@repo/email");
   if (!hasCache) disabledPackages.add("@repo/cache");
+  if (!hasPdf) disabledPackages.add("@repo/pdf");
+  if (!hasMessaging) {
+    disabledPackages.add("@repo/realtime");
+    disabledPackages.add("@repo/storage");
+  } else if (effectiveDatabase === "convex") {
+    disabledPackages.add("@repo/realtime");
+    disabledPackages.add("@repo/storage");
+  }
   // billing is handled separately via effectiveBilling, but if no billing selected strip all billing providers
   if (effectiveBilling.length === 0) {
     disabledPackages.add("@repo/billing");

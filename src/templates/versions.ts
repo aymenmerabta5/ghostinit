@@ -43,6 +43,7 @@ export {
   electron,
   backend,
   i18n,
+  pdf,
   interactive,
   postgresDocker,
   expo,

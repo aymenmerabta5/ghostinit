@@ -91,6 +91,8 @@ export const optionalAddons = [
   "cache",
   "i18n",
   "eve",
+  "pdf",
+  "messaging",
 ] as const;
 export type OptionalAddon = (typeof optionalAddons)[number];
 
@@ -109,6 +111,8 @@ export const presetDefaults: Record<
     database: DatabaseProvider;
     eve: boolean;
     i18n: boolean;
+    pdf: boolean;
+    messaging: boolean;
   }
 > = {
   saas: {
@@ -120,6 +124,8 @@ export const presetDefaults: Record<
     database: "postgres",
     eve: false,
     i18n: false,
+    pdf: false,
+    messaging: false,
   },
   frontend: {
     auth: false,
@@ -130,6 +136,8 @@ export const presetDefaults: Record<
     database: "none",
     eve: false,
     i18n: false,
+    pdf: false,
+    messaging: false,
   },
   custom: {
     auth: false,
@@ -140,6 +148,8 @@ export const presetDefaults: Record<
     database: "none",
     eve: false,
     i18n: false,
+    pdf: false,
+    messaging: false,
   },
 };
 
@@ -520,6 +530,7 @@ export function isValidAddonCombo(options: {
   preset?: PresetName;
   cache?: CacheProvider;
   hasAuth?: boolean;
+  hasMessaging?: boolean;
 }): { valid: boolean; message?: string } {
   const apps = options.apps ?? ["web" as AppName];
   if (options.billing.length > 0 && options.database === "none") {
@@ -574,6 +585,21 @@ export function isValidAddonCombo(options: {
   ) {
     // Allow but warn via valid — actual template still works (mobile uses nextjs for config). Keep valid for now.
   }
+  // Messaging requires a database (postgres or convex) and auth (needs users table)
+  // Opt-in for all presets, so explicitly check hasMessaging flag
+  const hasMessaging = options.hasMessaging ?? false;
+  if (hasMessaging && options.database === "none") {
+    return {
+      valid: false,
+      message: "Messaging requires a database (postgres or convex) but database is none",
+    };
+  }
+  if (hasMessaging && options.database !== "none" && options.hasAuth === false) {
+    return {
+      valid: false,
+      message: "Messaging requires auth (--with-auth) when enabled",
+    };
+  }
   return { valid: true };
 }
 
@@ -597,6 +623,8 @@ export interface BuildAddonMapInput {
   analytics?: boolean;
   eve?: boolean;
   i18n?: boolean;
+  pdf?: boolean;
+  messaging?: boolean;
 }
 
 /**
@@ -670,6 +698,8 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     if (input.analytics !== undefined) map["analytics"] = { inUse: input.analytics };
     if (input.eve !== undefined) map["eve"] = { inUse: input.eve };
     if (input.i18n !== undefined) map["i18n"] = { inUse: input.i18n };
+    if (input.pdf !== undefined) map["pdf"] = { inUse: input.pdf };
+    if (input.messaging !== undefined) map["messaging"] = { inUse: input.messaging };
   }
   // isFrontend preset already handled via noPreset false logic above
   void isFrontendPreset;
@@ -683,6 +713,12 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     input.i18n !== undefined ? input.i18n : input.features.includes("i18n" as FeatureName);
   map["eve"] = { inUse: eveInUse };
   map["i18n"] = { inUse: i18nInUse };
+  // pdf is opt-in toggle (default false) for all presets
+  const pdfInUse = input.pdf === true;
+  map["pdf"] = { inUse: pdfInUse };
+  // messaging is opt-in toggle (default false) for all presets
+  const messagingInUse = input.messaging === true;
+  map["messaging"] = { inUse: messagingInUse };
   for (const b of BILLING_PROVIDERS)
     map[b] = { inUse: input.billing.includes(b as BillingProviderName) };
   const effectiveFramework = input.framework ?? "nextjs";

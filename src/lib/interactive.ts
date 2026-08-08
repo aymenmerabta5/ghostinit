@@ -69,6 +69,8 @@ export interface CreateFlagBag {
   "with-cache"?: boolean;
   "with-eve"?: boolean;
   "with-i18n"?: boolean;
+  "with-pdf"?: boolean;
+  "with-messaging"?: boolean;
 }
 
 export interface ParsedCreateArgs {
@@ -88,6 +90,8 @@ export interface ParsedCreateArgs {
   withCache: boolean | undefined;
   withEve: boolean | undefined;
   withI18n: boolean | undefined;
+  withPdf: boolean | undefined;
+  withMessaging: boolean | undefined;
 }
 
 function lastOrUndefined(value?: string | string[]): string | undefined {
@@ -150,6 +154,8 @@ export function parseCreateArgs(
   const withCacheFlag = bag["with-cache"] as boolean | undefined;
   let withEve = bag["with-eve"] as boolean | undefined;
   let withI18n = bag["with-i18n"] as boolean | undefined;
+  const withPdf = bag["with-pdf"] as boolean | undefined;
+  const withMessaging = bag["with-messaging"] as boolean | undefined;
   if (withCacheFlag) cache = "redis";
   // --features eve/i18n is alias for --with-eve/--with-i18n (unified addons)
   if (features.includes("eve" as never) && withEve === undefined) withEve = true;
@@ -185,6 +191,8 @@ export function parseCreateArgs(
     withCache: withCacheFlag,
     withEve,
     withI18n,
+    withPdf,
+    withMessaging,
   };
 }
 

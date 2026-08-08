@@ -29,6 +29,11 @@ import { accessFiles } from "../../access.js";
 import { shellFiles } from "../../shell.js";
 import { buildExpoFiles } from "./composers/expo.js";
 import { buildDesktopFiles } from "./composers/desktop.js";
+import { pdfFilesWithApps } from "../../pdf/index.js";
+import { messagingFilesFor } from "../../apps/fragments/messaging/index.js";
+import { realtimePackage } from "../../realtime.js";
+import { storagePackage } from "../../storage.js";
+import * as v from "../../versions.js";
 
 export interface SingleContext {
   dryRun?: boolean;
@@ -63,6 +68,8 @@ export function singleFiles(
       analytics: config.analytics,
       eve: config.eve,
       i18n: config.i18n,
+      pdf: config.pdf,
+      messaging: config.messaging,
     });
 
   const hasEve = Boolean(
@@ -139,6 +146,56 @@ export function singleFiles(
   if (hasWebSingle && isNextSingle) for (const f of proxyFiles(mode, hasI18n)) withoutOld.push(f);
   for (const f of accessFiles(mode)) withoutOld.push(f);
   if (hasWebSingle) for (const f of shellFiles(mode)) withoutOld.push(f);
+  // pdf: inject server pdf package + route + mobile/desktop helpers when opted in
+  const hasPdfEarly = hasAddon(addonMap, "pdf") || config.pdf === true;
+  if (hasPdfEarly) {
+    const isMobileSingle = effectiveApps.includes("mobile");
+    const isDesktopSingle = effectiveApps.includes("desktop");
+    const isWebSingle = effectiveApps.includes("web");
+    const frameworkStr = (framework ?? "nextjs") as string;
+    for (const f of pdfFilesWithApps(
+      "single",
+      isMobileSingle,
+      isDesktopSingle,
+      frameworkStr,
+      isWebSingle,
+    ))
+      withoutOld.push(f);
+  }
+  // messaging: inject realtime + storage + UI when opted in
+  const effectiveDatabaseSingle = (config.database ?? "postgres") as DatabaseProvider;
+  const hasMessagingEarly = hasAddon(addonMap, "messaging") || config.messaging === true;
+  if (hasMessagingEarly && effectiveDatabaseSingle === "postgres") {
+    for (const f of realtimePackage())
+      withoutOld.push({ ...f, path: f.path.replace(/^packages\//, "packages/") });
+    for (const f of storagePackage()) withoutOld.push(f);
+  }
+  if (hasMessagingEarly) {
+    const frameworkStr = (framework ?? "nextjs") as string;
+    const effectiveAppsSingle = effectiveApps as string[];
+    // For single, map apps/web/src/... to src/... if web-only single
+    const singleFiles = messagingFilesFor(
+      frameworkStr,
+      effectiveDatabaseSingle,
+      effectiveAppsSingle,
+    )
+      .map((f) => {
+        if (
+          f.path.startsWith("apps/web/") &&
+          effectiveAppsSingle.length === 1 &&
+          effectiveAppsSingle[0] === "web"
+        ) {
+          return { ...f, path: f.path.replace(/^apps\/web\//, "") };
+        }
+        if (f.path.startsWith("apps/")) {
+          // single with multiple apps not supported for messaging yet — filter out
+          return null as unknown as typeof f;
+        }
+        return f;
+      })
+      .filter(Boolean) as typeof withoutOld;
+    for (const f of singleFiles) withoutOld.push(f);
+  }
 
   // Same-path emissions collapse here; differing content is a real conflict and
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
@@ -149,6 +206,7 @@ export function singleFiles(
   const hasEmail = hasAddon(addonMap, "email");
   const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
+  const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (!hasAuth) {
     deduped = deduped.filter(
       (f) =>
@@ -172,6 +230,36 @@ export function singleFiles(
   }
   if (!hasCache) {
     deduped = deduped.filter((f) => !f.path.includes("cache"));
+  }
+  // pdf stripping — hide package and route when off
+  if (!hasPdf) {
+    deduped = deduped.filter(
+      (f) =>
+        !f.path.includes("/pdf") &&
+        !f.path.includes("usePdf") &&
+        !f.content.includes("@react-pdf/renderer") &&
+        !f.content.includes("qrcode"),
+    );
+  } else {
+    // inject pdf deps into root package.json for single mode
+    deduped = deduped.map((f) => {
+      if (f.path !== "package.json") return f;
+      try {
+        const pkg = JSON.parse(f.content) as Record<string, unknown>;
+        const deps = (pkg.dependencies ?? {}) as Record<string, string>;
+        deps["@react-pdf/renderer"] = `^${v.pdf["@react-pdf/renderer"]}`;
+        deps["dejavu-fonts-ttf"] = `^${v.pdf["dejavu-fonts-ttf"]}`;
+        deps["qrcode"] = `^${v.pdf.qrcode}`;
+        pkg.dependencies = deps;
+        // ensure types available
+        const devDeps = (pkg.devDependencies ?? {}) as Record<string, string>;
+        if (!devDeps["@types/qrcode"]) devDeps["@types/qrcode"] = `^${v.pdf["@types/qrcode"]}`;
+        pkg.devDependencies = devDeps;
+        return { ...f, content: `${JSON.stringify(pkg, null, 2)}\n` };
+      } catch {
+        return f;
+      }
+    });
   }
   const finalFiles = deduped.sort((a, b) => a.path.localeCompare(b.path));
 

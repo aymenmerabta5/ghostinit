@@ -1,4 +1,4 @@
-// @allow-long 466: oRPC contract + router + procedures aggregation with billing conditional
+// @allow-long 600: oRPC contract + router + procedures aggregation with billing+messaging conditional (DM-only postgres WS, convex native)
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import * as v from "./versions.js";
 
@@ -6,8 +6,9 @@ import * as v from "./versions.js";
  * @param hasBilling — billing oRPC procedures and the billing domain demo are
  * emitted only when this is true. Without billing, @repo/billing does not exist
  * and including a `getBillingProvider` import fails the generation-matrix guard.
+ * @param hasMessaging — messaging oRPC procedures (postgres DM-only) via @repo/realtime
  */
-export function apiPackage(hasBilling = true): TemplateFile[] {
+export function apiPackage(hasBilling = true, hasMessaging = false): TemplateFile[] {
   return [
     file(
       "packages/api/package.json",
@@ -29,6 +30,7 @@ export function apiPackage(hasBilling = true): TemplateFile[] {
           "@repo/contracts": "workspace:*",
           "@repo/database": "workspace:*",
           "@repo/modules": "workspace:*",
+          ...(hasMessaging ? { "@repo/realtime": "workspace:*" } : {}),
           zod: `^${v.validation.zod}`,
         },
         devDependencies: {
@@ -365,10 +367,176 @@ export const billingCreatePortalSession = implementer.createPortalSession.handle
           ),
         ]
       : []),
+    ...(hasMessaging
+      ? [
+          file(
+            "packages/api/src/procedures/messaging/list-conversations.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { listConversationsUseCase } from "@repo/modules/messaging/application/list-conversations";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+const contract = { listConversations: oc.route({ method: "GET", path: "/messaging/conversations" }).output(z.object({ conversations: z.array(z.record(z.unknown())) })) };
+export const messagingListConversationsContract = contract.listConversations;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingListConversations = implementer.listConversations.handler(async ({ context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  const convs = await listConversationsUseCase({ userId: context.user.id });
+  return { conversations: convs as unknown as Record<string, unknown>[] };
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/messaging/list-messages.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { listMessagesUseCase } from "@repo/modules/messaging/application/list-messages";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+const contract = { listMessages: oc.route({ method: "GET", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), limit: z.number().int().min(1).max(50).optional(), cursor: z.string().optional() })).output(z.object({ messages: z.array(z.record(z.unknown())), nextCursor: z.string().nullable() })) };
+export const messagingListMessagesContract = contract.listMessages;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingListMessages = implementer.listMessages.handler(async ({ input, context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  const out = await listMessagesUseCase({ conversationId: input.conversationId, limit: input.limit, cursor: input.cursor });
+  return out as { messages: Record<string, unknown>[]; nextCursor: string | null };
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/messaging/get-or-create-conversation.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { getOrCreateConversationUseCase } from "@repo/modules/messaging/application/get-or-create-conversation";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+const contract = { getOrCreateConversation: oc.route({ method: "POST", path: "/messaging/conversations/find-or-create" }).input(z.object({ peerUserId: z.string().uuid() })).output(z.record(z.unknown())) };
+export const messagingGetOrCreateConversationContract = contract.getOrCreateConversation;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingGetOrCreateConversation = implementer.getOrCreateConversation.handler(async ({ input, context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  const conv = await getOrCreateConversationUseCase({ peerUserId: input.peerUserId, currentUserId: context.user.id });
+  return conv as unknown as Record<string, unknown>;
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/messaging/send-message.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { sendMessageUseCase } from "@repo/modules/messaging/application/send-message";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+const contract = { sendMessage: oc.route({ method: "POST", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), body: z.string().min(1).max(4000).optional(), replyToId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).optional() }).refine((v) => !!v.body || !!v.attachmentIds?.length, "body or attachment required")).output(z.record(z.unknown())) };
+export const messagingSendMessageContract = contract.sendMessage;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingSendMessage = implementer.sendMessage.handler(async ({ input, context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  const msg = await sendMessageUseCase({ conversationId: input.conversationId, senderId: context.user.id, body: input.body, replyToId: input.replyToId, attachmentIds: input.attachmentIds });
+  return msg as unknown as Record<string, unknown>;
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/messaging/mark-read.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { markReadUseCase } from "@repo/modules/messaging/application/mark-read";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+const contract = { markRead: oc.route({ method: "POST", path: "/messaging/read" }).input(z.object({ conversationId: z.string().uuid(), messageId: z.string().uuid() })).output(z.object({ ok: z.boolean() })) };
+export const messagingMarkReadContract = contract.markRead;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingMarkRead = implementer.markRead.handler(async ({ input, context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  return markReadUseCase({ conversationId: input.conversationId, userId: context.user.id, messageId: input.messageId });
+});
+`,
+          ),
+          file(
+            "packages/api/src/procedures/messaging/send-typing.ts",
+            `import { oc } from "@orpc/contract";
+import { implement, ORPCError } from "@orpc/server";
+import { z } from "zod";
+import type { ApiContext } from "../../context.js";
+import { sendTyping } from "@repo/realtime";
+const contract = { sendTyping: oc.route({ method: "POST", path: "/messaging/typing" }).input(z.object({ conversationId: z.string().uuid(), isTyping: z.boolean() })).output(z.object({ ok: z.boolean() })) };
+export const messagingSendTypingContract = contract.sendTyping;
+const implementer = implement<typeof contract, ApiContext>(contract);
+export const messagingSendTyping = implementer.sendTyping.handler(async ({ input, context }) => {
+  if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  sendTyping(input.conversationId, context.user.id, input.isTyping);
+  return { ok: true };
+});
+`,
+          ),
+          file(
+            "packages/api/src/ws.ts",
+            `import { appRouter } from "./router.js";
+import type { ApiContext } from "./context.js";
+// oRPC WebSocket handler factory — postgres DM-only, uses same router as HTTP
+// Adapters: Next/Bun -> @orpc/server/ws or bun-ws, TanStack -> @orpc/server/crossws (experimental)
+export function createWsHandler(adapter: "ws" | "bun-ws" | "crossws" = "ws") {
+  if (adapter === "crossws") {
+    // @ts-ignore — experimental prefix, verified via node_modules/@orpc/server/package.json exports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require("@orpc/server/crossws");
+    const Cls = (mod.experimental_RPCHandler ?? mod.RPCHandler) as new (router: unknown) => unknown;
+    return new Cls(appRouter);
+  }
+  if (adapter === "bun-ws") {
+    const mod = require("@orpc/server/bun-ws");
+    const Cls = (mod.RPCHandler ?? mod.BunWsHandler) as new (router: unknown) => unknown;
+    return new Cls(appRouter);
+  }
+  const mod = require("@orpc/server/ws");
+  const Cls = (mod.RPCHandler ?? mod.WsHandler) as new (router: unknown) => unknown;
+  return new Cls(appRouter);
+}
+export type WsHandler = ReturnType<typeof createWsHandler>;
+`,
+          ),
+        ]
+      : []),
     file(
       "packages/api/src/contract.ts",
-      hasBilling
-        ? `import { healthContract } from "./procedures/health";
+      (() => {
+        const hasB = hasBilling;
+        const hasM = hasMessaging;
+        if (hasB && hasM) {
+          return `import { healthContract } from "./procedures/health";
+import { meContract } from "./procedures/me";
+import { billingSubscriptionsContract } from "./procedures/billing/subscriptions";
+import { billingCreateCheckoutContract } from "./procedures/billing/create-checkout";
+import { billingCreatePortalSessionContract } from "./procedures/billing/create-portal-session";
+import { messagingListConversationsContract } from "./procedures/messaging/list-conversations";
+import { messagingListMessagesContract } from "./procedures/messaging/list-messages";
+import { messagingGetOrCreateConversationContract } from "./procedures/messaging/get-or-create-conversation";
+import { messagingSendMessageContract } from "./procedures/messaging/send-message";
+import { messagingMarkReadContract } from "./procedures/messaging/mark-read";
+import { messagingSendTypingContract } from "./procedures/messaging/send-typing";
+
+export const appContract = {
+  health: healthContract,
+  me: meContract,
+  billing: {
+    subscriptions: billingSubscriptionsContract,
+    createCheckout: billingCreateCheckoutContract,
+    createPortalSession: billingCreatePortalSessionContract,
+  },
+  messaging: {
+    listConversations: messagingListConversationsContract,
+    listMessages: messagingListMessagesContract,
+    getOrCreateConversation: messagingGetOrCreateConversationContract,
+    sendMessage: messagingSendMessageContract,
+    markRead: messagingMarkReadContract,
+    sendTyping: messagingSendTypingContract,
+  },
+};
+`;
+        }
+        if (hasB) {
+          return `import { healthContract } from "./procedures/health";
 import { meContract } from "./procedures/me";
 import { billingSubscriptionsContract } from "./procedures/billing/subscriptions";
 import { billingCreateCheckoutContract } from "./procedures/billing/create-checkout";
@@ -383,20 +551,88 @@ export const appContract = {
     createPortalSession: billingCreatePortalSessionContract,
   },
 };
-`
-        : `import { healthContract } from "./procedures/health";
+`;
+        }
+        if (hasM) {
+          return `import { healthContract } from "./procedures/health";
+import { meContract } from "./procedures/me";
+import { messagingListConversationsContract } from "./procedures/messaging/list-conversations";
+import { messagingListMessagesContract } from "./procedures/messaging/list-messages";
+import { messagingGetOrCreateConversationContract } from "./procedures/messaging/get-or-create-conversation";
+import { messagingSendMessageContract } from "./procedures/messaging/send-message";
+import { messagingMarkReadContract } from "./procedures/messaging/mark-read";
+import { messagingSendTypingContract } from "./procedures/messaging/send-typing";
+
+export const appContract = {
+  health: healthContract,
+  me: meContract,
+  messaging: {
+    listConversations: messagingListConversationsContract,
+    listMessages: messagingListMessagesContract,
+    getOrCreateConversation: messagingGetOrCreateConversationContract,
+    sendMessage: messagingSendMessageContract,
+    markRead: messagingMarkReadContract,
+    sendTyping: messagingSendTypingContract,
+  },
+};
+`;
+        }
+        return `import { healthContract } from "./procedures/health";
 import { meContract } from "./procedures/me";
 
 export const appContract = {
   health: healthContract,
   me: meContract,
 };
-`,
+`;
+      })(),
     ),
     file(
       "packages/api/src/router.ts",
-      hasBilling
-        ? `import { implement, os } from "@orpc/server";
+      (() => {
+        const hasB = hasBilling;
+        const hasM = hasMessaging;
+        if (hasB && hasM) {
+          return `import { implement, os } from "@orpc/server";
+import { appContract } from "./contract";
+import { health } from "./procedures/health";
+import { me } from "./procedures/me";
+import { billingSubscriptions } from "./procedures/billing/subscriptions";
+import { billingCreateCheckout } from "./procedures/billing/create-checkout";
+import { billingCreatePortalSession } from "./procedures/billing/create-portal-session";
+import { messagingListConversations } from "./procedures/messaging/list-conversations";
+import { messagingListMessages } from "./procedures/messaging/list-messages";
+import { messagingGetOrCreateConversation } from "./procedures/messaging/get-or-create-conversation";
+import { messagingSendMessage } from "./procedures/messaging/send-message";
+import { messagingMarkRead } from "./procedures/messaging/mark-read";
+import { messagingSendTyping } from "./procedures/messaging/send-typing";
+import type { ApiContext } from "./context";
+
+const implementer = implement<typeof appContract, ApiContext>(appContract);
+
+export const appRouter = os.prefix("/api").router(
+  implementer.router({
+    health,
+    me,
+    billing: {
+      subscriptions: billingSubscriptions,
+      createCheckout: billingCreateCheckout,
+      createPortalSession: billingCreatePortalSession,
+    },
+    messaging: {
+      listConversations: messagingListConversations,
+      listMessages: messagingListMessages,
+      getOrCreateConversation: messagingGetOrCreateConversation,
+      sendMessage: messagingSendMessage,
+      markRead: messagingMarkRead,
+      sendTyping: messagingSendTyping,
+    },
+  }),
+);
+`;
+        }
+        if (hasB) {
+          return `import { implement, os } from "@orpc/server";
 import { appContract } from "./contract";
 import { health } from "./procedures/health";
 import { me } from "./procedures/me";
@@ -418,8 +654,40 @@ export const appRouter = os.prefix("/api").router(
     },
   }),
 );
-`
-        : `import { implement, os } from "@orpc/server";
+`;
+        }
+        if (hasM) {
+          return `import { implement, os } from "@orpc/server";
+import { appContract } from "./contract";
+import { health } from "./procedures/health";
+import { me } from "./procedures/me";
+import { messagingListConversations } from "./procedures/messaging/list-conversations";
+import { messagingListMessages } from "./procedures/messaging/list-messages";
+import { messagingGetOrCreateConversation } from "./procedures/messaging/get-or-create-conversation";
+import { messagingSendMessage } from "./procedures/messaging/send-message";
+import { messagingMarkRead } from "./procedures/messaging/mark-read";
+import { messagingSendTyping } from "./procedures/messaging/send-typing";
+import type { ApiContext } from "./context";
+
+const implementer = implement<typeof appContract, ApiContext>(appContract);
+
+export const appRouter = os.prefix("/api").router(
+  implementer.router({
+    health,
+    me,
+    messaging: {
+      listConversations: messagingListConversations,
+      listMessages: messagingListMessages,
+      getOrCreateConversation: messagingGetOrCreateConversation,
+      sendMessage: messagingSendMessage,
+      markRead: messagingMarkRead,
+      sendTyping: messagingSendTyping,
+    },
+  }),
+);
+`;
+        }
+        return `import { implement, os } from "@orpc/server";
 import { appContract } from "./contract";
 import { health } from "./procedures/health";
 import { me } from "./procedures/me";
@@ -433,7 +701,8 @@ export const appRouter = os.prefix("/api").router(
     me,
   }),
 );
-`,
+`;
+      })(),
     ),
     file(
       "packages/api/src/index.ts",

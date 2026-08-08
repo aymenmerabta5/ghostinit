@@ -38,6 +38,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let interactiveCustomAnalytics: boolean | undefined;
   let interactiveCustomEve: boolean | undefined;
   let interactiveCustomI18n: boolean | undefined;
+  let interactiveCustomPdf: boolean | undefined;
+  let interactiveCustomMessaging: boolean | undefined;
 
   const interactive = getIsInteractive(options);
 
@@ -74,6 +76,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
         else if (f === "__custom_analytics") interactiveCustomAnalytics = true;
         else if (f === "__custom_eve") interactiveCustomEve = true;
         else if (f === "__custom_i18n") interactiveCustomI18n = true;
+        else if (f === "__custom_pdf") interactiveCustomPdf = true;
+        else if (f === "__custom_messaging") interactiveCustomMessaging = true;
         else decoded.push(f);
       }
       rawFeatures = decoded;
@@ -83,10 +87,21 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       if (interactiveCustomAnalytics === undefined) interactiveCustomAnalytics = false;
       if (interactiveCustomEve === undefined) interactiveCustomEve = false;
       if (interactiveCustomI18n === undefined) interactiveCustomI18n = false;
+      if (interactiveCustomPdf === undefined) interactiveCustomPdf = false;
+      if (interactiveCustomMessaging === undefined) interactiveCustomMessaging = false;
       // Also handle eve/i18n via separate features multiselect when custom (if user selected via features)
       if (rawFeatures.includes("eve" as string)) interactiveCustomEve = true;
       if (rawFeatures.includes("i18n" as string)) interactiveCustomI18n = true;
       rawFeatures = rawFeatures.filter((f) => f !== "eve" && f !== "i18n") as unknown as string[];
+    }
+    // Also handle __custom_pdf for saas preset (pdf via features multiselect)
+    if (rawFeatures && rawFeatures.includes("__custom_pdf")) {
+      interactiveCustomPdf = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_pdf");
+    }
+    if (rawFeatures && rawFeatures.includes("__custom_messaging")) {
+      interactiveCustomMessaging = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_messaging");
     }
     features = rawFeatures as unknown as FeatureName[];
     // stack mapping may override framework/apps via prompt result
@@ -125,6 +140,9 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
           : billing.length > 0
             ? undefined
             : undefined;
+  const hasMessagingForCombo =
+    (options as unknown as Record<string, unknown>)["with-messaging"] === true ||
+    interactiveCustomMessaging === true;
   const combo = isValidAddonCombo({
     billing: billing as unknown as BillingProviderName[],
     database,
@@ -134,6 +152,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     preset: preset as unknown as PresetName | undefined,
     cache: cache as unknown as CacheProvider | undefined,
     hasAuth: hasAuthForCombo as boolean | undefined,
+    hasMessaging: hasMessagingForCombo,
   });
   if (!combo.valid) {
     const warning = combo.message ?? "Incompatible addon combination";
@@ -174,6 +193,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let effectiveAnalytics: boolean | undefined;
   let effectiveEve: boolean | undefined;
   let effectiveI18n: boolean | undefined;
+  let effectivePdf: boolean | undefined;
+  let effectiveMessaging: boolean | undefined;
   const withAuthFlag = options.withAuth;
   const withApiFlag = options.withApi;
   const withEmailFlag = options.withEmail;
@@ -181,6 +202,12 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   const withCacheFlag = options.withCache;
   const withEveFlag = options.withEve;
   const withI18nFlag = options.withI18n;
+  const withPdfFlag = (options as unknown as Record<string, unknown>).withPdf as
+    | boolean
+    | undefined;
+  const withMessagingFlag = (options as unknown as Record<string, unknown>).withMessaging as
+    | boolean
+    | undefined;
 
   if (effectivePreset === "custom") {
     // Prefer interactive decoded values if present, else CLI with-* flags
@@ -196,6 +223,10 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     else if (withEveFlag !== undefined) effectiveEve = withEveFlag;
     if (interactiveCustomI18n !== undefined) effectiveI18n = interactiveCustomI18n;
     else if (withI18nFlag !== undefined) effectiveI18n = withI18nFlag;
+    if (interactiveCustomPdf !== undefined) effectivePdf = interactiveCustomPdf;
+    else if (withPdfFlag !== undefined) effectivePdf = withPdfFlag;
+    if (interactiveCustomMessaging !== undefined) effectiveMessaging = interactiveCustomMessaging;
+    else if (withMessagingFlag !== undefined) effectiveMessaging = withMessagingFlag;
     // For interactive custom, cache already set from prompts (cache includes redis when cache feature selected)
     if (interactive && cache === "none" && interactiveCustomAuth === undefined) {
       // no-op
@@ -207,6 +238,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     effectiveAnalytics = false;
     effectiveEve = features.includes("eve" as never) || withEveFlag === true;
     effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
+    effectivePdf = interactiveCustomPdf === true || withPdfFlag === true;
+    effectiveMessaging = interactiveCustomMessaging === true || withMessagingFlag === true;
   } else if (effectivePreset === "saas") {
     effectiveAuth = true;
     effectiveApi = true;
@@ -214,6 +247,12 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     effectiveAnalytics = true;
     effectiveEve = features.includes("eve" as never) || withEveFlag === true;
     effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
+    effectivePdf = interactiveCustomPdf === true || withPdfFlag === true;
+    effectiveMessaging = interactiveCustomMessaging === true || withMessagingFlag === true;
+  } else {
+    // no preset case already handled as saas via effectivePreset default
+    if (withPdfFlag === true) effectivePdf = true;
+    if (withMessagingFlag === true) effectiveMessaging = true;
   }
 
   // Merge with with-* overrides even for saas/frontend (allow --with-cache on frontend)
@@ -227,6 +266,18 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   }
   if (withEveFlag === true) effectiveEve = true;
   if (withI18nFlag === true) effectiveI18n = true;
+  if (withPdfFlag === true) effectivePdf = true;
+  if (withPdfFlag === false && effectivePreset === "custom" && interactiveCustomPdf === undefined) {
+    effectivePdf = false;
+  }
+  if (withMessagingFlag === true) effectiveMessaging = true;
+  if (
+    withMessagingFlag === false &&
+    effectivePreset === "custom" &&
+    interactiveCustomMessaging === undefined
+  ) {
+    effectiveMessaging = false;
+  }
 
   const config = projectConfigSchema.parse({
     name: projectName,
@@ -247,6 +298,8 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     analytics: effectiveAnalytics,
     eve: effectiveEve,
     i18n: effectiveI18n,
+    pdf: effectivePdf,
+    messaging: effectiveMessaging,
   });
 
   if (existsSync(projectRoot) && !options.force) {

@@ -154,6 +154,20 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   // Cache
   "UPSTASH_REDIS_REST_URL",
   "UPSTASH_REDIS_REST_TOKEN",
+  // Messaging — WS URLs derived from APP_URL but explicit for turbo cache precision
+  // Postgres: WS via oRPC (Bun.serve / crossws), Convex: no WS (native reactivity), ignored when messaging off
+  "NEXT_PUBLIC_WS_URL",
+  "VITE_WS_URL",
+  "EXPO_PUBLIC_WS_URL",
+  "WS_URL",
+  "STORAGE_DRIVER",
+  "STORAGE_BUCKET",
+  "S3_BUCKET",
+  "S3_REGION",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+  "S3_ENDPOINT",
+  "UPLOADS_DIR",
   // Convex — re-include via spread to ensure single source stays authoritative
   ...CONVEX_ENV_KEYS,
 ] as const;

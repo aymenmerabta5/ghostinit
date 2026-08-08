@@ -125,6 +125,8 @@ export function getLayerFromFilePath(p: string): LayerInfo | null {
     file.includes("packages/shared/") ||
     file.includes("packages/ui/") ||
     file.includes("packages/typescript-config/") ||
+    file.includes("packages/realtime/") ||
+    file.includes("packages/storage/") ||
     file.includes("tooling/") ||
     file.includes("tooling/architecture/")
   ) {
@@ -152,6 +154,8 @@ export function getLayerFromImport(imp: string, resolvedPath?: string): LayerInf
   if (normalized.startsWith("@repo/observability")) return { level: 6, name: "Supporting" };
   if (normalized.startsWith("@repo/ui")) return { level: 6, name: "Supporting" };
   if (normalized.startsWith("@repo/shared")) return { level: 6, name: "Supporting" };
+  if (normalized.startsWith("@repo/realtime")) return { level: 6, name: "Supporting" };
+  if (normalized.startsWith("@repo/storage")) return { level: 6, name: "Supporting" };
 
   if (normalized.startsWith("@repo/billing")) {
     if (normalized.includes("/providers") || normalized.includes("providers")) {

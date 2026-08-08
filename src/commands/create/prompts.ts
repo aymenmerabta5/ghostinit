@@ -339,6 +339,16 @@ export async function promptInteractive(
               options: [
                 { value: "eve", label: "Eve", hint: "durable AI agent hybrid via withEve()" },
                 { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
+                {
+                  value: "pdf",
+                  label: "PDF",
+                  hint: "@react-pdf/renderer + invoices & certificates",
+                },
+                {
+                  value: "messaging",
+                  label: "Messaging",
+                  hint: "DM + files + realtime (WS for postgres, Convex native)",
+                },
               ],
             }),
           install: () =>
@@ -414,6 +424,16 @@ export async function promptInteractive(
                 { value: "cache", label: "Cache (Redis)", hint: "Upstash Redis + memory fallback" },
                 { value: "eve", label: "Eve", hint: "durable AI agent hybrid" },
                 { value: "i18n", label: "i18n", hint: "next-intl internationalization" },
+                {
+                  value: "pdf",
+                  label: "PDF",
+                  hint: "@react-pdf/renderer + invoice/certificate/agreement",
+                },
+                {
+                  value: "messaging",
+                  label: "Messaging",
+                  hint: "DM + files + realtime (WS for postgres, Convex native)",
+                },
               ],
             }),
           billing: () =>
@@ -540,7 +560,13 @@ export async function promptInteractive(
     database = ((group.database as string | undefined) ??
       initial.database) as PromptResult["database"];
     billing = normalizeBillingSelection((group.billing as string[]) ?? []);
-    features = normalizeFeaturesSelection((group.features as string[]) ?? []);
+    const rawSaasFeatures = (group.features as string[]) ?? [];
+    const hasPdfSaas = rawSaasFeatures.includes("pdf");
+    const hasMessagingSaas = rawSaasFeatures.includes("messaging");
+    const filteredSaasFeatures = rawSaasFeatures.filter((f) => f !== "pdf" && f !== "messaging");
+    features = normalizeFeaturesSelection(filteredSaasFeatures);
+    if (hasPdfSaas) features = [...features, "__custom_pdf"];
+    if (hasMessagingSaas) features = [...features, "__custom_messaging"];
     apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
     cache = "none";
   } else {

@@ -3,6 +3,10 @@ import { modulesPackage } from "../../modules.js";
 
 type Runtime = "node" | "bun";
 
-export function modulesComposerFiles(runtime: Runtime, hasBilling = true): TemplateFile[] {
-  return modulesPackage(runtime, hasBilling);
+export function modulesComposerFiles(
+  runtime: Runtime,
+  hasBilling = true,
+  hasMessaging = false,
+): TemplateFile[] {
+  return modulesPackage(runtime, hasBilling, hasMessaging);
 }

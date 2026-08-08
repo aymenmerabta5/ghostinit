@@ -36,6 +36,8 @@ export interface GlobalOptions {
   withCache?: boolean;
   withEve?: boolean;
   withI18n?: boolean;
+  withPdf?: boolean;
+  withMessaging?: boolean;
   rawMode?: string | string[];
   rawFramework?: string | string[];
   rawBilling?: string | string[];

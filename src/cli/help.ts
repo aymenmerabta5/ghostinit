@@ -42,7 +42,7 @@ Create options:
   --preset saas|frontend|custom  Preset: saas (full), frontend (minimal ui+config), custom (pick features) (default: saas)
   --cache redis|none         Cache: redis (Upstash) or none (default: none)
   --stack nextjs|tanstack-start|expo|both  Stack shorthand for frontend (framework+apps)
-  --with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n  Opt-in addons for custom preset (repeatable; --features kept as alias)
+  --with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n --with-pdf --with-messaging  Opt-in addons for custom preset (repeatable; --features kept as alias)
 `;
 }
 
