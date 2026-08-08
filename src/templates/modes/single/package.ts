@@ -9,6 +9,7 @@ function buildDeps(
   hasI18n: boolean,
   isTanstack = false,
   isConvex = false,
+  hasMessaging = false,
 ): Record<string, string> {
   const baseConvex: Record<string, string> = isConvex
     ? {
@@ -96,6 +97,10 @@ function buildDeps(
   if (hasI18n && !isTanstack) {
     deps["next-intl"] = `^${v.i18n["next-intl"]}`;
   }
+  if (hasMessaging && !isConvex) {
+    deps.ws = `^${v.realtime.ws}`;
+    deps.crossws = `^${v.realtime.crossws}`;
+  }
   return deps;
 }
 
@@ -106,6 +111,7 @@ export function singlePackageJson(
   hasEve: boolean,
   hasI18n: boolean,
   isConvex = false,
+  hasMessaging = false,
 ): string {
   const scripts: Record<string, string> = isConvex
     ? {
@@ -141,7 +147,7 @@ export function singlePackageJson(
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex),
+    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex, hasMessaging),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       typescript: `^${v.typescript.typescript}`,
@@ -165,6 +171,7 @@ export function singlePackageJsonTanstack(
   hasEve: boolean,
   hasI18n: boolean,
   isConvex = false,
+  hasMessaging = false,
 ): string {
   void hasI18n;
   const scripts: Record<string, string> = isConvex
@@ -201,7 +208,7 @@ export function singlePackageJsonTanstack(
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex),
+    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex, hasMessaging),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,

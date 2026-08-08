@@ -128,6 +128,15 @@ function webPackage(
               "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
             }
           : {}),
+        // Messaging (postgres) needs WS runtime for apps/web/server.ts (Bun.serve + ws) + crossws for tanstack compat
+        ...(addonMap &&
+        hasAddon(addonMap as AddonInstallerMap, "messaging") &&
+        !hasAddon(addonMap as AddonInstallerMap, "convex")
+          ? {
+              ws: `^${v.realtime.ws}`,
+              crossws: `^${v.realtime.crossws}`,
+            }
+          : {}),
         // apps/web hosts the webhook routes, so it imports the provider SDKs and
         // (on drizzle) `eq` from drizzle-orm directly. These must be declared here,
         // not merely hoisted from @repo/billing.

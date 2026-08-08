@@ -460,7 +460,23 @@ export default function MessagesScreen(){ return <View style={{flex:1,padding:16
         `import { createFileRoute } from '@tanstack/react-router'
 import { experimental_RPCHandler } from '@orpc/server/crossws'
 import { appRouter } from '@repo/api'
+import { registerWsClient, unregisterWsClient } from "@repo/realtime"
 const handler = new experimental_RPCHandler(appRouter as never)
+// Realtime broadcast: register each WS so publish() can push events
+try {
+  const origUpgrade = (handler as unknown as { upgrade?: (ws: unknown, opts: unknown) => void }).upgrade?.bind(handler)
+  if (origUpgrade) {
+    (handler as unknown as { upgrade: (ws: unknown, opts: unknown) => void }).upgrade = (ws: unknown, opts: unknown) => {
+      try {
+        const ctx = (opts as unknown as { context?: { user?: { id?: string } } })?.context
+        registerWsClient(ws, { userId: ctx?.user?.id })
+        const w = ws as unknown as { on?: (e: string, cb: () => void) => void }
+        w.on?.("close", () => { try { unregisterWsClient(ws); } catch {} })
+      } catch {}
+      return origUpgrade(ws as never, opts as never)
+    }
+  }
+} catch {}
 export const Route = createFileRoute('/api/ws')({
   server: { handlers: { GET: async ({ request }: { request: Request }) => {
     const upgrade = request.headers.get('upgrade')
@@ -494,7 +510,7 @@ export const dynamic = "force-dynamic";
       ),
       file(
         "apps/web/server.ts",
-        `// Custom Bun server for Next.js + oRPC WS (Docker primary)
+        `// Custom Bun server for Next.js + oRPC WS (Docker primary) — also broadcasts realtime events via @repo/realtime
 import { createServer } from "node:http";
 import next from "next";
 import { appRouter, createContext } from "@repo/api";
@@ -504,10 +520,15 @@ const app = next({ dev, dir: "./apps/web" });
 const handle = app.getRequestHandler();
 await app.prepare();
 let wsHandler: { upgrade: (ws: unknown, opts: unknown) => void; message: (ws: unknown, data: unknown, opts: unknown) => Promise<void>; close: (ws: unknown) => void } | null = null;
+let realtime: { registerWsClient: (ws: unknown, meta?: { userId?: string }) => void; unregisterWsClient: (ws: unknown) => void } | null = null;
 try {
   const mod = await import("@orpc/server/ws");
   const RPCHandler = (mod as unknown as { RPCHandler: new (r: unknown) => typeof wsHandler }).RPCHandler;
   wsHandler = new RPCHandler(appRouter as never) as never;
+} catch {}
+try {
+  const rt = await import("@repo/realtime");
+  realtime = rt as unknown as typeof realtime;
 } catch {}
 const server = createServer(async (req, res) => { await handle(req, res); });
 server.on("upgrade", async (req, socket, head) => {
@@ -517,12 +538,18 @@ server.on("upgrade", async (req, socket, head) => {
     const wss = new (WebSocketServer as unknown as new (o: unknown) => { handleUpgrade: (...a: unknown[]) => void })({ noServer: true });
     wss.handleUpgrade(req, socket, head, (ws: unknown) => {
       const ctxPromise = createContext(req.headers as unknown as Headers);
-      ctxPromise.then((ctx) => { (wsHandler as { upgrade: (ws: unknown, opts: unknown) => void }).upgrade(ws, { context: ctx }); });
+      ctxPromise.then((ctx) => {
+        (wsHandler as { upgrade: (ws: unknown, opts: unknown) => void }).upgrade(ws, { context: ctx });
+        try { realtime?.registerWsClient(ws, { userId: (ctx as unknown as { user?: { id?: string } })?.user?.id }); } catch {}
+      });
       (ws as unknown as { on: (e: string, cb: (...a: unknown[])=>void)=>void }).on("message", async (data: unknown) => {
         const ctx = await createContext(req.headers as unknown as Headers);
         await wsHandler!.message(ws, data as string, { context: ctx });
       });
-      (ws as unknown as { on: (e: string, cb: (...a: unknown[])=>void)=>void }).on("close", () => wsHandler!.close(ws));
+      (ws as unknown as { on: (e: string, cb: (...a: unknown[])=>void)=>void }).on("close", () => {
+        try { realtime?.unregisterWsClient(ws); } catch {}
+        wsHandler!.close(ws);
+      });
     });
     return;
   }
@@ -540,6 +567,9 @@ server.listen(port, () => { console.log(\`> Ready on http://localhost:\${port} (
         `import { NextResponse } from "next/server";
 import { auth } from "@repo/auth";
 import { putFile } from "@repo/storage";
+import { db } from "@repo/database";
+import { conversationParticipants } from "@repo/database";
+import { eq, and } from "drizzle-orm";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request): Promise<Response> {
@@ -549,6 +579,9 @@ export async function POST(request: Request): Promise<Response> {
   const file = form.get("file") as File | null;
   const conversationId = form.get("conversationId") as string | null;
   if (!file || !conversationId) return NextResponse.json({ error: "file and conversationId required" }, { status: 400 });
+  const uid = (session.user as unknown as { id: string }).id;
+  const part = await (db as unknown as { query: { conversationParticipants: { findFirst: (o: unknown) => Promise<unknown> } } }).query.conversationParticipants.findFirst({ where: (t: unknown, { eq: eq2, and: and2 }: { eq: unknown; and: unknown }) => and2(eq2((t as { conversationId: unknown }).conversationId, conversationId), eq2((t as { userId: unknown }).userId, uid)) });
+  if (!part) return NextResponse.json({ error: "Forbidden: not a participant" }, { status: 403 });
   const buf = Buffer.from(await file.arrayBuffer());
   const stored = await putFile(buf, file.name, file.type || "application/octet-stream");
   return NextResponse.json({ attachmentId: stored.storageKey, url: stored.url });

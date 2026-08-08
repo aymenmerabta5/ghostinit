@@ -47,6 +47,8 @@ type Handler = (event: RealtimeEvent) => void;
 // In-memory fan-out (single instance). For multi-instance, integrate Upstash Redis when cache=redis
 const topics = new Map<string, Set<Handler>>();
 const presence = new Map<string, Map<string, { online: boolean; lastSeen: number }>>();
+const wsClients = new Set<unknown>();
+const wsMeta = new Map<unknown, { userId?: string }>();
 
 // Heartbeat cleanup every 60s
 let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -102,8 +104,23 @@ export function publish(conversationId: string, event: RealtimeEvent): void {
       }
     }
   }
+  // Broadcast to all connected WS clients (server.ts registers each ws via registerWsClient)
+  try {
+    const payloadStr = JSON.stringify(event);
+    for (const ws of [...wsClients]) {
+      try {
+        const w = ws as unknown as { readyState?: number; send?: (data: string) => void; OPEN?: number };
+        // ws.OPEN === 1 for 'ws' lib, WebSocket.OPEN === 1 globally
+        const isOpen = w.readyState === 1 || w.readyState === undefined;
+        if (isOpen && typeof w.send === "function") w.send(payloadStr);
+        else if (!isOpen) wsClients.delete(ws);
+      } catch {}
+    }
+  } catch {}
   // Optional Redis fan-out when UPSTASH_REDIS_* set (REST publish, not pub/sub — best-effort cross-instance)
-  // Keep sync for latency; do not await
+  // Keep sync for latency; do not await.
+  // Note: Upstash REST PUBLISH is single-instance broadcast only if another instance polls;
+  // for true multi-instance realtime, deploy with sticky sessions or add a dedicated Redis subscriber (e.g. ioredis).
   try {
     const url = (env as unknown as { UPSTASH_REDIS_REST_URL?: string }).UPSTASH_REDIS_REST_URL;
     if (url && url !== "REPLACE_WITH_UPSTASH_REDIS_REST_URL" && env.UPSTASH_REDIS_REST_TOKEN) {
@@ -167,9 +184,39 @@ export function sendTyping(conversationId: string, userId: string, isTyping: boo
   publish(conversationId, { type: "typing", conversationId, payload: { userId, isTyping }, timestamp: Date.now() });
 }
 
+export function registerWsClient(ws: unknown, meta?: { userId?: string }): void {
+  wsClients.add(ws);
+  if (meta?.userId) wsMeta.set(ws, meta);
+}
+
+export function unregisterWsClient(ws: unknown): void {
+  wsClients.delete(ws);
+  const meta = wsMeta.get(ws);
+  wsMeta.delete(ws);
+  // Mark offline for all conversations where this user was present
+  if (meta?.userId) {
+    const uid = meta.userId;
+    const now = Date.now();
+    for (const [convId, users] of presence.entries()) {
+      if (users.has(uid)) {
+        users.delete(uid);
+        // broadcast offline
+        try { publish(convId, { type: "presence", conversationId: convId, payload: { userId: uid, online: false }, timestamp: now }); } catch {}
+        if (users.size === 0) presence.delete(convId);
+      }
+    }
+  }
+}
+
+export function getWsClientCount(): number {
+  return wsClients.size;
+}
+
 export function clearAll(): void {
   topics.clear();
   presence.clear();
+  wsClients.clear();
+  wsMeta.clear();
   if (heartbeat) {
     clearInterval(heartbeat);
     heartbeat = undefined;

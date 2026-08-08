@@ -139,6 +139,15 @@ function webPackageTanstack(
               "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
             }
           : {}),
+        // Messaging (postgres) needs WS runtime for crossws/Bun.serve
+        ...(addonMap &&
+        hasAddon(addonMap as AddonInstallerMap, "messaging") &&
+        !hasAddon(addonMap as AddonInstallerMap, "convex")
+          ? {
+              ws: `^${v.realtime.ws}`,
+              crossws: `^${v.realtime.crossws}`,
+            }
+          : {}),
         // Webhook routes under src/routes/api/webhooks/* import these directly.
         ...webhookRuntimeDeps(addonMap),
         react: `^${v.nextStack.react}`,

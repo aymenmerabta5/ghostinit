@@ -50,4 +50,6 @@ export {
   reanimated,
   worklets,
   uniwind,
+  realtime,
+  storage,
 } from "../../packages/versions/src/index.js";

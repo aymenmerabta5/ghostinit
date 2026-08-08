@@ -398,8 +398,14 @@ export const messagingListMessagesContract = contract.listMessages;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingListMessages = implementer.listMessages.handler(async ({ input, context }) => {
   if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  const out = await listMessagesUseCase({ conversationId: input.conversationId, limit: input.limit, cursor: input.cursor });
-  return out as { messages: Record<string, unknown>[]; nextCursor: string | null };
+  try {
+    const out = await listMessagesUseCase({ conversationId: input.conversationId, userId: context.user.id, limit: input.limit, cursor: input.cursor });
+    return out as { messages: Record<string, unknown>[]; nextCursor: string | null };
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (msg.includes("Forbidden")) throw new ORPCError("FORBIDDEN", { message: msg });
+    throw e;
+  }
 });
 `,
           ),
@@ -432,8 +438,14 @@ export const messagingSendMessageContract = contract.sendMessage;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingSendMessage = implementer.sendMessage.handler(async ({ input, context }) => {
   if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  const msg = await sendMessageUseCase({ conversationId: input.conversationId, senderId: context.user.id, body: input.body, replyToId: input.replyToId, attachmentIds: input.attachmentIds });
-  return msg as unknown as Record<string, unknown>;
+  try {
+    const msg = await sendMessageUseCase({ conversationId: input.conversationId, senderId: context.user.id, body: input.body, replyToId: input.replyToId, attachmentIds: input.attachmentIds });
+    return msg as unknown as Record<string, unknown>;
+  } catch (e) {
+    const msg_ = (e as Error)?.message ?? "";
+    if (msg_.includes("Forbidden")) throw new ORPCError("FORBIDDEN", { message: msg_ });
+    throw e;
+  }
 });
 `,
           ),
@@ -449,7 +461,13 @@ export const messagingMarkReadContract = contract.markRead;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingMarkRead = implementer.markRead.handler(async ({ input, context }) => {
   if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  return markReadUseCase({ conversationId: input.conversationId, userId: context.user.id, messageId: input.messageId });
+  try {
+    return await markReadUseCase({ conversationId: input.conversationId, userId: context.user.id, messageId: input.messageId });
+  } catch (e) {
+    const msg = (e as Error)?.message ?? "";
+    if (msg.includes("Forbidden")) throw new ORPCError("FORBIDDEN", { message: msg });
+    throw e;
+  }
 });
 `,
           ),
@@ -460,11 +478,16 @@ import { implement, ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { ApiContext } from "../../context.js";
 import { sendTyping } from "@repo/realtime";
+import { db } from "@repo/database";
+import { conversationParticipants } from "@repo/database";
+import { eq, and } from "drizzle-orm";
 const contract = { sendTyping: oc.route({ method: "POST", path: "/messaging/typing" }).input(z.object({ conversationId: z.string().uuid(), isTyping: z.boolean() })).output(z.object({ ok: z.boolean() })) };
 export const messagingSendTypingContract = contract.sendTyping;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingSendTyping = implementer.sendTyping.handler(async ({ input, context }) => {
   if (!context.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  const part = await (db as unknown as { query: { conversationParticipants: { findFirst: (o: unknown) => Promise<unknown> } } }).query.conversationParticipants.findFirst({ where: (t: unknown, { eq: eq2, and: and2 }: { eq: unknown; and: unknown }) => and2(eq2((t as { conversationId: unknown }).conversationId, input.conversationId), eq2((t as { userId: unknown }).userId, context.user!.id)) });
+  if (!part) throw new ORPCError("FORBIDDEN", { message: "Forbidden: not a participant" });
   sendTyping(input.conversationId, context.user.id, input.isTyping);
   return { ok: true };
 });
