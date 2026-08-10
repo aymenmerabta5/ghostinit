@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
+import { z } from "zod";
+const profileSchema = z.object({ name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be under 50") });
 interface ProfileForm { name: string; }
 export function ProfileCard(): React.JSX.Element {
   const { data: session } = authClient.useSession();
@@ -19,9 +21,12 @@ export function ProfileCard(): React.JSX.Element {
   const [success, setSuccess] = useState<string | null>(null);
   const form = useForm({
     defaultValues: { name: (user?.name as string) ?? "" } as ProfileForm,
+    validators: { onSubmit: ({ value }) => { const p = profileSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
     onSubmit: async ({ value }) => {
       setError(null); setSuccess(null);
-      const result = await authClient.updateUser({ name: value.name });
+      const parsed = profileSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid name"); return; }
+      const result = await authClient.updateUser({ name: parsed.data.name });
       if (result.error) { setError(result.error.message ?? "Failed to update profile"); return; }
       setSuccess("Profile updated");
     },
@@ -35,7 +40,7 @@ export function ProfileCard(): React.JSX.Element {
         {success ? <Alert><AlertTitle>Success</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
         <Form form={form} className="flex flex-col gap-5">
           <FieldGroup>
-            <TanStackField form={form} name="name">{(field) => (<Field><FieldLabel htmlFor="profile-name">Name</FieldLabel><Input id="profile-name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" /><FieldDescription>Your display name visible to the workspace.</FieldDescription></Field>)}</TanStackField>
+            <TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length < 2 ? "At least 2 characters" : undefined), onSubmit: ({ value }) => { const p = profileSchema.safeParse({ name: value }); return p.success ? undefined : p.error.issues[0]?.message; } }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="profile-name">Name</FieldLabel><Input id="profile-name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" aria-invalid={field.state.meta.errors.length > 0} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your display name visible to the workspace.</FieldDescription>)}</Field>)}</TanStackField>
           </FieldGroup>
           <SubmitButton>Update profile</SubmitButton>
         </Form>

@@ -9,10 +9,10 @@ export function signInFormFields(router: RouterType): string {
     "Forgot?",
   );
   return `              <FieldGroup>
-                <TanStackField form={form} name="email" validators={{ onSubmit: ({ value }) => (${sharedValidators.email}), }}>
+                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined), onSubmit: ({ value }) => (${sharedValidators.email}), }}>
                   {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="signin-email">Email</FieldLabel><Input id="signin-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your account email address.</FieldDescription>)}</Field>)}
                 </TanStackField>
-                <TanStackField form={form} name="password" validators={{ onSubmit: ({ value }) => (${sharedValidators.password}), }}>
+                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters"), onSubmit: ({ value }) => (${sharedValidators.password}), }}>
                   {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="signin-password">Password</FieldLabel>${forgot}</div><Input id="signin-password" name={field.name} type="password" autoComplete="current-password" required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : null}</Field>)}
                 </TanStackField>
               </FieldGroup>
@@ -35,10 +35,10 @@ export function signInPageContent(router: RouterType): string {
     ? `  const navigate = useNavigate()\n  const [error, setError] = useState<string | null>(null)`
     : `  const router = useRouter();\n  const [error, setError] = useState<string | null>(null);`;
   const imports = isTanstack
-    ? `"use client"\nimport * as React from 'react'\nimport { createFileRoute, Link, useNavigate } from '@tanstack/react-router'\nimport { useState } from 'react'\nimport { authClient } from '../lib/auth-client.js'\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+    ? `"use client"\nimport * as React from 'react'\nimport { createFileRoute, Link, useNavigate } from '@tanstack/react-router'\nimport { useState } from 'react'\nimport { z } from 'zod'\nimport { authClient } from '../lib/auth-client.js'\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form"\n\nexport const Route = createFileRoute('/sign-in')({ component: SignInPage, })`
-    : `"use client";\nimport * as React from "react";\nimport { useRouter } from "next/navigation";\nimport { useState } from "react";\nimport Link from "next/link";\nimport { authClient } from "../../lib/auth-client.js";\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+    : `"use client";\nimport * as React from "react";\nimport { useRouter } from "next/navigation";\nimport { useState } from "react";\nimport Link from "next/link";\nimport { z } from "zod";\nimport { authClient } from "../../lib/auth-client.js";\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`;
   const backLink = isTanstack
@@ -54,11 +54,15 @@ interface SignInForm { email: string; password: string; }
 
 ${isTanstack ? "function" : "export default function"} SignInPage(): React.JSX.Element {
 ${routerHook}
+  const signInSchema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(8, "Password must be at least 8 characters").max(64) });
   const form = useForm({
     defaultValues: { email: "", password: "", } as SignInForm,
+    validators: { onSubmit: ({ value }) => { const p = signInSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
     onSubmit: async ({ value }) => {
       setError(null);
-      const result = await authClient.signIn.email({ email: value.email, password: value.password, callbackURL: "/dashboard", });
+      const parsed = signInSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid input"); return; }
+      const result = await authClient.signIn.email({ email: parsed.data.email, password: parsed.data.password, callbackURL: "/dashboard", });
       if (result.error) { setError(result.error.message ?? "Sign in failed"); return; }
 ${signInNavigateLogic(router)}
     },

@@ -502,7 +502,7 @@ export function stripeTanstackConvexContent(imp: DbImports): string {
     "  const secret = process.env.STRIPE_WEBHOOK_SECRET ?? ''",
     "  if (!secret || secret.startsWith('REPLACE_WITH')) return Response.json({ ok: false, error: 'secret not configured' }, { status: 400 })",
     "  let event: Stripe.Event",
-    "  try { event = stripe.webhooks.constructEvent(buf, sig, secret) } catch (err: unknown) { logger.error(`[stripe] 403 ${err.message}`); return Response.json({ ok: false, error: err.message }, { status: 403 }) }",
+    "  try { event = stripe.webhooks.constructEvent(buf, sig, secret) } catch (err: unknown) { logger.error(`[stripe] 403 ${(err as unknown as { message: string }).message}`); return Response.json({ ok: false, error: 'Webhook Error' }, { status: 403 }) }",
     "  try {",
     "    const existing = await convexClient.query(api.billing.checkWebhookEvent, { provider: 'stripe', providerEventId: event.id });",
     "    if ((existing as unknown as { processed?: boolean })?.processed) { logger.info(`[stripe] already processed ${event.id}`); return Response.json({ ok: true, alreadyProcessed: true }) }",

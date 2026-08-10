@@ -97,24 +97,37 @@ type AdminUser = { id: string; name: string | null; email: string; role: string;
 function AdminUsersPage(): React.JSX.Element {
   const [data, setData] = React.useState<{ users: AdminUser[]; total: number } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const [search, setSearch] = React.useState("")
+  const [page, setPage] = React.useState(1)
+  const limit = 20
   const refresh = React.useCallback(async () => {
     setError(null)
     try {
-      const result = await authClient.admin.listUsers({ query: { limit: 100 } })
+      const offset = (page - 1) * limit
+      const result = await authClient.admin.listUsers({ query: { limit, offset, search: search || undefined } as unknown as { limit: number; offset: number; search?: string } })
       if ((result as { error?: { message?: string } }).error) { setError((result as { error: { message?: string } }).error.message ?? "Failed to load users"); return }
       const d = (result as { data?: { users: Array<{ id: string; name: string | null; email: string; role?: string; banned?: boolean }>; total: number } }).data
       if (d) setData({ users: d.users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: d.total })
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-  }, [])
+  }, [page, search])
   React.useEffect(() => { void refresh() }, [refresh])
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / limit))
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-5xl flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-          <Button asChild><Link to="/admin/users/create">Create user</Link></Button>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
+            <Button asChild><Link to="/admin/users/create">Create user</Link></Button>
+          </div>
+          <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
+          <div className="flex items-center gap-2">
+            <input placeholder="Search email or name…" value={search} onChange={(e) => { setSearch((e.target as HTMLInputElement).value); setPage(1); }} className="flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm" />
+            <span className="text-xs text-muted-foreground">Page {page}/{totalPages}</span>
+            <Button size="sm" variant="outline" disabled={page<=1} onClick={() => setPage(page-1)}>Prev</Button>
+            <Button size="sm" variant="outline" disabled={page>=totalPages} onClick={() => setPage(page+1)}>Next</Button>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
         <Separator />
         {error ? <Alert variant="destructive"><AlertTitle>Failed to load</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <Card>
@@ -131,6 +144,7 @@ function AdminUsersPage(): React.JSX.Element {
             ))}
           </CardContent>
         </Card>
+        <p className="text-xs text-muted-foreground">Audit log: every ban/role change is persisted via better-auth and can be extended to @repo/observability.</p>
       </div>
     </main>
   )
@@ -143,6 +157,7 @@ export function tanstackAdminCreateUserContent(): string {
 import { createFileRoute, redirect, Link, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
+import { z } from 'zod'
 import { auth } from '@repo/auth'
 import { authClient } from '../lib/auth-client.js'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -150,6 +165,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
   const headers = getRequestHeaders() as unknown as Headers
@@ -166,13 +183,25 @@ export const Route = createFileRoute('/admin/users/create')({
   component: AdminCreateUserPage,
 })
 
+interface CreateUserForm { name: string; email: string; password: string; role: 'admin' | 'user'; }
+const createUserSchema = z.object({ name: z.string().min(1, 'Name required'), email: z.string().email('Enter a valid email'), password: z.string().min(8, 'Password must be at least 8 characters'), role: z.enum(['admin','user']) })
+
 function AdminCreateUserPage(): React.JSX.Element {
   const router = useRouter()
   const [error, setError] = React.useState<string | null>(null)
-  const [name, setName] = React.useState("")
-  const [email, setEmail] = React.useState("")
-  const [password, setPassword] = React.useState("")
-  const [role, setRole] = React.useState<"admin" | "user">("user")
+  const form = useForm({
+    defaultValues: { name: '', email: '', password: '', role: 'user' } as CreateUserForm,
+    validators: { onSubmit: ({ value }) => { const p = createUserSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message } },
+    onSubmit: async ({ value }) => {
+      setError(null)
+      const parsed = createUserSchema.safeParse(value)
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? 'Invalid input'); return }
+      const result = await authClient.admin.createUser({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password, role: parsed.data.role })
+      const r = result as unknown as { error?: { message?: string } }
+      if (r.error) { setError(r.error.message ?? 'Failed to create user'); return }
+      router.navigate({ to: '/admin/users' })
+    },
+  })
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-xl flex flex-col gap-6">
@@ -182,11 +211,15 @@ function AdminCreateUserPage(): React.JSX.Element {
         <Card><CardHeader><CardTitle className="text-base">User details</CardTitle><CardDescription>Password must be at least 8 characters.</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-4">
             {error ? <Alert variant="destructive"><AlertTitle>Failed to create</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-            <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" /></div>
-            <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></div>
-            <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-            <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" value={role} onChange={(e) => setRole(e.target.value as "admin" | "user")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>
-            <Button onClick={async () => { setError(null); const result = await authClient.admin.createUser({ name, email, password, role }); if ((result as { error?: { message?: string } }).error) { setError((result as { error: { message?: string } }).error.message ?? "Failed"); return } router.navigate({ to: "/admin/users" }) }}>Create user</Button>
+            <Form form={form} className="flex flex-col gap-6">
+              <FieldGroup>
+                <TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : 'Name required') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Name</FieldLabel><Input value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} placeholder="Ada Lovelace" />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
+                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email'), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : 'Enter a valid email') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Email</FieldLabel><Input type="email" value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} placeholder="you@example.com" />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
+                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters'), onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Password</FieldLabel><Input type="password" value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
+                <TanStackField form={form} name="role">{(f) => (<Field><FieldLabel>Role</FieldLabel><select value={f.state.value} onChange={(e) => f.handleChange(e.target.value as "admin" | "user")} onBlur={f.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></Field>)}</TanStackField>
+              </FieldGroup>
+              <SubmitButton>Create user</SubmitButton>
+            </Form>
           </CardContent>
         </Card>
       </div>

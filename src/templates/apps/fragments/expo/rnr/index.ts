@@ -7,6 +7,10 @@ import { rnrLabelContent } from "./label.js";
 import { rnrBadgeContent } from "./badge.js";
 import { rnrAvatarContent } from "./avatar.js";
 import { rnrTabsContent } from "./tabs.js";
+import { rnrAlertContent } from "./alert.js";
+import { rnrDialogContent } from "./dialog.js";
+import { rnrSeparatorContent } from "./separator.js";
+import { rnrSkeletonContent } from "./skeleton.js";
 
 export function rnrCoreFiles(): TemplateFile[] {
   return [
@@ -23,6 +27,10 @@ export function rnrExtendedFiles(): TemplateFile[] {
     file("apps/mobile/src/components/ui/badge.tsx", rnrBadgeContent()),
     file("apps/mobile/src/components/ui/avatar.tsx", rnrAvatarContent()),
     file("apps/mobile/src/components/ui/tabs.tsx", rnrTabsContent()),
+    file("apps/mobile/src/components/ui/alert.tsx", rnrAlertContent()),
+    file("apps/mobile/src/components/ui/dialog.tsx", rnrDialogContent()),
+    file("apps/mobile/src/components/ui/separator.tsx", rnrSeparatorContent()),
+    file("apps/mobile/src/components/ui/skeleton.tsx", rnrSkeletonContent()),
   ];
 }
 

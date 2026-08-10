@@ -54,10 +54,10 @@ function listSubscriptionsContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
   const dbImport =
     mode === "monorepo"
-      ? `import { eq } from "drizzle-orm";
+      ? `import { eq, inArray } from "drizzle-orm";
 import { db } from "@repo/database";
 import { subscriptions, invoices, usage_events, license_keys } from "@repo/billing";`
-      : `import { eq } from "drizzle-orm";
+      : `import { eq, inArray } from "drizzle-orm";
 import { db } from "@/server/db";
 import { subscriptions, invoices, usage_events, license_keys } from "@/server/billing/schema/billing";`;
 
@@ -71,11 +71,12 @@ export interface BillingSnapshot {
 }
 export async function listSubscriptionsService(userId: string): Promise<Result<BillingSnapshot, Error>> {
   try {
-    const [subs, invs, usage, keys] = await Promise.all([
-      db.select().from(subscriptions).where(eq(subscriptions.userId, userId)),
-      db.select().from(invoices),
-      db.select().from(usage_events),
-      db.select().from(license_keys),
+    const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, userId));
+    const subIds = subs.map((s: { id: string }) => s.id);
+    const [invs, usage, keys] = await Promise.all([
+      subIds.length ? db.select().from(invoices).where(inArray(invoices.subscriptionId, subIds)) : Promise.resolve([]),
+      subIds.length ? db.select().from(usage_events).where(inArray(usage_events.subscriptionId, subIds)) : Promise.resolve([]),
+      subIds.length ? db.select().from(license_keys).where(inArray(license_keys.subscriptionId, subIds)) : Promise.resolve([]),
     ]);
     return ok({
       subscriptions: subs as unknown as Array<Record<string, unknown>>,

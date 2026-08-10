@@ -143,7 +143,7 @@ export default function SettingsScreen(): React.JSX.Element {
           <CardContent className="gap-2">
             <View className="flex-row flex-wrap gap-2">
               <Link href="/(auth)/forgot-password" asChild><Button variant="outline"><Text>Reset password</Text></Button></Link>
-              <Link href="/two-factor" asChild><Button variant="outline"><Text>Two-factor</Text></Button></Link>
+              <Link href="/2fa" asChild><Button variant="outline"><Text>Two-factor</Text></Button></Link>
             </View>
           </CardContent>
         </Card>
@@ -156,14 +156,56 @@ export default function SettingsScreen(): React.JSX.Element {
 
 export function expoBillingContent(): string {
   return `import * as React from "react";
-import { View, ScrollView } from "react-native";
+import { useEffect, useState } from "react";
+import { View, ScrollView, ActivityIndicator } from "react-native";
 import { Link } from "expo-router";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+type Sub = { id: string; provider: string; status: string; };
+type Inv = { id: string; provider: string; amount: number; currency?: string; status: string; paid: boolean; };
+
 export default function BillingScreen(): React.JSX.Element {
+  const [subs, setSubs] = useState<Sub[]>([]);
+  const [invs, setInvs] = useState<Inv[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const r = await fetch((process.env.EXPO_PUBLIC_API_URL ?? "") + "/api/billing/subscriptions");
+        if (r.ok) {
+          const d = await r.json() as { subscriptions?: Sub[]; invoices?: Inv[] };
+          if (mounted) { if (d.subscriptions) setSubs(d.subscriptions); if (d.invoices) setInvs(d.invoices); }
+        }
+      } catch (e) { if (mounted) setError(e instanceof Error ? e.message : String(e)); }
+      finally { if (mounted) setLoading(false); }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  async function handleCheckout(provider: string): Promise<void> {
+    setCheckoutLoading(true); setError(null);
+    try {
+      const { Linking: LinkingForUrls } = await import("expo-linking");
+      const successUrl = LinkingForUrls.createURL("/billing/success");
+      const failureUrl = LinkingForUrls.createURL("/billing/cancel");
+      const r = await fetch((process.env.EXPO_PUBLIC_API_URL ?? "") + "/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, priceId: "price_demo", successUrl, failureUrl }) });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as { url?: string; checkout_url?: string };
+      const url = data.url ?? data.checkout_url;
+      if (url) { const { Linking } = await import("expo-linking"); await Linking.openURL(url); }
+    } catch (e) { setError(e instanceof Error ? e.message : "Checkout failed"); } finally { setCheckoutLoading(false); }
+  }
+
+  const hasSubs = subs.length > 0;
+  const pastDue = subs.some((s) => s.status === "past_due");
+
   return (
     <ScrollView className="flex-1 bg-background">
       <View className="p-5 gap-5 max-w-[960px] w-full self-center">
@@ -175,19 +217,43 @@ export default function BillingScreen(): React.JSX.Element {
           <Link href="/dashboard" asChild><Button variant="outline"><Text>Dashboard</Text></Button></Link>
         </View>
         <View className="h-px bg-border" />
-        <Card>
-          <CardHeader>
-            <CardTitle>Subscriptions</CardTitle>
-            <CardDescription>Idempotent webhook handling. Manage via web portal.</CardDescription>
-          </CardHeader>
-          <CardContent className="gap-3">
-            <View className="bg-secondary/50 border border-border rounded-xl p-4 items-center gap-2">
-              <Text className="font-semibold text-sm">Billing</Text>
-              <Text className="text-xs text-muted-foreground text-center">Open web billing portal to manage subscriptions.</Text>
-              <Badge variant="secondary"><Text className="text-xs">active</Text></Badge>
-            </View>
-          </CardContent>
-        </Card>
+        {loading ? <View className="p-8 items-center"><ActivityIndicator /><Text className="text-sm text-muted-foreground mt-2">Loading subscriptions…</Text></View> : hasSubs ? (
+          <View className="gap-4">
+            <Card>
+              <CardHeader><View className="flex-row justify-between items-center"><CardTitle>Subscriptions</CardTitle><Badge variant={pastDue ? "destructive" : "secondary"}><Text>{pastDue ? "past due" : subs.length + " active"}</Text></Badge></View><CardDescription>Your active subscriptions across providers</CardDescription></CardHeader>
+              <CardContent className="gap-2">
+                {subs.map((s) => (
+                  <View key={s.id} className="flex-row justify-between items-center border border-border rounded-lg px-3 py-2">
+                    <View className="flex-row items-center gap-2"><Badge variant="secondary"><Text className="text-xs">{s.provider}</Text></Badge><Text className="font-mono text-xs">{s.status}</Text></View>
+                  </View>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle>Invoices</CardTitle><CardDescription>Recent invoices</CardDescription></CardHeader>
+              <CardContent className="gap-2">
+                {invs.length===0 ? <Text className="text-sm text-muted-foreground">No invoices.</Text> : invs.map((inv) => (
+                  <View key={inv.id} className="flex-row justify-between items-center border border-border rounded-lg px-3 py-2">
+                    <Text className="text-sm">{inv.provider} — {inv.amount} {inv.currency ?? ""}</Text><Badge variant={inv.paid ? "secondary" : "destructive"}><Text className="text-xs">{inv.status}</Text></Badge>
+                  </View>
+                ))}
+              </CardContent>
+            </Card>
+          </View>
+        ) : (
+          <Card>
+            <CardHeader><CardTitle>No subscriptions</CardTitle><CardDescription>Start a checkout with any provider. Entitlement is checked server-side via oRPC.</CardDescription></CardHeader>
+            <CardContent className="gap-3">
+              {error ? <Text className="text-sm text-destructive">{error}</Text> : null}
+              <View className="flex-row flex-wrap gap-2">
+                <Button size="sm" disabled={checkoutLoading} onPress={() => void handleCheckout("stripe")}><Text>Stripe checkout</Text></Button>
+                <Button size="sm" variant="outline" disabled={checkoutLoading} onPress={() => void handleCheckout("chargily")}><Text>Chargily (EDAHABIA/CIB)</Text></Button>
+                <Button size="sm" variant="outline" disabled={checkoutLoading} onPress={() => void handleCheckout("paddle")}><Text>Paddle</Text></Button>
+                <Button size="sm" variant="outline" disabled={checkoutLoading} onPress={() => void handleCheckout("polar")}><Text>Polar</Text></Button>
+              </View>
+            </CardContent>
+          </Card>
+        )}
       </View>
     </ScrollView>
   );

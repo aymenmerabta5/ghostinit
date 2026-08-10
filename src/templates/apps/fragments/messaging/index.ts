@@ -587,6 +587,8 @@ export async function POST(request: Request): Promise<Response> {
   return NextResponse.json({ attachmentId: stored.storageKey, url: stored.url });
 }
 export async function GET(request: Request): Promise<Response> {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(request.url);
   const key = url.searchParams.get("key");
   if (!key) return new Response("Missing key", { status: 400 });

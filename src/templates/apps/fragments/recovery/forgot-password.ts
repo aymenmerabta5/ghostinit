@@ -51,42 +51,44 @@ const tanstackContent = `"use client"
 import * as React from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
+import { z } from "zod";
 import { authClient } from '../lib/auth-client.js'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
+
+const forgotPasswordSchema = z.object({ email: z.string().email("Enter a valid email") });
+
+interface ForgotPasswordForm { email: string; }
 
 export const Route = createFileRoute('/forgot-password')({
   component: ForgotPasswordPage,
 })
 
 function ForgotPasswordPage(): React.JSX.Element {
-  const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
-    setPending(true)
-    try {
-      // Better Auth renamed forgetPassword -> requestPasswordReset.
-      const result = await authClient.requestPasswordReset({ email, redirectTo: '/reset-password' })
-      if (result.error) {
-        setError(result.error.message ?? 'Failed to send reset email')
-        return
-      }
+  const form = useForm({
+    defaultValues: { email: "" } as ForgotPasswordForm,
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = forgotPasswordSchema.safeParse(value);
+        if (!parsed.success) return parsed.error.issues[0]?.message ?? "Enter a valid email";
+        return undefined;
+      },
+    },
+    onSubmit: async ({ value }) => {
+      setError(null); setSuccess(null);
+      // Server-side validation via zod (mirrors better-auth server schema)
+      const parsed = forgotPasswordSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Enter a valid email"); return; }
+      const result = await authClient.requestPasswordReset({ email: parsed.data.email, redirectTo: '/reset-password' })
+      if (result.error) { setError(result.error.message ?? 'Failed to send reset email'); return; }
       setSuccess('Check your email for a password reset link.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send reset email')
-    } finally {
-      setPending(false)
-    }
-  }
+    },
+  })
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -100,16 +102,14 @@ function ForgotPasswordPage(): React.JSX.Element {
           <CardContent className="flex flex-col gap-6">
             {error ? <Alert variant="destructive"><AlertTitle>Unable to send</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
             {success ? <Alert><AlertTitle>Check your email</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="forgot-email">Email</FieldLabel>
-                  <Input id="forgot-email" type="email" placeholder="you@example.com" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                  <FieldDescription>We will send a reset link to this address.</FieldDescription>
-                </Field>
+                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined), onSubmit: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>
+                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>We will send a reset link to this address.</FieldDescription>)}</Field>)}
+                </TanStackField>
               </FieldGroup>
-              <Button type="submit" className="w-full" disabled={pending}>{pending ? 'Sending...' : 'Send reset link'}</Button>
-            </form>
+              <SubmitButton className="w-full">Send reset link</SubmitButton>
+            </Form>
           </CardContent>
         </Card>
       </div>

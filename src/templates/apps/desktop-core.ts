@@ -41,6 +41,8 @@ export function desktopPackageJsonContent(
       "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}`,
       "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,
       "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
+      "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
+      zod: `^${v.validation.zod}`,
       "@orpc/client": `^${v.orpc["@orpc/client"]}`,
       "@orpc/server": `^${v.orpc["@orpc/server"]}`,
       "better-auth": `^${v.auth["better-auth"]}`,
@@ -1311,9 +1313,255 @@ function AdminUsersPage() {
 `;
 }
 
+export function desktopRouteTwoFactorContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import { useAuth } from "../hooks/useAuth";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/2fa")({
+  component: TwoFactorPage,
+});
+
+function TwoFactorPage() {
+  const { user } = useAuth();
+  const [totpUri, setTotpUri] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+  const enabled = Boolean((user as unknown as { twoFactorEnabled?: boolean })?.twoFactorEnabled);
+  const passwordSchema = z.object({ password: z.string().min(8, "Password must be at least 8 characters") });
+  const codeSchema = z.object({ code: z.string().regex(/^[0-9]{6}$/, "Enter a 6-digit code") });
+  const passwordForm = useForm({
+    defaultValues: { password: "" } as { password: string },
+    validators: { onSubmit: ({ value }) => { const p = passwordSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message } },
+    onSubmit: async ({ value }) => {
+      setError(null); setSuccess(null);
+      const parsed = passwordSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const res = await (authClient as unknown as { twoFactor: { enable: (d: { password: string }) => Promise<{ error?: { message?: string }; data?: { totpURI?: string | null } }> } }).twoFactor.enable({ password: parsed.data.password });
+      if (res.error) { setError(res.error.message ?? "Failed"); return; }
+      setTotpUri(String((res.data as { totpURI?: string })?.totpURI ?? ""));
+      setSuccess("Scan TOTP URI then verify");
+    },
+  });
+  const codeForm = useForm({
+    defaultValues: { code: "" } as { code: string },
+    validators: { onSubmit: ({ value }) => { const p = codeSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = codeSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const res = await (authClient as unknown as { twoFactor: { verifyTotp: (d: { code: string }) => Promise<{ error?: { message?: string } }> } }).twoFactor.verifyTotp({ code: parsed.data.code });
+      if (res.error) setError(res.error.message ?? "Invalid code"); else setSuccess("2FA enabled");
+    },
+  });
+  return (
+    <div className="mx-auto max-w-xl space-y-6 p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Two-factor authentication</h1>
+      <p className="text-sm text-muted-foreground">Secure your account with TOTP.</p>
+      <div className="h-px bg-border" />
+      {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
+      {success ? <div className="rounded-md border bg-muted p-3 text-sm">{success}</div> : null}
+      <div className="flex items-center gap-2"><span className="text-sm font-medium">Status:</span><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{enabled ? "enabled" : "disabled"}</span></div>
+      {!enabled && !totpUri ? (
+        <form onSubmit={(e) => { e.preventDefault(); void passwordForm.handleSubmit(); }} className="flex flex-col gap-3">
+          <passwordForm.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="pw">Password</label><input id="pw" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</passwordForm.Field>
+          <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Enable 2FA</button>
+        </form>
+      ) : totpUri ? (
+        <form onSubmit={(e) => { e.preventDefault(); void codeForm.handleSubmit(); }} className="flex flex-col gap-3"><div className="break-all rounded-md bg-muted p-3 text-xs font-mono">{totpUri}</div>
+          <codeForm.Field name="code" validators={{ onChange: ({ value }) => (/^[0-9]{6}$/.test(value) ? undefined : "Enter a 6-digit code") }}>{(field) => (<div className="flex flex-col gap-1"><input name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value.replace(/[^0-9]/g, "").slice(0,6))} onBlur={field.handleBlur} placeholder="000000" maxLength={6} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono tracking-widest text-center" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</codeForm.Field>
+          <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Verify</button>
+        </form>
+      ) : <p className="text-sm text-muted-foreground">2FA is enabled.</p>}
+      <Link to="/settings" className="text-sm underline">Back to settings</Link>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteForgotPasswordContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/forgot-password")({
+  component: ForgotPasswordPage,
+});
+
+function ForgotPasswordPage() {
+  const [error, setError] = React.useState<string | null>(null);
+  const [done, setDone] = React.useState(false);
+  const forgotSchema = z.object({ email: z.string().email("Enter a valid email") });
+  const form = useForm({
+    defaultValues: { email: "" } as { email: string },
+    validators: { onSubmit: ({ value }) => { const p = forgotSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = forgotSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const res = await (authClient as unknown as { forgetPassword: (d: { email: string; redirectTo: string }) => Promise<{ error?: { message?: string } }> }).forgetPassword({ email: parsed.data.email, redirectTo: "http://localhost:5173/reset-password" });
+      if (res.error) setError(res.error.message ?? "Failed"); else setDone(true);
+    },
+  });
+  return (
+    <div className="mx-auto max-w-md space-y-6 p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Forgot password</h1>
+      <p className="text-sm text-muted-foreground">Enter your email to receive a reset link.</p>
+      <div className="h-px bg-border" />
+      {done ? <div className="rounded-md border bg-muted p-3 text-sm">If an account exists, a reset email was sent.</div> : (
+        <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
+          {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
+          <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Send reset link</button>
+        </form>
+      )}
+      <Link to="/" className="text-sm underline">Back to home</Link>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteResetPasswordContent(): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/reset-password")({
+  component: ResetPasswordPage,
+});
+
+function ResetPasswordPage() {
+  const [error, setError] = React.useState<string | null>(null);
+  const [done, setDone] = React.useState(false);
+  const resetSchema = z.object({ newPassword: z.string().min(8, "At least 8 characters").max(64), confirmPassword: z.string().min(8) }).refine((d) => d.newPassword === d.confirmPassword, { message: "Passwords do not match", path: ["confirmPassword"] });
+  const form = useForm({
+    defaultValues: { newPassword: "", confirmPassword: "" } as { newPassword: string; confirmPassword: string },
+    validators: { onSubmit: ({ value }) => { const p = resetSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = resetSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const token = new URLSearchParams(window.location.search).get("token") ?? "";
+      const res = await (authClient as unknown as { resetPassword: (d: { newPassword: string; token: string }) => Promise<{ error?: { message?: string } }> }).resetPassword({ newPassword: parsed.data.newPassword, token });
+      if (res.error) setError(res.error.message ?? "Failed"); else setDone(true);
+    },
+  });
+  return (
+    <div className="mx-auto max-w-md space-y-6 p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Reset password</h1>
+      <p className="text-sm text-muted-foreground">Enter your new password (at least 8 characters).</p>
+      <div className="h-px bg-border" />
+      {done ? <div className="rounded-md border bg-muted p-3 text-sm">Password reset — you can now sign in.</div> : (
+        <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
+          {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
+          <form.Field name="newPassword" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">New password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="confirmPassword" validators={{ onSubmit: ({ value, fieldApi }) => { const pw = fieldApi.form.getFieldValue("newPassword") as string; return value !== pw ? "Passwords do not match" : undefined; } }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="confirm">Confirm password</label><input id="confirm" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Reset password</button>
+        </form>
+      )}
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteSignInContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/sign-in")({
+  component: SignInPage,
+});
+
+function SignInPage() {
+  const [error, setError] = React.useState<string | null>(null);
+  const signInSchema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(8, "Password must be at least 8") });
+  const form = useForm({
+    defaultValues: { email: "", password: "" } as { email: string; password: string },
+    validators: { onSubmit: ({ value }) => { const p = signInSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = signInSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const res = await (authClient as unknown as { signIn: { email: (d: { email: string; password: string }) => Promise<{ error?: { message?: string } }> } }).signIn.email({ email: parsed.data.email, password: parsed.data.password });
+      if (res.error) setError(res.error.message ?? "Sign in failed"); else window.location.href = "/dashboard";
+    },
+  });
+  return (
+    <div className="mx-auto max-w-md space-y-6 p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+      <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
+        {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
+        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Sign in</button>
+      </form>
+      <div className="flex gap-2 text-sm"><Link to="/forgot-password" className="underline">Forgot password</Link><Link to="/sign-up" className="underline">Sign up</Link></div>
+    </div>
+  );
+}
+`;
+}
+
+export function desktopRouteSignUpContent(): string {
+  return `import { createFileRoute, Link } from "@tanstack/react-router";
+import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
+import { authClient } from "../lib/auth";
+
+export const Route = createFileRoute("/sign-up")({
+  component: SignUpPage,
+});
+
+function SignUpPage() {
+  const [error, setError] = React.useState<string | null>(null);
+  const signUpSchema = z.object({ name: z.string().min(2, "Name at least 2"), email: z.string().email("Enter a valid email"), password: z.string().min(8, "Password at least 8").max(64) });
+  const form = useForm({
+    defaultValues: { name: "", email: "", password: "" } as { name: string; email: string; password: string },
+    validators: { onSubmit: ({ value }) => { const p = signUpSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = signUpSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const res = await (authClient as unknown as { signUp: { email: (d: { name: string; email: string; password: string }) => Promise<{ error?: { message?: string } }> } }).signUp.email({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password });
+      if (res.error) setError(res.error.message ?? "Sign up failed"); else window.location.href = "/dashboard";
+    },
+  });
+  return (
+    <div className="mx-auto max-w-md space-y-6 p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
+      <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
+        {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
+        <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length>0 && value.trim().length<2 ? "At least 2" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Create account</button>
+      </form>
+      <Link to="/sign-in" className="text-sm underline">Already have an account? Sign in</Link>
+    </div>
+  );
+}
+`;
+}
+
 export function desktopRouteAdminCreateUserContent(): string {
   return `import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import * as React from "react";
+import { z } from "zod";
+import { useForm } from "@tanstack/react-form";
 import { useAuth } from "../hooks/useAuth";
 import { authClient } from "../lib/auth";
 
@@ -1325,11 +1573,20 @@ function AdminCreateUserPage() {
   const { user, isPending: authPending } = useAuth();
   const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
-  const [name, setName] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [role, setRole] = React.useState<"admin" | "user">("user");
   const userRole = (user as { role?: string } | null)?.role;
+  const createUserSchema = z.object({ name: z.string().min(1, "Name required"), email: z.string().email("Enter a valid email"), password: z.string().min(8, "Password must be at least 8 characters"), role: z.enum(["admin","user"]) });
+  const form = useForm({
+    defaultValues: { name: "", email: "", password: "", role: "user" } as { name: string; email: string; password: string; role: "admin" | "user" },
+    validators: { onSubmit: ({ value }) => { const p = createUserSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message } },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = createUserSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
+      const result = await authClient.admin.createUser({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password, role: parsed.data.role });
+      if ((result as { error?: { message?: string } }).error) { setError((result as { error: { message?: string } }).error.message ?? "Failed"); return; }
+      router.navigate({ to: "/admin/users" });
+    },
+  });
 
   if (authPending) return <p className="text-sm p-6">Loading…</p>;
   if (userRole !== "admin") {
@@ -1349,14 +1606,14 @@ function AdminCreateUserPage() {
       <div className="rounded-xl border bg-card p-4">
         <h3 className="text-sm font-semibold">User details</h3>
         <p className="text-xs text-muted-foreground">Password must be at least 8 characters.</p>
-        <div className="mt-4 flex flex-col gap-4">
+        <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="mt-4 flex flex-col gap-4">
           {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3"><p className="text-sm font-medium">Failed to create</p><p className="text-xs text-muted-foreground">{error}</p></div> : null}
-          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
-          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
-          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
-          <div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" value={role} onChange={(e) => setRole(e.target.value as "admin" | "user")} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>
-          <button type="button" onClick={async () => { setError(null); const result = await authClient.admin.createUser({ name, email, password, role }); if ((result as { error?: { message?: string } }).error) { setError((result as { error: { message?: string } }).error.message ?? "Failed"); return; } router.navigate({ to: "/admin/users" }); }} className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90">Create user</button>
-        </div>
+          <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : "Name required") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="email" validators={{ onChange: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email"), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : "Enter a valid email") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="role">{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value as "admin" | "user")} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>)}</form.Field>
+          <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90">Create user</button>
+        </form>
       </div>
     </div>
   );
@@ -1375,8 +1632,13 @@ import { Route as BillingRoute } from "./routes/billing";
 import { Route as AdminRoute } from "./routes/admin";
 import { Route as AdminUsersRoute } from "./routes/admin.users";
 import { Route as AdminUsersCreateRoute } from "./routes/admin.users.create";
+import { Route as TwoFactorRoute } from "./routes/2fa";
+import { Route as ForgotPasswordRoute } from "./routes/forgot-password";
+import { Route as ResetPasswordRoute } from "./routes/reset-password";
+import { Route as SignInRoute } from "./routes/sign-in";
+import { Route as SignUpRoute } from "./routes/sign-up";
 
-export const routeTree = RootRoute.addChildren([IndexRoute, DashboardRoute, SettingsRoute, BillingRoute, AdminRoute, AdminUsersRoute, AdminUsersCreateRoute]);
+export const routeTree = RootRoute.addChildren([IndexRoute, DashboardRoute, SettingsRoute, BillingRoute, AdminRoute, AdminUsersRoute, AdminUsersCreateRoute, TwoFactorRoute, ForgotPasswordRoute, ResetPasswordRoute, SignInRoute, SignUpRoute]);
 `;
 }
 
@@ -1447,6 +1709,14 @@ export function desktopCoreFiles(
       "apps/desktop/src/renderer/routes/admin.users.create.tsx",
       desktopRouteAdminCreateUserContent(),
     ),
+    file("apps/desktop/src/renderer/routes/2fa.tsx", desktopRouteTwoFactorContent()),
+    file(
+      "apps/desktop/src/renderer/routes/forgot-password.tsx",
+      desktopRouteForgotPasswordContent(),
+    ),
+    file("apps/desktop/src/renderer/routes/reset-password.tsx", desktopRouteResetPasswordContent()),
+    file("apps/desktop/src/renderer/routes/sign-in.tsx", desktopRouteSignInContent()),
+    file("apps/desktop/src/renderer/routes/sign-up.tsx", desktopRouteSignUpContent()),
     file("apps/desktop/src/renderer/routeTree.gen.ts", desktopRouteTreeGenContent()),
   ];
 }

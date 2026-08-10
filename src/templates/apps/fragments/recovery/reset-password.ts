@@ -71,12 +71,17 @@ const tanstackContent = `"use client"
 import * as React from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import { z } from "zod";
 import { authClient } from '../lib/auth-client.js'
-import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
+
+const resetPasswordSchema = z.object({ newPassword: z.string().min(8, "Password must be at least 8 characters").max(64, "Password must be under 64"), confirmPassword: z.string().min(8, "Confirm at least 8") }).refine((d) => d.newPassword === d.confirmPassword, { message: "Passwords do not match", path: ["confirmPassword"] });
+
+interface ResetPasswordForm { newPassword: string; confirmPassword: string; }
 
 export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordPage,
@@ -87,8 +92,6 @@ function ResetPasswordPage(): React.JSX.Element {
   type ResetSearch = { token?: string }
   const search = Route.useSearch() as ResetSearch
   const token = search?.token ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null)
-
-  const [newPassword, setNewPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   if (!token) {
@@ -100,24 +103,31 @@ function ResetPasswordPage(): React.JSX.Element {
             <CardDescription className="max-w-[60ch]">The reset link is missing or expired. Request a new one.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full"><Link to="/forgot-password">Request new link</Link></Button>
+            <Link to="/forgot-password" className="text-sm text-primary underline">Request new link</Link>
           </CardContent>
         </Card>
       </main>
     )
   }
 
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault()
-    setError(null)
-    if (!token) { setError("Missing token"); return; }
-    const result = await authClient.resetPassword({ newPassword, token })
-    if (result.error) {
-      setError(result.error.message ?? 'Failed to reset password')
-      return
-    }
-    void navigate({ to: '/sign-in' })
-  }
+  const form = useForm({
+    defaultValues: { newPassword: "", confirmPassword: "" } as ResetPasswordForm,
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = resetPasswordSchema.safeParse(value);
+        if (!parsed.success) return parsed.error.issues[0]?.message ?? "Invalid";
+        return undefined;
+      },
+    },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = resetPasswordSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Password must be at least 8"); return; }
+      const result = await authClient.resetPassword({ newPassword: parsed.data.newPassword, token })
+      if (result.error) { setError(result.error.message ?? 'Failed to reset password'); return; }
+      void navigate({ to: '/sign-in' })
+    },
+  });
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -130,16 +140,17 @@ function ResetPasswordPage(): React.JSX.Element {
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             {error ? <Alert variant="destructive"><AlertTitle>Unable to reset</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="new-password">New password</FieldLabel>
-                  <Input id="new-password" type="password" required minLength={8} autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                  <FieldDescription>At least 8 characters.</FieldDescription>
-                </Field>
+                <TanStackField form={form} name="newPassword" validators={{ onChange: ({ value }) => (value.length < 8 ? "At least 8 characters" : undefined), onSubmit: ({ value }) => (value.length < 8 ? "Password must be at least 8" : undefined) }}>
+                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="new-password">New password</FieldLabel><Input id="new-password" name={field.name} type="password" required minLength={8} autoComplete="new-password" aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>At least 8 characters.</FieldDescription>)}</Field>)}
+                </TanStackField>
+                <TanStackField form={form} name="confirmPassword" validators={{ onSubmit: ({ value, fieldApi }) => { const parent = fieldApi.form.getFieldValue("newPassword") as string; if (value !== parent) return "Passwords do not match"; if (value.length < 8) return "At least 8"; return undefined; } }}>
+                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel><Input id="confirm-password" name={field.name} type="password" required minLength={8} autoComplete="new-password" aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Must match above.</FieldDescription>)}</Field>)}
+                </TanStackField>
               </FieldGroup>
-              <Button type="submit" className="w-full">Reset password</Button>
-            </form>
+              <SubmitButton className="w-full">Reset password</SubmitButton>
+            </Form>
           </CardContent>
         </Card>
       </div>

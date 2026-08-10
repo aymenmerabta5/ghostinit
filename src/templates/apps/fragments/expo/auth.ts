@@ -189,7 +189,7 @@ export default function TwoFactorScreen(): React.JSX.Element {
             {error ? <View className="bg-destructive/10 border border-destructive/20 rounded-lg p-3"><Text className="text-destructive text-sm">{error}</Text></View> : null}
             <View className="gap-2">
               <Label>Authentication code</Label>
-              <Input value={code} onChangeText={(v) => setCode(v.replace(/\\D/g, "").slice(0, 6))} placeholder="000000" keyboardType="number-pad" maxLength={6} className="text-center tracking-[0.3em] text-lg h-14" />
+              <Input value={code} onChangeText={(v) => setCode(v.replace(/[^0-9]/g, "").slice(0, 6))} placeholder="000000" keyboardType="number-pad" maxLength={6} className="text-center tracking-[0.3em] text-lg h-14" />
               <Text className="text-xs text-muted-foreground">Open Authy, 1Password, Google Authenticator. Refreshes every 30s.</Text>
             </View>
             <Button onPress={handleVerify} disabled={pending}>{pending ? <ActivityIndicator /> : <Text>Verify and continue</Text>}</Button>

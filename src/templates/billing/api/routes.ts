@@ -98,7 +98,7 @@ import { getBillingProvider } from "${p.billing}";
 
 function subscriptionsHandler(p: Paths): string {
   return `${preambleMinimal(p)}
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "${p.db}";
 import { subscriptions, invoices, usage_events, license_keys } from "${p.schema}";
 
@@ -107,11 +107,12 @@ export async function GET(request: Request): Promise<Response> {
   if (!user) return json({ error: "Unauthorized" }, 401);
 
   try {
-    const [subs, invs, usage, keys] = await Promise.all([
-      db.select().from(subscriptions).where(eq(subscriptions.userId, user.id)),
-      db.select().from(invoices),
-      db.select().from(usage_events),
-      db.select().from(license_keys),
+    const subs = await db.select().from(subscriptions).where(eq(subscriptions.userId, user.id));
+    const subIds = subs.map((s: { id: string }) => s.id);
+    const [invs, usage, keys] = await Promise.all([
+      subIds.length ? db.select().from(invoices).where(inArray(invoices.subscriptionId, subIds)) : Promise.resolve([]),
+      subIds.length ? db.select().from(usage_events).where(inArray(usage_events.subscriptionId, subIds)) : Promise.resolve([]),
+      subIds.length ? db.select().from(license_keys).where(inArray(license_keys.subscriptionId, subIds)) : Promise.resolve([]),
     ]);
     return json({
       subscriptions: subs,
