@@ -51,6 +51,29 @@ export function clientRuntimeEnvLines(prefix: "NEXT_PUBLIC_" | "VITE_"): string 
   return names.map((n) => `    ${prefix}${n}: process.env.${prefix}${n},`).join("\n");
 }
 
+export const EXPO_CLIENT_VARS = [
+  `    // Expo public vars — validated when mobile is enabled; optional otherwise`,
+  `    EXPO_PUBLIC_APP_URL: z.string().url().optional().default("http://localhost:3000"),`,
+  `    EXPO_PUBLIC_API_URL: z.string().url().optional(),`,
+  `    EXPO_PUBLIC_CONVEX_URL: z.string().url().optional(),`,
+  `    EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional().default("pk_test_REPLACE"),`,
+  `    EXPO_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().min(1).optional(),`,
+  `    EXPO_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),`,
+  `    EXPO_PUBLIC_POSTHOG_HOST: z.string().min(1).optional(),`,
+  `    EXPO_PUBLIC_WS_URL: z.string().url().optional(),`,
+].join("\n");
+
+export const EXPO_CLIENT_RUNTIME = [
+  `    EXPO_PUBLIC_APP_URL: process.env.EXPO_PUBLIC_APP_URL,`,
+  `    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,`,
+  `    EXPO_PUBLIC_CONVEX_URL: process.env.EXPO_PUBLIC_CONVEX_URL,`,
+  `    EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,`,
+  `    EXPO_PUBLIC_PADDLE_CLIENT_TOKEN: process.env.EXPO_PUBLIC_PADDLE_CLIENT_TOKEN,`,
+  `    EXPO_PUBLIC_POSTHOG_KEY: process.env.EXPO_PUBLIC_POSTHOG_KEY,`,
+  `    EXPO_PUBLIC_POSTHOG_HOST: process.env.EXPO_PUBLIC_POSTHOG_HOST,`,
+  `    EXPO_PUBLIC_WS_URL: process.env.EXPO_PUBLIC_WS_URL,`,
+].join("\n");
+
 /**
  * Convex deployment vars. packages/database (Convex variant) reads env.CONVEX_URL,
  * NEXT_PUBLIC_CONVEX_URL, VITE_CONVEX_URL and EXPO_PUBLIC_CONVEX_URL, but @repo/config
@@ -95,7 +118,13 @@ export function configPackageFiles(
     : v.validation["@t3-oss/env-nextjs"];
   const clientVars = isTanstack ? VITE_CLIENT_VARS : NEXT_PUBLIC_CLIENT_VARS;
   const clientRuntime = clientRuntimeEnvLines(isTanstack ? "VITE_" : "NEXT_PUBLIC_");
+  // Expo vars are framework-agnostic and always validated (optional) to avoid runtime undefined when mobile is later added
+  const expoVars = `\n${EXPO_CLIENT_VARS}`;
+  const expoRuntime = `\n${EXPO_CLIENT_RUNTIME}`;
   // env-core has no implicit prefix; env-nextjs supplies NEXT_PUBLIC_ itself.
+  // For Next.js we need to allow EXPO_PUBLIC_ vars via server (they are client-exposed but t3-env-nextjs only allows NEXT_PUBLIC_)
+  // So we keep them in server when using nextjs, and in client only when using vite (which allows custom prefix via manual validation)
+  // To avoid t3-env error, we add EXPO vars to server for both, and rely on client having them as optional via server validation for nextjs
   const clientPrefixLine = isTanstack ? `  clientPrefix: "VITE_",\n` : "";
 
   return [
@@ -137,7 +166,7 @@ export function configPackageFiles(
       `import { createEnv } from "${envPackage}";
 import { z } from "zod";
 export const env = createEnv({
-${clientPrefixLine}  server: {${convexServer}
+${clientPrefixLine}  server: {${convexServer}${expoVars}
     NODE_ENV: z.enum(["development","production","test"]).default("development"),
     APP_NAME: z.string().min(1).default("GhostInit App"),
     DATABASE_URL: z.string().min(1).optional(),
@@ -173,7 +202,7 @@ ${clientPrefixLine}  server: {${convexServer}
   client: {
 ${clientVars}${convexClient}
   },
-  runtimeEnv: {${convexServerRuntime}
+  runtimeEnv: {${convexServerRuntime}${expoRuntime}
     NODE_ENV: process.env.NODE_ENV,
     APP_NAME: process.env.APP_NAME,
     DATABASE_URL: process.env.DATABASE_URL,

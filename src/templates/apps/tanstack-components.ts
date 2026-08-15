@@ -70,7 +70,7 @@ function providersComponent(isConvex = false): TemplateFile {
 function convexClientProviderComponent(): TemplateFile {
   return file(
     "apps/web/src/components/providers/convex-client-provider.tsx",
-    convexClientProviderContent(),
+    convexClientProviderContent("tanstack"),
   );
 }
 

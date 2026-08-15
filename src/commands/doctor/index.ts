@@ -164,6 +164,28 @@ export async function doctorCommand(_args: string[], options: GlobalOptions): Pr
     checks.push(await checkDatabase(envVars));
     checks.push(checkPresence("BETTER_AUTH_URL", betterAuthUrl));
     checks.push(checkPresence("NEXT_PUBLIC_APP_URL", appUrl));
+    // Expo env checks when mobile app is part of project
+    const hasMobile = state.project.apps?.includes("mobile");
+    if (hasMobile) {
+      const expoAppUrl = envVars.EXPO_PUBLIC_APP_URL;
+      const expoApiUrl = envVars.EXPO_PUBLIC_API_URL;
+      checks.push({
+        name: "expo_public_app_url",
+        ok: Boolean(expoAppUrl),
+        message: expoAppUrl
+          ? `EXPO_PUBLIC_APP_URL is set`
+          : "EXPO_PUBLIC_APP_URL not set — device builds will fallback to http://localhost:3000 and fail in production",
+      });
+      // EXPO_PUBLIC_API_URL is optional but warned if missing in production-like env
+      if (!expoApiUrl && envVars.NODE_ENV !== "test") {
+        checks.push({
+          name: "expo_public_api_url",
+          ok: false,
+          message:
+            "EXPO_PUBLIC_API_URL not set — Expo will use EXPO_PUBLIC_APP_URL or http://localhost:3000",
+        });
+      }
+    }
     {
       const pwLengthRaw = envVars.POSTGRES_PASSWORD_LENGTH;
       const pwLengthNum = pwLengthRaw !== undefined ? Number.parseInt(pwLengthRaw, 10) : 0;

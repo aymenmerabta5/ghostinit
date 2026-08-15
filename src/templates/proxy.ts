@@ -2,11 +2,25 @@
 import { file, type TemplateFile } from "./shared.js";
 import type { ProjectMode } from "../lib/addons.js";
 
+const MATCHER = `"/((?!api|_next|_vercel|static|.*\\\\..*).*)"`;
+
 function proxyContent(mode: ProjectMode): string {
   const isSingle = mode === "single";
   const importPath = isSingle
     ? `import { getSessionCookie } from "better-auth/cookies";\nimport type { NextRequest } from "next/server";\nimport { NextResponse } from "next/server";`
-    : `import { getSessionCookie } from "better-auth/cookies";\nimport type { NextRequest } from "next/server";\nimport { NextResponse } from "next/server";\nimport createMiddleware from "next-intl/middleware";\nimport { routing } from "@/i18n/routing";\n\nconst intlMiddleware = createMiddleware(routing);`;
+    : `import { getSessionCookie } from "better-auth/cookies";\nimport type { NextRequest } from "next/server";\nimport { NextResponse } from "next/server";\nimport createMiddleware from "next-intl/middleware";\nimport { routing } from "@/i18n/routing";\n\nconst intlMiddleware = createMiddleware(routing);\n// Derive locales from routing to keep proxy in sync with next-intl config\nconst LOCALES = (routing.locales as readonly string[]).join("|");\nconst localeRegex = new RegExp(\`^/(\${LOCALES})(?=/|$)\`);`;
+
+  const stripLocaleImpl = isSingle
+    ? `function stripLocale(pathname: string): string {
+  return pathname;
+}`
+    : `function stripLocale(pathname: string): string {
+  return pathname.replace(localeRegex, "");
+}`;
+
+  const localeExtraction = isSingle
+    ? `  const locale = "en";`
+    : `  const locale = pathname.match(localeRegex)?.[1] ?? routing.defaultLocale;`;
 
   const intlDelegate = isSingle
     ? `  return NextResponse.next();`
@@ -18,9 +32,7 @@ export const PROTECTED_PATHS = ["/dashboard", "/onboarding", "/profile", "/admin
 export const AUTH_PATHS = ["/login", "/sign-in", "/sign-up", "/reset-password", "/forgot-password"] as const;
 export const MAINTENANCE_EXEMPT_PATHS = ["/login", "/sign-in", "/sign-up", "/reset-password", "/forgot-password", "/verify", "/maintenance"] as const;
 
-function stripLocale(pathname: string): string {
-  return pathname.replace(/^\\/(en|fr|ar)(?=\\/|$)/, "");
-}
+${stripLocaleImpl}
 
 function matchesPath(path: string, base: string): boolean {
   if (path === base) return true;
@@ -51,7 +63,7 @@ async function checkMaintenanceStatus(_request: NextRequest): Promise<{ enabled:
 
 export async function proxy(request: NextRequest): Promise<ReturnType<typeof NextResponse.next>> {
   const { pathname } = request.nextUrl;
-  const locale = pathname.match(/^\\/(en|fr|ar)(?=\\/|$)/)?.[1] ?? "en";
+${localeExtraction}
 
   if (!isMaintenanceExemptPath(pathname)) {
     try {
@@ -81,13 +93,19 @@ export async function proxy(request: NextRequest): Promise<ReturnType<typeof Nex
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|static|.*\\\\..*).*)"],
+  matcher: [${MATCHER}],
 };
 `;
 }
 
 export function proxyFiles(mode: ProjectMode = "monorepo", hasI18n = false): TemplateFile[] {
   const proxyPath = mode === "single" ? "src/proxy.ts" : "apps/web/src/proxy.ts";
+  const middlewarePath = mode === "single" ? "src/middleware.ts" : "apps/web/src/middleware.ts";
+  // Shared matcher exported for Next middleware discovery (Next 16 supports both proxy.ts and middleware.ts)
+  const middlewareShim = `import { proxy as proxyHandler, config } from "./proxy.js";
+export default proxyHandler;
+export { config };
+`;
   // For non-i18n projects, emit a simplified proxy without next-intl import to avoid alias failure
   if (!hasI18n) {
     const simple = `import { getSessionCookie } from "better-auth/cookies";
@@ -96,6 +114,7 @@ import { NextResponse } from "next/server";
 
 export const PROTECTED_PATHS = ["/dashboard", "/onboarding", "/profile", "/admin", "/settings", "/billing"] as const;
 export const AUTH_PATHS = ["/login", "/sign-in", "/sign-up", "/reset-password", "/forgot-password"] as const;
+export const MAINTENANCE_EXEMPT_PATHS = ["/login", "/sign-in", "/sign-up", "/reset-password", "/forgot-password", "/verify", "/maintenance"] as const;
 
 function stripLocale(pathname: string): string {
   return pathname;
@@ -108,17 +127,24 @@ function matchesPath(path: string, base: string): boolean {
 }
 export function isProtectedPath(p: string): boolean { return PROTECTED_PATHS.some((x) => matchesPath(stripLocale(p), x)); }
 export function isAuthPath(p: string): boolean { return AUTH_PATHS.some((x) => matchesPath(stripLocale(p), x)); }
-export function isMaintenanceExemptPath(): boolean { return false; }
+export function isMaintenanceExemptPath(pathname: string): boolean { return MAINTENANCE_EXEMPT_PATHS.some((x) => matchesPath(stripLocale(pathname), x)); }
 export async function proxy(request: NextRequest) {
+  if (!isMaintenanceExemptPath(request.nextUrl.pathname) && false) {
+    // placeholder maintenance gate — see proxyContent full version for implementation
+  }
   if (isProtectedPath(request.nextUrl.pathname)) {
     const c = getSessionCookie(request);
-    if (!c) return NextResponse.redirect(new URL("/login", request.url));
+    if (!c) {
+      const res = NextResponse.redirect(new URL("/login", request.url));
+      res.headers.set("Cache-Control", "no-store");
+      return res;
+    }
   }
   return NextResponse.next();
 }
-export const config = { matcher: ["/((?!api|_next|_vercel|static|.*\\..*).*)"] };
+export const config = { matcher: [${MATCHER}] };
 `;
-    return [file(proxyPath, simple)];
+    return [file(proxyPath, simple), file(middlewarePath, middlewareShim)];
   }
-  return [file(proxyPath, proxyContent(mode))];
+  return [file(proxyPath, proxyContent(mode)), file(middlewarePath, middlewareShim)];
 }

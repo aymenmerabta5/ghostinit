@@ -16,6 +16,14 @@ import { adminFiles } from "./fragments/admin/index.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { agentFiles } from "./fragments/agent/index.js";
 import { resolveHasEve, type FeatureInput } from "./fragments/features.js";
+import {
+  manifestFileContent,
+  opengraphImageContent,
+  robotsFileContent,
+  sitemapFileContent,
+  viewportFileContent,
+} from "./fragments/seo.js";
+import { nextInstrumentationContent } from "./fragments/instrumentation.js";
 
 export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] {
   // The agent page imports `eve/react`. Emitting it unconditionally shipped a
@@ -30,6 +38,13 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
     notFoundPage(),
     errorPage(),
     loadingPage(),
+    sitemap(),
+    robots(),
+    manifest(),
+    viewport(),
+    opengraphImage(),
+    dashboardLoading(),
+    instrumentation(),
     marketingPage(),
     signInPage(),
     signUpPage(),
@@ -77,6 +92,27 @@ function twoFactorPage(): TemplateFile {
 }
 function dashboardPage(): TemplateFile {
   return file("apps/web/src/app/dashboard/page.tsx", dashboardPageContent("next"));
+}
+function sitemap(): TemplateFile {
+  return file("apps/web/src/app/sitemap.ts", sitemapFileContent("next"));
+}
+function robots(): TemplateFile {
+  return file("apps/web/src/app/robots.ts", robotsFileContent("next"));
+}
+function manifest(): TemplateFile {
+  return file("apps/web/src/app/manifest.ts", manifestFileContent());
+}
+function viewport(): TemplateFile {
+  return file("apps/web/src/app/viewport.ts", viewportFileContent());
+}
+function opengraphImage(): TemplateFile {
+  return file("apps/web/src/app/opengraph-image.tsx", opengraphImageContent());
+}
+function dashboardLoading(): TemplateFile {
+  return file("apps/web/src/app/dashboard/loading.tsx", loadingFileContent());
+}
+function instrumentation(): TemplateFile {
+  return file("apps/web/src/instrumentation.ts", nextInstrumentationContent());
 }
 
 // Re-export legacy functions for backward compat

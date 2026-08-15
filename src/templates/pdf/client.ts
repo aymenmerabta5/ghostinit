@@ -94,12 +94,12 @@ export function desktopPdfHelperContent(): string {
 // For offline direct generation (Electron main), you can import { renderInvoicePdf } from "@repo/pdf" directly
 // since Electron main is Node. This helper prefers the HTTP path for parity with web/mobile.
 
-export async function generatePdfDesktop(input: { template: "invoice" | "certificate" | "agreement"; data: unknown; fileName?: string }, endpoint = "http://localhost:3000/api/pdf"): Promise<string> {
-  const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/pdf" } as unknown as Record<string, string>, body: JSON.stringify(input) });
-  // Fallback to JSON endpoint if above fails
-  const jsonRes = await fetch("http://localhost:3000/api/pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-  if (!jsonRes.ok) throw new Error(\`PDF failed \${jsonRes.status}\`);
-  const json = await jsonRes.json() as { pdfBase64?: string; fileName?: string };
+export async function generatePdfDesktop(input: { template: "invoice" | "certificate" | "agreement"; data: unknown; fileName?: string }, endpoint?: string): Promise<string> {
+  const base = endpoint ?? (typeof process !== "undefined" && (process.env.DESKTOP_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? process.env.VITE_API_URL)) ?? "http://localhost:3000";
+  const url = (base.endsWith("/") ? base.slice(0, -1) : base) + "/api/pdf";
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" } as unknown as Record<string, string>, body: JSON.stringify(input) });
+  if (!res.ok) throw new Error(\`PDF failed \${res.status}\`);
+  const json = await res.json() as { pdfBase64?: string; fileName?: string };
   if (!json.pdfBase64) throw new Error("No pdfBase64");
   return json.pdfBase64;
 }

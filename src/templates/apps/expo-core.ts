@@ -152,6 +152,13 @@ export function webPackageMobile(
         "expo-status-bar": `^${v.expo["expo-status-bar"]}`,
         "expo-web-browser": `^${v.expo["expo-web-browser"]}`,
         "expo-clipboard": `^${v.expo["expo-clipboard"]}`,
+        "expo-notifications": `^${v.expo["expo-notifications"] ?? "0.32.11"}`,
+        "expo-updates": `^${v.expo["expo-updates"] ?? "0.29.13"}`,
+        "expo-localization": `^${v.expo["expo-localization"] ?? "16.0.1"}`,
+        "@react-native-community/netinfo": `^${v.expo["@react-native-community/netinfo"] ?? "11.3.1"}`,
+        "@tanstack/query-async-storage-persister": `^${v.tanstack["@tanstack/query-async-storage-persister"] ?? "5.90.1"}`,
+        "@tanstack/query-persist-client-core": `^${v.tanstack["@tanstack/query-persist-client-core"] ?? "5.90.1"}`,
+        "posthog-react-native": `^${v.analytics["posthog-react-native"] ?? "4.6.0"}`,
         react: `^${v.nextStack.react}`,
         // app.json declares platforms [ios, android, web]; react-native-web lists
         // react-dom as a non-optional peer, and `expo export` (the build script)
@@ -220,13 +227,24 @@ export function expoAppJsonContent(projectName = "__PROJECT_NAME__"): string {
           assetBundlePatterns: ["**/*"],
           ios: {
             supportsTablet: true,
+            associatedDomains: [`applinks:${scheme}.example.com`],
           },
           android: {
             adaptiveIcon: {
               backgroundColor: "#ffffff",
             },
+            intentFilters: [
+              {
+                action: "VIEW",
+                autoVerify: true,
+                data: [{ scheme: "https", host: `${scheme}.example.com`, pathPrefix: "/" }],
+                category: ["BROWSABLE", "DEFAULT"],
+              },
+            ],
+            useNextNotificationsApi: true,
           },
-          plugins: ["expo-router", "expo-secure-store"],
+          plugins: ["expo-router", "expo-secure-store", "expo-notifications"],
+          updates: { url: `https://${scheme}.example.com/api/manifest` },
           experiments: {
             typedRoutes: true,
           },

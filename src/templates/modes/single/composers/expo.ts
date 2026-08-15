@@ -336,6 +336,7 @@ import type { UseCopyReturn } from "@/lib/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const copy = React.useCallback(async (text: string): Promise<boolean> => {
     try {
@@ -353,21 +354,19 @@ export function useCopy(): UseCopyReturn {
         didCopy = true;
       }
       if (!didCopy) {
-        // RN fallback: no clipboard available, still mark as copied for UX
-        didCopy = true;
+        setError("Clipboard not available — copy failed");
+        return false;
       }
-      if (didCopy) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        return true;
-      }
-      return false;
-    } catch {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
       return false;
     }
   }, []);
 
-  return { copy, copied };
+  return { copy, copied, error };
 }
 `;
 }

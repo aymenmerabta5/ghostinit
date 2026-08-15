@@ -178,10 +178,27 @@ export default function BillingScreen(): React.JSX.Element {
     let mounted = true;
     (async () => {
       try {
-        const r = await fetch((process.env.EXPO_PUBLIC_API_URL ?? "") + "/api/billing/subscriptions");
+        // Use oRPC client via fetch with auth cookie; fallback to unauthenticated gracefully
+        const { orpc } = await import("@/lib/orpc");
+        // orpc is RPCLink-based; for billing we call via orpc.billing.list if available, else fallback fetch with auth header
+        const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? process.env.EXPO_PUBLIC_APP_URL ?? "http://localhost:3000";
+        const { authClient } = await import("@/lib/auth-client");
+        const cookie = await authClient.getCookie();
+        const headers: Record<string, string> = cookie ? { cookie } : {};
+        const r = await fetch(baseUrl + "/api/rpc/billing.subscriptions", { headers });
         if (r.ok) {
-          const d = await r.json() as { subscriptions?: Sub[]; invoices?: Inv[] };
-          if (mounted) { if (d.subscriptions) setSubs(d.subscriptions); if (d.invoices) setInvs(d.invoices); }
+          const d = await r.json() as { subscriptions?: Sub[]; invoices?: Inv[]; result?: { subscriptions?: Sub[]; invoices?: Inv[] } };
+          const payload = (d as unknown as { result?: unknown }).result ?? d;
+          const subsData = (payload as { subscriptions?: Sub[] }).subscriptions;
+          const invsData = (payload as { invoices?: Inv[] }).invoices;
+          if (mounted) { if (subsData) setSubs(subsData); if (invsData) setInvs(invsData); }
+        } else {
+          // fallback to legacy REST for backwards compat
+          const legacy = await fetch(baseUrl + "/api/billing/subscriptions", { headers });
+          if (legacy.ok) {
+            const d = await legacy.json() as { subscriptions?: Sub[]; invoices?: Inv[] };
+            if (mounted) { if (d.subscriptions) setSubs(d.subscriptions); if (d.invoices) setInvs(d.invoices); }
+          }
         }
       } catch (e) { if (mounted) setError(e instanceof Error ? e.message : String(e)); }
       finally { if (mounted) setLoading(false); }
@@ -193,12 +210,25 @@ export default function BillingScreen(): React.JSX.Element {
     setCheckoutLoading(true); setError(null);
     try {
       const { Linking: LinkingForUrls } = await import("expo-linking");
-      const successUrl = LinkingForUrls.createURL("/billing/success");
-      const failureUrl = LinkingForUrls.createURL("/billing/cancel");
-      const r = await fetch((process.env.EXPO_PUBLIC_API_URL ?? "") + "/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, priceId: "price_demo", successUrl, failureUrl }) });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json() as { url?: string; checkout_url?: string };
-      const url = data.url ?? data.checkout_url;
+      // Use app-internal billing route as success fallback (no dedicated success screen needed)
+      const successUrl = LinkingForUrls.createURL("/billing?checkout=success");
+      const failureUrl = LinkingForUrls.createURL("/billing?checkout=cancel");
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? process.env.EXPO_PUBLIC_APP_URL ?? "http://localhost:3000";
+      const { authClient } = await import("@/lib/auth-client");
+      const cookie = await authClient.getCookie();
+      const headers: Record<string, string> = { "Content-Type": "application/json", ...(cookie ? { cookie } : {}) };
+      const r = await fetch(baseUrl + "/api/rpc/billing.createCheckout", { method: "POST", headers, body: JSON.stringify({ provider, priceId: "price_demo", successUrl, failureUrl }) });
+      if (!r.ok) {
+        // fallback legacy REST
+        const legacy = await fetch(baseUrl + "/api/billing/checkout", { method: "POST", headers, body: JSON.stringify({ provider, priceId: "price_demo", successUrl, failureUrl }) });
+        if (!legacy.ok) throw new Error(await legacy.text());
+        const data = await legacy.json() as { url?: string; checkout_url?: string };
+        const url = data.url ?? data.checkout_url;
+        if (url) { const { Linking } = await import("expo-linking"); await Linking.openURL(url); }
+        return;
+      }
+      const data = await r.json() as { url?: string; checkout_url?: string; result?: { url?: string } };
+      const url = data.url ?? data.checkout_url ?? (data as unknown as { result?: { url?: string } }).result?.url;
       if (url) { const { Linking } = await import("expo-linking"); await Linking.openURL(url); }
     } catch (e) { setError(e instanceof Error ? e.message : "Checkout failed"); } finally { setCheckoutLoading(false); }
   }

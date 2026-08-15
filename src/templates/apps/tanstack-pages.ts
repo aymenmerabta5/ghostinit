@@ -26,6 +26,13 @@ import { recoveryFiles } from "./fragments/recovery/index.js";
 import { settingsFiles } from "./fragments/settings/index.js";
 import { billingFiles } from "./fragments/billing/index.js";
 import { tanstackAdminFiles } from "./fragments/admin/index.js";
+import {
+  manifestFileContent,
+  robotsFileContent,
+  sitemapFileContent,
+  viewportFileContent,
+} from "./fragments/seo.js";
+import { tanstackInstrumentationContent } from "./fragments/instrumentation.js";
 
 export function tanstackPageFiles(): TemplateFile[] {
   return [
@@ -42,6 +49,12 @@ export function tanstackPageFiles(): TemplateFile[] {
     unauthorizedRoute(),
     forbiddenRoute(),
     notFoundRoute(),
+    sitemap(),
+    robots(),
+    manifest(),
+    viewport(),
+    instrumentation(),
+    dashboardLoading(),
   ];
 }
 
@@ -79,4 +92,25 @@ function forbiddenRoute(): TemplateFile {
 
 function notFoundRoute(): TemplateFile {
   return file("apps/web/src/routes/$notFound.tsx", notFoundFileContent("tanstack"));
+}
+function sitemap(): TemplateFile {
+  return file("apps/web/src/routes/sitemap.ts", sitemapFileContent("tanstack"));
+}
+function robots(): TemplateFile {
+  return file("apps/web/src/routes/robots.ts", robotsFileContent("tanstack"));
+}
+function manifest(): TemplateFile {
+  return file("apps/web/src/routes/manifest.ts", manifestFileContent("tanstack"));
+}
+function viewport(): TemplateFile {
+  return file("apps/web/src/routes/viewport.ts", viewportFileContent("tanstack"));
+}
+function instrumentation(): TemplateFile {
+  return file("apps/web/src/instrumentation.ts", tanstackInstrumentationContent());
+}
+function dashboardLoading(): TemplateFile {
+  return file(
+    "apps/web/src/routes/dashboard/loading.tsx",
+    `import { Skeleton } from "@/components/ui/skeleton";\nexport default function DashboardLoading(): React.JSX.Element { return (<div className="p-6"><Skeleton className="h-32 w-full" /></div>); }\n`,
+  );
 }

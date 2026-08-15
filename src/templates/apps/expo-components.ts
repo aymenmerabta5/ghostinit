@@ -2,6 +2,7 @@ import { file, type TemplateFile } from "../shared.js";
 import { expoAuthClientContent, expoOrpcClientContent } from "./fragments/expo/orpc.js";
 import { expoHeaderContent, expoSignOutButtonContent } from "./fragments/expo/header.js";
 import { rnrAllFiles } from "./fragments/expo/rnr/index.js";
+import { expoOfflineHookContent, expoPushHookContent } from "./fragments/expo/native.js";
 
 export function expoComponentFiles(): TemplateFile[] {
   return [
@@ -14,6 +15,8 @@ export function expoComponentFiles(): TemplateFile[] {
     file("apps/mobile/src/hooks/use-auth.ts", expoUseAuthHook()),
     file("apps/mobile/src/hooks/use-billing.ts", expoUseBillingHook()),
     file("apps/mobile/src/hooks/use-copy.ts", expoUseCopyHook()),
+    file("apps/mobile/src/hooks/use-push.ts", expoPushHookContent()),
+    file("apps/mobile/src/hooks/use-offline.ts", expoOfflineHookContent()),
   ];
 }
 
@@ -102,6 +105,7 @@ import type { UseCopyReturn } from "@repo/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const copy = React.useCallback(async (text: string): Promise<boolean> => {
     try {
@@ -121,20 +125,19 @@ export function useCopy(): UseCopyReturn {
         }
       }
       if (!didCopy) {
-        didCopy = true;
+        setError("Clipboard not available — copy failed");
+        return false;
       }
-      if (didCopy) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        return true;
-      }
-      return false;
-    } catch {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
       return false;
     }
   }, []);
 
-  return { copy, copied };
+  return { copy, copied, error };
 }
 `;
 }

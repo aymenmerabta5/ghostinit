@@ -84,15 +84,37 @@ const resetPasswordSchema = z.object({ newPassword: z.string().min(8, "Password 
 interface ResetPasswordForm { newPassword: string; confirmPassword: string; }
 
 export const Route = createFileRoute('/reset-password')({
+  validateSearch: (search: Record<string, unknown>): { token?: string; error?: string } => ({
+    token: typeof search.token === "string" ? search.token : undefined,
+    error: typeof search.error === "string" ? search.error : undefined,
+  }),
   component: ResetPasswordPage,
 })
 
 function ResetPasswordPage(): React.JSX.Element {
   const navigate = useNavigate()
-  type ResetSearch = { token?: string }
-  const search = Route.useSearch() as ResetSearch
-  const token = search?.token ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null)
-  const [error, setError] = useState<string | null>(null)
+  const search = Route.useSearch()
+  const token = search.token
+  const initialError = search.error === "INVALID_TOKEN" ? "Invalid or expired reset link. Please request a new one." : search.error ?? null
+  const [error, setError] = useState<string | null>(initialError)
+  const form = useForm({
+    defaultValues: { newPassword: "", confirmPassword: "" } as ResetPasswordForm,
+    validators: {
+      onSubmit: ({ value }) => {
+        const parsed = resetPasswordSchema.safeParse(value);
+        if (!parsed.success) return parsed.error.issues[0]?.message ?? "Invalid";
+        return undefined;
+      },
+    },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const parsed = resetPasswordSchema.safeParse(value);
+      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Password must be at least 8"); return; }
+      const result = await authClient.resetPassword({ newPassword: parsed.data.newPassword, token: token! })
+      if (result.error) { setError(result.error.message ?? 'Failed to reset password'); return; }
+      void navigate({ to: '/sign-in' })
+    },
+  });
 
   if (!token) {
     return (
@@ -110,25 +132,6 @@ function ResetPasswordPage(): React.JSX.Element {
     )
   }
 
-  const form = useForm({
-    defaultValues: { newPassword: "", confirmPassword: "" } as ResetPasswordForm,
-    validators: {
-      onSubmit: ({ value }) => {
-        const parsed = resetPasswordSchema.safeParse(value);
-        if (!parsed.success) return parsed.error.issues[0]?.message ?? "Invalid";
-        return undefined;
-      },
-    },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const parsed = resetPasswordSchema.safeParse(value);
-      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Password must be at least 8"); return; }
-      const result = await authClient.resetPassword({ newPassword: parsed.data.newPassword, token })
-      if (result.error) { setError(result.error.message ?? 'Failed to reset password'); return; }
-      void navigate({ to: '/sign-in' })
-    },
-  });
-
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="w-full max-w-[420px] flex flex-col gap-6">
@@ -139,7 +142,7 @@ function ResetPasswordPage(): React.JSX.Element {
             <CardDescription className="max-w-[60ch]">Enter your new password. Must be at least 8 characters.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            {error ? <Alert variant="destructive"><AlertTitle>Unable to reset</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+            {error || !token ? <Alert variant="destructive"><AlertTitle>Unable to reset</AlertTitle><AlertDescription>{error ?? "Missing reset token. Use the link from your email."}</AlertDescription></Alert> : null}
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
                 <TanStackField form={form} name="newPassword" validators={{ onChange: ({ value }) => (value.length < 8 ? "At least 8 characters" : undefined), onSubmit: ({ value }) => (value.length < 8 ? "Password must be at least 8" : undefined) }}>

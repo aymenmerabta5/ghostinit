@@ -364,9 +364,12 @@ function convexClientContent(): string {
   ].join("\n");
 }
 
-function convexServerNextContent(): string {
+function convexServerNextContent(hasMobile = false): string {
+  const expoNote = hasMobile
+    ? `\n// Mobile enabled: ensure @better-auth/expo is installed and trustedOrigins includes scheme\nimport { expo } from "@better-auth/expo";`
+    : "";
   return [
-    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";`,
+    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";${expoNote}`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
@@ -436,9 +439,12 @@ function convexServerNextContent(): string {
   ].join("\n");
 }
 
-function convexServerTanstackContent(): string {
+function convexServerTanstackContent(hasMobile = false): string {
+  const expoNote = hasMobile
+    ? `\n// Mobile enabled: ensure @better-auth/expo is installed\nimport { expo } from "@better-auth/expo";`
+    : "";
   return [
-    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";`,
+    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";${expoNote}`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
@@ -498,9 +504,11 @@ function convexServerTanstackContent(): string {
   ].join("\n");
 }
 
-function convexPackageFiles(framework: AuthFramework): TemplateFile[] {
+function convexPackageFiles(framework: AuthFramework, hasMobile = false): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
-  const serverContent = isTanstack ? convexServerTanstackContent() : convexServerNextContent();
+  const serverContent = isTanstack
+    ? convexServerTanstackContent(hasMobile)
+    : convexServerNextContent(hasMobile);
 
   return [
     file(
@@ -515,6 +523,7 @@ function convexPackageFiles(framework: AuthFramework): TemplateFile[] {
         },
         dependencies: {
           "better-auth": `^${v.auth["better-auth"]}`,
+          ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
           "@repo/email": "workspace:*",
           convex: `^${v.convex.convex}`,
@@ -555,7 +564,7 @@ export function authPackage(
     }
   });
   if (isConvex) {
-    return convexPackageFiles(framework);
+    return convexPackageFiles(framework, hasMobile);
   }
   return postgresPackageFiles(framework, hasMobile);
 }

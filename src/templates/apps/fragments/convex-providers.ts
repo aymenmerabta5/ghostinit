@@ -6,7 +6,13 @@
 
 export type RouterType = "next" | "tanstack";
 
-export function convexClientProviderContent(): string {
+export function convexClientProviderContent(router: RouterType = "next"): string {
+  const convexEnv =
+    router === "tanstack"
+      ? "process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL"
+      : "process.env.NEXT_PUBLIC_CONVEX_URL";
+  const convexKey =
+    router === "tanstack" ? "NEXT_PUBLIC_CONVEX_URL / VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL";
   return `"use client";
 
 import * as React from "react";
@@ -14,12 +20,12 @@ import { ConvexReactClient } from "convex/react";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { authClient } from "@/lib/auth-client";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const convexUrl = ${convexEnv};
 
 if (!convexUrl) {
   if (typeof window !== "undefined") {
     console.warn(
-      "[ghostinit] NEXT_PUBLIC_CONVEX_URL is not set – Convex client will fail. Run \`npx convex dev\` to generate .env.local",
+      "[ghostinit] ${convexKey} is not set – Convex client will fail. Run \`npx convex dev\` to generate .env.local",
     );
   }
 }

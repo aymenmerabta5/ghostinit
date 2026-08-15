@@ -140,6 +140,7 @@ function getSafeValue(key: string): string | undefined {
       return safeStorage.decryptString(Buffer.from(raw, "base64"));
     }
   } catch {}
+  // Encryption unavailable: warn and return raw (plaintext) — caller should handle sensitivity
   return raw;
 }
 
@@ -149,8 +150,12 @@ function setSafeValue(key: string, value: string) {
       const encrypted = safeStorage.encryptString(value).toString("base64");
       store.set(key, encrypted);
       return;
+    } else {
+      console.warn("[desktop] safeStorage unavailable — storing plaintext fallback for", key);
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[desktop] safeStorage encrypt failed", e);
+  }
   store.set(key, value);
 }
 
@@ -162,6 +167,7 @@ function createWindow() {
     height: 800,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: "#ffffff",
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -176,7 +182,7 @@ function createWindow() {
   mainWindow.on("ready-to-show", () => mainWindow?.show());
 
   // Adapted from t3code DesktopWindow load logic — dev loads vite, prod loads file
-  const isDev = !app.isPackaged;
+  const isDev = process.env.ELECTRON_IS_DEV === "1" || !app.isPackaged;
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools({ mode: "detach" });
@@ -185,9 +191,22 @@ function createWindow() {
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: "deny" };
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return { action: "deny" as const };
+      void shell.openExternal(url);
+    } catch { return { action: "deny" as const }; }
+    return { action: "deny" as const };
   });
+
+  // Security: deny in-page navigations to external origins
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    try {
+      const allowed = url.startsWith("http://localhost:5173") || url.startsWith("file://");
+      if (!allowed) event.preventDefault();
+    } catch { event.preventDefault(); }
+  });
+  mainWindow.webContents.on("will-attach-webview", (event) => event.preventDefault());
 }
 
 app.whenReady().then(() => {
@@ -210,7 +229,18 @@ app.whenReady().then(() => {
   ipcMain.handle("desktop:get-client-settings", () => store.get("clientSettings"));
   ipcMain.handle("desktop:set-client-settings", (_e: unknown, val: unknown) => {
     if (val !== null && typeof val !== "object") throw new Error("Invalid clientSettings: expected object");
-    if (val && typeof val === "object" && Object.keys(val as object).length > 50) throw new Error("Invalid clientSettings: too many keys");
+    if (val && typeof val === "object") {
+      const keys = Object.keys(val as object);
+      if (keys.length > 50) throw new Error("Invalid clientSettings: too many keys");
+      if (keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")) throw new Error("Invalid clientSettings: prototype pollution key");
+      // shallow type check: values should be string/number/boolean/null
+      for (const k of keys) {
+        const v = (val as Record<string, unknown>)[k];
+        if (v !== null && typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean" && typeof v !== "object") {
+          throw new Error(\`Invalid clientSettings value for \${k}\`);
+        }
+      }
+    }
     store.set("clientSettings", val as never);
   });
 
@@ -227,9 +257,19 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("desktop:window-close", () => mainWindow?.close());
 
-  ipcMain.handle("desktop:updates-check", () => autoUpdater.checkForUpdates());
-  ipcMain.handle("desktop:updates-download", () => autoUpdater.downloadUpdate());
-  ipcMain.handle("desktop:updates-install", () => autoUpdater.quitAndInstall());
+  ipcMain.handle("desktop:updates-check", async () => {
+    try { return await autoUpdater.checkForUpdates(); } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+  });
+  ipcMain.handle("desktop:updates-download", async () => {
+    try { return await autoUpdater.downloadUpdate(); } catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+  });
+  ipcMain.handle("desktop:updates-install", () => {
+    try { autoUpdater.quitAndInstall(); } catch (e) { dialog.showErrorBox("Update install failed", e instanceof Error ? e.message : String(e)); }
+  });
+  // Forward updater events to renderer
+  autoUpdater.on("update-available", (info) => mainWindow?.webContents.send("desktop:update-available", info));
+  autoUpdater.on("update-downloaded", (info) => mainWindow?.webContents.send("desktop:update-downloaded", info));
+  autoUpdater.on("error", (err) => mainWindow?.webContents.send("desktop:update-error", err?.message ?? String(err)));
 
   ipcMain.handle("desktop:shell-open-external", (_e: unknown, url: unknown) => {
     if (typeof url !== "string" || !(url.startsWith("https://") || url.startsWith("http://"))) throw new Error("Invalid URL");
@@ -621,7 +661,9 @@ export function desktopRendererHtmlContent(): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:3000 https://localhost:3000;" />
+    <!-- CSP: connect-src uses DESKTOP_API_URL when configured, else localhost for dev -->
+    <!-- Note: update connect-src if you set DESKTOP_API_URL to a custom origin -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:3000 https://localhost:3000 ws://localhost:3000 wss://localhost:3000;" />
     <title>GhostInit Desktop</title>
   </head>
   <body>
@@ -1658,8 +1700,8 @@ mac:
 linux:
   target: AppImage
 publish:
-  provider: generic
-  url: https://example.com/updates
+  # TODO: Replace with your update server URL or remove publish section until configured
+  # url: REPLACE_WITH_UPDATE_URL
 `;
 }
 

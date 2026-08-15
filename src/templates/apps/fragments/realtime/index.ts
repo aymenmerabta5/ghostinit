@@ -109,6 +109,13 @@ function getWsUrl(): string {
 }
 
 async function getToken(): Promise<string | null> {
+  // Derive key from Better Auth storagePrefix: SecureStore key is \`\${storagePrefix}_auth_token\` via expoClient
+  // Fallback to legacy "auth_token" for backwards compat
+  try {
+    const { authClient } = await import("@/lib/auth-client");
+    const cookie = await authClient.getCookie();
+    if (cookie) return cookie;
+  } catch {}
   try { return await SecureStore.getItemAsync("auth_token"); } catch { return null; }
 }
 
@@ -116,8 +123,10 @@ export async function getMessagingClient(): Promise<RouterClient<typeof appRoute
   if (client && ws && ws.readyState === WebSocket.OPEN) return client;
   const base = getWsUrl();
   const token = await getToken();
-  const url = token ? \`\${base}?token=\${encodeURIComponent(token)}\` : base;
-  ws = new WebSocket(url);
+  // Use subprotocol/header instead of query param to avoid token leakage in logs
+  const wsProtocols = token ? ["bearer", token] : undefined;
+  const url = base;
+  ws = new WebSocket(url, wsProtocols as unknown as string[]);
   ws.addEventListener("message", (e) => {
     try { const data = JSON.parse((e as unknown as { data: string }).data); for (const l of listeners) l(data); } catch {}
   });

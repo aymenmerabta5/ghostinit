@@ -86,6 +86,8 @@ export const validation = {
 export const tanstack = {
   "@tanstack/react-query": "5.101.2",
   "@tanstack/react-form": "1.33.1",
+  "@tanstack/query-async-storage-persister": "5.90.1",
+  "@tanstack/query-persist-client-core": "5.90.1",
 } as const;
 
 export const tanstackStart = {
@@ -162,6 +164,7 @@ export const analytics = {
   // client/server APIs the templates are written against.
   "posthog-js": "1.239.1",
   "posthog-node": "4.18.0",
+  "posthog-react-native": "4.6.0",
 } as const;
 
 export const email = {
@@ -231,6 +234,10 @@ export const expo = {
   "expo-status-bar": "3.0.9",
   "expo-web-browser": "15.0.7",
   "expo-clipboard": "8.0.6",
+  "expo-notifications": "0.32.11",
+  "expo-updates": "0.29.13",
+  "expo-localization": "16.0.1",
+  "@react-native-community/netinfo": "11.3.1",
   "react-native": "0.81.4",
   "react-native-safe-area-context": "5.4.0",
   "react-native-web": "0.21.1",

@@ -17,9 +17,27 @@ export const securityHeaders = [
     value: "strict-origin-when-cross-origin",
   },
   {
+    key: "X-XSS-Protection",
+    value: "0",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+  },
+  {
+    key: "Strict-Transport-Security",
+    // Note: `preload` is intentionally omitted by default. Adding `preload`
+    // submits the domain to the HSTS preload list which is irreversible.
+    // Enable only after verifying https on all subdomains and submitting at hstspreload.org.
+    value: "max-age=63072000; includeSubDomains",
+  },
+  {
     key: "Content-Security-Policy",
+    // Note: 'unsafe-eval' removed — no generated dependency requires eval.
+    // If adding a library that needs eval (e.g. legacy analytics), isolate it
+    // and add 'unsafe-eval' only to that route's CSP.
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
   },
 ];
 
@@ -51,12 +69,14 @@ export function nextConfigHeadersFunction(): string {
           },
           {
             key: "Strict-Transport-Security",
-            value: "max-age=63072000; includeSubDomains; preload",
+            // preload omitted by default — see securityHeaders comment
+            value: "max-age=63072000; includeSubDomains",
           },
           {
             key: "Content-Security-Policy",
+            // 'unsafe-eval' removed; PostHog served via /ingest rewrites so no extra connect-src needed in CSP here
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
           },
         ],
       },
@@ -93,9 +113,11 @@ export function viteSecurityHeaders(): string {
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'X-XSS-Protection': '0',
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
-            'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+            // preload omitted by default — see securityHeaders comment
+            'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+              // 'unsafe-eval' removed; allow ws/wss for vite HMR in dev (prod Nitro routeRules overrides with stricter connect-src)
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
           },
         },`;
 }

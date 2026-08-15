@@ -15,9 +15,9 @@ function shouldEmitProvider(provider: BillingProviderName, selected: BillingProv
   return selected.includes(provider);
 }`;
 
-export const sharedAuthHandlerLogic = `const allowedAuthMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+export const sharedAuthHandlerLogic = `const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 async function handle(request: Request): Promise<Response> {
-  if (!allowedAuthMethods.has(request.method)) return new Response("Method not allowed", { status: 405 });
+  if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
   return auth.handler(request);
 }`;
 
@@ -25,18 +25,21 @@ export function authFileContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '@repo/auth'
-const allowed = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+export const runtime = "nodejs" as const;
+const ALLOWED = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 async function handle({ request }: { request: Request }): Promise<Response> {
-  if (!allowed.has(request.method)) return new Response('Method not allowed', { status: 405 })
+  if (!ALLOWED.has(request.method)) return new Response('Method not allowed', { status: 405 })
   return (auth as unknown as { handler: (req: Request) => Promise<Response> }).handler(request)
 }
 export const Route = createFileRoute('/api/auth/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
 `;
   }
   return `import { auth } from "@repo/auth";
-const allowedAuthMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 async function handle(request: Request): Promise<Response> {
-  if (!allowedAuthMethods.has(request.method)) return new Response("Method not allowed", { status: 405 });
+  if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
   return auth.handler(request);
 }
 export const GET = handle; export const POST = handle; export const PUT = handle; export const PATCH = handle; export const DELETE = handle;
@@ -44,7 +47,8 @@ export const GET = handle; export const POST = handle; export const PUT = handle
 }
 
 export function orpcFileContent(router: RouterType): string {
-  const sharedLogicTanstack = `const rpcHandler = new RPCHandler(appRouter);
+  const sharedLogicTanstack = `export const runtime = "nodejs" as const;
+const rpcHandler = new RPCHandler(appRouter);
 const openapiHandler = new OpenAPIHandler(appRouter);
 async function handle({ request }: { request: Request }): Promise<Response> {
   const context = await createContext(request.headers);
@@ -56,6 +60,8 @@ async function handle({ request }: { request: Request }): Promise<Response> {
   return new Response("Not found", { status: 404 });
 }`;
   const sharedLogicNext = `import { after } from "next/server";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 const rpcHandler = new RPCHandler(appRouter);
 const openapiHandler = new OpenAPIHandler(appRouter);
 async function handle(request: Request): Promise<Response> {
@@ -87,11 +93,14 @@ export const GET = handle; export const POST = handle; export const PUT = handle
 export function healthFileContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import { createFileRoute } from '@tanstack/react-router'
+export const runtime = "nodejs" as const;
 export const Route = createFileRoute('/api/health')({ server: { handlers: { GET: async () => { const body = JSON.stringify({ status: 'ok', time: new Date().toISOString() }); return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', }, }); }, }, }, })
 `;
   }
   return `import { NextResponse } from "next/server";
 import { after } from "next/server";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET(): Promise<NextResponse> {
   const response = NextResponse.json({ status: "ok", time: new Date().toISOString() });
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -109,13 +118,17 @@ export function openapiFileContent(router: RouterType): string {
   if (router === "tanstack") {
     return `import { createFileRoute } from '@tanstack/react-router'
 import { generateOpenAPISpec } from '@repo/api/openapi'
-export const Route = createFileRoute('/api/openapi')({ server: { handlers: { GET: async () => { if (process.env.NODE_ENV === 'production') return new Response('Not found', { status: 404 }); const spec = await generateOpenAPISpec(); return new Response(JSON.stringify(spec), { headers: { 'Content-Type': 'application/json', }, }); }, }, }, })
+export const runtime = "nodejs" as const;
+export const Route = createFileRoute('/api/openapi')({ server: { handlers: { GET: async () => { if (process.env.NODE_ENV === 'production') return new Response('Not found', { status: 404 }); if (process.env.ENABLE_OPENAPI === 'false') return new Response('Not found', { status: 404 }); const spec = await generateOpenAPISpec(); return new Response(JSON.stringify(spec), { headers: { 'Content-Type': 'application/json', }, }); }, }, }, })
 `;
   }
   return `import { NextResponse } from "next/server";
 import { generateOpenAPISpec } from "@repo/api/openapi";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET(): Promise<NextResponse> {
   if (process.env.NODE_ENV === "production") return new NextResponse("Not found", { status: 404 });
+  if (process.env.ENABLE_OPENAPI === "false") return new NextResponse("Not found", { status: 404 });
   const spec = await generateOpenAPISpec();
   return NextResponse.json(spec);
 }

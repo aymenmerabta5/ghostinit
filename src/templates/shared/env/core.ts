@@ -19,9 +19,10 @@ type DatabaseVal = "postgres" | "convex" | "none" | undefined;
 export interface EnvAudience {
   framework?: "nextjs" | "tanstack-start" | string;
   hasMobile?: boolean;
+  hasDesktop?: boolean;
 }
 
-const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false };
+const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false, hasDesktop: false };
 
 /** The web framework's own public prefix. */
 export function webPublicPrefix(framework?: string): "NEXT_PUBLIC_" | "VITE_" {
@@ -32,6 +33,7 @@ export function webPublicPrefix(framework?: string): "NEXT_PUBLIC_" | "VITE_" {
 export function publicPrefixes(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
   const prefixes: string[] = [webPublicPrefix(audience.framework)];
   if (audience.hasMobile) prefixes.push("EXPO_PUBLIC_");
+  if (audience.hasDesktop) prefixes.push("DESKTOP_");
   return prefixes;
 }
 

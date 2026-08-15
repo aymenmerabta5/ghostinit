@@ -436,8 +436,8 @@ export default function MessagesScreen(){ return <View style={{flex:1,padding:16
         file(
           "apps/desktop/src/renderer/routes/messages.tsx",
           `"use client";
-import { View, Text } from "react-native";
-export default function MessagesScreen(){ return <View style={{flex:1,padding:16}}><Text>Messages (Convex)</Text></View>; }
+import * as React from "react";
+export default function MessagesScreen(): React.JSX.Element { return <div style={{padding:16}}>Messages (Convex) — available in web build; desktop stub pending</div>; }
 `,
         ),
       );
