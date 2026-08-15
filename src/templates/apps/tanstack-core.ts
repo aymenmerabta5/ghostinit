@@ -12,6 +12,7 @@ import { globalCssContent } from "./fragments/css.js";
 import { viteSecurityHeaders, postcssConfigContent } from "./fragments/core.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 import { webUiFiles } from "./fragments/web-ui/index.js";
+import { webLibFiles } from "./fragments/web-lib.js";
 
 type FeatureInput =
   | boolean
@@ -76,6 +77,7 @@ export function tanstackCoreFiles(
     // it left every TanStack project referencing components that were never
     // generated (TS2307 across the whole app).
     ...webUiFiles(),
+    ...webLibFiles(),
   ];
 }
 

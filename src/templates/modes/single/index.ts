@@ -33,6 +33,7 @@ import { pdfFilesWithApps } from "../../pdf/index.js";
 import { messagingFilesFor } from "../../apps/fragments/messaging/index.js";
 import { realtimePackage } from "../../realtime.js";
 import { storagePackage } from "../../storage.js";
+import { lintScriptFiles } from "../../tooling/lint-scripts.js";
 import * as v from "../../versions.js";
 
 export interface SingleContext {
@@ -197,6 +198,7 @@ export function singleFiles(
     for (const f of singleFiles) withoutOld.push(f);
   }
 
+  for (const f of lintScriptFiles()) withoutOld.push(f);
   // Same-path emissions collapse here; differing content is a real conflict and
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
   let deduped = dedupeFilesOrThrow(withoutOld);

@@ -6,6 +6,9 @@ import { layoutFiles } from "./layout.js";
 import { overlaysFiles, sheetFiles } from "./overlays.js";
 import { dropdownFiles } from "./dropdown.js";
 import { chartFiles } from "./data.js";
+import { formFieldsFiles } from "./form-fields.js";
+import { dialogsFiles } from "./dialogs.js";
+import { missingUiFiles } from "./missing.js";
 
 /**
  * The same shadcn-style component set, emitted for a single-mode (flat) project.
@@ -42,5 +45,8 @@ export function cn(...inputs: ClassValue[]): string {
     ...sheetFiles(),
     ...dropdownFiles(),
     ...chartFiles(),
+    ...formFieldsFiles(),
+    ...dialogsFiles(),
+    ...missingUiFiles(),
   ];
 }

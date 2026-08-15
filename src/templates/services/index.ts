@@ -64,6 +64,14 @@ export function err<E = Error>(error: E): Result<never, E> {
       }),
     ),
   );
+  // Stagio pattern: typed ServiceError with code, mirrored in api mapper.
+  // Every service file carries `import "server-only"` — enforced by check-server-only lint.
+  files.push(
+    file(
+      `${base}/errors.ts`,
+      `import "server-only";\n\n/**\n * Shared typed error for service-layer domain failures.\n * Routes map \`code\` to transport-safe ORPC errors via createServiceORPCError.\n */\nexport class ServiceError<TCode extends string = string> extends Error {\n  readonly code: TCode;\n  constructor(code: TCode, message: string, options?: { cause?: unknown }) {\n    super(message);\n    this.name = "ServiceError";\n    this.code = code;\n    if (options?.cause !== undefined) this.cause = options.cause;\n  }\n}\nexport function isServiceError(error: unknown): error is ServiceError<string> {\n  return error instanceof ServiceError;\n}\n`,
+    ),
+  );
   // The billing service module is only emitted when a billing provider is
   // selected, so the barrel must not re-export it unconditionally — doing so left
   // no-billing projects with a barrel importing a file that was never generated.

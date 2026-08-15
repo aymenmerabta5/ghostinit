@@ -14,6 +14,7 @@ import {
   posthogRewritesBlock,
 } from "./fragments/core.js";
 import { webUiFiles } from "./fragments/web-ui/index.js";
+import { webLibFiles } from "./fragments/web-lib.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 
 type FeatureInput =
@@ -68,6 +69,7 @@ export function coreFiles(
     postcssConfig(),
     globalCss(runtime),
     ...webUiFiles(),
+    ...webLibFiles(),
   ];
 }
 

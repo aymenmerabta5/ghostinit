@@ -8,7 +8,7 @@ export type { SendResetPasswordInput, EmailProviderPort, SendResetPasswordDeps, 
 
 export function emailSendResetContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${resultImport}
+  return `import "server-only";\n${resultImport}
 export interface SendResetPasswordInput { email: string; resetUrl: string; }
 export interface EmailProviderPort { sendEmail(to: string, subject: string, html: string): Promise<{ id: string }>; }
 export interface SendResetPasswordDeps { emailProvider: EmailProviderPort; }

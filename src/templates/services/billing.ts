@@ -11,7 +11,7 @@ export type { PortalSessionRecord, CreatePortalSessionInput, CreatePortalSession
 
 export function billingCreateCheckoutContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${resultImport}
+  return `import "server-only";\n${resultImport}
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export interface CheckoutRecord { id: string; provider: BillingProviderName; url: string; status: string; }
 export interface BillingProviderPort { createCheckout(input: { provider: BillingProviderName; priceId: string; successUrl: string; failureUrl: string; }): Promise<CheckoutRecord>; }
@@ -26,7 +26,7 @@ export async function createCheckoutService(input: CreateCheckoutInput, deps: Cr
 
 function portalServiceContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${resultImport}
+  return `import "server-only";\n${resultImport}
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export interface PortalSessionRecord { url: string; }
 export interface PortalProviderPort { createPortalSession?(input: { customerId: string; returnUrl: string }): Promise<PortalSessionRecord>; }
@@ -61,7 +61,7 @@ import { subscriptions, invoices, usage_events, license_keys } from "@repo/billi
 import { db } from "@/server/db";
 import { subscriptions, invoices, usage_events, license_keys } from "@/server/billing/schema/billing";`;
 
-  return `${resultImport}
+  return `import "server-only";\n${resultImport}
 ${dbImport}
 export interface BillingSnapshot {
   subscriptions: Array<Record<string, unknown>>;

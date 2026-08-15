@@ -4,7 +4,7 @@ import { resultImportForMode, sharedCalculateTotal } from "./shared.js";
 
 export function invoiceServiceContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${resultImport}
+  return `import "server-only";\n${resultImport}
 export interface InvoiceItem { id: string; unitPrice: number; quantity: number; name: string; }
 export interface CreateInvoiceInput { userId: string; items: InvoiceItem[]; }
 export interface InvoiceRecord { id: string; total: number; status: string; }

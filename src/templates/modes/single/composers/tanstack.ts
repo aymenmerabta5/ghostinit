@@ -1,5 +1,6 @@
 // @allow-long 312: single-mode TanStack Start composer; the file list is a linear manifest
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
+import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import { file, type TemplateFile } from "../../../shared.js";
 import {
   type BillingProviderName,
@@ -216,6 +217,18 @@ export function buildTanstackFiles(
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
+  for (const f of webLibFiles("src")) {
+    if (
+      f.path.startsWith("src/lib/") ||
+      f.path.startsWith("src/hooks/") ||
+      f.path.startsWith("src/components/ui/surface") ||
+      f.path.startsWith("src/components/Notification") ||
+      f.path.startsWith("src/components/form-fields") ||
+      f.path.startsWith("src/components/dialogs")
+    ) {
+      if (!files.some((existing) => existing.path === f.path)) files.push(f);
+    }
+  }
   files.push(file("src/lib/orpc.ts", singleOrpcClientTanstackContent()));
   files.push(file("src/hooks/use-copy.ts", useCopyHookSingleContent()));
   files.push(file("src/hooks/use-billing.ts", useBillingHookSingleContent()));

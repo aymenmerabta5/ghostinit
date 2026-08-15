@@ -1,5 +1,6 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
+import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import { adminGuardContent } from "../../../apps/fragments/header.js";
 import {
   type BillingProviderName,
@@ -185,6 +186,21 @@ export function buildNextFiles(
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
+  // Generic web lib (animations, feature-flags, storage, notifications, hooks, form-fields, dialogs) — scaffolder starter, not domain copy.
+  for (const f of webLibFiles("src")) {
+    // singleWebUiFiles already covers form-fields/dialogs under web-ui, but webLibFiles also includes them via webUiFiles duplication.
+    // Filter to avoid duplicate paths: keep only lib/* and hooks/* and surface-styles
+    if (
+      f.path.startsWith("src/lib/") ||
+      f.path.startsWith("src/hooks/") ||
+      f.path.startsWith("src/components/ui/surface") ||
+      f.path.startsWith("src/components/Notification") ||
+      f.path.startsWith("src/components/form-fields") ||
+      f.path.startsWith("src/components/dialogs")
+    ) {
+      if (!files.some((existing) => existing.path === f.path)) files.push(f);
+    }
+  }
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
   if (isConvex) {

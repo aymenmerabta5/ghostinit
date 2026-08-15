@@ -113,6 +113,8 @@ export function singlePackageJson(
   isConvex = false,
   hasMessaging = false,
 ): string {
+  const lintAll =
+    "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs";
   const scripts: Record<string, string> = isConvex
     ? {
         dev: "next dev",
@@ -120,7 +122,15 @@ export function singlePackageJson(
         start: "next start",
         typecheck: "tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
-        lint: "oxlint .",
+        lint: lintAll,
+        "lint:biome": "oxlint .",
+        "lint:imports": "node scripts/check-import-aliases.cjs",
+        "lint:next-parity": "node scripts/check-next-parity.cjs",
+        "lint:navigation": "node scripts/check-navigation-imports.cjs",
+        "lint:architecture": "node scripts/check-feature-folder.cjs",
+        "lint:rtl": "node scripts/check-rtl-logical.cjs",
+        "lint:animations": "node scripts/check-animation-imports.cjs",
+        "lint:server-only": "node scripts/check-server-only.cjs",
         format: "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "convex:dev": "convex dev",
@@ -133,7 +143,15 @@ export function singlePackageJson(
         start: "next start",
         typecheck: "tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
-        lint: "oxlint .",
+        lint: lintAll,
+        "lint:biome": "oxlint .",
+        "lint:imports": "node scripts/check-import-aliases.cjs",
+        "lint:next-parity": "node scripts/check-next-parity.cjs",
+        "lint:navigation": "node scripts/check-navigation-imports.cjs",
+        "lint:architecture": "node scripts/check-feature-folder.cjs",
+        "lint:rtl": "node scripts/check-rtl-logical.cjs",
+        "lint:animations": "node scripts/check-animation-imports.cjs",
+        "lint:server-only": "node scripts/check-server-only.cjs",
         format: "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "db:generate": "drizzle-kit generate",
@@ -174,6 +192,8 @@ export function singlePackageJsonTanstack(
   hasMessaging = false,
 ): string {
   void hasI18n;
+  const lintAll =
+    "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-navigation-imports.cjs";
   const scripts: Record<string, string> = isConvex
     ? {
         dev: "vite dev --port 3000",
@@ -181,7 +201,13 @@ export function singlePackageJsonTanstack(
         start: "node .output/server/index.mjs",
         typecheck: "tsr generate && tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
-        lint: "oxlint .",
+        lint: lintAll,
+        "lint:biome": "oxlint .",
+        "lint:imports": "node scripts/check-import-aliases.cjs",
+        "lint:architecture": "node scripts/check-feature-folder.cjs",
+        "lint:rtl": "node scripts/check-rtl-logical.cjs",
+        "lint:animations": "node scripts/check-animation-imports.cjs",
+        "lint:server-only": "node scripts/check-server-only.cjs",
         format: "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "convex:dev": "convex dev",
@@ -194,7 +220,13 @@ export function singlePackageJsonTanstack(
         start: "node .output/server/index.mjs",
         typecheck: "tsr generate && tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
-        lint: "oxlint .",
+        lint: lintAll,
+        "lint:biome": "oxlint .",
+        "lint:imports": "node scripts/check-import-aliases.cjs",
+        "lint:architecture": "node scripts/check-feature-folder.cjs",
+        "lint:rtl": "node scripts/check-rtl-logical.cjs",
+        "lint:animations": "node scripts/check-animation-imports.cjs",
+        "lint:server-only": "node scripts/check-server-only.cjs",
         format: "oxfmt --write .",
         "format:check": "oxfmt --check .",
         "db:generate": "drizzle-kit generate",

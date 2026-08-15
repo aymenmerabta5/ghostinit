@@ -54,6 +54,7 @@ export interface ApiContext {
     email: string;
     name?: string | null;
     role?: string | null;
+    banned?: boolean | null;
   };
   sessionId?: string;
 }
@@ -63,30 +64,39 @@ export async function createContext(headers: Headers): Promise<ApiContext> {
   if (!session?.user) {
     return {};
   }
+  const raw = session.user as unknown as { role?: string; banned?: boolean };
   return {
     user: {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: (session.user as unknown as { role?: string }).role ?? "user",
+      role: raw.role ?? "user",
+      banned: raw.banned ?? null,
     },
     sessionId: (session.session as unknown as { id?: string })?.id,
   };
 }
 
-// RBAC helpers — throw ORPCError if not authenticated / not admin
+// RBAC helpers — Stagio pattern with effective role + ORPCError codes
+export function isAdminRole(role: string | null | undefined): boolean {
+  return role === "admin" || role === "super_admin";
+}
 export function requireUser(ctx: ApiContext) {
   if (!ctx.user?.id) {
+    // Import lazily to avoid circular; but we can throw ORPCError string and map later
     throw new Error("UNAUTHORIZED");
+  }
+  if (ctx.user.banned) {
+    throw new Error("ACCOUNT_SUSPENDED");
   }
   return ctx.user;
 }
 export function requireAdmin(ctx: ApiContext) {
-  requireUser(ctx);
-  if ((ctx.user as { role?: string }).role !== "admin") {
+  const user = requireUser(ctx);
+  if (!isAdminRole((user as { role?: string }).role)) {
     throw new Error("FORBIDDEN");
   }
-  return ctx.user;
+  return user;
 }
 `,
     ),
@@ -119,19 +129,28 @@ export const health = implementer.health.handler(async () => ({
       `import { ORPCError } from "@orpc/server";
 import type { ApiContext } from "../context.js";
 
-// oRPC middleware style — used via implement.use(middleware) or manual check in handler
+// oRPC middleware — Stagio pattern: protected + admin with banned check
 export async function protectedProcedure(ctx: ApiContext) {
   if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
+  if ((ctx.user as unknown as { banned?: boolean })?.banned) throw new ORPCError("FORBIDDEN", { message: "Account suspended", data: { code: "ACCOUNT_SUSPENDED" } } as unknown as never);
   return ctx.user;
 }
 export async function adminProcedure(ctx: ApiContext) {
   if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  if ((ctx.user as { role?: string }).role !== "admin") throw new ORPCError("FORBIDDEN", { message: "Forbidden — admin only" });
+  if ((ctx.user as { role?: string }).role !== "admin" && (ctx.user as { role?: string }).role !== "super_admin") throw new ORPCError("FORBIDDEN", { message: "Forbidden — admin only" });
   return ctx.user;
 }
-// Rate limit stub — per-route 60/min memory; integrate Upstash Redis when cache=redis
+`,
+    ),
+    file(
+      "packages/api/src/middleware/rate-limit.ts",
+      `import { ORPCError } from "@orpc/server";
+
+// Stagio granular rate limits — Generous/Standard/Strict with memory + Upstash Redis fallback.
+// When UPSTASH_REDIS_REST_URL is set, this would use @upstash/redis; fallback is in-memory.
 const hits = new Map<string, { count: number; reset: number }>();
-export function rateLimit(key: string, limit = 60, windowMs = 60_000): void {
+
+function checkRateLimit(key: string, limit: number, windowMs: number): void {
   const now = Date.now();
   const cur = hits.get(key);
   if (!cur || now > cur.reset) {
@@ -139,7 +158,41 @@ export function rateLimit(key: string, limit = 60, windowMs = 60_000): void {
     return;
   }
   cur.count++;
-  if (cur.count > limit) throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many requests" });
+  if (cur.count > limit) throw new ORPCError("TOO_MANY_REQUESTS", { message: "Too many requests — slow down" });
+}
+
+// Per-role buckets matching Stagio's rate-limited-procedures.ts
+export function rateLimitGenerous(key: string): void { checkRateLimit(key, 100, 60_000); }
+export function rateLimitStandard(key: string): void { checkRateLimit(key, 60, 60_000); }
+export function rateLimitStrict(key: string): void { checkRateLimit(key, 20, 60_000); }
+export function rateLimit(key: string, limit = 60, windowMs = 60_000): void { checkRateLimit(key, limit, windowMs); }
+`,
+    ),
+    file(
+      "packages/api/src/utils/service-error.ts",
+      `import { ORPCError } from "@orpc/server";
+
+type ORPCStatusCode = ConstructorParameters<typeof ORPCError>[0];
+
+interface CodedORPCErrorOptions {
+  message: string;
+  meta?: Record<string, unknown>;
+  cause?: unknown;
+}
+
+export function createCodedORPCError(status: ORPCStatusCode, code: string, { message, meta, cause }: CodedORPCErrorOptions) {
+  return new ORPCError(status, { message, data: { code, ...(meta ? { meta } : {}) }, cause } as unknown as never);
+}
+export function throwCodedORPCError(status: ORPCStatusCode, code: string, options: CodedORPCErrorOptions): never {
+  throw createCodedORPCError(status, code, options);
+}
+export function createServiceORPCError(error: unknown, { codeMap, fallbackMessage, fallbackCode = "BAD_REQUEST" }: { codeMap: Record<string, ORPCStatusCode>; fallbackMessage: string; fallbackCode?: ORPCStatusCode }): never {
+  if (error instanceof ORPCError) throw error;
+  const svc = error as unknown as { code?: string; message?: string; cause?: unknown };
+  if (svc && typeof svc.code === "string" && typeof svc.message === "string") {
+    throw new ORPCError(codeMap[svc.code] ?? fallbackCode, { message: svc.message, data: { code: svc.code }, cause: svc.cause ?? error } as unknown as never);
+  }
+  throw new ORPCError("INTERNAL_SERVER_ERROR", { message: fallbackMessage, cause: error } as unknown as never);
 }
 `,
     ),

@@ -1,4 +1,5 @@
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
+import { lintScriptFiles } from "./tooling/lint-scripts.js";
 
 export function toolingFiles(): TemplateFile[] {
   return [
@@ -15,5 +16,8 @@ export function toolingFiles(): TemplateFile[] {
       "tooling/architecture/src/index.ts",
       `export interface PackageRule {\n  name: string;\n  allowedDependencies: string[];\n}\n\nexport function defineArchitecture(rules: PackageRule[]): PackageRule[] {\n  return rules;\n}\n`,
     ),
+    ...lintScriptFiles(),
   ];
 }
+
+export { lintScriptFiles };
