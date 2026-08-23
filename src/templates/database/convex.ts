@@ -7,6 +7,7 @@ import { convexPostsContent } from "./convex/posts.js";
 import { convexUsersContent } from "./convex/users.js";
 import { convexBillingContent } from "./convex/billing.js";
 import * as v from "../versions.js";
+import type { ProjectMode } from "../../lib/addons.js";
 
 type Runtime = "node" | "bun";
 
@@ -34,7 +35,8 @@ export function convexStartDatabaseFiles(_projectName: string): TemplateFile[] {
 
 export function convexDatabaseFiles(
   _projectName: string,
-  runtime: Runtime = "bun",
+  runtime: Runtime,
+  mode: ProjectMode,
 ): TemplateFile[] {
   void _projectName;
   void runtime;
@@ -67,7 +69,7 @@ export function convexDatabaseFiles(
     "",
   ].join("\n");
 
-  const authTsContent = convexAuthContent();
+  const authTsContent = convexAuthContent(mode);
 
   const authAdapterContent = [
     'import { createApi } from "@convex-dev/better-auth";',

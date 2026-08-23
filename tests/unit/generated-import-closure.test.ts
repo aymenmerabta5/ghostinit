@@ -167,6 +167,65 @@ describe("generated package ownership", () => {
     expect(guard).not.toContain("@repo/auth/access");
   });
 
+  test("Convex server and client use the mode-specific access contract", () => {
+    const monorepoFiles = generateProjectFiles(
+      projectConfigSchema.parse({
+        name: "demo",
+        mode: "monorepo",
+        framework: "nextjs",
+        database: "convex",
+        preset: "saas",
+        billing: [],
+      }),
+    );
+    const monorepoServer =
+      monorepoFiles.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
+    const monorepoClient =
+      monorepoFiles.find(({ path }) => path === "packages/auth/src/client.ts")?.content ?? "";
+    expect(monorepoServer).toContain('import { ac, roles } from "@repo/auth/access"');
+    expect(monorepoServer).toContain('admin({ ac, roles, adminRoles: ["admin", "superAdmin"] })');
+    expect(monorepoClient).toContain("adminClient({ ac, roles })");
+
+    const singleConfigurations = [
+      { framework: "nextjs" as const, apps: ["web"] as const },
+      { framework: "tanstack-start" as const, apps: ["web"] as const },
+      { framework: "nextjs" as const, apps: ["mobile"] as const },
+    ];
+    for (const input of singleConfigurations) {
+      const files = generateProjectFiles(
+        projectConfigSchema.parse({
+          name: "demo",
+          mode: "single",
+          framework: input.framework,
+          database: "convex",
+          preset: "saas",
+          billing: [],
+          apps: input.apps,
+        }),
+      );
+      const server = files.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
+      const client = files.find(({ path }) => path === "src/lib/auth-client.ts")?.content ?? "";
+      expect(server).toContain("admin()");
+      expect(server).not.toContain("adminRoles");
+      expect(server).not.toContain("@repo/auth/access");
+      expect(client).toContain("adminClient()");
+      expect(client).not.toContain("{ ac, roles }");
+    }
+  });
+
+  test("generated oRPC errors retain structured code and meta data", () => {
+    const files = generateProjectFiles(config(["stripe"]));
+    const middleware =
+      files.find(({ path }) => path === "packages/api/src/middleware/auth.ts")?.content ?? "";
+    const serviceErrors =
+      files.find(({ path }) => path === "packages/api/src/utils/service-error.ts")?.content ?? "";
+    expect(middleware).toContain('createCodedORPCError("FORBIDDEN", "ACCOUNT_SUSPENDED"');
+    expect(serviceErrors).toContain("data: { code, ...(meta ? { meta } : {}) }");
+    expect(serviceErrors).toContain("meta: error.meta");
+    expect(serviceErrors).not.toContain("JSON.stringify");
+    expect(serviceErrors).not.toContain("as unknown as");
+  });
+
   test("billing-only declarations disappear with billing files", () => {
     const files = generateProjectFiles(config([]));
     for (const path of [

@@ -164,7 +164,7 @@ export function buildNextFiles(
     files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
     // emit convex folder (only convex/* and convex.json) for single mode
-    const convexAll = convexDatabaseFiles(projectName, runtime);
+    const convexAll = convexDatabaseFiles(projectName, runtime, "single");
     for (const cf of convexAll) {
       if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
         files.push(cf);

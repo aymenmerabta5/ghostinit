@@ -195,7 +195,7 @@ export function buildTanstackFiles(
     files.push(file("src/lib/auth-client.ts", authClientSingleConvex()));
     files.push(file("src/server/auth/index.ts", serverAuthTanstackSingleConvex()));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
-    const convexAll = convexDatabaseFiles(projectName, runtime);
+    const convexAll = convexDatabaseFiles(projectName, runtime, "single");
     for (const cf of convexAll) {
       if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
         files.push(cf);

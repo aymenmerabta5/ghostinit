@@ -1,7 +1,22 @@
 import { describe, it, expect } from "bun:test";
+import {
+  ADMIN_USER_PERMISSIONS,
+  SESSION_PERMISSIONS,
+  SUPER_ADMIN_USER_PERMISSIONS,
+} from "../../src/templates/access";
 import { authPackage } from "../../src/templates/auth";
+import {
+  compiledAdminUserPermissions,
+  compiledSessionPermissions,
+  compiledSuperAdminUserPermissions,
+} from "../fixtures/compatibility/drizzle-betterauth-orpc/src/access-contract";
 
 describe("auth package template", () => {
+  it("keeps compiled permission fixtures identical to the emitted access contract", () => {
+    expect(compiledSuperAdminUserPermissions).toEqual(SUPER_ADMIN_USER_PERMISSIONS);
+    expect(compiledAdminUserPermissions).toEqual(ADMIN_USER_PERMISSIONS);
+    expect(compiledSessionPermissions).toEqual(SESSION_PERMISSIONS);
+  });
   it("configures cookie security flags", () => {
     const files = authPackage();
     const server = files.find((f) => f.path === "packages/auth/src/server.ts")?.content ?? "";

@@ -19,7 +19,7 @@ export function databaseComposerFiles(
 
   if (isConvex) {
     const base = [
-      ...convexDatabaseFiles(projectName, runtime),
+      ...convexDatabaseFiles(projectName, runtime, "monorepo"),
       ...convexStartDatabaseFiles(projectName),
     ];
     if (!hasMessaging) return base;

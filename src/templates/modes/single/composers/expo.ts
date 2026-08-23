@@ -416,6 +416,7 @@ export function buildExpoFiles(
     const convexExpoAuthContent = `import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import { convexClient } from "@convex-dev/better-auth/client/plugins";
+import { adminClient } from "better-auth/client/plugins";
 import * as SecureStore from "expo-secure-store";
 
 function getBaseUrl(): string {
@@ -433,6 +434,7 @@ export const authClient = createAuthClient({
   baseURL: getBaseUrl(),
   plugins: [
     convexClient(),
+    adminClient(),
     expoClient({
       scheme: "${scheme}",
       storagePrefix: "${projectName}",
@@ -464,7 +466,7 @@ export const authClient = createAuthClient({
   if (isConvex) {
     files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
-    const convexAll = convexDatabaseFiles(projectName, runtime);
+    const convexAll = convexDatabaseFiles(projectName, runtime, "single");
     for (const cf of convexAll) {
       if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
         files.push(cf);

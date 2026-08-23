@@ -4,13 +4,25 @@
  * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
  */
 
-export function convexAuthContent(): string {
+import type { ProjectMode } from "../../../lib/addons.js";
+
+export function convexAuthContent(mode: ProjectMode): string {
+  const accessImports =
+    mode === "monorepo"
+      ? [
+          'import { admin } from "better-auth/plugins/admin";',
+          'import { ac, roles } from "@repo/auth/access";',
+        ]
+      : ['import { admin } from "better-auth/plugins/admin";'];
+  const adminPlugin =
+    mode === "monorepo" ? 'admin({ ac, roles, adminRoles: ["admin", "superAdmin"] })' : "admin()";
   return [
     'import { createClient, type GenericCtx } from "@convex-dev/better-auth";',
     'import { convex, crossDomain } from "@convex-dev/better-auth/plugins";',
     'import { components } from "./_generated/api";',
     'import { DataModel } from "./_generated/dataModel";',
     'import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";',
+    ...accessImports,
     'import { ConvexError } from "convex/values";',
     'import authConfig from "./auth.config";',
     'import { query } from "./_generated/server";',
@@ -66,7 +78,7 @@ export function convexAuthContent(): string {
     "      requireEmailVerification: false,",
     "      autoSignInAfterRegistration: false,",
     "    },",
-    "    plugins: [crossDomain({ siteUrl }), convex({ authConfig })],",
+    `    plugins: [${adminPlugin}, crossDomain({ siteUrl }), convex({ authConfig })],`,
     "  } satisfies BetterAuthOptions;",
     "};",
     "",

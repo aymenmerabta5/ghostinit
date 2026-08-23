@@ -126,11 +126,12 @@ export const health = implementer.health.handler(async () => ({
       `import { ORPCError } from "@orpc/server";
 import { isAdminRole } from "@repo/auth/access";
 import type { ApiContext } from "../context.js";
+import { createCodedORPCError } from "../utils/service-error.js";
 
 // oRPC middleware — Stagio pattern: protected + admin with banned check
 export async function protectedProcedure(ctx: ApiContext) {
   if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  if (ctx.user.banned) throw new ORPCError("FORBIDDEN", { message: "Account suspended" });
+  if (ctx.user.banned) throw createCodedORPCError("FORBIDDEN", "ACCOUNT_SUSPENDED", { message: "Account suspended" });
   return ctx.user;
 }
 export async function adminProcedure(ctx: ApiContext) {
@@ -178,17 +179,45 @@ interface CodedORPCErrorOptions {
   cause?: unknown;
 }
 
+interface CodedORPCErrorData {
+  code: string;
+  meta?: Record<string, unknown>;
+}
+
+interface CodedServiceError extends Error {
+  code: string;
+  meta?: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCodedServiceError(error: unknown): error is CodedServiceError {
+  if (!(error instanceof Error) || !("code" in error) || typeof error.code !== "string") {
+    return false;
+  }
+  return !("meta" in error) || error.meta === undefined || isRecord(error.meta);
+}
+
 export function createCodedORPCError(status: ORPCStatusCode, code: string, { message, meta, cause }: CodedORPCErrorOptions) {
-  const details = meta ? JSON.stringify({ code, meta }) : code;
-  return new ORPCError(status, { message: \`\${message} [\${details}]\`, cause });
+  return new ORPCError<ORPCStatusCode, CodedORPCErrorData>(status, {
+    message,
+    data: { code, ...(meta ? { meta } : {}) },
+    cause,
+  });
 }
 export function throwCodedORPCError(status: ORPCStatusCode, code: string, options: CodedORPCErrorOptions): never {
   throw createCodedORPCError(status, code, options);
 }
 export function createServiceORPCError(error: unknown, { codeMap, fallbackMessage, fallbackCode = "BAD_REQUEST" }: { codeMap: Record<string, ORPCStatusCode>; fallbackMessage: string; fallbackCode?: ORPCStatusCode }): never {
   if (error instanceof ORPCError) throw error;
-  if (error instanceof Error && "code" in error && typeof error.code === "string") {
-    throw new ORPCError(codeMap[error.code] ?? fallbackCode, { message: error.message, cause: error.cause ?? error });
+  if (isCodedServiceError(error)) {
+    throw createCodedORPCError(codeMap[error.code] ?? fallbackCode, error.code, {
+      message: error.message,
+      meta: error.meta,
+      cause: error.cause ?? error,
+    });
   }
   throw new ORPCError("INTERNAL_SERVER_ERROR", { message: fallbackMessage, cause: error });
 }
