@@ -45,6 +45,7 @@
     "release": "bun run check:versions && bun run build && npm pack"
   },
   "dependencies": {
+    "@chargily/chargily-pay": "2.1.0",
     "@clack/prompts": "0.8.2",
     "oxc-parser": "0.139.0",
     "zod": "4.4.3"

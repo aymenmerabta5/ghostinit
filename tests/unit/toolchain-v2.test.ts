@@ -24,6 +24,13 @@ describe("exact V2 host toolchain", () => {
     }
   });
 
+  test("declares the host Chargily Pay import at its exact version", () => {
+    const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies["@chargily/chargily-pay"]).toBe("2.1.0");
+  });
+
   test("uses strict isolated installs and supported lockfile configuration", () => {
     const bunfig = readFileSync(resolve(root, "bunfig.toml"), "utf8");
     const tsconfig = JSON.parse(
