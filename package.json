@@ -54,6 +54,7 @@
     "@orpc/server": "^1.14.7",
     "@orpc/zod": "^1.14.7",
     "@types/bun": "1.2.14",
+    "ajv": "8.17.1",
     "drizzle-orm": "^0.45.2",
     "oxfmt": "0.58.0",
     "oxlint": "1.73.0",

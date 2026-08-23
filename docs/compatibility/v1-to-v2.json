@@ -1,0 +1,503 @@
+{
+  "$schema": "./v1-to-v2.schema.json",
+  "version": 1,
+  "sourceVersion": "0.1.0",
+  "targetVersion": "2.0.0",
+  "commands": [
+    {
+      "name": "create",
+      "status": "retained",
+      "v2": "create",
+      "reason": "Project creation remains a core workflow.",
+      "migration": "Keep using ghostinit create; V2 validates the complete desired state before writing."
+    },
+    {
+      "name": "init",
+      "status": "retained",
+      "v2": "init",
+      "reason": "Current-directory initialization remains supported.",
+      "migration": "Keep using ghostinit init; V2 applies the same resolver as create."
+    },
+    {
+      "name": "upgrade",
+      "status": "retained",
+      "v2": "upgrade",
+      "reason": "Managed projects require a migration command.",
+      "migration": "Run upgrade --dry-run first; V2 changes only proven generator-owned files."
+    },
+    {
+      "name": "add",
+      "status": "retained",
+      "v2": "add",
+      "reason": "Architectural artifact generation remains supported.",
+      "migration": "Use the same add kinds; V2 validates kind-specific positional forms strictly."
+    },
+    {
+      "name": "sync",
+      "status": "retained",
+      "v2": "sync",
+      "reason": "Desired-state reconciliation remains supported.",
+      "migration": "Keep using sync; V2 reconciles from ghostinit.config.json transactionally."
+    },
+    {
+      "name": "status",
+      "status": "retained",
+      "v2": "status",
+      "reason": "Humans and agents need project state visibility.",
+      "migration": "Keep using status; V2 reports desired, owned, drifted, and pending state separately."
+    },
+    {
+      "name": "check",
+      "status": "retained",
+      "v2": "check",
+      "reason": "Architecture enforcement remains a first-class command.",
+      "migration": "Keep using check; V2 fails closed on parser, resolver, and analysis-limit errors."
+    },
+    {
+      "name": "doctor",
+      "status": "retained",
+      "v2": "doctor",
+      "reason": "Configuration-aware diagnostics remain supported.",
+      "migration": "Keep using doctor; V2 runs only checks applicable to resolved configuration."
+    },
+    {
+      "name": "version",
+      "status": "retained",
+      "v2": "version",
+      "reason": "Scripts rely on version discovery.",
+      "migration": "No command change; JSON mode returns the versioned V2 envelope."
+    },
+    {
+      "name": "help",
+      "status": "retained",
+      "v2": "help",
+      "reason": "Human discoverability remains required.",
+      "migration": "No command change; help is generated from the typed command registry."
+    },
+    {
+      "name": "capabilities",
+      "status": "added",
+      "v2": "capabilities",
+      "reason": "Agents need the finite proof-gated support catalog.",
+      "migration": "Use capabilities --json to discover supported V2 bindings before create."
+    }
+  ],
+  "options": [
+    {
+      "name": "cwd",
+      "status": "retained",
+      "v2": "cwd",
+      "reason": "Commands need an explicit project root.",
+      "migration": "Keep using --cwd; V2 canonicalizes and contains the path before IO."
+    },
+    {
+      "name": "json",
+      "status": "retained",
+      "v2": "json",
+      "reason": "Agents require machine output.",
+      "migration": "Keep using --json; consume the versioned V2 schema instead of V1 field spreading."
+    },
+    {
+      "name": "yes",
+      "status": "retained",
+      "v2": "yes",
+      "reason": "Automation needs noninteractive defaults.",
+      "migration": "Keep using --yes; unresolved required choices now fail before side effects."
+    },
+    {
+      "name": "ci",
+      "status": "retained",
+      "v2": "ci",
+      "reason": "CI must never prompt.",
+      "migration": "Keep using --ci; V2 returns a typed missing-input error instead of prompting."
+    },
+    {
+      "name": "dry-run",
+      "status": "retained",
+      "v2": "dry-run",
+      "reason": "Safe preview is required.",
+      "migration": "Keep using --dry-run; V2 performs no lock, write, cleanup, install, or secret action."
+    },
+    {
+      "name": "force",
+      "status": "retained",
+      "v2": "force",
+      "reason": "Explicit conflict override remains necessary.",
+      "migration": "Keep using --force only where the command registry declares it applicable."
+    },
+    {
+      "name": "no-install",
+      "status": "retained",
+      "v2": "no-install",
+      "reason": "Users may defer dependency installation.",
+      "migration": "Keep using --no-install; V2 still preflights the full project plan."
+    },
+    {
+      "name": "runtime",
+      "status": "retained",
+      "v2": "execution-runtime",
+      "reason": "Generated server execution runtime remains selectable.",
+      "migration": "Map --runtime to the app/backend execution runtime; package manager and framework route runtime are separate."
+    },
+    {
+      "name": "quiet",
+      "status": "retained",
+      "v2": "quiet",
+      "reason": "Human progress verbosity remains configurable.",
+      "migration": "Keep using --quiet; JSON stdout is unaffected."
+    },
+    {
+      "name": "debug",
+      "status": "retained",
+      "v2": "debug",
+      "reason": "Troubleshooting requires safe diagnostics.",
+      "migration": "Keep using --debug; secrets remain redacted."
+    },
+    {
+      "name": "version",
+      "status": "retained",
+      "v2": "version",
+      "reason": "The global version flag remains supported.",
+      "migration": "Keep using --version."
+    },
+    {
+      "name": "help",
+      "status": "retained",
+      "v2": "help",
+      "reason": "The long help flag remains supported.",
+      "migration": "Keep using --help."
+    },
+    {
+      "name": "h",
+      "status": "retained",
+      "v2": "help",
+      "reason": "The short help alias remains useful.",
+      "migration": "Keep using -h; it resolves to --help."
+    },
+    {
+      "name": "kind",
+      "status": "retained",
+      "v2": "kind",
+      "reason": "Module generation distinguishes command/query kinds.",
+      "migration": "Keep using --kind only on registry-declared add forms."
+    },
+    {
+      "name": "check",
+      "status": "retained",
+      "v2": "check",
+      "reason": "Read-only sync checking remains supported.",
+      "migration": "Keep using sync --check; drift returns exit code 8."
+    },
+    {
+      "name": "mode",
+      "status": "retained",
+      "v2": "mode",
+      "reason": "Single and monorepo packaging remain supported.",
+      "migration": "Keep using --mode or set mode in ghostinit.config.json."
+    },
+    {
+      "name": "framework",
+      "status": "retained",
+      "v2": "apps[].target",
+      "reason": "Web target selection remains supported.",
+      "migration": "Map --framework to the primary web app target."
+    },
+    {
+      "name": "billing",
+      "status": "retained",
+      "v2": "capabilities.billing",
+      "reason": "Billing provider selection remains supported.",
+      "migration": "Keep using --billing or set provider IDs in capabilities.billing."
+    },
+    {
+      "name": "features",
+      "status": "deprecated",
+      "v2": "capabilities",
+      "reason": "The combined feature string hides independent capability configuration.",
+      "migration": "Use explicit --with-eve/--with-i18n or ghostinit.config.json; alias removal target is 3.0.0."
+    },
+    {
+      "name": "database",
+      "status": "retained",
+      "v2": "backend.database",
+      "reason": "Persistence adapter selection remains supported.",
+      "migration": "Keep using --database or set backend.database."
+    },
+    {
+      "name": "apps",
+      "status": "retained",
+      "v2": "apps",
+      "reason": "Application target selection remains supported.",
+      "migration": "Keep using --apps; V2 expands each target into an explicit app object."
+    },
+    {
+      "name": "preset",
+      "status": "retained",
+      "v2": "preset",
+      "reason": "Goal-oriented defaults improve human setup.",
+      "migration": "Keep using --preset; the resolved config records every resulting choice."
+    },
+    {
+      "name": "cache",
+      "status": "retained",
+      "v2": "capabilities.cache",
+      "reason": "Cache adapter selection remains supported.",
+      "migration": "Keep using --cache or set capabilities.cache."
+    },
+    {
+      "name": "deploy",
+      "status": "retained",
+      "v2": "apps[].deploy",
+      "reason": "Deployment binding remains selectable.",
+      "migration": "Map --deploy to the primary app; multi-app projects configure deploy per app."
+    },
+    {
+      "name": "stack",
+      "status": "deprecated",
+      "v2": "apps",
+      "reason": "Stack aliases conflate framework and app targets.",
+      "migration": "Use --framework plus --apps or explicit app objects; alias removal target is 3.0.0."
+    },
+    {
+      "name": "with-auth",
+      "status": "retained",
+      "v2": "capabilities.auth",
+      "reason": "Authentication remains selectable.",
+      "migration": "Keep using --with-auth for defaults or configure auth methods/plugins explicitly."
+    },
+    {
+      "name": "with-api",
+      "status": "retained",
+      "v2": "transport",
+      "reason": "Typed remote transport remains selectable.",
+      "migration": "Keep using --with-api; V2 emits transport only when selected clients require it."
+    },
+    {
+      "name": "with-email",
+      "status": "retained",
+      "v2": "capabilities.email",
+      "reason": "Email remains selectable.",
+      "migration": "Keep using --with-email or set capabilities.email."
+    },
+    {
+      "name": "with-analytics",
+      "status": "retained",
+      "v2": "capabilities.analytics",
+      "reason": "Analytics remains selectable.",
+      "migration": "Keep using --with-analytics or set capabilities.analytics."
+    },
+    {
+      "name": "with-cache",
+      "status": "retained",
+      "v2": "capabilities.cache",
+      "reason": "The cache convenience flag remains supported.",
+      "migration": "Use --with-cache for the default verified cache or select capabilities.cache explicitly."
+    },
+    {
+      "name": "with-eve",
+      "status": "retained",
+      "v2": "capabilities.eve",
+      "reason": "Eve remains selectable.",
+      "migration": "Keep using --with-eve or set capabilities.eve."
+    },
+    {
+      "name": "with-i18n",
+      "status": "retained",
+      "v2": "capabilities.i18n",
+      "reason": "Internationalization remains selectable.",
+      "migration": "Keep using --with-i18n or set capabilities.i18n."
+    },
+    {
+      "name": "with-pdf",
+      "status": "retained",
+      "v2": "capabilities.pdf",
+      "reason": "PDF generation remains selectable.",
+      "migration": "Keep using --with-pdf or set capabilities.pdf."
+    },
+    {
+      "name": "with-messaging",
+      "status": "retained",
+      "v2": "capabilities.messaging",
+      "reason": "Messaging remains selectable.",
+      "migration": "Keep using --with-messaging or set capabilities.messaging."
+    },
+    {
+      "name": "fix",
+      "status": "retained",
+      "v2": "fix",
+      "reason": "Explicit safe repair remains supported.",
+      "migration": "Keep using --fix on check/doctor; V2 dry-run and locking rules apply."
+    },
+    {
+      "name": "verbose",
+      "status": "retained",
+      "v2": "verbose",
+      "reason": "Detailed status output remains useful.",
+      "migration": "Keep using --verbose on registry-declared commands."
+    },
+    {
+      "name": "list",
+      "status": "retained",
+      "v2": "list",
+      "reason": "Discovering add kinds remains useful.",
+      "migration": "Keep using add --list; values are generated from the command registry."
+    }
+  ],
+  "exitCodes": [
+    {
+      "name": "OK",
+      "value": 0,
+      "status": "retained",
+      "v2": "OK",
+      "reason": "Successful commands remain zero.",
+      "migration": "No change."
+    },
+    {
+      "name": "GENERAL_ERROR",
+      "value": 1,
+      "status": "retained",
+      "v2": "GENERAL_ERROR",
+      "reason": "Unexpected failures retain the general code.",
+      "migration": "No change."
+    },
+    {
+      "name": "INVALID_ARGUMENTS",
+      "value": 2,
+      "status": "retained",
+      "v2": "INVALID_ARGUMENTS",
+      "reason": "Invalid invocation remains distinguishable.",
+      "migration": "No change."
+    },
+    {
+      "name": "DRIFT",
+      "value": 8,
+      "status": "retained",
+      "v2": "DRIFT",
+      "reason": "Read-only drift remains scriptable.",
+      "migration": "sync --check now consistently returns 8."
+    },
+    {
+      "name": "CANCELLED",
+      "value": 130,
+      "status": "retained",
+      "v2": "CANCELLED",
+      "reason": "Interactive cancellation keeps shell convention.",
+      "migration": "No change."
+    },
+    {
+      "name": "MISSING_DEPENDENCY",
+      "value": 16,
+      "status": "retained",
+      "v2": "MISSING_DEPENDENCY",
+      "reason": "Missing tools remain distinguishable.",
+      "migration": "No change."
+    },
+    {
+      "name": "VALIDATION_ERROR",
+      "value": 17,
+      "status": "retained",
+      "v2": "VALIDATION_ERROR",
+      "reason": "Configuration failures remain distinguishable.",
+      "migration": "Read structured nested details in JSON mode."
+    },
+    {
+      "name": "CONFLICT_ERROR",
+      "value": 18,
+      "status": "retained",
+      "v2": "CONFLICT_ERROR",
+      "reason": "Owned/user conflict remains distinguishable.",
+      "migration": "Read structured conflict paths in JSON mode."
+    },
+    {
+      "name": "LOCK_ERROR",
+      "value": 19,
+      "status": "retained",
+      "v2": "LOCK_ERROR",
+      "reason": "Concurrent mutation remains distinguishable.",
+      "migration": "No change."
+    },
+    {
+      "name": "GIT_DIRTY_ERROR",
+      "value": 20,
+      "status": "retained",
+      "v2": "GIT_DIRTY_ERROR",
+      "reason": "Dirty-tree protection remains distinguishable.",
+      "migration": "Operational Git errors now fail closed with this code."
+    },
+    {
+      "name": "INCOMPATIBLE_SCHEMA",
+      "value": 21,
+      "status": "retained",
+      "v2": "INCOMPATIBLE_SCHEMA",
+      "reason": "State/schema migration failures remain distinguishable.",
+      "migration": "Run upgrade --dry-run and follow migration hints."
+    },
+    {
+      "name": "GENERATION_ERROR",
+      "value": 22,
+      "status": "retained",
+      "v2": "GENERATION_ERROR",
+      "reason": "Planning/rendering failures remain distinguishable.",
+      "migration": "Read versioned plan diagnostics in JSON details."
+    },
+    {
+      "name": "INVALID_STATE",
+      "value": 23,
+      "status": "retained",
+      "v2": "INVALID_STATE",
+      "reason": "Corrupt/missing managed state remains distinguishable.",
+      "migration": "Use status/upgrade recovery guidance."
+    }
+  ],
+  "protocols": [
+    {
+      "name": "json-envelope-v1",
+      "status": "changed",
+      "v2": "json-envelope-v2",
+      "reason": "V1 allowed details to overwrite protocol fields and did not redact the full error.",
+      "migration": "Validate version 2, read error.details, and preserve the stable machine code/exit code."
+    }
+  ],
+  "config": [
+    {
+      "name": "cli-create-flags",
+      "status": "retained",
+      "v2": "cli-overrides",
+      "reason": "One-shot automation remains useful.",
+      "migration": "Flags override the desired state only where the typed command registry permits."
+    },
+    {
+      "name": ".ghostinit/state.json",
+      "status": "changed",
+      "v2": ".ghostinit/state.json",
+      "reason": "V1 mixed desired and internal state.",
+      "migration": "Treat V2 state as machine-owned hashes/history only; edit ghostinit.config.json instead."
+    },
+    {
+      "name": "ghostinit.config.json",
+      "status": "added",
+      "v2": "ghostinit.config.json",
+      "reason": "V2 needs human-editable desired state.",
+      "migration": "upgrade --dry-run derives this file from V1 state and flags."
+    }
+  ],
+  "capabilities": {
+    "modes": ["monorepo", "single"],
+    "frameworks": ["nextjs", "tanstack-start"],
+    "apps": ["web", "mobile", "desktop"],
+    "databases": ["postgres", "convex", "none"],
+    "billingProviders": ["stripe", "chargily", "paddle", "polar"],
+    "features": ["eve", "i18n"],
+    "presets": ["saas", "frontend", "custom"],
+    "cacheProviders": ["redis", "none"],
+    "deployTargets": ["vercel", "fly", "docker", "none"],
+    "stacks": ["nextjs", "tanstack-start", "expo", "both"]
+  },
+  "upgrade": {
+    "name": "upgrade-v1",
+    "status": "changed",
+    "v2": "upgrade-v2",
+    "reason": "V1 can overwrite fresh state and user-modified files.",
+    "migration": "Run V2 upgrade --dry-run; only hash-proven owned files change automatically and every conflict is reported."
+  }
+}

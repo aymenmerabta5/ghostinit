@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/v1-to-v2-compatibility.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "version",
+    "sourceVersion",
+    "targetVersion",
+    "commands",
+    "options",
+    "exitCodes",
+    "protocols",
+    "config",
+    "capabilities",
+    "upgrade"
+  ],
+  "properties": {
+    "$schema": { "const": "./v1-to-v2.schema.json" },
+    "version": { "const": 1 },
+    "sourceVersion": { "type": "string", "minLength": 1 },
+    "targetVersion": { "type": "string", "minLength": 1 },
+    "commands": { "$ref": "#/$defs/items" },
+    "options": { "$ref": "#/$defs/items" },
+    "exitCodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/exitItem" }
+    },
+    "protocols": { "$ref": "#/$defs/items" },
+    "config": { "$ref": "#/$defs/items" },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modes",
+        "frameworks",
+        "apps",
+        "databases",
+        "billingProviders",
+        "features",
+        "presets",
+        "cacheProviders",
+        "deployTargets",
+        "stacks"
+      ],
+      "properties": {
+        "modes": { "$ref": "#/$defs/stringArray" },
+        "frameworks": { "$ref": "#/$defs/stringArray" },
+        "apps": { "$ref": "#/$defs/stringArray" },
+        "databases": { "$ref": "#/$defs/stringArray" },
+        "billingProviders": { "$ref": "#/$defs/stringArray" },
+        "features": { "$ref": "#/$defs/stringArray" },
+        "presets": { "$ref": "#/$defs/stringArray" },
+        "cacheProviders": { "$ref": "#/$defs/stringArray" },
+        "deployTargets": { "$ref": "#/$defs/stringArray" },
+        "stacks": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "upgrade": { "$ref": "#/$defs/item" }
+  },
+  "$defs": {
+    "status": { "enum": ["retained", "changed", "deprecated", "removed", "added"] },
+    "stringArray": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "v2", "reason", "migration"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/status" },
+        "v2": { "type": ["string", "null"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "migration": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "removed" } } },
+          "then": { "properties": { "v2": { "type": "null" } } },
+          "else": { "properties": { "v2": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "exitItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value", "status", "v2", "reason", "migration"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "value": { "type": "integer" },
+        "status": { "$ref": "#/$defs/status" },
+        "v2": { "type": ["string", "null"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "migration": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "removed" } } },
+          "then": { "properties": { "v2": { "type": "null" } } },
+          "else": { "properties": { "v2": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } }
+  }
+}
