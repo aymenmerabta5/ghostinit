@@ -1,7 +1,7 @@
 # GhostInit V2 Full Rewrite Design
 
 **Date:** 2026-08-23  
-**Status:** Draft specification awaiting final approval  
+**Status:** Approved for autonomous implementation
 **Scope:** Complete replacement of the GhostInit implementation and generated-project architecture
 
 ## 1. Executive summary
@@ -336,7 +336,9 @@ packages/
   platform/
     config/
     observability/
-  ui/                        # design tokens and primitives
+  design-tokens/             # platform-neutral typed tokens; no React or DOM
+  ui-web/                    # DOM primitives for web/Electron renderer
+  ui-native/                 # Expo primitives when mobile is selected
   bootstrap/                 # server composition root
 tooling/
   architecture/
@@ -344,7 +346,7 @@ tooling/
   lint/
 ```
 
-Workspace globs explicitly include nested module/adapter packages. Package names remain ergonomic (`@repo/database`, `@repo/auth`, and similar) through narrow facade packages or export maps without hiding dependency ownership.
+Workspace globs explicitly include nested module/adapter packages. For a single-select adapter, the selected adapter package declares the ergonomic name directly (for example `database-postgres/package.json` declares `@repo/database`) and only one implementation is emitted. Export maps expose explicit subpaths inside that package; they are never treated as package-name aliases. Any facade appears explicitly in the logical/physical layout.
 
 ### 9.3 Single-project layout
 
@@ -367,6 +369,8 @@ src/
 
 Shared capability renderers target a logical path model; a packaging adapter maps that model to monorepo packages or single directories. Business logic is not duplicated between modes.
 
+Both packagers emit `.ghostinit/architecture.json` containing every owned source root, exclusion, logical owner, tsconfig, resolver condition profile, and permitted packaged exception ID. Every file has exactly one closed-enum logical unit/module/layer. A total `ResolvedArchitecturePolicy` defines runtime, type-only, and development edges. Project metadata may narrow policy but cannot add exceptions or widen edges.
+
 ## 10. Frontend architecture and component system
 
 ### 10.1 Component taxonomy
@@ -384,6 +388,7 @@ app/ or routes/              # thin route composition
 ```
 
 - Primitives expose small, accessible APIs and design tokens.
+- Web/Electron primitives wrap the exact-pinned `@base-ui/react` release inside `ui-web`; Expo uses React Native primitives inside `ui-native`. Direct third-party primitive imports outside those packages are blocking.
 - Patterns use compound components when consumers need structural flexibility.
 - Feature components compose primitives/patterns and depend on typed feature contracts.
 - Routes choose data, authorization, metadata, and layout; they do not contain reusable component implementations.
@@ -457,7 +462,7 @@ The Next adapter is based on official upstream documentation matching the exact 
 
 ### 11.3 Expo/mobile
 
-- Shares contracts, domain DTOs, and design tokens, not DOM components.
+- Shares client-safe contract DTOs and design tokens, not domain-module packages or DOM components.
 - Uses platform-safe primitives, secure credential storage, deep-link validation, and network-aware clients.
 - Every selected native dependency satisfies the chosen Expo SDK peer graph.
 - `expo export` and platform configuration validation are release gates.
@@ -488,6 +493,10 @@ Page / client hook
 ```
 
 Server Components, loaders, Server Actions, and server functions use target server-entry adapters to invoke application use cases in-process rather than making internal HTTP round trips. The route mount prefix, client base URL, OpenAPI path, websocket endpoint, and framework handler signature come from one transport target definition. Real client-to-handler round trips are tested; string assertions are insufficient.
+
+Realtime uses a parallel flow: client subscription -> generated realtime client -> selected PostgreSQL WebSocket or Convex function adapter -> authenticated application/domain policy -> client-safe event. Realtime definitions share authorization and schemas with request/response contracts and declare connect, reconnect, resume, deduplication, cancellation, timeout, offline, and token-expiry behavior.
+
+Every mutation contract declares idempotency, pending/double-submit behavior, optimistic or pessimistic policy, typed logical query keys, success revalidation/invalidation, and failure rollback/retry. Next revalidates the declared path/tag; TanStack, Expo, and Electron invalidate the same logical query key. Acceptance verifies the result through an independent read.
 
 ### 12.2 Session facade
 
@@ -609,9 +618,11 @@ It must:
 - resolve relative files/indexes/extensions, tsconfig aliases, workspace packages, exports, and builtins;
 - traverse every reachable owned edge to a fixed point with cycle detection; nonliteral targets require a finite resolved allowlist, and unresolved edges or resource-limit exhaustion are blocking;
 - scope framework entry exceptions to exact target roots;
+- classify target-specific client/server seeds and propagate reachability over runtime edges. Shared modules may import no server-only module, builtin, secret environment entry, bootstrap, or concrete adapter;
 - distinguish runtime, development, peer, and optional dependency edges;
 - enforce an explicit allowed-edge matrix rather than a numeric shortcut;
-- validate webhook raw-body boundaries, client/server isolation, domain purity, vendor isolation, workspace declarations, package cycles, and cross-module public APIs;
+- enforce structural webhook rules: size limiting precedes consumption, parsing does not precede verification, and raw bytes reach the provider verifier. Runtime/provider-vector tests prove byte preservation and retry behavior;
+- validate client/server isolation, domain purity, vendor isolation, workspace declarations, package cycles, and cross-module public APIs;
 - emit stable human and JSON findings with nonzero exit for blocking severities.
 
 Generated projects depend on the exact matching GhostInit checker version. Local/release tests replace that dependency with the packed local tarball, so the same packaged binary is tested before publication. Generated CI never uses an unpinned network fallback or `|| true`.
