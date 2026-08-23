@@ -9,6 +9,7 @@ import { useState } from "react";
 import { authClient } from "../../lib/auth-client.js";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
@@ -37,7 +38,11 @@ export default function ForgotPasswordPage(): React.JSX.Element {
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup><TanStackField form={form} name="email" validators={{ onSubmit: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription> : <FieldDescription>We send a reset link to this address if it exists in our system.</FieldDescription>}</Field>)}</TanStackField></FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Sending reset link...</>) : "Send reset link"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>
             </Form>
           </CardContent>
@@ -57,6 +62,7 @@ import { z } from "zod";
 import { authClient } from '../lib/auth-client.js'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
@@ -111,7 +117,11 @@ function ForgotPasswordPage(): React.JSX.Element {
                 </TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Sending reset link...</>) : "Send reset link"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>
             </Form>
           </CardContent>

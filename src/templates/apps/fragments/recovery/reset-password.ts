@@ -11,6 +11,7 @@ import { authClient } from "../../lib/auth-client.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
@@ -48,7 +49,11 @@ function ResetPasswordInner(): React.JSX.Element {
                 <TanStackField form={form} name="confirmPassword" validators={{ onSubmit: ({ value }) => value.length >= 8 ? undefined : "Password must be at least 8 characters" }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel><Input id="confirm-password" name={field.name} type="password" autoComplete="new-password" required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} /><FieldDescription>Must match the new password above.</FieldDescription></Field>)}</TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Reset password</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Resetting password...</>) : "Reset password"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>
             </Form>
           )}
@@ -77,6 +82,7 @@ import { z } from "zod";
 import { authClient } from '../lib/auth-client.js'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
@@ -155,7 +161,11 @@ function ResetPasswordPage(): React.JSX.Element {
                 </TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Reset password</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Resetting password...</>) : "Reset password"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>
             </Form>
           </CardContent>

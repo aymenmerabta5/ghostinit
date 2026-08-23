@@ -36,6 +36,12 @@ describe("generation snapshots", () => {
     expect(paths).toContain(".env.example");
     expect(paths).toContain(".env.local");
     expect(paths).toContain("apps/web/src/app/page.tsx");
+    expect(paths).toContain("apps/web/src/proxy.ts");
+    expect(paths).not.toContain("apps/web/src/middleware.ts");
+    const webManifest = JSON.parse(
+      files.find((file) => file.path === "apps/web/package.json")?.content ?? "{}",
+    );
+    expect(webManifest.dependencies?.["better-auth"]).toBe("1.6.23");
     // No deploy files by default (deploy=none)
     expect(paths).not.toContain("Dockerfile");
     expect(paths).not.toContain("fly.toml");
@@ -51,6 +57,8 @@ describe("generation snapshots", () => {
     const paths = files.map((f) => f.path);
     expect(paths).toContain("package.json");
     expect(paths).not.toContain("apps/web/package.json");
+    expect(paths).toContain("src/proxy.ts");
+    expect(paths).not.toContain("src/middleware.ts");
     const result = validateGeneratedFiles(files);
     expect(result.valid).toBe(true);
   });
@@ -103,9 +111,23 @@ describe("generation snapshots", () => {
     expect(env.content).toContain("MAINTENANCE_MODE=false");
     // i18n projects get the locale-scoped maintenance page
     const i18nFiles = generateProjectFiles(cfg({ i18n: true }));
-    expect(i18nFiles.map((f) => f.path)).toContain(
-      "apps/web/src/app/[locale]/maintenance/page.tsx",
-    );
+    const i18nPaths = i18nFiles.map((f) => f.path);
+    expect(i18nPaths).toContain("apps/web/src/app/[locale]/maintenance/page.tsx");
+    expect(i18nPaths).toContain("apps/web/src/proxy.ts");
+    expect(i18nPaths).not.toContain("apps/web/src/middleware.ts");
+    expect(i18nPaths).not.toContain("apps/web/middleware.ts");
+    const i18nProxy = i18nFiles.find((file) => file.path === "apps/web/src/proxy.ts");
+    expect(i18nProxy?.content).toContain('from "next-intl/middleware"');
+    expect(i18nProxy?.content).toContain('from "@/i18n/routing"');
+
+    const singleI18nFiles = generateProjectFiles(cfg({ mode: "single", i18n: true }));
+    const singleI18nPaths = singleI18nFiles.map((file) => file.path);
+    expect(singleI18nPaths).toContain("src/proxy.ts");
+    expect(singleI18nPaths).not.toContain("src/middleware.ts");
+    expect(singleI18nPaths).not.toContain("middleware.ts");
+    const singleI18nProxy = singleI18nFiles.find((file) => file.path === "src/proxy.ts");
+    expect(singleI18nProxy?.content).toContain('from "next-intl/middleware"');
+    expect(singleI18nProxy?.content).toContain('from "@/i18n/routing"');
   });
 
   it("generated turbo.json declares a start task for the deploy chain", () => {

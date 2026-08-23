@@ -24,12 +24,12 @@ export interface TooltipContentProps
 export const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentProps>(
   ({ className, sideOffset = 4, ...props }, ref) => (
   <BaseTooltip.Portal>
-    <BaseTooltip.Positioner sideOffset={sideOffset} className="z-50">
+    <BaseTooltip.Positioner sideOffset={sideOffset}>
       <BaseTooltip.Popup
         ref={ref}
         data-slot="tooltip-content"
         className={cn(
-          "z-50 overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+          "overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -57,12 +57,12 @@ export const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof BasePopover.Popup> & { sideOffset?: number; align?: "center" | "start" | "end" }
 >(({ className, sideOffset = 4, align = "center", ...props }, ref) => (
   <BasePopover.Portal>
-    <BasePopover.Positioner sideOffset={sideOffset} align={align} className="z-50">
+    <BasePopover.Positioner sideOffset={sideOffset} align={align}>
       <BasePopover.Popup
         ref={ref}
         data-slot="popover-content"
         className={cn(
-          "z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+          "w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -101,6 +101,7 @@ export function sheetFiles(): TemplateFile[] {
 import * as React from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { cva, type VariantProps } from "class-variance-authority";
+import { ChevronRight, X } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 
 export const Sheet = BaseDialog.Root;
@@ -116,7 +117,7 @@ export const SheetOverlay = React.forwardRef<
     ref={ref}
     data-slot="sheet-overlay"
     className={cn(
-      "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
+      "fixed inset-0 bg-black/50 backdrop-blur-sm data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
       className,
     )}
     {...props}
@@ -125,7 +126,7 @@ export const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = "SheetOverlay";
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[open]:animate-in data-[closed]:animate-out data-[closed]:duration-300 data-[open]:duration-500",
+  "fixed gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[open]:animate-in data-[closed]:animate-out data-[closed]:duration-300 data-[open]:duration-500",
   {
     variants: {
       side: {
@@ -158,9 +159,7 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
             data-slot="sheet-close"
             className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
           >
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" className="size-4" aria-hidden>
-              <path d="M11.7816 4.03157C12.0062 3.8079 12.0062 3.44295 11.7816 3.21928C11.557 2.99561 11.191 2.99561 10.9665 3.21928L7.50003 6.68575L4.03357 3.21928C3.8089 2.99561 3.44395 2.99561 3.21928 3.21928C2.99461 3.44295 2.99461 3.8079 3.21928 4.03157L6.68574 7.49804L3.21928 10.9645C2.99461 11.1882 2.99461 11.5532 3.21928 11.7768C3.44395 12.0005 3.8089 12.0005 4.03357 11.7768L7.50003 8.31035L10.9665 11.7768C11.191 12.0005 11.557 12.0005 11.7816 11.7768C12.0062 11.5532 12.0062 11.1882 11.7816 10.9645L8.3151 7.49804L11.7816 4.03157Z" fill="currentColor" />
-            </svg>
+            <X aria-hidden />
             <span className="sr-only">Close</span>
           </BaseDialog.Close>
         )}
@@ -230,20 +229,20 @@ export const BreadcrumbItem = React.forwardRef<HTMLLIElement, React.LiHTMLAttrib
 );
 BreadcrumbItem.displayName = "BreadcrumbItem";
 
-export const BreadcrumbLink = React.forwardRef<HTMLAnchorElement, React.AnchorHTMLAttributes<HTMLAnchorElement> & { asChild?: boolean }>(
-  ({ className, asChild, ...props }, ref) => {
-    const Comp = asChild ? "span" : "a";
-    return (
-      <Comp
-        ref={ref as unknown as React.Ref<HTMLAnchorElement>}
-        data-slot="breadcrumb-link"
-        className={cn("transition-colors hover:text-foreground", className)}
-        {...props}
-      />
-    );
-  },
-);
-BreadcrumbLink.displayName = "BreadcrumbLink";
+export interface BreadcrumbLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
+  ref?: React.Ref<HTMLAnchorElement>;
+}
+
+export function BreadcrumbLink({ className, ref, ...props }: BreadcrumbLinkProps): React.JSX.Element {
+  return (
+    <a
+      ref={ref}
+      data-slot="breadcrumb-link"
+      className={cn("transition-colors hover:text-foreground", className)}
+      {...props}
+    />
+  );
+}
 
 export const BreadcrumbPage = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => (
@@ -253,12 +252,8 @@ export const BreadcrumbPage = React.forwardRef<HTMLSpanElement, React.HTMLAttrib
 BreadcrumbPage.displayName = "BreadcrumbPage";
 
 export const BreadcrumbSeparator = ({ children, className, ...props }: React.HTMLAttributes<HTMLLIElement>) => (
-  <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" className={cn("[&>svg]:size-3.5", className)} {...props}>
-    {children ?? (
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden className="size-3.5">
-        <path d="M4 2L8 6L4 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )}
+  <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" className={className} {...props}>
+    {children ?? <ChevronRight aria-hidden />}
   </li>
 );
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator";

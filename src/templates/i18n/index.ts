@@ -9,7 +9,6 @@ import { nextRequestFile } from "./next/request.js";
 import { nextNavigationFile } from "./next/navigation.js";
 import { nextI18nConfigFile } from "./next/config.js";
 import { nextLegacyI18nBarrel } from "./next/barrel.js";
-import { nextMiddlewareFile } from "./next/middleware.js";
 import { nextLocaleSwitcherComponent } from "./next/switcher.js";
 import { nextIntlPluginReadme } from "./next/readme.js";
 import { tanstackConfigFile } from "./tanstack/config.js";
@@ -52,7 +51,6 @@ export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): T
       nextNavigationFile("apps/web/src/i18n/navigation.ts"),
       nextI18nConfigFile("apps/web/src/i18n/config.ts", "./routing.js"),
       nextLegacyI18nBarrel("apps/web/src/i18n.ts"),
-      nextMiddlewareFile("apps/web/middleware.ts", "./src/i18n/routing.js"),
       makeMessagesFile("apps/web/messages/en.json", EN_MESSAGES),
       makeMessagesFile("apps/web/messages/fr.json", FR_MESSAGES),
       makeMessagesFile("apps/web/messages/ar.json", AR_MESSAGES),
@@ -66,8 +64,6 @@ export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): T
     nextNavigationFile("src/i18n/navigation.ts"),
     nextI18nConfigFile("src/i18n/config.ts", "./routing.js"),
     nextLegacyI18nBarrel("src/i18n.ts"),
-    nextMiddlewareFile("src/middleware.ts", "./i18n/routing.js"),
-    nextMiddlewareFile("middleware.ts", "./src/i18n/routing.js"),
     makeMessagesFile("src/messages/en.json", EN_MESSAGES),
     makeMessagesFile("src/messages/fr.json", FR_MESSAGES),
     makeMessagesFile("src/messages/ar.json", AR_MESSAGES),

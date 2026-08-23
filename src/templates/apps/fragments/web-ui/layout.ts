@@ -67,31 +67,12 @@ TabsContent.displayName = "TabsContent";
 
 import * as React from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
+import { X } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 
 export const Dialog = BaseDialog.Root;
 export const DialogPortal = BaseDialog.Portal;
-
-export interface DialogTriggerProps
-  extends React.ComponentPropsWithoutRef<typeof BaseDialog.Trigger> {
-  /** Render the single child element as the trigger (maps to Base UI's \`render\`). */
-  asChild?: boolean;
-}
-
-// Base UI composes via \`render\`; \`asChild\` is the Radix spelling the call sites use.
-export const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
-  ({ asChild, children, ...props }, ref) => {
-    if (asChild && React.isValidElement(children)) {
-      return <BaseDialog.Trigger ref={ref} render={children as React.ReactElement} nativeButton={false} {...props} />;
-    }
-    return (
-      <BaseDialog.Trigger ref={ref} {...props}>
-        {children}
-      </BaseDialog.Trigger>
-    );
-  },
-);
-DialogTrigger.displayName = "DialogTrigger";
+export const DialogTrigger = BaseDialog.Trigger;
 
 export const DialogBackdrop = React.forwardRef<
   HTMLDivElement,
@@ -101,7 +82,7 @@ export const DialogBackdrop = React.forwardRef<
     ref={ref}
     data-slot="dialog-overlay"
     className={cn(
-      "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
+      "fixed inset-0 bg-black/50 backdrop-blur-sm data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
       className,
     )}
     {...props}
@@ -121,7 +102,7 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       data-slot="dialog-content"
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 data-[closed]:slide-out-to-left-1/2 data-[closed]:slide-out-to-top-[48%] data-[open]:slide-in-from-left-1/2 data-[open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed left-[50%] top-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 data-[closed]:slide-out-to-left-1/2 data-[closed]:slide-out-to-top-[48%] data-[open]:slide-in-from-left-1/2 data-[open]:slide-in-from-top-[48%] sm:rounded-lg",
         className,
       )}
       {...props}
@@ -132,9 +113,7 @@ export const DialogContent = React.forwardRef<
           data-slot="dialog-close"
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[open]:bg-accent data-[open]:text-muted-foreground"
         >
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="size-4" aria-hidden>
-            <path d="M11.7816 4.03157C12.0062 3.8079 12.0062 3.44295 11.7816 3.21928C11.557 2.99561 11.191 2.99561 10.9665 3.21928L7.50003 6.68575L4.03357 3.21928C3.8089 2.99561 3.44395 2.99561 3.21928 3.21928C2.99461 3.44295 2.99461 3.8079 3.21928 4.03157L6.68574 7.49804L3.21928 10.9645C2.99461 11.1882 2.99461 11.5532 3.21928 11.7768C3.44395 12.0005 3.8089 12.0005 4.03357 11.7768L7.50003 8.31035L10.9665 11.7768C11.191 12.0005 11.557 12.0005 11.7816 11.7768C12.0062 11.5532 12.0062 11.1882 11.7816 10.9645L8.3151 7.49804L11.7816 4.03157Z" fill="currentColor" />
-          </svg>
+          <X aria-hidden />
           <span className="sr-only">Close</span>
         </BaseDialog.Close>
       )}

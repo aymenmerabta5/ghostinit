@@ -8,10 +8,14 @@ export function signUpPageContent(router: RouterType): string {
     : `  const router = useRouter();\n  const [error, setError] = useState<string | null>(null);`;
   const imports = isTanstack
     ? `"use client"\nimport * as React from 'react'\nimport { createFileRoute, Link, useNavigate } from '@tanstack/react-router'\nimport { useState } from 'react'\nimport { z } from 'zod'\nimport { authClient } from '../lib/auth-client.js'\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form"\n\nexport const Route = createFileRoute('/sign-up')({ component: SignUpPage, })`
     : `"use client";\nimport * as React from "react";\nimport { useRouter } from "next/navigation";\nimport { useState } from "react";\nimport Link from "next/link";\nimport { z } from "zod";\nimport { authClient } from "../../lib/auth-client.js";\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`;
   const backLink = isTanstack
     ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>`
@@ -54,7 +58,11 @@ ${routerHook}
                 <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters"), onSubmit: ({ value }) => (${sharedValidators.password}), }} >{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="signup-password">Password</FieldLabel><Input id="signup-password" name={field.name} type="password" autoComplete="new-password" required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Must be at least 8 characters. Longer is stronger.</FieldDescription>)}</Field>)}</TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Create account</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Creating account...</>) : "Create account"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>
             </Form>
           </CardContent>

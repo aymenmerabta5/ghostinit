@@ -17,7 +17,11 @@ export function signInFormFields(router: RouterType): string {
                 </TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Sign in</SubmitButton>)}
+                {([canSubmit, isSubmitting]) => (
+                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
+                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Signing in...</>) : "Sign in"}
+                  </SubmitButton>
+                )}
               </form.Subscribe>`;
 }
 
@@ -38,10 +42,14 @@ export function signInPageContent(router: RouterType): string {
     : `  const router = useRouter();\n  const [error, setError] = useState<string | null>(null);`;
   const imports = isTanstack
     ? `"use client"\nimport * as React from 'react'\nimport { createFileRoute, Link, useNavigate } from '@tanstack/react-router'\nimport { useState } from 'react'\nimport { z } from 'zod'\nimport { authClient } from '../lib/auth-client.js'\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form"\n\nexport const Route = createFileRoute('/sign-in')({ component: SignInPage, })`
     : `"use client";\nimport * as React from "react";\nimport { useRouter } from "next/navigation";\nimport { useState } from "react";\nimport Link from "next/link";\nimport { z } from "zod";\nimport { authClient } from "../../lib/auth-client.js";\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`;
   const backLink = isTanstack
     ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>`

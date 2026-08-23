@@ -45,6 +45,19 @@ export function getNotificationHref(_type: string, payload: unknown): Notificati
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { formatNotification } from "@/lib/notifications";
 
 export interface NotificationItem {
@@ -56,14 +69,56 @@ export interface NotificationItem {
 }
 
 export function NotificationBell({ notifications, onMarkRead }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void }) {
-  const unread = notifications.filter((n) => !n.readAt).length;
+  const unread = notifications.filter((notification) => notification.readAt === null).length;
   return (
-    <div className="relative">
-      <Button variant="ghost" size="icon" aria-label="Notifications">
-        <Bell className="size-5" />
-        {unread > 0 && <Badge className="absolute -top-1 -end-1 size-5 rounded-full p-0 text-xs flex items-center justify-center">{unread > 9 ? "9+" : unread}</Badge>}
-      </Button>
-    </div>
+    <Popover>
+      <PopoverTrigger
+        render={<Button type="button" variant="ghost" size="icon" className="relative" aria-label="Notifications" />}
+      >
+        <Bell data-icon="inline-start" aria-hidden />
+        {unread > 0 ? (
+          <Badge variant="secondary" className="absolute -top-1 -end-1 size-5 justify-center p-0 text-xs">
+            {unread > 9 ? "9+" : unread}
+          </Badge>
+        ) : null}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <div className="flex flex-col gap-1">
+          <PopoverTitle>Notifications</PopoverTitle>
+          <PopoverDescription>Review recent account activity.</PopoverDescription>
+        </div>
+        {notifications.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No notifications</EmptyTitle>
+              <EmptyDescription>New account activity will appear here.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="flex max-h-80 flex-col gap-1 overflow-y-auto pt-3">
+            {notifications.map((notification) => {
+              const formatted = formatNotification(notification.type, notification.payload);
+              return (
+                <Button
+                  key={notification.id}
+                  type="button"
+                  variant="ghost"
+                  disabled={notification.readAt !== null}
+                  onClick={() => onMarkRead?.(notification.id)}
+                >
+                  <span className="flex min-w-0 flex-col items-start gap-1">
+                    <span className="truncate font-medium">{formatted.title}</span>
+                    {formatted.message ? (
+                      <span className="line-clamp-2 text-muted-foreground">{formatted.message}</span>
+                    ) : null}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 `;

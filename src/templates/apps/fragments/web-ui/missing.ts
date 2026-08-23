@@ -22,13 +22,160 @@ Textarea.displayName = "Textarea";
       "apps/web/src/components/ui/select.tsx",
       `"use client";
 import * as React from "react";
+import { Select as BaseSelect } from "@base-ui/react/select";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "../../lib/utils.js";
-export const Select = ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void; disabled?: boolean }) => <div data-slot="select">{children}</div>;
-export const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ className, children, ...props }, ref) => <button ref={ref} data-slot="select-trigger" className={cn("flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", className)} {...props}>{children}</button>);
-SelectTrigger.displayName = "SelectTrigger";
-export const SelectValue = ({ placeholder, children }: { placeholder?: string; children?: React.ReactNode }) => <span data-slot="select-value">{children ?? placeholder}</span>;
-export const SelectContent = ({ children }: { children: React.ReactNode }) => <div data-slot="select-content" className="z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">{children}</div>;
-export const SelectItem = ({ children, value, disabled }: { children: React.ReactNode; value: string; disabled?: boolean }) => <div data-slot="select-item" data-value={value} className={cn("relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50", disabled && "opacity-50")}>{children}</div>;
+
+export interface SelectOption {
+  label: React.ReactNode;
+  value: string;
+  disabled?: boolean;
+}
+
+export interface SelectProps {
+  children: React.ReactNode;
+  items: readonly SelectOption[];
+  value?: string;
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
+  name?: string;
+  placeholder?: string;
+}
+
+export function Select({
+  items,
+  placeholder,
+  value,
+  onValueChange,
+  disabled,
+  ...props
+}: SelectProps): React.JSX.Element {
+  const resolvedItems = placeholder ? [{ label: placeholder, value: null }, ...items] : items;
+  const handleValueChange = (next: string | null): void => {
+    if (next !== null) onValueChange?.(next);
+  };
+  return (
+    <BaseSelect.Root<string>
+      items={resolvedItems}
+      value={value}
+      onValueChange={handleValueChange}
+      disabled={disabled}
+      {...props}
+    />
+  );
+}
+
+export interface SelectTriggerProps
+  extends React.ComponentPropsWithoutRef<typeof BaseSelect.Trigger> {
+  ref?: React.Ref<HTMLButtonElement>;
+}
+
+export function SelectTrigger({
+  className,
+  children,
+  ref,
+  ...props
+}: SelectTriggerProps): React.JSX.Element {
+  return (
+    <BaseSelect.Trigger
+      ref={ref}
+      data-slot="select-trigger"
+      className={cn(
+        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronsUpDown data-icon="inline-end" aria-hidden />
+    </BaseSelect.Trigger>
+  );
+}
+
+export interface SelectValueProps
+  extends React.ComponentPropsWithoutRef<typeof BaseSelect.Value> {
+  ref?: React.Ref<HTMLSpanElement>;
+}
+
+export function SelectValue({ className, ref, ...props }: SelectValueProps): React.JSX.Element {
+  return (
+    <BaseSelect.Value
+      ref={ref}
+      data-slot="select-value"
+      className={cn("truncate data-[placeholder]:text-muted-foreground", className)}
+      {...props}
+    />
+  );
+}
+
+export interface SelectContentProps
+  extends React.ComponentPropsWithoutRef<typeof BaseSelect.Popup> {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+export function SelectContent({
+  className,
+  children,
+  ref,
+  ...props
+}: SelectContentProps): React.JSX.Element {
+  return (
+    <BaseSelect.Portal>
+      <BaseSelect.Positioner alignItemWithTrigger={false} sideOffset={4}>
+        <BaseSelect.Popup
+          ref={ref}
+          data-slot="select-content"
+          className={cn(
+            "min-w-[var(--anchor-width)] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+            className,
+          )}
+          {...props}
+        >
+          <BaseSelect.List>{children}</BaseSelect.List>
+        </BaseSelect.Popup>
+      </BaseSelect.Positioner>
+    </BaseSelect.Portal>
+  );
+}
+
+export interface SelectGroupProps
+  extends React.ComponentPropsWithoutRef<typeof BaseSelect.Group> {
+  ref?: React.Ref<HTMLDivElement>;
+}
+
+export const SelectGroup = ({ ref, ...props }: SelectGroupProps): React.JSX.Element => {
+  return <BaseSelect.Group ref={ref} data-slot="select-group" {...props} />;
+};
+
+export interface SelectItemProps
+  extends React.ComponentPropsWithoutRef<typeof BaseSelect.Item> {
+  value: string;
+  ref?: React.Ref<HTMLElement>;
+}
+
+export function SelectItem({
+  className,
+  children,
+  ref,
+  ...props
+}: SelectItemProps): React.JSX.Element {
+  return (
+    <BaseSelect.Item
+      ref={ref}
+      data-slot="select-item"
+      className={cn(
+        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ps-8 pe-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        className,
+      )}
+      {...props}
+    >
+      <BaseSelect.ItemIndicator className="absolute start-2 flex items-center justify-center">
+        <Check aria-hidden />
+      </BaseSelect.ItemIndicator>
+      <BaseSelect.ItemText>{children}</BaseSelect.ItemText>
+    </BaseSelect.Item>
+  );
+}
 `,
     ),
     file(
@@ -40,7 +187,7 @@ import { Check } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 export const Checkbox = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<typeof BaseCheckbox.Root>>(({ className, ...props }, ref) => (
   <BaseCheckbox.Root ref={ref} data-slot="checkbox" className={cn("peer size-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:bg-primary data-[checked]:text-primary-foreground", className)} {...props}>
-    <BaseCheckbox.Indicator className="flex items-center justify-center text-current"><Check className="size-3" /></BaseCheckbox.Indicator>
+    <BaseCheckbox.Indicator className="flex items-center justify-center text-current"><Check aria-hidden /></BaseCheckbox.Indicator>
   </BaseCheckbox.Root>
 ));
 Checkbox.displayName = "Checkbox";
@@ -57,12 +204,12 @@ import { buttonVariants } from "./button.js";
 export const AlertDialog = BaseAlertDialog.Root;
 export const AlertDialogTrigger = BaseAlertDialog.Trigger;
 export const AlertDialogPortal = BaseAlertDialog.Portal;
-export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 z-50 bg-black/20 backdrop-blur-sm", className)} {...props} />);
+export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 bg-black/20 backdrop-blur-sm", className)} {...props} />);
 AlertDialogOverlay.displayName = "AlertDialogOverlay";
 export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Popup>>(({ className, ...props }, ref) => (
   <BaseAlertDialog.Portal>
-    <BaseAlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm" />
-    <BaseAlertDialog.Popup ref={ref} data-slot="alert-dialog-content" className={cn("fixed start-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200", className)} {...props} />
+    <BaseAlertDialog.Backdrop className="fixed inset-0 bg-black/20 backdrop-blur-sm" />
+    <BaseAlertDialog.Popup ref={ref} data-slot="alert-dialog-content" className={cn("fixed start-1/2 top-1/2 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200", className)} {...props} />
   </BaseAlertDialog.Portal>
 ));
 AlertDialogContent.displayName = "AlertDialogContent";

@@ -134,6 +134,8 @@ function webPackageTanstack(
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        "server-only": `^${v.runtime["server-only"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
           ? {

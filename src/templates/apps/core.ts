@@ -115,6 +115,7 @@ function webPackage(
         "@repo/workflows": "workspace:*",
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
+        "better-auth": `^${v.auth["better-auth"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         clsx: `^${v.ui.clsx}`,
         sonner: `^${v.ui.sonner}`,
@@ -122,6 +123,8 @@ function webPackage(
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
         "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        "server-only": `^${v.runtime["server-only"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),
         ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")

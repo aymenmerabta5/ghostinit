@@ -47,6 +47,8 @@ function buildDeps(
         "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        "server-only": `^${v.runtime["server-only"]}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
         "posthog-node": `^${v.analytics["posthog-node"]}`,
       }
@@ -74,6 +76,8 @@ function buildDeps(
         "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        "server-only": `^${v.runtime["server-only"]}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
         "posthog-node": `^${v.analytics["posthog-node"]}`,
       };

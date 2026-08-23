@@ -40,36 +40,19 @@ const buttonVariants = cva(
 export interface ButtonProps
   extends React.ComponentPropsWithoutRef<typeof BaseButton>,
     VariantProps<typeof buttonVariants> {
-  /** Render the single child element as the button (maps to Base UI's \`render\`). */
-  asChild?: boolean;
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild, children, ...props }, ref) => {
-    const classes = cn(buttonVariants({ variant, size, className }));
-    // Base UI composes via \`render\`, not Radix's \`asChild\`. Accepting asChild here
-    // keeps the familiar shadcn call sites (<Button asChild><Link/></Button>)
-    // type-safe instead of erroring with "asChild does not exist on ButtonProps".
-    if (asChild && React.isValidElement(children)) {
-      return (
-        <BaseButton
-          data-slot="button"
-          className={classes}
-          ref={ref}
-          render={children as React.ReactElement}
-          nativeButton={false}
-          {...props}
-        />
-      );
-    }
-    return (
-      <BaseButton data-slot="button" className={classes} ref={ref} {...props}>
-        {children}
-      </BaseButton>
-    );
-  },
-);
-Button.displayName = "Button";
+export function Button({ className, variant, size, ref, ...props }: ButtonProps): React.JSX.Element {
+  return (
+    <BaseButton
+      ref={ref}
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  );
+}
 
 export { buttonVariants };
 `,

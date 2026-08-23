@@ -206,7 +206,7 @@ export const auth = betterAuth({
     enabled: true,
     autoSignInAfterRegistration: false,
     requireEmailVerification: false,
-    sendResetPassword: async ({ user, url, token }) => {
+    sendResetPassword: async ({ user, url }) => {
       const { sendEmail } = await import("@repo/email");
       const { default: ResetPasswordEmail } = await import("@repo/email/templates/ResetPassword.js");
       await sendEmail(user.email, \`Reset your password - \${env.APP_NAME}\`, ResetPasswordEmail, { link: url, appName: env.APP_NAME });
@@ -215,7 +215,7 @@ export const auth = betterAuth({
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url, token }) => {
+    sendVerificationEmail: async ({ user, url }) => {
       const { sendEmail } = await import("@repo/email");
       const { default: VerifyEmail } = await import("@repo/email/templates/VerifyEmail.js");
       await sendEmail(user.email, \`Verify your email - \${env.APP_NAME}\`, VerifyEmail, { link: url, appName: env.APP_NAME });

@@ -52,6 +52,21 @@ const TASK1_OWNERS = new Set([
   "src/templates/modes/single/server/auth.ts",
   "src/templates/modes/single/pages/admin.ts",
 ]);
+const TASK3_OWNERS = new Set([
+  "src/templates/apps/fragments/web-ui/missing.ts",
+  "src/templates/apps/fragments/web-ui/form-fields.ts",
+  "src/templates/apps/fragments/web-ui/forms.ts",
+  "src/templates/apps/fragments/web-ui/primitives.ts",
+  "src/templates/apps/fragments/web-ui/feedback.ts",
+  "src/templates/apps/fragments/web-ui/layout.ts",
+  "src/templates/apps/fragments/web-ui/dropdown.ts",
+  "src/templates/apps/fragments/web-ui/overlays.ts",
+  "src/templates/apps/fragments/lib/notifications.ts",
+  "src/templates/apps/fragments/lib/surface-styles.ts",
+  "src/templates/apps/fragments/settings/two-factor-card.ts",
+  "src/templates/auth.ts",
+]);
+const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS]);
 const dispositionSchema = JSON.parse(
   readFileSync(
     resolve(root, "schemas/v1-generated-unsafe-syntax-dispositions.schema.json"),
@@ -274,13 +289,13 @@ describe("V1 generated unsafe-syntax baseline", () => {
     }
   });
 
-  test("catalog matches the frozen baseline after removing only Task 1 owner occurrences", () => {
+  test("catalog matches the frozen baseline after removing stabilized owner occurrences", () => {
     const occurrences = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy);
     const expectedEntries = baseline.entries.filter(
       ({ disposition, sourceOwner }) =>
-        disposition !== "remove-in-stabilization" || !TASK1_OWNERS.has(sourceOwner),
+        disposition !== "remove-in-stabilization" || !STABILIZED_OWNERS.has(sourceOwner),
     );
-    expect(occurrences).toHaveLength(942);
+    expect(occurrences).toHaveLength(918);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -309,7 +324,9 @@ describe("V1 generated unsafe-syntax baseline", () => {
       actualRuleCounts.set(key, (actualRuleCounts.get(key) ?? 0) + 1);
     }
     for (const rule of policy.rules) {
-      const expected = TASK1_OWNERS.has(rule.sourceOwner) ? undefined : rule.expectedOccurrences;
+      const expected = STABILIZED_OWNERS.has(rule.sourceOwner)
+        ? undefined
+        : rule.expectedOccurrences;
       expect(actualRuleCounts.get(ruleKey(rule)), ruleKey(rule)).toBe(expected);
     }
   });
@@ -331,26 +348,43 @@ describe("V1 generated unsafe-syntax baseline", () => {
     ).toEqual([]);
   });
 
+  test("Task 3 owners have no remaining remove-in-stabilization occurrences", () => {
+    const actualIds = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy).map(
+      ({ id }) => id,
+    );
+    const removalEntriesById = new Map(
+      baseline.entries
+        .filter(({ disposition }) => disposition === "remove-in-stabilization")
+        .map((entry) => [entry.id, entry]),
+    );
+    expect(
+      actualIds.filter(
+        (id) =>
+          removalEntriesById.get(id) && TASK3_OWNERS.has(removalEntriesById.get(id)!.sourceOwner),
+      ),
+    ).toEqual([]);
+  });
+
   test("projection and default gates retain the factual V1 ceiling", () => {
     const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
     expect(PROJECTION_CONFIGURATIONS.map(({ configKey }) => configKey)).toHaveLength(16);
-    expect(projection).toHaveLength(784);
+    expect(projection).toHaveLength(764);
     const projectionRules = new Map(
       projection.map((occurrence) => {
         const rule = findProvenanceRule(occurrence.configKey, occurrence.path, policy);
         return [ruleKey(rule), rule];
       }),
     );
-    expect(projectionRules.size).toBe(89);
+    expect(projectionRules.size).toBe(86);
     expect(
       new Set(
         [...projectionRules.values()].map(
           ({ sourceOwner, emittedPathPattern }) => `${sourceOwner}::${emittedPathPattern}`,
         ),
       ).size,
-    ).toBe(87);
+    ).toBe(84);
     expect(new Set([...projectionRules.values()].map(({ sourceOwner }) => sourceOwner)).size).toBe(
-      52,
+      50,
     );
 
     const comparableKeys = new Set([
@@ -363,7 +397,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
     );
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "remove-in-stabilization"),
-    ).toHaveLength(58);
+    ).toHaveLength(54);
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "deferred-v1"),
     ).toHaveLength(85);
@@ -406,15 +440,15 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ),
     );
     const gate = generateCatalogOccurrences(GATE_CONFIGURATIONS, policy);
-    expect(gate).toHaveLength(158);
+    expect(gate).toHaveLength(154);
     expect(policy.gateEvidence.occurrenceRows).toBe(172);
     const gateRowsByConfigKey = new Map(GATE_CONFIGURATIONS.map(({ configKey }) => [configKey, 0]));
     for (const { configKey } of gate) {
       gateRowsByConfigKey.set(configKey, (gateRowsByConfigKey.get(configKey) ?? 0) + 1);
     }
     expect(Object.fromEntries(gateRowsByConfigKey)).toEqual({
-      "gate/next-monorepo": 90,
-      "gate/single-next": 68,
+      "gate/next-monorepo": 87,
+      "gate/single-next": 67,
     });
     const gateRules = gate.map((occurrence) =>
       findProvenanceRule(occurrence.configKey, occurrence.path, policy),
@@ -425,7 +459,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ).length,
       deferredV1: gateRules.filter(({ disposition }) => disposition === "deferred-v1").length,
     };
-    expect(gateDispositionSplit).toEqual({ removeInStabilization: 58, deferredV1: 100 });
+    expect(gateDispositionSplit).toEqual({ removeInStabilization: 54, deferredV1: 100 });
     expect({
       removeInStabilization: policy.defaultProjection.removeInStabilization,
       deferredV1: policy.defaultProjection.deferredV1,

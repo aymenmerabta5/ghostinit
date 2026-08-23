@@ -58,34 +58,50 @@ TextAreaField.displayName = "TextAreaField";
 
   const selectField = `"use client";
 import * as React from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export interface SelectFieldProps {
   label?: string;
   error?: string;
+  description?: string;
   value?: string;
   onValueChange?: (value: string) => void;
   placeholder?: string;
-  options: Array<{ value: string; label: string; disabled?: boolean }>;
+  options: ReadonlyArray<{ value: string; label: string; disabled?: boolean }>;
   className?: string;
   id?: string;
   disabled?: boolean;
 }
 
-export function SelectField({ label, error, value, onValueChange, placeholder, options, className, id, disabled }: SelectFieldProps) {
+export function SelectField({ label, error, description, value, onValueChange, placeholder, options, className, id, disabled }: SelectFieldProps) {
   const autoId = React.useId();
   const fieldId = id ?? autoId;
+  const descriptionId = \`\${fieldId}-description\`;
+  const errorId = \`\${fieldId}-error\`;
+  const describedBy = [description ? descriptionId : null, error ? errorId : null]
+    .filter((value): value is string => value !== null)
+    .join(" ") || undefined;
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      {label && <Label htmlFor={fieldId} data-invalid={!!error}>{label}</Label>}
-      <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-        <SelectTrigger id={fieldId} aria-invalid={!!error}><SelectValue placeholder={placeholder} /></SelectTrigger>
-        <SelectContent>{options.map((o) => <SelectItem key={o.value} value={o.value} disabled={o.disabled}>{o.label}</SelectItem>)}</SelectContent>
+    <Field className={className} data-invalid={Boolean(error)} data-disabled={disabled || undefined}>
+      {label ? <FieldLabel htmlFor={fieldId}>{label}</FieldLabel> : null}
+      <Select items={options} value={value} onValueChange={onValueChange} disabled={disabled} placeholder={placeholder}>
+        <SelectTrigger id={fieldId} aria-invalid={Boolean(error)} aria-describedby={describedBy}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
       </Select>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+      {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
+      {error ? <FieldDescription id={errorId}>{error}</FieldDescription> : null}
+    </Field>
   );
 }
 `;
@@ -93,32 +109,54 @@ export function SelectField({ label, error, value, onValueChange, placeholder, o
   const passwordField = `"use client";
 import * as React from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Field, FieldDescription, FieldLabel, InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/field";
 
 export interface PasswordFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;
   error?: string;
+  description?: string;
+  ref?: React.Ref<HTMLInputElement>;
 }
 
-export const PasswordField = React.forwardRef<HTMLInputElement, PasswordFieldProps>(({ label, error, className, id, ...props }, ref) => {
+export function PasswordField({ label, error, description, className, id, ref, ...props }: PasswordFieldProps): React.JSX.Element {
   const [show, setShow] = React.useState(false);
   const autoId = React.useId();
   const fieldId = id ?? autoId;
+  const descriptionId = \`\${fieldId}-description\`;
+  const errorId = \`\${fieldId}-error\`;
+  const describedBy = [description ? descriptionId : null, error ? errorId : null]
+    .filter((value): value is string => value !== null)
+    .join(" ") || undefined;
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      {label && <Label htmlFor={fieldId} data-invalid={!!error}>{label}</Label>}
-      <div className="relative">
-        <Input id={fieldId} ref={ref} type={show ? "text" : "password"} aria-invalid={!!error} className="pe-9" {...props} />
-        <Button type="button" variant="ghost" size="icon" className="absolute end-1 top-1/2 -translate-y-1/2 size-7" onClick={() => setShow((v) => !v)} aria-label={show ? "Hide password" : "Show password"}>{show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</Button>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    <Field className={className} data-invalid={Boolean(error)}>
+      {label ? <FieldLabel htmlFor={fieldId}>{label}</FieldLabel> : null}
+      <InputGroup>
+        <InputGroupInput
+          id={fieldId}
+          ref={ref}
+          type={show ? "text" : "password"}
+          aria-invalid={Boolean(error)}
+          aria-describedby={describedBy}
+          {...props}
+        />
+        <InputGroupAddon>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setShow((visible) => !visible)}
+            aria-label={show ? "Hide password" : "Show password"}
+          >
+            {show ? <EyeOff data-icon="inline-start" aria-hidden /> : <Eye data-icon="inline-start" aria-hidden />}
+          </Button>
+        </InputGroupAddon>
+      </InputGroup>
+      {description ? <FieldDescription id={descriptionId}>{description}</FieldDescription> : null}
+      {error ? <FieldDescription id={errorId}>{error}</FieldDescription> : null}
+    </Field>
   );
-});
-PasswordField.displayName = "PasswordField";
+}
 `;
 
   const checkboxField = `"use client";

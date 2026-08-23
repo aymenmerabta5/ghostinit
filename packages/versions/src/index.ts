@@ -117,6 +117,7 @@ export const styling = {
 export const ui = {
   shadcn: "4.13.0",
   "@base-ui/react": "1.6.0",
+  "lucide-react": "1.33.0",
   clsx: "2.1.1",
   "tailwind-merge": "3.6.0",
   "class-variance-authority": "0.7.1",

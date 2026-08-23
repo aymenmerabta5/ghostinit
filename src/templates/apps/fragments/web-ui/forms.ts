@@ -261,31 +261,12 @@ export function Form<TFormData = unknown>({
 }
 
 export interface SubmitButtonProps extends ButtonProps {
-  children?: React.ReactNode;
-  isPending?: boolean;
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
-export const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
-  ({ children, isPending, disabled, className, ...props }, ref) => (
-    <Button
-      type="submit"
-      ref={ref}
-      data-slot="form-submit"
-      disabled={disabled || isPending}
-      className={cn(isPending && "relative", className)}
-      {...props}
-    >
-      {isPending && (
-        <span data-icon className="absolute left-4 inline-flex">
-          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        </span>
-      )}
-      <span className={cn(isPending && "opacity-0")}>{children}</span>
-      {isPending && <span className="sr-only">Submitting</span>}
-    </Button>
-  ),
-);
-SubmitButton.displayName = "SubmitButton";
+export function SubmitButton({ ref, ...props }: SubmitButtonProps): React.JSX.Element {
+  return <Button type="submit" ref={ref} data-slot="form-submit" {...props} />;
+}
 `,
     ),
   ];

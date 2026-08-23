@@ -1,4 +1,4 @@
-// @allow-long 150: proxy template shared by monorepo + single, must stay reviewable side-by-side with licence-last src/proxy.ts
+// @allow-long 194: proxy template shared by monorepo + single, with maintenance and i18n behavior reviewed side by side
 import { file, type TemplateFile } from "./shared.js";
 import type { ProjectMode } from "../lib/addons.js";
 
@@ -42,27 +42,24 @@ export default function MaintenancePage() {
 `;
 }
 
-function proxyContent(mode: ProjectMode): string {
-  const isSingle = mode === "single";
-  const importPath = isSingle
-    ? `import { getSessionCookie } from "better-auth/cookies";\nimport type { NextRequest } from "next/server";\nimport { NextResponse } from "next/server";`
-    : `import { getSessionCookie } from "better-auth/cookies";\nimport type { NextRequest } from "next/server";\nimport { NextResponse } from "next/server";\nimport createMiddleware from "next-intl/middleware";\nimport { routing } from "@/i18n/routing";\n\nconst intlMiddleware = createMiddleware(routing);\n// Derive locales from routing to keep proxy in sync with next-intl config\nconst LOCALES = (routing.locales as readonly string[]).join("|");\nconst localeRegex = new RegExp(\`^/(\${LOCALES})(?=/|$)\`);`;
+function proxyContent(): string {
+  const importPath = `import { getSessionCookie } from "better-auth/cookies";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import createMiddleware from "next-intl/middleware";
+import { routing } from "@/i18n/routing";
 
-  const stripLocaleImpl = isSingle
-    ? `function stripLocale(pathname: string): string {
-  return pathname;
-}`
-    : `function stripLocale(pathname: string): string {
+const intlMiddleware = createMiddleware(routing);
+// Derive locales from routing to keep proxy in sync with next-intl config
+const LOCALES = (routing.locales as readonly string[]).join("|");
+const localeRegex = new RegExp(\`^/(\${LOCALES})(?=/|$)\`);`;
+
+  const stripLocaleImpl = `function stripLocale(pathname: string): string {
   return pathname.replace(localeRegex, "");
 }`;
 
-  const localeExtraction = isSingle
-    ? `  const locale = "en";`
-    : `  const locale = pathname.match(localeRegex)?.[1] ?? routing.defaultLocale;`;
-
-  const intlDelegate = isSingle
-    ? `  return NextResponse.next();`
-    : `  return intlMiddleware(request);`;
+  const localeExtraction = `  const locale = pathname.match(localeRegex)?.[1] ?? routing.defaultLocale;`;
+  const intlDelegate = `  return intlMiddleware(request);`;
 
   return `${importPath}
 
@@ -136,12 +133,6 @@ export const config = {
 
 export function proxyFiles(mode: ProjectMode = "monorepo", hasI18n = false): TemplateFile[] {
   const proxyPath = mode === "single" ? "src/proxy.ts" : "apps/web/src/proxy.ts";
-  const middlewarePath = mode === "single" ? "src/middleware.ts" : "apps/web/src/middleware.ts";
-  // Shared matcher exported for Next middleware discovery (Next 16 supports both proxy.ts and middleware.ts)
-  const middlewareShim = `import { proxy as proxyHandler, config } from "./proxy.js";
-export default proxyHandler;
-export { config };
-`;
   // The maintenance rewrite target must exist, otherwise the gate 404s.
   const pageDir = mode === "single" ? "src/app" : "apps/web/src/app";
   const maintenancePage = hasI18n
@@ -197,15 +188,7 @@ export async function proxy(request: NextRequest) {
 }
 export const config = { matcher: [${MATCHER}] };
 `;
-    return [
-      file(proxyPath, simple),
-      file(middlewarePath, middlewareShim),
-      file(maintenancePage, maintenancePageContent()),
-    ];
+    return [file(proxyPath, simple), file(maintenancePage, maintenancePageContent())];
   }
-  return [
-    file(proxyPath, proxyContent(mode)),
-    file(middlewarePath, middlewareShim),
-    file(maintenancePage, maintenancePageContent()),
-  ];
+  return [file(proxyPath, proxyContent()), file(maintenancePage, maintenancePageContent())];
 }
