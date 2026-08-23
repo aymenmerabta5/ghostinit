@@ -19,7 +19,7 @@ const styles = StyleSheet.create({
   subtitle: { fontFamily: "DejaVu Serif", fontSize: 9, color: "#57534e", letterSpacing: 0.5 },
   body: { paddingHorizontal: 36, paddingVertical: 8 },
   partiesRow: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 10 },
-  partyCard: { flex: 1, backgroundColor: COLORS.cardBg, borderRadius: 6, padding: 8, borderLeftWidth: 4 },
+  partyCard: { flex: 1, backgroundColor: COLORS.cardBg, borderRadius: 6, padding: 8, borderWidth: 1, borderColor: COLORS.cardBorder },
   partyHeader: { flexDirection: "row", alignItems: "center", marginBottom: 4, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   partyDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   partyTitle: { fontFamily: "DejaVu Sans Bold", fontSize: 9, textTransform: "uppercase", letterSpacing: 0.8 },
@@ -62,7 +62,7 @@ export function AgreementTemplate({ data, locale = "en" }: { data: AgreementData
         <View style={styles.body}>
           <View style={styles.partiesRow}>
             {data.parties.map((p, idx) => (
-              <View key={idx} style={[styles.partyCard, { borderLeftColor: p.color }]}>
+              <View key={idx} style={styles.partyCard}>
                 <View style={styles.partyHeader}><View style={[styles.partyDot, { backgroundColor: p.color }]} /><Text style={styles.partyTitle}>{p.roleLabel}</Text></View>
                 <View style={styles.row}><Text style={styles.label}>Name</Text><Text style={styles.value}>{p.name}</Text></View>
                 {p.email ? <View style={styles.row}><Text style={styles.label}>Email</Text><Text style={styles.value}>{p.email}</Text></View> : null}

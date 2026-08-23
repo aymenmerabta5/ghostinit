@@ -3,27 +3,27 @@ import type { DeployTarget } from "../../lib/addons.js";
 
 function dockerfileContent(_projectName: string): string {
   return `# syntax=docker/dockerfile:1
+# Requires BuildKit (default in modern Docker). COPY --parents preserves the
+# workspace layout so bun install can resolve apps/*, packages/*, tooling/*.
 FROM oven/bun:1.3.14 AS base
 WORKDIR /app
 
-# Install dependencies
-COPY package.json bun.lock* ./
-COPY apps/web/package.json ./apps/web/package.json
-COPY packages/*/package.json ./packages/*/
+# Manifests first for layer caching
+COPY --parents package.json bun.lock* apps/*/package.json packages/*/package.json tooling/*/package.json ./
 RUN bun install --frozen-lockfile || bun install
 
-# Copy source
+# Source + build
 COPY . .
-
-# Build
 RUN bun run build
 
-# Runtime
-FROM oven/bun:1.3.14-slim
+# Runtime — plain tag (slim/alpine variants lack toolchain needed by turbo)
+FROM oven/bun:1.3.14
 WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
 COPY --from=base /app ./
 EXPOSE 3000
-ENV NODE_ENV=production
+# turbo start -> apps/web next start (or apps/web/server.ts for WS when messaging is on)
 CMD ["bun", "run", "start"]
 `;
 }
@@ -35,8 +35,10 @@ dist
 .output
 .turbo
 .git
+.ghostinit
 .env
 .env.local
+data/uploads
 convex/_generated
 `;
 }

@@ -37,6 +37,10 @@ export const oklchLightTokens = `:root {
   --border: oklch(0.92 0.01 285);
   --input: oklch(0.92 0.01 285);
   --ring: oklch(0.60 0.19 262);
+  --success: oklch(0.58 0.14 150);
+  --warning: oklch(0.60 0.13 75);
+  --code: oklch(0.965 0.006 285);
+  --code-foreground: oklch(0.28 0.01 285);
   --radius: 0.75rem;
   --chart-1: oklch(0.60 0.19 262);
   --chart-2: oklch(0.72 0.16 150);
@@ -73,6 +77,10 @@ export const oklchDarkTokens = `.dark {
   --border: oklch(0.27 0.01 285);
   --input: oklch(0.32 0.01 285);
   --ring: oklch(0.68 0.17 262);
+  --success: oklch(0.72 0.16 150);
+  --warning: oklch(0.76 0.15 75);
+  --code: oklch(0.12 0.01 285);
+  --code-foreground: oklch(0.80 0.012 285);
   --chart-1: oklch(0.68 0.17 262);
   --chart-2: oklch(0.72 0.16 150);
   --chart-3: oklch(0.62 0.12 150);
@@ -108,6 +116,10 @@ export const themeInlineTokens = `@theme inline {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

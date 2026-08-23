@@ -51,7 +51,7 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
 
 | #   | Location                                     | Purpose                                     |
 | --- | -------------------------------------------- | ------------------------------------------- |
-| 1   | `src/lib/constants.ts` `ENV_PLACEHOLDERS`    | Placeholder values (`REPLACE_WITH_*`)       |
+| 1   | `src/lib/env-manifest.ts` `ENV_PLACEHOLDERS` | Placeholder values (`REPLACE_WITH_*`)       |
 | 2   | `src/templates/shared/env.ts`                | `.env.example` / `.env.local` line emitters |
 | 3   | `src/templates/root/turbo.ts` `turbo()`      | Generated `turbo.json` `globalEnv` list     |
 | 4   | `turbo.json` (host) + generated `turbo.json` | Actual cache keys for host vs output        |
@@ -107,7 +107,7 @@ key with no `sk_` prefix).
 - **Typed errors + JSON envelope** — use `ValidationError`, `ExitCode`, `envelope()`.
 - **Package versions** — never hardcode `^x.y.z` in templates; import `* as v` from `./versions.js` (re-export of `@repo/versions`). Internal deps use `workspace:*`.
 - **Billing flexibility** — any combo allowed: `none`, `stripe`, `chargily`, `chargily,stripe` (Algeria+Global), `all`. Parsing via `parseBillingInput()` case-insensitive deduped. Validation only blocks `billing + database=none`. Each provider needs 7 files (<300 LOC guideline each, `// @allow-long` escape if needed): `client.ts`, `checkout.ts`, `customer.ts`, `portal.ts`, `webhook.ts`, `subscriptions.ts`, `mappers.ts` + barrel `index.ts` + wiring in `billing/webhooks/factory.ts` + `shared/env.ts` + UI panel.
-- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`. Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
+- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`, `availableDeployTargets=[vercel,fly,docker,none]` (`--deploy` emits Dockerfile+`.dockerignore` / `fly.toml` / `vercel.json`). Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
 
 ## Version Sync Gotcha
 
@@ -154,9 +154,10 @@ those was invisible to 399 passing unit tests.
 - Default corners are `next-monorepo` and `single-next` — CI blocks on these.
 - `--all` runs every corner (slow: each is a full `bun install`).
 - `--only a,b` selects corners; `--keep` leaves the projects on disk to inspect.
-- A corner may declare `expectedFailures` for a documented known gap (currently
-  `tanstack` → `typecheck`); those report as KNOWN and do not fail the run. When
-  you fix the gap, delete the entry so it starts blocking.
+- A corner may declare `expectedFailures` for a documented known gap; those report
+  as KNOWN and do not fail the run. When you fix the gap, delete the entry so it
+  starts blocking. (No known gaps currently — the last one, `tanstack`
+  typecheck, was fixed.)
 
 Use it whenever you touch dependency versions, tsconfig emission, package
 manifests, or anything under `apps/`.

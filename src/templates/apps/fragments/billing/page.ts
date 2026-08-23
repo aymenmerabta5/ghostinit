@@ -43,7 +43,7 @@ function BillingContent(): React.JSX.Element {
           <Card>
             <CardHeader><CardTitle className="text-base">Invoices</CardTitle><CardDescription>Recent invoices</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {invoices.length===0 ? <p className="text-sm text-muted-foreground">No invoices.</p> : invoices.map((inv) => (
+              {invoices.length===0 ? <p className="text-sm text-muted-foreground">No invoices yet — they appear here after your first payment cycle.</p> : invoices.map((inv) => (
                 <div key={inv.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <span className="text-sm">{inv.provider} — {inv.amount} {inv.currency ?? ""}</span><Badge variant={inv.paid ? "secondary" : "destructive"}>{inv.status}</Badge>
                 </div>
@@ -132,7 +132,7 @@ function BillingContent(): React.JSX.Element {
           <Card>
             <CardHeader><CardTitle className="text-base">Invoices</CardTitle><CardDescription>Recent invoices</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {invoices.length===0 ? <p className="text-sm text-muted-foreground">No invoices.</p> : invoices.map((inv) => (
+              {invoices.length===0 ? <p className="text-sm text-muted-foreground">No invoices yet — they appear here after your first payment cycle.</p> : invoices.map((inv) => (
                 <div key={inv.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <span className="text-sm">{inv.provider} — {inv.amount} {inv.currency ?? ""}</span><Badge variant={inv.paid ? "secondary" : "destructive"}>{inv.status}</Badge>
                 </div>

@@ -116,6 +116,11 @@ export function coreEnvExampleLines(
   }
   base.push("TRUSTED_PROXY=false");
   base.push("");
+  base.push("# Maintenance mode — MAINTENANCE_MODE=true serves /maintenance to visitors");
+  base.push("MAINTENANCE_MODE=false");
+  base.push("# Optional bypass: append ?maintenance_bypass=<token> once to bypass while enabled");
+  base.push("# MAINTENANCE_BYPASS_TOKEN=");
+  base.push("");
   base.push("# OAuth — optional, set to enable social login (google, github)");
   base.push(`GOOGLE_CLIENT_ID=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_ID}`);
   base.push(`GOOGLE_CLIENT_SECRET=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_SECRET}`);
@@ -145,6 +150,11 @@ export function coreEnvLocalLines(
     base.push(...postgresLocalLines(projectName, secrets));
   }
   base.push("TRUSTED_PROXY=false");
+  base.push("");
+  base.push("# Maintenance mode — MAINTENANCE_MODE=true serves /maintenance to visitors");
+  base.push("MAINTENANCE_MODE=false");
+  base.push("# Optional bypass: append ?maintenance_bypass=<token> once to bypass while enabled");
+  base.push("# MAINTENANCE_BYPASS_TOKEN=");
   base.push("");
   base.push("# OAuth — optional, set to enable social login (google, github)");
   base.push(`GOOGLE_CLIENT_ID=${ENV_PLACEHOLDERS.GOOGLE_CLIENT_ID}`);

@@ -28,6 +28,7 @@ export const CLI_OPTIONS = {
   apps: { type: "string" as const, multiple: true as const },
   preset: { type: "string" as const, multiple: true as const },
   cache: { type: "string" as const, multiple: true as const },
+  deploy: { type: "string" as const, multiple: true as const },
   stack: { type: "string" as const, multiple: true as const },
   "with-auth": { type: "boolean" as const, default: false },
   "with-api": { type: "boolean" as const, default: false },
@@ -74,6 +75,7 @@ export interface CreateParsed {
   apps: import("../lib/addons.js").AppName[];
   preset: import("../lib/addons.js").PresetName | undefined;
   cache: import("../lib/addons.js").CacheProvider;
+  deploy: import("../lib/addons.js").DeployTarget;
   stack: string | undefined;
   withAuth?: boolean;
   withApi?: boolean;
@@ -103,6 +105,7 @@ export function parseCreateSpecific(
       apps: getStringArray(values.apps),
       preset: getStringArray(values.preset),
       cache: getStringArray(values.cache),
+      deploy: getStringArray(values.deploy),
       stack: getStringArray(values.stack),
       "with-auth": getBoolean(values["with-auth"]),
       "with-api": getBoolean(values["with-api"]),
@@ -125,6 +128,7 @@ export function parseCreateSpecific(
     apps: ["web"] as import("../lib/addons.js").AppName[],
     preset: undefined,
     cache: "none" as const,
+    deploy: "none" as const,
     stack: undefined,
   };
 }
@@ -157,6 +161,7 @@ export function buildGlobalOptions(
     apps: createParsed.apps,
     preset: createParsed.preset,
     cache: createParsed.cache,
+    deploy: createParsed.deploy,
     stack: createParsed.stack,
     withAuth: createParsed.withAuth,
     withApi: createParsed.withApi,
@@ -178,6 +183,7 @@ export function buildGlobalOptions(
     rawApps: getStringArray(values.apps),
     rawPreset: getStringArray(values.preset),
     rawCache: getStringArray(values.cache),
+    rawDeploy: getStringArray(values.deploy),
     logger,
   };
 }

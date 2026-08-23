@@ -12,7 +12,7 @@ import { loadState } from "../lib/state.js";
 import type { GlobalOptions } from "./types.js";
 import { getGlobalEnvKeys } from "../lib/env-manifest.js";
 
-async function fixTurboEnv(
+export async function fixTurboEnv(
   cwd: string,
   logger: GlobalOptions["logger"],
 ): Promise<{ fixed: boolean; message: string }> {

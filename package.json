@@ -14,7 +14,6 @@
   "files": [
     "dist/cli.js",
     "src/**/*",
-    "schemas/project-config.json",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"

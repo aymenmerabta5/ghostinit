@@ -11,29 +11,27 @@ const statement = {
 
 export const ac = createAccessControl(statement);
 
+// Role ladder: superAdmin (everything) > admin (manage users) > member (self) > viewer (read-only).
+// Rename or extend these to your domain — they are examples, not requirements.
+
 export const superAdmin = ac.newRole({
   user: ["create", "list", "set-role", "ban", "impersonate", "delete", "set-password", "get", "update"],
   session: ["list", "revoke", "delete"],
 });
 
-export const universityAdmin = ac.newRole({
-  user: [],
-  session: [],
+export const admin = ac.newRole({
+  user: ["create", "list", "set-role", "ban", "set-password", "get", "update"],
+  session: ["list", "revoke", "delete"],
 });
 
-export const deptHead = ac.newRole({
-  user: ["list"],
+export const member = ac.newRole({
+  user: [],
   session: ["list"],
 });
 
-export const student = ac.newRole({
-  user: [],
-  session: [],
-});
-
-export const companyAdmin = ac.newRole({
-  user: [],
-  session: [],
+export const viewer = ac.newRole({
+  user: ["list"],
+  session: ["list"],
 });
 `;
 }

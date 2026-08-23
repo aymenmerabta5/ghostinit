@@ -30,6 +30,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let apps: AppName[] = (options.apps ?? ["web"]) as AppName[];
   let preset: PresetName | undefined = options.preset as PresetName | undefined;
   let cache: CacheProvider = (options.cache ?? "none") as CacheProvider;
+  let deploy = (options.deploy ?? "none") as import("../../lib/addons.js").DeployTarget;
   let noInstall = options.noInstall;
   // Interactive custom decoded flags lifted to outer scope
   let interactiveCustomAuth: boolean | undefined;
@@ -53,6 +54,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       apps: apps as unknown as string[],
       preset: preset as unknown as string | undefined,
       cache: cache as unknown as string | undefined,
+      deploy: deploy as unknown as string | undefined,
       noInstall,
     });
     if (prompted.cancelled) return prompted.exitCode ?? ExitCode.CANCELLED;
@@ -66,6 +68,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     apps = prompted.apps as unknown as AppName[];
     preset = prompted.preset as unknown as PresetName | undefined;
     cache = (prompted.cache as unknown as CacheProvider) ?? "none";
+    deploy = (prompted.deploy as unknown as typeof deploy) ?? "none";
     // Decode custom preset __custom_ prefixes from prompts.ts
     if (preset === "custom" && rawFeatures) {
       const decoded: string[] = [];
@@ -104,11 +107,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       rawFeatures = rawFeatures.filter((f) => f !== "__custom_messaging");
     }
     features = rawFeatures as unknown as FeatureName[];
-    // stack mapping may override framework/apps via prompt result
-    if (prompted.stack) {
-      // stack is already mapped to framework/apps in promptInteractive, but keep
-      // as fallback if prompt returns raw stack string
-    }
+    // stack shorthand is already mapped to framework/apps inside promptInteractive
     noInstall = prompted.noInstall;
   } else {
     validateProjectName(name ?? "");
@@ -121,9 +120,6 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     if (preset === "frontend" && !hasExplicitDatabase && database === "postgres") {
       // frontend preset without explicit --database should be none (minimal)
       database = "none" as DatabaseProvider;
-    }
-    if (!preset && options.yes === false && !options.json && !options.ci) {
-      // When no preset and not --yes, keep backward compat saas (already default)
     }
   }
 
@@ -199,7 +195,6 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   const withApiFlag = options.withApi;
   const withEmailFlag = options.withEmail;
   const withAnalyticsFlag = options.withAnalytics;
-  const withCacheFlag = options.withCache;
   const withEveFlag = options.withEve;
   const withI18nFlag = options.withI18n;
   const withPdfFlag = (options as unknown as Record<string, unknown>).withPdf as
@@ -227,10 +222,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     else if (withPdfFlag !== undefined) effectivePdf = withPdfFlag;
     if (interactiveCustomMessaging !== undefined) effectiveMessaging = interactiveCustomMessaging;
     else if (withMessagingFlag !== undefined) effectiveMessaging = withMessagingFlag;
-    // For interactive custom, cache already set from prompts (cache includes redis when cache feature selected)
-    if (interactive && cache === "none" && interactiveCustomAuth === undefined) {
-      // no-op
-    }
+    // For interactive custom, cache comes from the prompts (redis when the cache feature is selected)
   } else if (effectivePreset === "frontend") {
     effectiveAuth = false;
     effectiveApi = false;
@@ -261,9 +253,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   if (withApiFlag === true) effectiveApi = true;
   if (withEmailFlag === true) effectiveEmail = true;
   if (withAnalyticsFlag === true) effectiveAnalytics = true;
-  if (withCacheFlag === true) {
-    // effectiveCache already set to redis when with-cache true in parseCreateArgs, keep
-  }
+  // with-cache maps to cache=redis in parseCreateArgs; effectiveCache already reflects it
   if (withEveFlag === true) effectiveEve = true;
   if (withI18nFlag === true) effectiveI18n = true;
   if (withPdfFlag === true) effectivePdf = true;
@@ -292,6 +282,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     apps,
     preset: effectivePreset,
     cache: effectiveCache,
+    deploy,
     auth: effectiveAuth,
     api: effectiveApi,
     email: effectiveEmail,
@@ -341,6 +332,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
             apps,
             preset: effectivePreset,
             cache: effectiveCache,
+            deploy,
           },
           command: "create",
           durationMs: Date.now() - start,
@@ -381,6 +373,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
           apps,
           preset: effectivePreset,
           cache: effectiveCache,
+          deploy,
         },
         command: "create",
         durationMs: Date.now() - start,

@@ -13,6 +13,7 @@ export function turbo(runtime: "node" | "bun"): TemplateFile {
         tasks: {
           build: { dependsOn: ["^build"], outputs: ["dist/**", ".next/**", "!.next/cache/**"] },
           dev: { cache: false, persistent: true },
+          start: { dependsOn: ["build"], cache: false, persistent: true },
           typecheck: { dependsOn: ["^build"] },
           lint: {},
           format: {},

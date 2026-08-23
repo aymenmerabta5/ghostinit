@@ -16,6 +16,7 @@ import {
   parseAppsInput,
   parsePresetInput,
   parseCacheInput,
+  parseDeployInput,
   parseStackInput,
   type ProjectMode,
   type BillingProviderName,
@@ -25,6 +26,7 @@ import {
   type AppName,
   type PresetName,
   type CacheProvider,
+  type DeployTarget,
 } from "./addons.js";
 
 export const PROJECT_NAME_RE = /^[a-z][a-z0-9-]*$/;
@@ -61,6 +63,7 @@ export interface CreateFlagBag {
   apps?: string | string[];
   preset?: string | string[];
   cache?: string | string[];
+  deploy?: string | string[];
   stack?: string | string[];
   "with-auth"?: boolean;
   "with-api"?: boolean;
@@ -82,6 +85,7 @@ export interface ParsedCreateArgs {
   apps: AppName[];
   preset: PresetName | undefined;
   cache: CacheProvider;
+  deploy: DeployTarget;
   stack: string | undefined;
   withAuth: boolean | undefined;
   withApi: boolean | undefined;
@@ -131,6 +135,7 @@ export function parseCreateArgs(
   const frameworkRaw = lastOrUndefined(bag.framework);
   const presetRaw = lastOrUndefined(bag.preset);
   const cacheRaw = lastOrUndefined(bag.cache);
+  const deployRaw = lastOrUndefined(bag.deploy);
   const stackRaw = lastOrUndefined(bag.stack);
 
   const billingCombined = combineToSingleString(bag.billing);
@@ -145,6 +150,7 @@ export function parseCreateArgs(
   let apps = parseAppsInput(appsCombined);
   const preset = parsePresetInput(presetRaw);
   let cache = parseCacheInput(cacheRaw);
+  const deploy = parseDeployInput(deployRaw);
 
   // with-* booleans override cache + handle --features alias for eve/i18n (backward compat)
   let withAuth = bag["with-auth"] as boolean | undefined;
@@ -183,6 +189,7 @@ export function parseCreateArgs(
     apps,
     preset,
     cache,
+    deploy,
     stack: stackRaw,
     withAuth,
     withApi,

@@ -36,7 +36,9 @@ export default function ForgotPasswordPage(): React.JSX.Element {
             {status ? <Alert><AlertTitle>Check your email</AlertTitle><AlertDescription>{status}</AlertDescription></Alert> : null}
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup><TanStackField form={form} name="email" validators={{ onSubmit: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription> : <FieldDescription>We send a reset link to this address if it exists in our system.</FieldDescription>}</Field>)}</TanStackField></FieldGroup>
-              <SubmitButton className="w-full">Send reset link</SubmitButton>
+              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
+                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
+              </form.Subscribe>
             </Form>
           </CardContent>
           <CardFooter className="flex flex-col gap-3"><div className="flex w-full justify-between text-sm"><Link href="/sign-in" className="text-muted-foreground hover:text-foreground underline underline-offset-4">Back to sign in</Link><Link href="/sign-up" className="text-muted-foreground hover:text-foreground underline underline-offset-4">Create account</Link></div></CardFooter>
@@ -94,7 +96,7 @@ function ForgotPasswordPage(): React.JSX.Element {
     <main className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="w-full max-w-[420px] flex flex-col gap-6">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader className="gap-2">
             <CardTitle className="text-2xl tracking-tight">Forgot password</CardTitle>
             <CardDescription className="max-w-[60ch]">Enter your email to receive a reset link.</CardDescription>
@@ -108,7 +110,9 @@ function ForgotPasswordPage(): React.JSX.Element {
                   {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>We will send a reset link to this address.</FieldDescription>)}</Field>)}
                 </TanStackField>
               </FieldGroup>
-              <SubmitButton className="w-full">Send reset link</SubmitButton>
+              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
+                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
+              </form.Subscribe>
             </Form>
           </CardContent>
         </Card>

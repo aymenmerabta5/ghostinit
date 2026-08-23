@@ -78,7 +78,7 @@ export function ThemeToggle(): React.JSX.Element {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled aria-label="Toggle theme placeholder">
+      <Button variant="ghost" size="icon" disabled aria-label="Toggle theme">
         <span className="size-4" />
       </Button>
     );

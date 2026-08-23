@@ -16,7 +16,7 @@ import {
 export function marketingHeaderFragment(router: RouterType): string {
   const githubStars = `<a href="https://github.com/aymenmerabta5/ghostinit" target="_blank" rel="noreferrer" className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><span className="font-mono">★</span> GitHub</a>`;
   if (router === "tanstack") {
-    return `      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
+    return `      <header className="sticky top-0 z-40 w-full border-b bg-background">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
           <Link to="/" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">GhostInit</span>
@@ -35,7 +35,7 @@ export function marketingHeaderFragment(router: RouterType): string {
         </div>
       </header>`;
   }
-  return `      <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60">
+  return `      <header className="sticky top-0 z-40 w-full border-b bg-background">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">GhostInit</span>
@@ -130,7 +130,7 @@ export function marketingQuickStartFragment(router: RouterType): string {
       ? `Bun only. No npm fallback. Secret strength validation length 32+`
       : `Bun only. TanStack Start uses vite dev.`;
 
-  return `        <section className="flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-sm md:p-8">
+  return `        <section className="flex flex-col gap-6 rounded-lg border bg-card p-6 md:p-8">
           <div className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold tracking-tight">Quick start</h2>
             <p className="text-sm text-muted-foreground max-w-[65ch]">${desc}</p>

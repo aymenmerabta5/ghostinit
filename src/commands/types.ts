@@ -7,6 +7,7 @@ import type {
   FrameworkName,
   PresetName,
   CacheProvider,
+  DeployTarget,
 } from "../lib/addons.js";
 
 export interface GlobalOptions {
@@ -28,6 +29,7 @@ export interface GlobalOptions {
   apps?: import("../lib/addons.js").AppName[];
   preset?: PresetName;
   cache?: CacheProvider;
+  deploy?: DeployTarget;
   stack?: string;
   withAuth?: boolean;
   withApi?: boolean;
@@ -49,6 +51,7 @@ export interface GlobalOptions {
   rawApps?: string | string[];
   rawPreset?: string | string[];
   rawCache?: string | string[];
+  rawDeploy?: string | string[];
   logger: Logger;
 }
 

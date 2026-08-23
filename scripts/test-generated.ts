@@ -51,6 +51,29 @@ const CORNERS: Corner[] = [
     args: ["--database", "postgres", "--billing", "none", "--features", "eve,i18n"],
   },
   { id: "mobile", args: ["--apps", "web,mobile", "--database", "postgres", "--billing", "stripe"] },
+  {
+    id: "desktop",
+    args: ["--apps", "web,desktop", "--database", "postgres", "--billing", "stripe"],
+  },
+  {
+    id: "single-tanstack",
+    args: ["--mode", "single", "--framework", "tanstack-start", "--database", "postgres"],
+  },
+  {
+    id: "features",
+    args: [
+      "--database",
+      "postgres",
+      "--billing",
+      "none",
+      "--with-eve",
+      "--with-i18n",
+      "--with-pdf",
+      "--with-messaging",
+      "--deploy",
+      "docker",
+    ],
+  },
 ];
 
 /** Kept small on purpose: CI blocks on these, the rest are opt-in via --all. */

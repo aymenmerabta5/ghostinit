@@ -4,11 +4,11 @@ Date: 2026-07-12
 
 ## Toolchain
 
-| Tool          | Version     | Notes                                                                                                 |
-| ------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
-| Bun           | 1.3.14      | Current stable latest; local matches.                                                                 |
-| Node (target) | 24.18.0 LTS | Local v25.8.0 is EOL; target LTS for generated apps.                                                  |
-| TypeScript    | 7.0.2       | Stable; no programmatic compiler API until 7.1. Use TS 6.0.3 sidecar only if a tool requires the API. |
+| Tool          | Version       | Notes                                                                                                                                                                              |
+| ------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bun           | 1.3.14        | Current stable latest; local matches.                                                                                                                                              |
+| Node (target) | 24.18.0 LTS   | Local v25.8.0 is EOL; target LTS for generated apps.                                                                                                                               |
+| TypeScript    | 6.0.3 / 7.0.2 | Generated projects pin 6.0.3 (TS7 Go port breaks Next 16.2.10); host devDeps use 7.0.2. No programmatic compiler API until 7.1 — the architecture checker uses oxc-parser instead. |
 
 ## Generated Application Stack
 

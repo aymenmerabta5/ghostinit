@@ -122,7 +122,7 @@ export function desktopTsconfigContent(): string {
 }
 
 export function desktopMainContent(): string {
-  return `import { app, BrowserWindow, ipcMain, safeStorage, shell, dialog } from "electron";
+  return `import { app, BrowserWindow, ipcMain, safeStorage, shell, dialog, session } from "electron";
 import { join } from "node:path";
 import Store from "electron-store";
 import { autoUpdater } from "electron-updater";
@@ -161,6 +161,24 @@ function setSafeValue(key: string, value: string) {
 
 let mainWindow: BrowserWindow | null = null;
 
+// CSP is injected here (not a meta tag) so connect-src follows DESKTOP_API_URL
+// without hand-editing renderer HTML. WS scheme derives from the API protocol.
+function desktopCsp(): string {
+  const base =
+    process.env.DESKTOP_API_URL || process.env.VITE_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  let origin: URL;
+  try { origin = new URL(base); } catch { origin = new URL("http://localhost:3000"); }
+  const wsProtocol = origin.protocol === "https:" ? "wss:" : "ws:";
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    \`connect-src 'self' \${origin.origin} \${wsProtocol}//\${origin.host}\`,
+  ].join("; ");
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -180,6 +198,13 @@ function createWindow() {
   });
 
   mainWindow.on("ready-to-show", () => mainWindow?.show());
+
+  // Dynamic CSP per desktopCsp() — see comment there
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": [desktopCsp()] },
+    });
+  });
 
   // Adapted from t3code DesktopWindow load logic — dev loads vite, prod loads file
   const isDev = process.env.ELECTRON_IS_DEV === "1" || !app.isPackaged;
@@ -583,7 +608,7 @@ export function ThemeToggle() {
       <button
         type="button"
         disabled
-        aria-label="Toggle theme placeholder"
+        aria-label="Toggle theme"
         className="inline-flex size-8 items-center justify-center rounded-md border bg-background"
       >
         <span className="size-4" />
@@ -661,9 +686,8 @@ export function desktopRendererHtmlContent(): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- CSP: connect-src uses DESKTOP_API_URL when configured, else localhost for dev -->
-    <!-- Note: update connect-src if you set DESKTOP_API_URL to a custom origin -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:3000 https://localhost:3000 ws://localhost:3000 wss://localhost:3000;" />
+    <!-- CSP is set by the Electron main process (main.ts desktopCsp) so connect-src
+         follows DESKTOP_API_URL automatically. No static CSP here. -->
     <title>GhostInit Desktop</title>
   </head>
   <body>
@@ -922,7 +946,7 @@ function IndexComponent() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="rounded-xl border bg-card p-6">
+      <div className="rounded-lg border bg-card p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight">Welcome to GhostInit Desktop</h2>
@@ -983,7 +1007,7 @@ function IndexComponent() {
         </div>
       </div>
 
-      <div className="rounded-xl border p-4">
+      <div className="rounded-lg border p-4">
         <h3 className="text-sm font-semibold">How it works</h3>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
           <li>
@@ -1039,7 +1063,7 @@ function DashboardComponent() {
   if (isPending) return <p className="text-sm p-6">Loading auth…</p>;
   if (!isAuthenticated) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 rounded-xl border p-6">
+      <div className="mx-auto max-w-2xl space-y-4 rounded-lg border p-6">
         <h2 className="text-lg font-semibold">Dashboard — sign in required</h2>
         <p className="text-sm text-muted-foreground">Sign in via web at http://localhost:3000/sign-in. Desktop shares the httpOnly cookie + safeStorage bridge.</p>
         <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
@@ -1063,7 +1087,7 @@ function DashboardComponent() {
       <div className="h-px bg-border" />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="md:col-span-2 rounded-xl border bg-card p-4">
+        <div className="md:col-span-2 rounded-lg border bg-card p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Profile</h3>
             <span className="rounded-full bg-secondary px-2 py-0.5 text-xs capitalize flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {String((user as { role?: string })?.role ?? "user")}</span>
@@ -1076,7 +1100,7 @@ function DashboardComponent() {
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Quick actions</h3>
           <div className="mt-3 flex flex-col gap-2">
             <Link to="/settings" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Security & 2FA</Link>
@@ -1087,19 +1111,19 @@ function DashboardComponent() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Session (Better Auth)</h3>
           <p className="text-xs text-muted-foreground mt-1">via useAuth() → authClient.useSession()</p>
           <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify({ id: user?.id, email: user?.email, name: (user as { name?: string })?.name, role: (user as { role?: string })?.role }, null, 2)}</pre>
         </div>
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">oRPC me()</h3>
           <p className="text-xs text-muted-foreground mt-1">QueryClient + RPCLink → http://localhost:3000/api • credentials: include</p>
           <pre className="mt-3 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">{me.isPending ? "loading…" : JSON.stringify(me.data ?? (me.error as Error)?.message ?? me.error, null, 2)}</pre>
         </div>
       </div>
 
-      <div className="rounded-xl border p-4">
+      <div className="rounded-lg border p-4">
         <h3 className="text-sm font-semibold">Billing preview (oRPC)</h3>
         <p className="text-xs text-muted-foreground mt-1">Calls billing.subscriptions when a provider is configured; otherwise shows empty state like web.</p>
         {billing.isPending ? <p className="text-xs mt-3 text-muted-foreground">loading…</p> : billing.error ? <p className="text-xs mt-3 text-muted-foreground">No billing configured — add via ghostinit add billing. ({String((billing.error as Error).message)})</p> : <pre className="mt-3 max-h-64 overflow-auto rounded bg-muted p-3 text-xs whitespace-pre-wrap">{JSON.stringify(billing.data, null, 2)}</pre>}
@@ -1124,7 +1148,7 @@ function SettingsPage() {
   if (isPending) return <p className="text-sm p-6">Loading…</p>;
   if (!isAuthenticated || !user) {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+      <div className="mx-auto max-w-2xl rounded-lg border p-6">
         <h2 className="text-lg font-semibold">Settings — sign in required</h2>
         <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
       </div>
@@ -1138,18 +1162,18 @@ function SettingsPage() {
       </div>
       <div className="h-px bg-border" />
       <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2 rounded-xl border bg-card p-4">
+        <div className="md:col-span-2 rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Profile</h3>
           <p className="text-sm text-muted-foreground">Signed in as {String(user.email ?? "")}. Role {String((user as { role?: string })?.role ?? "user")}.</p>
           <div className="mt-4 flex flex-col gap-2">
             <label className="text-sm font-medium">Name</label>
-            <input className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" defaultValue={String((user as { name?: string | null })?.name ?? "")} readOnly placeholder="Not set" />
+            <input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" defaultValue={String((user as { name?: string | null })?.name ?? "")} readOnly placeholder="Not set" />
           </div>
           <div className="mt-3 flex items-center gap-2">
             <span className="rounded-md bg-secondary px-2 py-1 text-xs">{String((user as { role?: string })?.role ?? "user")}</span>
             <span className="rounded-md border px-2 py-1 text-xs">{String(user.email ?? "")}</span>
           </div>
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+          <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3">
             <p className="text-xs font-medium">Profile editing</p>
             <p className="text-xs text-muted-foreground mt-1">Use authClient.updateUser from client components. This SPA shows protected data via useAuth() → Better Auth + TanStack Query.</p>
           </div>
@@ -1158,7 +1182,7 @@ function SettingsPage() {
             <Link to="/billing" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Billing</Link>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Security</h3>
           <div className="mt-3 flex flex-col gap-2">
             <Link to="/dashboard" className="rounded-md border px-3 py-2 text-sm hover:bg-accent">Two-factor</Link>
@@ -1205,7 +1229,7 @@ function BillingPage() {
         <Link to="/dashboard" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Dashboard</Link>
       </div>
       <div className="h-px bg-border" />
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-lg border bg-card p-4">
         <h3 className="text-sm font-semibold">Subscriptions</h3>
         <p className="text-sm text-muted-foreground">Idempotent webhook handling, shared tables, oRPC contract-first.</p>
         <div className="mt-4">
@@ -1243,7 +1267,7 @@ function AdminPage() {
   const role = (user as { role?: string } | null)?.role;
   if (role !== "admin") {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+      <div className="mx-auto max-w-2xl rounded-lg border p-6">
         <h2 className="text-lg font-semibold">Admin — forbidden</h2>
         <p className="text-sm text-muted-foreground mt-2">You need admin role. Current role: {String(role ?? "none")}. Sign in as admin on web first.</p>
         <Link to="/" className="text-sm text-primary underline mt-4 inline-block">Back to home</Link>
@@ -1259,12 +1283,12 @@ function AdminPage() {
       <p className="text-sm text-muted-foreground max-w-[65ch]">Admin dashboard — manage users and roles. Uses authClient.admin.* via Better Auth.</p>
       <div className="h-px bg-border" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Users</h3>
           <p className="text-xs text-muted-foreground">List, ban, and promote users.</p>
           <Link to="/admin/users" className="mt-3 inline-flex rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Open users</Link>
         </div>
-        <div className="rounded-xl border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4">
           <h3 className="text-sm font-semibold">Create user</h3>
           <p className="text-xs text-muted-foreground">Add accounts directly.</p>
           <Link to="/admin/users/create" className="mt-3 inline-flex rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Create user</Link>
@@ -1313,7 +1337,7 @@ function AdminUsersPage() {
   if (authPending) return <p className="text-sm p-6">Loading…</p>;
   if (role !== "admin") {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+      <div className="mx-auto max-w-2xl rounded-lg border p-6">
         <h2 className="text-lg font-semibold">Forbidden</h2>
         <p className="text-sm text-muted-foreground">Admin only.</p>
       </div>
@@ -1329,7 +1353,7 @@ function AdminUsersPage() {
       <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
       <div className="h-px bg-border" />
       {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3"><p className="text-sm font-medium">Failed to load</p><p className="text-xs text-muted-foreground">{error}</p></div> : null}
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-lg border bg-card">
         <div className="p-4 border-b">
           <h3 className="text-sm font-semibold">All users</h3>
           <p className="text-xs text-muted-foreground">{data?.users.length === 0 ? "No users found." : \`\${data?.users.length ?? 0} users\`}</p>
@@ -1409,12 +1433,12 @@ function TwoFactorPage() {
       <div className="flex items-center gap-2"><span className="text-sm font-medium">Status:</span><span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{enabled ? "enabled" : "disabled"}</span></div>
       {!enabled && !totpUri ? (
         <form onSubmit={(e) => { e.preventDefault(); void passwordForm.handleSubmit(); }} className="flex flex-col gap-3">
-          <passwordForm.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="pw">Password</label><input id="pw" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</passwordForm.Field>
+          <passwordForm.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="pw">Password</label><input id="pw" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</passwordForm.Field>
           <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Enable 2FA</button>
         </form>
       ) : totpUri ? (
         <form onSubmit={(e) => { e.preventDefault(); void codeForm.handleSubmit(); }} className="flex flex-col gap-3"><div className="break-all rounded-md bg-muted p-3 text-xs font-mono">{totpUri}</div>
-          <codeForm.Field name="code" validators={{ onChange: ({ value }) => (/^[0-9]{6}$/.test(value) ? undefined : "Enter a 6-digit code") }}>{(field) => (<div className="flex flex-col gap-1"><input name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value.replace(/[^0-9]/g, "").slice(0,6))} onBlur={field.handleBlur} placeholder="000000" maxLength={6} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono tracking-widest text-center" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</codeForm.Field>
+          <codeForm.Field name="code" validators={{ onChange: ({ value }) => (/^[0-9]{6}$/.test(value) ? undefined : "Enter a 6-digit code") }}>{(field) => (<div className="flex flex-col gap-1"><input name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value.replace(/[^0-9]/g, "").slice(0,6))} onBlur={field.handleBlur} placeholder="000000" maxLength={6} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono tracking-widest text-center" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</codeForm.Field>
           <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Verify</button>
         </form>
       ) : <p className="text-sm text-muted-foreground">2FA is enabled.</p>}
@@ -1459,7 +1483,7 @@ function ForgotPasswordPage() {
       {done ? <div className="rounded-md border bg-muted p-3 text-sm">If an account exists, a reset email was sent.</div> : (
         <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
           {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
-          <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
           <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Send reset link</button>
         </form>
       )}
@@ -1505,8 +1529,8 @@ function ResetPasswordPage() {
       {done ? <div className="rounded-md border bg-muted p-3 text-sm">Password reset — you can now sign in.</div> : (
         <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
           {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
-          <form.Field name="newPassword" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">New password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-          <form.Field name="confirmPassword" validators={{ onSubmit: ({ value, fieldApi }) => { const pw = fieldApi.form.getFieldValue("newPassword") as string; return value !== pw ? "Passwords do not match" : undefined; } }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="confirm">Confirm password</label><input id="confirm" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="newPassword" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">New password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="confirmPassword" validators={{ onSubmit: ({ value, fieldApi }) => { const pw = fieldApi.form.getFieldValue("newPassword") as string; return value !== pw ? "Passwords do not match" : undefined; } }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="confirm">Confirm password</label><input id="confirm" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
           <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Reset password</button>
         </form>
       )}
@@ -1546,8 +1570,8 @@ function SignInPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
       <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
         {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
-        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
         <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Sign in</button>
       </form>
       <div className="flex gap-2 text-sm"><Link to="/forgot-password" className="underline">Forgot password</Link><Link to="/sign-up" className="underline">Sign up</Link></div>
@@ -1587,9 +1611,9 @@ function SignUpPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
       <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="flex flex-col gap-3">
         {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3 text-sm">{error}</div> : null}
-        <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length>0 && value.trim().length<2 ? "At least 2" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length>0 && value.trim().length<2 ? "At least 2" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+        <form.Field name="password" validators={{ onChange: ({ value }) => (value.length>0 && value.length<8 ? "At least 8" : undefined) }}>{(field) => (<div className="flex flex-col gap-1"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
         <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">Create account</button>
       </form>
       <Link to="/sign-in" className="text-sm underline">Already have an account? Sign in</Link>
@@ -1633,7 +1657,7 @@ function AdminCreateUserPage() {
   if (authPending) return <p className="text-sm p-6">Loading…</p>;
   if (userRole !== "admin") {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border p-6">
+      <div className="mx-auto max-w-2xl rounded-lg border p-6">
         <h2 className="text-lg font-semibold">Forbidden</h2>
         <p className="text-sm text-muted-foreground">Admin only.</p>
       </div>
@@ -1645,15 +1669,15 @@ function AdminCreateUserPage() {
       <div className="flex items-center justify-between gap-4"><h1 className="text-2xl font-semibold tracking-tight">Create user</h1><Link to="/admin/users" className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">Back to users</Link></div>
       <p className="text-sm text-muted-foreground max-w-[65ch]">Add a new account. Admins can manage all users.</p>
       <div className="h-px bg-border" />
-      <div className="rounded-xl border bg-card p-4">
+      <div className="rounded-lg border bg-card p-4">
         <h3 className="text-sm font-semibold">User details</h3>
         <p className="text-xs text-muted-foreground">Password must be at least 8 characters.</p>
         <form onSubmit={(e) => { e.preventDefault(); void form.handleSubmit(); }} className="mt-4 flex flex-col gap-4">
           {error ? <div className="rounded-md border border-destructive bg-destructive/10 p-3"><p className="text-sm font-medium">Failed to create</p><p className="text-xs text-muted-foreground">{error}</p></div> : null}
-          <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : "Name required") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-          <form.Field name="email" validators={{ onChange: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email"), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : "Enter a valid email") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-          <form.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
-          <form.Field name="role">{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value as "admin" | "user")} onBlur={field.handleBlur} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>)}</form.Field>
+          <form.Field name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : "Name required") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="name">Name</label><input id="name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="email" validators={{ onChange: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email"), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : "Enter a valid email") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="email">Email</label><input id="email" name={field.name} type="email" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters") }}>{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="password">Password</label><input id="password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />{field.state.meta.errors.length ? (<span className="text-xs text-destructive">{String(field.state.meta.errors[0])}</span>) : null}</div>)}</form.Field>
+          <form.Field name="role">{(field) => (<div className="flex flex-col gap-2"><label className="text-sm font-medium" htmlFor="role">Role</label><select id="role" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value as "admin" | "user")} onBlur={field.handleBlur} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="user">User</option><option value="admin">Admin</option></select></div>)}</form.Field>
           <button type="submit" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90">Create user</button>
         </form>
       </div>

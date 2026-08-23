@@ -50,7 +50,7 @@ Split from 449 LOC god file into:
   - `billingEnvLocalLinesFiltered` filtered only selected + message when none.
 
 - `core.ts`: `coreEnvExampleLines`, `coreEnvLocalLines`, `resendExampleLines`, `resendLocalLines`
-  - Core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, `NEXT_PUBLIC_APP_URL` + VITE duplicate, `TRUSTED_PROXY`, `POSTGRES_*`, `DATABASE_SSL`, etc.
+  - Core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, `NEXT_PUBLIC_APP_URL` + VITE duplicate, `TRUSTED_PROXY`, `MAINTENANCE_MODE` + `MAINTENANCE_BYPASS_TOKEN` (proxy maintenance gate), `POSTGRES_*`, `DATABASE_SSL`, etc.
   - Resend: `RESEND_API_KEY`, `EMAIL_FROM`.
   - Cache (Upstash): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts` — always emitted (placeholder when cache off) + turbo globalEnv exhaustive.
 

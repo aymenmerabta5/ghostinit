@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 type Session = { id: string; ipAddress?: string | null; userAgent?: string | null; createdAt: string; expiresAt: string; isCurrent?: boolean };
 export function SessionsCard(): React.JSX.Element {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -53,7 +54,7 @@ export function SessionsCard(): React.JSX.Element {
           <Button size="sm" variant="destructive" onClick={() => void revokeAll()} disabled={sessions.length<=1}>Revoke others</Button>
         </div>
         <Separator />
-        {loading ? <p className="text-sm text-muted-foreground">Loading sessions…</p> : sessions.length===0 ? <p className="text-sm text-muted-foreground">No active sessions.</p> : (
+        {loading ? <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading sessions">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3.5 w-16" /></div>)}</div> : sessions.length===0 ? <p className="text-sm text-muted-foreground">No other active sessions — this device only.</p> : (
           <div className="flex flex-col gap-2">
             {sessions.map((s) => (
               <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2">

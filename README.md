@@ -20,12 +20,14 @@ ghostinit create my-app
 ## Commands
 
 - `ghostinit create <name> [--cwd dir] [--no-install] [--force]` – generate a new monorepo
+- `ghostinit init [name]` – generate into the current directory (same pipeline as create)
+- `ghostinit upgrade` – re-sync registries, repair turbo env, stamp CLI version (no template re-render)
 - `ghostinit status` – show project metadata and lock state
 - `ghostinit doctor` – verify host tooling and environment
 - `ghostinit check` – run the architecture checker (GhostInit Layered 6-layer + vendor/capability isolation)
 - `ghostinit sync [--check]` – rebuild deterministic registries
 - `ghostinit add module <name>` – add an empty bounded-context module
-- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
+- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none --deploy vercel|fly|docker|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
 
 ## Development
 

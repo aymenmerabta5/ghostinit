@@ -407,7 +407,7 @@ Run: `bun test --timeout 100000`, `bun run test:ci`, `bun run pretest:fixtures &
 
 ### Release Version Sync
 
-Single source `ghostinitVersion` in `@repo/versions` must match `package.json` version and `src/templates/versions.ts` re-export. `bun run build` emits real d.ts, `npm pack` includes dist/cli.js + src/** + schemas/project-config.json + README + LICENSE.
+Single source `ghostinitVersion` in `@repo/versions` must match `package.json` version and `src/templates/versions.ts` re-export. `bun run build` emits real d.ts, `npm pack` includes dist/cli.js + src/** + README + LICENSE.
 
 ### Adding Example — Complete Decision Tree
 

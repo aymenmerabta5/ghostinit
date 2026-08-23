@@ -85,6 +85,43 @@ describe("generation snapshots", () => {
     expect(parsed.framework).toBe("nextjs");
   });
 
+  it("single mode deploy=docker emits the same deploy files (flat layout)", () => {
+    const files = generateProjectFiles(cfg({ mode: "single" as const, deploy: "docker" as never }));
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("Dockerfile");
+    expect(paths).toContain(".dockerignore");
+  });
+
+  it("maintenance mode: page exists and env vars are declared", () => {
+    const files = generateProjectFiles(cfg({}));
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("apps/web/src/app/maintenance/page.tsx");
+    const proxy = files.find((f) => f.path === "apps/web/src/proxy.ts")!;
+    expect(proxy.content).toContain("MAINTENANCE_MODE");
+    expect(proxy.content).toContain("checkMaintenanceStatus");
+    const env = files.find((f) => f.path === ".env.example")!;
+    expect(env.content).toContain("MAINTENANCE_MODE=false");
+    // i18n projects get the locale-scoped maintenance page
+    const i18nFiles = generateProjectFiles(cfg({ i18n: true }));
+    expect(i18nFiles.map((f) => f.path)).toContain(
+      "apps/web/src/app/[locale]/maintenance/page.tsx",
+    );
+  });
+
+  it("generated turbo.json declares a start task for the deploy chain", () => {
+    const files = generateProjectFiles(cfg({}));
+    const turbo = JSON.parse(files.find((f) => f.path === "turbo.json")!.content);
+    expect(turbo.tasks.start).toBeDefined();
+    expect(turbo.tasks.start.persistent).toBe(true);
+  });
+
+  it("generated root lint uses oxlint, not the unshipped biome binary", () => {
+    const files = generateProjectFiles(cfg({}));
+    const pkg = JSON.parse(files.find((f) => f.path === "package.json")!.content);
+    expect(pkg.scripts.lint.startsWith("oxlint .")).toBe(true);
+    expect(JSON.stringify(pkg.scripts)).not.toContain("biome lint");
+  });
+
   it(".env.example contains placeholders not minted secrets", () => {
     const files = generateProjectFiles(cfg({ billing: ["stripe"] as never }));
     const env = files.find((f) => f.path === ".env.example")!;
