@@ -85,6 +85,9 @@ bun -e "
   }
 " "$PROJECT_ROOT"
 
+echo "[e2e-smoke] Checking packaged CLI architecture command..."
+"$CLI" check --cwd "$PROJECT_ROOT" --json
+
 if [ "$INSTALL" = "1" ]; then
   echo ""
   echo "[e2e-smoke] E2E_INSTALL=1 — running bun install + checks (heavy)"

@@ -12,16 +12,19 @@
     "tooling/*"
   ],
   "files": [
-    "dist/cli.js",
+    "dist/**/*",
     "src/**/*",
+    "schemas/**/*",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
   "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
     }
   },
@@ -38,7 +41,7 @@
     "format": "oxfmt --write .",
     "pretest": "bun run build",
     "test": "bun test --timeout 100000 tests/integration tests/unit",
-    "pretest:fixtures": "cd tests/fixtures/compatibility/drizzle-betterauth-orpc && bun install && cd ../next-tailwind-biome && bun install",
+    "pretest:fixtures": "cd tests/fixtures/compatibility/drizzle-betterauth-orpc && bun install --frozen-lockfile && cd ../next-tailwind-biome && bun install --frozen-lockfile && cd ../expo-uniwind-rnr && bun install --frozen-lockfile",
     "test:fixtures": "bun test tests/fixtures",
     "test:ci": "bun run test && bun run test:fixtures && bun run test:generated",
     "test:generated": "bun run scripts/test-generated.ts",

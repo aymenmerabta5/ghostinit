@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * GhostInit CLI entry — slim orchestrator delegating to src/cli/* modules.
  * Keeps bin compatibility: dist/cli.js is bundled from this file.

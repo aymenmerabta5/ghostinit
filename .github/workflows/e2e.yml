@@ -1,237 +1,117 @@
 name: E2E
 
 on:
-  # Nightly 03:17 UTC — off-minute to reduce contention (see CronCreate guidance)
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       billing:
-        description: "Billing providers (comma-separated or 'all')"
+        description: "Billing providers"
         default: "all"
         required: false
       framework:
-        description: "Framework: nextjs or tanstack-start"
+        description: "nextjs or tanstack-start"
         default: "tanstack-start"
         required: false
       features:
-        description: "Features: eve,i18n or none"
+        description: "Feature list"
         default: "eve"
         required: false
 
-# Cancel superseded runs
+permissions:
+  contents: read
+
 concurrency:
-  group: e2e-${{ github.ref }}-${{ inputs.billing || 'all' }}-${{ inputs.framework || 'tanstack-start' }}
+  group: e2e-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   e2e-fast:
-    name: E2E fast (no install)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Run fast generated/source checks
+        env:
+          E2E_TMP: ${{ runner.temp }}
+        run: ./scripts/e2e-smoke.sh e2e-fast none nextjs none postgres
+      - name: Run packaged architecture check
+        run: ./dist/cli.js check --cwd "$RUNNER_TEMP/gi-test/e2e-fast" --json
 
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build CLI
-        run: bun run build
-
-      - name: Run E2E generated-project tests (structure, turbo globalEnv, check)
-        run: bun test --timeout 100000 tests/integration/e2e-generated.test.ts tests/integration/cli.test.ts
-
-  e2e-full:
-    name: E2E full build (+install) — ${{ matrix.framework }} + billing=${{ matrix.billing }}
+  e2e-scheduled:
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    # Full build is heavy and only runs:
-    # - on schedule (nightly)
-    # - on manual dispatch
-    # - if triggered with label 'e2e' (via workflow_dispatch check, not automatic on push)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - framework: tanstack-start
+          - id: tanstack-all
+            framework: tanstack-start
             billing: all
             features: eve
-          - framework: nextjs
+          - id: next-all
+            framework: nextjs
             billing: all
             features: eve,i18n
-          - framework: nextjs
+          - id: next-dual
+            framework: nextjs
             billing: stripe,chargily
             features: eve
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Run scheduled full generated project
+        env:
+          E2E_TMP: ${{ runner.temp }}
+          E2E_INSTALL: "1"
+          E2E_HEALTH: "1"
+        run: >-
+          ./scripts/e2e-smoke.sh
+          "${{ matrix.id }}"
+          "${{ matrix.billing }}"
+          "${{ matrix.framework }}"
+          "${{ matrix.features }}"
+          postgres
 
-      - name: Install CLI dependencies
-        run: bun install
-
-      - name: Build CLI
-        run: bun run build
-
-      - name: Create generated project
-        run: |
-          BILLING="${{ inputs.billing || matrix.billing }}"
-          FRAMEWORK="${{ inputs.framework || matrix.framework }}"
-          FEATURES="${{ inputs.features || matrix.features }}"
-          echo "Creating project with framework=$FRAMEWORK billing=$BILLING features=$FEATURES"
-          ./dist/cli.js create demo \
-            --cwd /tmp \
-            --no-install \
-            --force \
-            --framework "$FRAMEWORK" \
-            --billing "$BILLING" \
-            --features "$FEATURES" \
-            --json
-
-          # Verify file tree snapshot basics
-          test -f /tmp/demo/package.json
-          test -f /tmp/demo/turbo.json
-          test -f /tmp/demo/bunfig.toml
-          test -f /tmp/demo/.env.example
-          test -f /tmp/demo/apps/web/package.json
-          echo "Generated file tree OK"
-          ls -R /tmp/demo | head -n 100
-
-      - name: Verify turbo.json globalEnv count >= 50
-        run: |
-          COUNT=$(bun -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/demo/turbo.json','utf-8')).globalEnv.length)")
-          echo "turbo.json globalEnv count: $COUNT"
-          if [ "$COUNT" -lt 50 ]; then
-            echo "globalEnv count < 50 — failing"
-            exit 1
-          fi
-
-      - name: Install generated project dependencies
-        working-directory: /tmp/demo
-        run: bun install
-
-      - name: Format check
-        working-directory: /tmp/demo
-        run: bun run format:check
-
-      - name: Lint
-        working-directory: /tmp/demo
-        run: bun run lint
-
-      - name: Typecheck (catches bunfig hoist + TS7 issues)
-        working-directory: /tmp/demo
-        run: bun run typecheck
-
-      - name: ghostinit check — architecture enforcement
-        run: |
-          ./dist/cli.js check --cwd /tmp/demo --json || true
-          # Also run via node directly to ensure exit code logic
-          node -e "
-            import('/tmp/demo/../../${{ github.workspace }}/dist/cli.js').catch(()=>{});
-          " || true
-          # Direct analyzeProject validation (fails on HIGH/BLOCKER)
-          bun -e "
-            import { analyzeProject } from './src/lib/architecture/index.ts';
-            const findings = await analyzeProject('/tmp/demo');
-            const blocking = findings.filter(f => f.severity === 'HIGH' || f.severity === 'BLOCKER');
-            if (blocking.length > 0) {
-              console.error('BLOCKING findings:', JSON.stringify(blocking, null, 2));
-              process.exit(1);
-            }
-            console.log('ghostinit check OK — findings:', findings.length, 'blocking: 0');
-          "
-
-      - name: Build generated project
-        working-directory: /tmp/demo
-        run: bun run build
-
-      - name: Dev server + HTTP health check
-        working-directory: /tmp/demo
-        run: |
-          # Start dev in background, wait for /api/health 200, then kill
-          bun run dev &
-          DEV_PID=$!
-          echo "Dev PID $DEV_PID — waiting for health endpoint..."
-
-          # Wait up to 90s for server ready
-          for i in $(seq 1 90); do
-            if curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
-              echo "Health endpoint ready after ${i}s"
-              curl -s http://localhost:3000/api/health | head -c 500
-              echo ""
-              break
-            fi
-            sleep 1
-            # If dev process died early, fail fast
-            if ! kill -0 $DEV_PID 2>/dev/null; then
-              echo "Dev server died early"
-              wait $DEV_PID || true
-              exit 1
-            fi
-            if [ "$i" -eq 90 ]; then
-              echo "Timeout waiting for /api/health"
-              kill $DEV_PID || true
-              wait $DEV_PID || true
-              exit 1
-            fi
-          done
-
-          kill $DEV_PID || true
-          wait $DEV_PID || true
-          echo "Dev + health check OK"
-
-      - name: Validate generated package.json deps (parseable, no undefined)
-        working-directory: /tmp/demo
-        run: |
-          bun -e "
-            import { readdirSync, readFileSync, statSync } from 'node:fs';
-            import { join } from 'node:path';
-            function walk(dir, out=[]) {
-              for (const e of readdirSync(dir, {withFileTypes:true})) {
-                const full = join(dir, e.name);
-                if (e.isDirectory()) {
-                  if (e.name === 'node_modules' || e.name === '.next' || e.name === 'dist') continue;
-                  walk(full, out);
-                } else if (e.name === 'package.json') {
-                  out.push(full);
-                }
-              }
-              return out;
-            }
-            const files = walk('/tmp/demo');
-            if (files.length < 10) throw new Error('Too few package.json: ' + files.length);
-            for (const f of files) {
-              const j = JSON.parse(readFileSync(f,'utf-8'));
-              if (!j.name) throw new Error('Missing name in ' + f);
-              if (j.dependencies) {
-                for (const [k,v] of Object.entries(j.dependencies)) {
-                  if (v === undefined || v === null || v === '') throw new Error('Bad dep ' + k + ' in ' + f);
-                }
-              }
-            }
-            console.log('package.json validation OK — files:', files.length);
-          "
-
-  e2e-build-gated:
-    name: E2E_BUILD env gate (opt-in heavy build)
+  e2e-manual:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
-      - name: Install
-        run: bun install
-      - name: Build
-        run: bun run build
-      - name: Run gated E2E build tests (bun install + build generated)
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Run requested full generated project
+        env:
+          E2E_TMP: ${{ runner.temp }}
+          E2E_INSTALL: "1"
+          E2E_HEALTH: "1"
+        run: >-
+          ./scripts/e2e-smoke.sh
+          manual-demo
+          "${{ inputs.billing }}"
+          "${{ inputs.framework }}"
+          "${{ inputs.features }}"
+          postgres
+
+  e2e-build-gated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Run opt-in generated build tests
         run: E2E_BUILD=1 bun test --timeout 300000 tests/integration/e2e-build.test.ts
