@@ -44,7 +44,7 @@ GhostInit is a Bun-powered CLI that scaffolds production-grade, well-structured 
 
 ## Strategic Principles
 
-1. **One shared design.** Web (Next, TanStack), mobile (Expo), desktop (Electron) share the same OKLCH tokens in `@repo/ui/theme.css`. One edit updates all.
+1. **One shared design.** Web (Next, TanStack), mobile (Expo), and desktop (Electron) consume one versioned semantic Tailwind contract through the mode-resolved UI logical module. Portable OKLCH tokens and utilities remain identical, while that resolved module alone owns versioned DOM/native platform adapters. An application owns content discovery only, never tokens, reusable utilities, Tailwind configuration, or an adapter implementation.
 2. **Dark-first, light as alternative.** Like t3.codes, the marketing and observability surfaces assume a dim room, 2am, 27-inch monitor. Light is a toggle, not the default.
 3. **Code is imagery.** Terminal snippets, `bunx ghostinit create` commands, and `turbo.json` diffs are the hero imagery. No stock photos.
 4. **Forkability as feature.** Every generated file is readable, with attribution comments. No hidden codegen, no magic.

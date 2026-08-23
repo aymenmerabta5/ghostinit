@@ -65,6 +65,9 @@ Incremental patching would retain these failure modes. V2 therefore replaces the
 - Single and monorepo output share the same logical modules and capability implementations.
 - Generated code favors explicit, readable source over generator cleverness.
 - Documentation explains not only what files exist, but why boundaries exist and how requests flow through them.
+- Host production code, generator templates, generated production code, and maintained tests contain no explicit `any` (`any`, `any[]`, `as any`) and do not use double-casts such as `as unknown as T` to bypass a type error. Untrusted boundaries start as `unknown` and are decoded/narrowed; unavoidable vendor gaps use a small typed adapter plus a linked evidence entry rather than leaking unsafety.
+- TypeScript configurations enable target-supported strict null checks, unchecked indexed-access protection, exact optional-property semantics, unknown catch variables, and explicit module/type imports. `@ts-ignore` is forbidden; a described `@ts-expect-error` is allowed only in a compiler-negative test that proves the error.
+- Domain identifiers use opaque/branded types; state and command models use discriminated unions and exhaustive `never` checks; public objects use `satisfies` to retain inference without widening.
 
 ## 4. Program decomposition
 
@@ -369,11 +372,32 @@ src/
 
 Shared capability renderers target a logical path model; a packaging adapter maps that model to monorepo packages or single directories. Business logic is not duplicated between modes.
 
+### 9.4 Resolved UI layout
+
+Every V2 project plan resolves exactly one normative `ResolvedUiLayout`; renderers and validators receive it from the normalized plan and never infer, hard-code, or alias a UI module path. It is part of the emitted `.ghostinit/design-system-contract.json` and has this closed mapping:
+
+| Mode       | logical module  | module root       | source root       | `styles/*` source/import base                         | `contract` source/import                                 | component-registry source/import                                                    |
+| ---------- | --------------- | ----------------- | ----------------- | ----------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `monorepo` | `@repo/ui`      | `packages/ui`     | `packages/ui/src` | `packages/ui/src/styles/*` / `@repo/ui/styles/*`      | `packages/ui/src/contract.ts` / `@repo/ui/contract`      | `packages/ui/src/component-registry.json` / `@repo/ui/component-registry.json`      |
+| `single`   | `@/platform/ui` | `src/platform/ui` | `src/platform/ui` | `src/platform/ui/styles/*` / `@/platform/ui/styles/*` | `src/platform/ui/contract.ts` / `@/platform/ui/contract` | `src/platform/ui/component-registry.json` / `@/platform/ui/component-registry.json` |
+
+`ResolvedUiLayout` contains the mode, logical module, module root, physical source root, `stylesImport`, `contractImport`, `componentRegistryImport`, and exact contract-relative physical paths above. The monorepo package export map and the single-project compiler alias expose only their own row. A monorepo artifact may not import `@/platform/ui/*`; a single artifact may not import `@repo/ui/*`; no compatibility alias, path mapping, barrel, dynamic import, or subpath workaround may bridge modes.
+
+All UI renderers use this layout to write styles, contract, registry, adapters, and composition-root imports. Acceptance manifests record its identity with the design-contract version. Architecture/import checks derive allowed UI specifiers and owned physical roots from it. App-global stylesheet allowlists accept only the layout's `stylesImport/<entrypoint>` plus contract-allowlisted target-relative `@source`. Conformance fixtures declare and compile/render against the resolved row, so a fixture cannot accidentally prove the other mode's UI module.
+
 Both packagers emit `.ghostinit/architecture.json` containing every owned source root, exclusion, logical owner, tsconfig, resolver condition profile, and permitted packaged exception ID. Every file has exactly one closed-enum logical unit/module/layer. A total `ResolvedArchitecturePolicy` defines runtime, type-only, and development edges. Project metadata may narrow policy but cannot add exceptions or widen edges.
 
 ## 10. Frontend architecture and component system
 
 ### 10.1 Component taxonomy
+
+Each generated project emits `.ghostinit/design-system-contract.json`, a versioned `DesignSystemContract` validated by `schemas/design-system-contract.schema.json`, including the selected `ResolvedUiLayout`. `ResolvedUiLayout.contractImport` exports the corresponding typed contract, and every selected app composition root imports it directly; pages inherit it through approved primitives/patterns. Renderers, manifests, architecture/import checks, stylesheet allowlists, and fixtures consume that same layout. The contract fixes the shadcn preset/base, Tailwind semantic contract, token source, typography scale, spacing rhythm, radius/elevation, semantic state colors, icon library, density, motion, shell/navigation patterns, form composition, feedback states, component import paths, adapters, and conformance fixtures. Acceptance-manifest entries record the exact contract version; CI validates the artifact, schema, package exports, composition-root imports, and manifest references. Marketing and authenticated surfaces may select Impeccable's brand/product registers, but both consume this one contract and cannot invent a second component vocabulary.
+
+The CSS-first Tailwind v4 contract separates portable rules from platform bases. `ResolvedUiLayout.stylesRoot/theme.css` owns every OKLCH token and `@theme` mapping. `utilities.css` owns reusable `@utility` definitions and interaction variants that have passed the portable compiler and are expressible through every selected adapter. Element-free `base.contract.css` defines semantic base roles/states and contains no DOM selector, reset, or browser-only behavior. DOM-only `web-base.css` owns browser reset/base rules. `web.css` composes Tailwind, animation CSS, `theme.css`, `utilities.css`, `base.contract.css`, and `web-base.css` for Next, TanStack, and Electron. `native.css` composes the supported Expo/Uniwind native compiler with `theme.css`, `utilities.css`, and `base.contract.css`, while `native-base.ts` maps the same semantic roles/states to supported native styles without attempting a DOM reset.
+
+Only the mode-resolved UI logical module owns versioned platform adapter source, under `ResolvedUiLayout.stylesRoot/adapters/{next,tanstack,electron,expo}/`. Each adapter is explicitly exported from that layout and listed in `DesignSystemContract.adapters` with its version, entrypoint, semantic mappings, fixture IDs, and any inapplicability rationale. An adapter maps the portable names for its target and cannot add tokens, reusable utilities, variants, or component styles. Applications may not implement adapters. Their global stylesheet may contain only approved `ResolvedUiLayout.stylesImport/<entrypoint>` import(s) and contract-allowlisted target-relative `@source` declarations. App-local CSS declarations, `@theme`, `@utility`, `@custom-variant`, Tailwind configuration, component styles, and adapter code are blocking drift. Structural tests verify the app stylesheet allowlist, package exports, adapter ownership, and prevent subpath bypasses.
+
+`DesignSystemContract.fixtures` declares exact versioned fixture IDs/paths for tokens, portable utilities, interaction variants, and selected adapters. CI compiles each applicable Next, TanStack, and Electron fixture and byte-compares normalized emitted CSS to its committed expected output. It renders each applicable Expo fixture through the supported native renderer and asserts resolved native styles and interaction-state mappings. Every applicable fixture must pass. A fixture may be inapplicable only when the selected adapter registers a concrete rationale in the contract; missing or silently skipped fixtures fail.
 
 ```text
 components/
@@ -389,6 +413,9 @@ app/ or routes/              # thin route composition
 
 - Primitives expose small, accessible APIs and design tokens.
 - Web/Electron primitives wrap the exact-pinned `@base-ui/react` release inside `ui-web`; Expo uses React Native primitives inside `ui-native`. Direct third-party primitive imports outside those packages are blocking.
+- Web/Electron emit a valid `components.json` and use exact-pinned shadcn registry source through reviewed local wrappers. Before adding/updating a primitive, implementation records `shadcn info`, searches existing/registry components, reads version-matched component docs, and reviews the generated diff. Buttons, form controls, tables, tabs, cards, dialogs/sheets/drawers, menus, alerts, empty/loading states, badges, separators, avatars, and chat surfaces use the corresponding local component instead of hand-rolled styled interactive HTML.
+- Raw semantic HTML remains appropriate for document structure/text and native behavior with no component abstraction. Raw `button`, styled form control, modal/menu/tab/select, alert, loading shimmer, badge, empty state, or chat bubble is rejected when the local component system provides it.
+- Base UI composition uses `render`/`nativeButton` rather than Radix-only `asChild`; grouped items, overlay titles, fallback avatars, Field/FieldGroup validation, semantic tokens, configured icons, and chat primitive nesting follow the shadcn rules.
 - Patterns use compound components when consumers need structural flexibility.
 - Feature components compose primitives/patterns and depend on typed feature contracts.
 - Routes choose data, authorization, metadata, and layout; they do not contain reusable component implementations.
@@ -396,6 +423,12 @@ app/ or routes/              # thin route composition
 - Explicit component variants replace proliferating boolean mode props.
 - Children are preferred for structural composition; render props are used only when a parent supplies render-time data.
 - For targets whose verified peer graph uses React 19+, new components accept `ref` as a prop and do not add `forwardRef` wrappers unless an upstream API requires one.
+- Route/page files are thin orchestrators and target at most 150 nonblank, non-comment physical lines. Reusable feature components and hooks target at most 180; UI primitives target at most 200. `policy/component-size-exceptions.json`, validated by `schemas/component-size-exceptions.schema.json`, is the only exception source. Each entry names an exact file glob, maximum, single responsibility, owner, expiry, and review ID. The OXC-based counter removes comment spans and blank lines before counting; unmatched, expired, broadening, or over-budget entries fail.
+- A component that owns data access, validation, complex state, and multiple visual regions is split into a provider/hook, focused presentation parts, and an explicit composed variant. Boolean-prop combinations are replaced by discriminated variants or compound components.
+- `ResolvedUiLayout.componentRegistryImport`, validated by `schemas/component-registry.schema.json`, is the authoritative versioned semantic-pattern mapping to approved web/Electron shadcn/Base UI wrappers and native primitives. CI rejects a hand-rolled interactive control where the registry has a component, an unregistered selected pattern, or a record whose selected component IDs do not match actual use.
+- Every frontend implementation and review task must invoke `impeccable`, load the repository `PRODUCT.md` and `DESIGN.md`, select/load the applicable brand or product register, and create a versioned `docs/engineering/frontend-task-records/<task-id>.json` validated by `schemas/frontend-task-record.schema.json`. The record has an implementer/reviewer role, changed globs, Impeccable loader/result SHA-256 hashes, selected register, applied design rules, shadcn discovery results, selected component IDs, and exception IDs. A frontend subagent that has not loaded this context cannot edit frontend files; CI matches record globs to the diff and component registry.
+- `policy/maintained-source-globs.json`, validated by `schemas/maintained-source-globs.schema.json`, defines host V2 source, generator-template, generated-owned-source, and maintained-test globs. The OXC AST policy rejects `TSAnyKeyword` in every type position, nested or mixed `TSAsExpression`/type-assertion chains, and `@ts-ignore`. It permits exactly `@ts-expect-error TS####: <reason>` only inside a declared type-negative test when the adjacent fixture proves the named diagnostic. The same policy rejects an explicit `any`, `as any`, suppression, or assertion-chain bypass in a maintained glob.
+- Shared-style conformance tests use the contract fixtures, verify every selected app imports the package entrypoint, and reject duplicated app-local Tailwind tokens, utilities, variants, configurations, component styles, or adapters.
 
 ### 10.2 Required page states
 
@@ -513,10 +546,18 @@ PostgreSQL Better Auth and Convex Better Auth expose one application-facing acto
 
 ### 13.1 Database
 
+- Every persistence-requiring target/capability contributes a versioned logical `DataModelBlueprint` before renderer implementation. It declares entities, fields, ID strategy, tenancy/ownership, relationships, constraints, unique keys, indexes, lifecycle timestamps, soft-delete/retention policy, optimistic-concurrency fields, audit events, migrations, seed fixtures, and acceptance-operation IDs.
+- The support catalog composes blueprints for explicit archetypes: public/frontend-only (no persistence), authenticated application, single-tenant SaaS, organization/team multi-tenant SaaS, billing/subscription application, messaging/collaboration application, content/CRUD modules, and agentic/scheduled-workflow applications. A custom project composes the same capability blueprints rather than receiving an unplanned generic schema.
+- Core identity blueprints cover users, accounts/credentials/OAuth tokens, sessions, verification/reset tokens, passkeys, two-factor secrets/backup codes/trusted devices, admin role/ban/impersonation state, security audit logs, and rate-limit storage according to the selected auth methods/plugins.
+- Multi-tenant blueprints cover organizations, members, invitations, teams, team members, roles/permissions, active organization/team state, tenant-scoped uniqueness, last-owner protection, invitation expiry, and ownership-transfer/deletion policy.
+- Product blueprints cover capability-owned data such as billing catalog/customers/subscriptions/invoices/entitlements/usage/webhook events; conversations/participants/messages/typing/attachments/notifications; storage objects; feature flags; jobs/schedules/runs; and module-specific entities. Disabled capabilities contribute no table, collection, index, migration, environment key, or UI/API operation.
+- Every page, screen, use case, API/realtime operation, webhook, job, and admin action references the exact blueprint operation and authorization/tenant policy it exercises. Orphan schema objects and UI/backend operations without a schema/port mapping are release-blocking.
 - PostgreSQL schema and migrations match exact library/plugin versions.
 - Convex uses explicit component-to-application identity mapping and internal functions for privileged writes.
 - backend database `none` removes persistence adapters and every artifact owned by a capability that declares `requiresPersistence`.
 - Node scripts invoke installed package executables correctly; Bun scripts use Bun-native invocation.
+- PostgreSQL and Convex implementations pass the same logical conformance suite for ownership, tenancy, constraints, pagination, ordering, atomic/idempotent mutations, and lifecycle behavior. Database-specific differences are explicit adapter evidence, never silent semantic drift.
+- Better Auth schemas are generated from the exact pinned config/plugin set with its CLI, then mapped to the logical blueprint and migration-tested; hand-maintained approximations are rejected.
 
 ### 13.2 Authentication
 
@@ -525,6 +566,7 @@ PostgreSQL Better Auth and Convex Better Auth expose one application-facing acto
 - Email/password, verification, reset, passkey, 2FA, admin, organization, and OAuth features exist only when fully configured.
 - Cookies, trusted origins, CSRF, rate limiting, session storage, proxy/IP handling, token encryption, and audit logging follow the Better Auth security skills and official docs.
 - Distributed production rate limits use a persistent/shared store.
+- Enabled auth/admin acceptance covers signup, email verification, sign-in, password reset with session revocation, OAuth linking/token encryption, passkey registration/authentication, 2FA enrollment/verification/backup recovery/trusted devices/disable, session listing/revocation, admin user creation/role/ban/impersonation, organization creation/member/invitation/team/RBAC flows, tenant isolation, last-owner protection, and auditable sensitive actions.
 
 ### 13.3 Billing
 
@@ -648,16 +690,18 @@ Registry 404, rate limit exhaustion, network failure after bounded retry, invali
 1. **Domain/unit tests:** configuration, compatibility, planning, reducers, mappings, typed errors.
 2. **Property tests:** path containment, names, config round trips, deterministic plans, idempotency.
 3. **Security regression tests:** traversal, symlinks, locks, redaction, authorization, webhook signatures, ownership, oversized bodies.
-4. **Structural matrix:** enumerate every finite support-catalog tuple and assert parse/import/dependency/export/env/architecture/acceptance-manifest invariants.
-5. **Generated build matrix:** clean frozen install, exact package-manager/compiler/application-runtime assertion, root solution check, typecheck, lint, format check, test, build, architecture check.
-6. **Runtime integration:** start the built project, health check, typed oRPC round trip, auth session, protected page, database mutation, websocket/realtime where enabled.
-7. **Browser/page tests:** Playwright runs against the production build with seeded selected persistence and no interception/mocks between UI, transport, application use case, and first-party adapter. It visits every emitted manifest page and verifies applicable states, navigation, responsive behavior, accessibility, console/network cleanliness, and mutations through an independent read.
-8. **Platform screen tests:** launch supported Android/iOS Expo builds and packaged Electron artifacts, traverse every declared screen/navigation/deep link, and exercise applicable authentication, data, mutation, offline, and failure states. Export/package success alone is not acceptance.
-9. **Capability-operation tests:** execute every declared query, mutation, webhook, job, schedule, realtime channel, and provider operation with success, invalid-input, missing-configuration, authorization/ownership, dependency-failure, retry/idempotency, and observable-side-effect scenarios.
-10. **Provider contract and sandbox tests:** official-SDK-shaped contract doubles are allowed only at third-party network boundaries. Each advertised external adapter also passes its credentialed sandbox smoke and failure/retry scenarios; if no current conformance path exists, it is not advertised.
-11. **Live infrastructure tests:** ephemeral PostgreSQL migrations/auth/use cases, Convex codegen/component integration, and deploy-image smoke.
-12. **Packed CLI tests:** install the exact `.tgz` into clean Windows, Linux, and macOS environments and exercise every command in TTY/non-TTY modes plus representative generation and application-runtime flows.
-13. **Audit reproductions:** execute a versioned manifest containing every audit finding ID, setup, exploit action, expected safe result, and test path against the packed V2 artifact.
+4. **Type/component policy tests:** evaluate `policy/maintained-source-globs.json` with OXC AST matchers for every `TSAnyKeyword`, nested/mixed assertion chain, and suppression; prove strict tsconfig assertions and exhaustive unions; validate component-size exception records and line counts; validate component-registry/shadcn composition and raw-interactive exceptions.
+5. **Design-contract conformance:** validate `.ghostinit/design-system-contract.json`, typed export/import reachability, acceptance-manifest contract references, adapter ownership/exports, task records, and registry usage. Compile the exact expected CSS fixtures for Next/TanStack/Electron and render the native Expo fixtures to assert resolved styles/states; registered inapplicability is the only allowed non-run.
+6. **Structural matrix:** enumerate every finite support-catalog tuple and assert parse/import/dependency/export/env/architecture/acceptance-manifest invariants.
+7. **Generated build matrix:** clean frozen install, exact package-manager/compiler/application-runtime assertion, root solution check, typecheck, lint, format check, test, build, architecture check.
+8. **Runtime integration:** start the built project, health check, typed oRPC round trip, auth session, protected page, database mutation, websocket/realtime where enabled.
+9. **Browser/page tests:** Playwright runs against the production build with seeded selected persistence and no interception/mocks between UI, transport, application use case, and first-party adapter. It visits every emitted manifest page and verifies applicable states, navigation, responsive behavior, accessibility, console/network cleanliness, and mutations through an independent read.
+10. **Platform screen tests:** launch supported Android/iOS Expo builds and packaged Electron artifacts, traverse every declared screen/navigation/deep link, and exercise applicable authentication, data, mutation, offline, and failure states. Export/package success alone is not acceptance.
+11. **Capability-operation tests:** execute every declared query, mutation, webhook, job, schedule, realtime channel, and provider operation with success, invalid-input, missing-configuration, authorization/ownership, dependency-failure, retry/idempotency, and observable-side-effect scenarios.
+12. **Provider contract and sandbox tests:** official-SDK-shaped contract doubles are allowed only at third-party network boundaries. Each advertised external adapter also passes its credentialed sandbox smoke and failure/retry scenarios; if no current conformance path exists, it is not advertised.
+13. **Live infrastructure tests:** ephemeral PostgreSQL migrations/auth/use cases, Convex codegen/component integration, and deploy-image smoke.
+14. **Packed CLI tests:** install the exact `.tgz` into clean Windows, Linux, and macOS environments and exercise every command in TTY/non-TTY modes plus representative generation and application-runtime flows.
+15. **Audit reproductions:** execute a versioned manifest containing every audit finding ID, setup, exploit action, expected safe result, and test path against the packed V2 artifact.
 
 ### 18.2 Matrix economics without blind spots
 
@@ -712,7 +756,7 @@ Implementation plans explicitly assign the relevant guidance before a workstream
 - Next.js target: `next-best-practices` plus official version-matched Next documentation discovered through Context7.
 - React pages/components/performance: `vercel-react-best-practices`.
 - Component APIs: `vercel-composition-patterns`.
-- Visual/UX implementation: `frontend-design` and `impeccable`.
+- Visual/UX implementation: `frontend-design` and mandatory `impeccable`. Every implementer and reviewer touching a page, component, style, theme, UX copy, responsive behavior, or frontend acceptance test loads Impeccable context and the applicable register before work.
 - shadcn/Base UI primitives: `shadcn` and the appropriate migration guidance if required.
 - Better Auth: core, security, email/password, organization, and 2FA skills as selected.
 - Eve: `eve`.
@@ -748,6 +792,10 @@ The rewrite is complete only when all of the following are true:
 - every materially distinct normalized behavior plan passes its required build and application-runtime matrix;
 - every emitted acceptance-manifest entry passes its declared built-artifact scenarios, and every disabled entry emits no route, navigation, export, environment requirement, dependency, or runtime registration;
 - no generated frontend imports a database/vendor secret, and no domain imports infrastructure;
+- the OXC AST policy finds no `TSAnyKeyword`, assertion chain, `@ts-ignore`, or invalid `@ts-expect-error` in a maintained source glob; all type-negative exceptions prove their adjacent stated diagnostic, and every component/route size exception is exact, unexpired, and approved;
+- every selected web/Electron interactive pattern resolves through an installed/reviewed local shadcn/Base UI wrapper, every selected native pattern resolves through the native component system, and the `ResolvedUiLayout.componentRegistryImport` registry plus validated frontend task records cover actual usage;
+- every generated project has a schema-valid `.ghostinit/design-system-contract.json`, typed `ResolvedUiLayout.contractImport` composition-root import, and acceptance-manifest version reference;
+- every application consumes only the shared portable Tailwind v4 semantic source plus its mode-resolved UI adapter. No app-local token/utility/variant/config/component-style/adapter source exists; deterministic CSS fixtures pass for Next/TanStack/Electron and native renderer mappings pass for Expo, except contract-registered inapplicability with rationale;
 - generated `check` and CI fail on an injected architecture violation;
 - no published entry, runtime dependency, renderer, or package export resolves to legacy production code; legacy artifacts exist only as isolated test fixtures;
 - the npm tarball contains the executable, declarations, schemas, and required runtime assets and works when installed cleanly;

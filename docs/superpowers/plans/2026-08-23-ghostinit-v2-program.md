@@ -16,6 +16,14 @@
 - Preserve all pre-existing working-tree changes; never reset or overwrite them. One explicitly labelled preservation commit on the isolated implementation branch is authorized before rewrite commits so the user-authored baseline is immutable and attributable.
 - Production V2 code follows `CLI -> Application -> Domain`, with adapters implementing application-owned ports and composition roots selecting implementations.
 - Generated code follows UI/transport/application/domain/infrastructure/bootstrap dependency rules from the approved spec.
+- Host/generated maintained source uses no explicit `any`, `as any`, unsafe double-casts, or unapproved TypeScript suppression; unknown inputs are decoded and narrowed.
+- Web/Electron interactive UI uses reviewed local shadcn/Base UI components; Expo uses the native component system. Raw interactive HTML is forbidden when a corresponding local component exists.
+- Every frontend implementer and reviewer must invoke Impeccable, load `PRODUCT.md`/`DESIGN.md`, and load the applicable product/brand register before touching frontend files.
+- Tailwind v4 uses one portable semantic source under the mode-resolved UI logical module: `theme.css`, portable-compiler-verified `utilities.css`, and element-free `base.contract.css`. `web-base.css` is DOM-only; `native-base.ts` maps the same semantic roles/states for Expo/Uniwind. `web.css` and `native.css` compose only their applicable sources.
+- Versioned platform adapters exist only in `ResolvedUiLayout.stylesRoot/adapters/{next,tanstack,electron,expo}` and are explicitly exported/listed by `DesignSystemContract.adapters`. They map, but never add, semantic tokens/utilities/variants. App globals may contain only their `ResolvedUiLayout` imports and allowlisted target-relative `@source`; local declarations, Tailwind directives/config, component styles, and adapters are forbidden.
+- All apps/pages consume one schema-valid emitted `.ghostinit/design-system-contract.json`, its selected `ResolvedUiLayout`, and the typed `ResolvedUiLayout.contractImport` export. The contract declares adapters plus exact versioned CSS/native fixtures; renderers, manifests, checks, import allowlists, and fixtures consume its layout. CI compiles Next/TanStack/Electron expected CSS and renders Expo mappings, allowing inapplicability only with adapter rationale; cross-mode UI aliases are blocking.
+- `ResolvedUiLayout.componentRegistryImport`, validated by its schema, is authoritative. Every frontend change/review records its implementer/reviewer role, changed globs, Impeccable loader/result hashes, selected register/rules, shadcn discovery, component IDs, and exception IDs in a schema-valid `docs/engineering/frontend-task-records/<task-id>.json`; CI validates records and actual usage.
+- OXC AST gates run over versioned maintained-source globs, reject explicit `any`, nested/mixed assertion chains, `@ts-ignore`, and invalid suppressions. Only `@ts-expect-error TS####: <reason>` in an adjacent-proven type-negative test is allowed. Route/page files stay <=150 nonblank, non-comment physical lines, feature components/hooks <=180, and UI primitives <=200 unless `policy/component-size-exceptions.json` provides an exact, owned, unexpired, reviewed single-responsibility exception.
 - Every behavior change follows red-green-refactor TDD and receives spec-compliance plus code-quality review.
 - Every phase leaves required branch suites green; critical security/data-loss fixes to still-published legacy paths are not deferred.
 - No supported feature may use fake success, silent fallback, swallowed architecture errors, unbounded secret output, or unverified third-party credentials.
@@ -48,6 +56,13 @@
 - `schemas/project-config.schema.json` — final V2 desired-state schema.
 - `schemas/cli-envelope.schema.json` — JSON protocol schema.
 - `schemas/support-catalog.schema.json` — capabilities response schema.
+- `schemas/design-system-contract.schema.json` — emitted cross-platform design-system contract schema.
+- `schemas/frontend-task-record.schema.json` — Impeccable/shadcn implementation-and-review evidence schema.
+- `schemas/component-size-exceptions.schema.json` — bounded component-size exception schema.
+- `schemas/component-registry.schema.json` — authoritative web/native component-pattern mapping schema.
+- `schemas/maintained-source-globs.schema.json` — AST-policy scope schema.
+- `policy/maintained-source-globs.json` — versioned host/template/generated/test AST-policy scope.
+- `policy/component-size-exceptions.json` — exact, expiring component-size exceptions.
 - `src/domain/project/support-catalog.ts` — finite supported axes and bindings.
 
 ---
@@ -128,11 +143,19 @@ bun test --timeout 100000 tests/unit/adapters/fs tests/unit/adapters/lock tests/
 
 **Exit gate:** every audit bypass fixture is blocking, every valid V2 baseline project is clean, and an injected generated-project violation makes both local and generated CI fail.
 
-### Phase 5: Database, authentication, contracts, and transport
+### Phase 5A: Data-model blueprints and migration conformance
+
+**Detailed plan path:** `docs/superpowers/plans/2026-08-23-ghostinit-v2-data-models.md`
+
+**Deliverable:** Proof-gated capability/archetype data-model blueprints, exact Better Auth/plugin schemas, PostgreSQL migrations, Convex schemas/functions, tenant/ownership/index/constraint policies, seed fixtures, and cross-adapter conformance tests planned before backend/page renderers consume them.
+
+**Exit gate:** every persistence-requiring acceptance operation maps to a blueprint entity/port/policy; PostgreSQL and Convex pass schema generation, migration/codegen, ownership, tenancy, constraint, lifecycle, and representative operation tests; database-none emits no persistence artifact.
+
+### Phase 5B: Authentication, contracts, transport, and application use cases
 
 **Detailed plan path:** `docs/superpowers/plans/2026-08-23-ghostinit-v2-backend-core.md`
 
-**Deliverable:** PostgreSQL/Convex/no-persistence adapters, version-correct Better Auth schemas/plugins/session facade, application use cases, oRPC/public transport, and real client round trips.
+**Deliverable:** Version-correct Better Auth adapters/plugins/session/actor facade, full auth/admin/organization/2FA operations, application use cases, oRPC/public transport, and real client round trips over the Phase 5A ports/schemas.
 
 **Exit gate:** sign-up/sign-in/reset/2FA/admin/organization/passkey flows selected by config, PostgreSQL migrations, Convex identity mapping/codegen, public/protected API policies, and Next/TanStack round trips pass in single and monorepo where supported.
 
@@ -140,9 +163,9 @@ bun test --timeout 100000 tests/unit/adapters/fs tests/unit/adapters/lock tests/
 
 **Detailed plan path:** `docs/superpowers/plans/2026-08-23-ghostinit-v2-frontends.md`
 
-**Deliverable:** Shared tokens/primitives/patterns, thin route orchestration, Next RSC/Actions, native TanStack routes/server functions, Expo screens, Electron bridge/renderer, and acceptance manifests for every page/screen.
+**Deliverable:** A schema-valid emitted `DesignSystemContract`, its normative `ResolvedUiLayout`, and typed `ResolvedUiLayout.contractImport` export; one shared portable Tailwind v4 `theme.css`/`utilities.css`/`base.contract.css` source; DOM-only `web-base.css`; Expo `native-base.ts`; web/native entrypoints; mode-resolved UI-module-owned versioned adapters; deterministic fixture baselines; authoritative component registry; reviewed shadcn/Base UI web primitives and native primitives; thin route orchestration; Next RSC/Actions; native TanStack routes/server functions; Expo screens; Electron bridge/renderer; validated frontend task/review records; and acceptance manifests for every page/screen.
 
-**Exit gate:** production builds launch and Playwright/platform runners traverse every manifest entry with applicable state, access, responsive, accessibility, console/network, and performance checks.
+**Exit gate:** production builds launch and Playwright/platform runners traverse every manifest entry with applicable state, access, responsive, accessibility, console/network, and performance checks. The design contract schema/artifact/export/import/manifest references, selected `ResolvedUiLayout`, adapters, app-global allowlist, and task records all validate. Monorepo and single rows resolve only their own UI specifiers and source roots; cross-mode aliases fail. Every declared Next/TanStack/Electron fixture matches deterministic compiled CSS; every declared Expo fixture passes native rendering/style/state mapping; only registered adapter rationale can mark one inapplicable. Static AST gates report no explicit-any/assertion-chain/invalid-suppression violations, and size gates report no unapproved/expired exception. There is no missing shadcn/native component, no hand-rolled interactive control covered by the component registry, and no app-local Tailwind token/utility/variant/config/component-style/adapter source.
 
 ### Phase 7: Production capabilities and providers
 

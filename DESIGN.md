@@ -12,7 +12,7 @@ A solo founder at 2am in a dim room, 14-inch MacBook, external monitor showing a
 
 **Why restrained?** Product surfaces (dashboard, settings, admin) need to be scannable for hours. A drenched palette would fatigue. The brand surface (marketing landing) can push to Committed/Drenched for the hero, but the product stays restrained.
 
-### OKLCH Tokens (Single Source: `packages/ui/src/theme.css`)
+### OKLCH Tokens (Single Source: `ResolvedUiLayout.stylesRoot/theme.css`)
 
 All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white are tinted toward the brand hue, never pure #000/#fff.
 
@@ -117,9 +117,39 @@ Dark is the scene: 2am, dim room, code. Light is a toggle for those who need it,
 
 ## Cross-Platform Consistency
 
-All targets (`apps/web` Next, `apps/web` TanStack Start, `apps/mobile` Expo, `apps/desktop` Electron) import the same `packages/ui/src/theme.css` via `@import "@repo/ui/theme.css"`. Mobile's `global.css` does `@import "tailwindcss"; @import "uniwind"; @import "@repo/ui/theme.css"; @import "tw-animate-css";`. Desktop's `index.css` does `@import "tailwindcss"; @import "@repo/ui/theme.css";`.
+The mode-resolved UI logical module in `ResolvedUiLayout` owns one versioned semantic Tailwind v4 contract. A platform changes the implementation of a semantic rule, never its name, token, state, or component vocabulary.
 
-One edit to `--primary` in `theme.css` updates all after restart. Verified via `bun run dev` on each.
+### Portable contract
+
+`ResolvedUiLayout.stylesRoot/` contains only the portable source:
+
+- `theme.css` owns the complete OKLCH semantic-token set and Tailwind `@theme inline` mappings.
+- `utilities.css` owns only portable-compiler-verified Tailwind v4 `@utility` definitions and interaction variants. A utility is admitted only when the same semantic name and states can be mapped by every selected adapter.
+- `base.contract.css` is element-free. It declares the semantic base-role/state contract and contains no DOM selector, reset, layout, or browser-only behavior.
+- `web.css` composes Tailwind, animations, `theme.css`, `utilities.css`, `base.contract.css`, and `web-base.css` for DOM targets.
+- `native.css` composes the supported native compiler with `theme.css`, `utilities.css`, and `base.contract.css`; it never imports a DOM reset.
+
+`web-base.css` is explicitly DOM-only and owns browser resets/base element rules. `native-base.ts` maps the same named semantic base roles and states to supported Expo/Uniwind native styles; it does not try to run a DOM reset on native.
+
+### Adapter ownership
+
+Only the mode-resolved UI logical module may contain platform adapters. They are versioned source under `ResolvedUiLayout.stylesRoot/adapters/{next,tanstack,electron,expo}/` and are explicitly exported through `ResolvedUiLayout.stylesImport` and `ResolvedUiLayout.contractImport`. Each adapter consumes the portable semantic names, maps them for its platform, and may not add a token, reusable utility, variant, or component style. `DesignSystemContract.adapters` lists every selected adapter, its version, entrypoint, supported semantic mappings, fixture IDs, and any registered inapplicability rationale.
+
+An application global stylesheet may contain only its `ResolvedUiLayout.stylesImport/<entrypoint>` import(s) and contract-allowlisted target-relative `@source` declarations. It may not contain CSS declarations, `@theme`, `@utility`, `@custom-variant`, Tailwind configuration, component styles, or adapter implementations. Structural checks verify those restrictions plus each package export; an app cannot bypass them through a subpath import.
+
+### Machine-defined conformance
+
+Every generated project emits `.ghostinit/design-system-contract.json`, validated against the versioned `schemas/design-system-contract.schema.json`. It embeds the selected `ResolvedUiLayout`. `ResolvedUiLayout.contractImport` exports the same typed, versioned `DesignSystemContract`; selected app composition roots import it directly and pages inherit it through primitives/patterns. Renderers, acceptance manifests, architecture checks, import allowlists, and conformance fixtures consume this resolved layout rather than a fixed package path. Acceptance-manifest entries record the contract version and layout identity; CI verifies artifact validity, export/import reachability, layout-specific manifest references, and rejects a cross-mode alias.
+
+The contract declares exact versioned fixtures for semantic tokens, portable utilities, interaction variants, and each selected adapter. Web fixtures compile deterministic expected CSS for Next, TanStack, and Electron. Expo fixtures render through the supported native renderer and assert resolved native style and interaction-state mappings. Every applicable fixture passes. An inapplicable fixture is valid only when its registered adapter entry gives a concrete rationale; it is never silently skipped.
+
+One edit to `--primary` in `theme.css` or a shared rule in `utilities.css` updates every selected application after restart without allowing local drift.
+
+### Evidence and policy gates
+
+`ResolvedUiLayout.componentRegistryImport`, validated by `schemas/component-registry.schema.json`, is the authoritative versioned mapping from semantic pattern to the approved web/Electron shadcn/Base UI wrapper and native primitive. Each frontend change or review has a versioned `docs/engineering/frontend-task-records/<task-id>.json`, validated against its schema, with implementer/reviewer role, changed globs, the Impeccable loader/result SHA-256 hashes, selected register, applied rules, shadcn discovery results, selected component IDs, and exception IDs. CI validates task records against the registry and changed component usage.
+
+The AST policy is a schema-validated versioned `policy/maintained-source-globs.json` covering host V2 code, generator templates, generated owned source roots, and maintained tests. It rejects `TSAnyKeyword`, nested/mixed TypeScript assertion chains, `@ts-ignore`, and malformed suppressions. `@ts-expect-error TS####: <reason>` is allowed only in a type-negative test with an adjacent fixture that proves the stated diagnostic. The component-size gate counts nonblank, non-comment physical lines and reads versioned exceptions containing the exact glob, maximum, single responsibility, owner, expiry, and review ID. No unmatched, expired, or broadened exception is accepted.
 
 ## Bans Enforced
 
