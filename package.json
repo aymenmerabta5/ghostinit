@@ -32,7 +32,8 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "dev": "bun run --watch src/cli.ts",
-    "typecheck": "tsc -b",
+    "typecheck": "bunx --no-install tsc -b && bun run typecheck:scripts",
+    "typecheck:scripts": "bunx --no-install tsc -p tsconfig.scripts.json --noEmit",
     "check": "oxlint . && oxfmt --check . && tsc --noEmit",
     "format": "oxfmt --write .",
     "pretest": "bun run build",

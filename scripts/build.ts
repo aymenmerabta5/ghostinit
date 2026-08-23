@@ -12,6 +12,8 @@
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 
+const localTsc = [process.execPath, "./node_modules/typescript/bin/tsc"] as const;
+
 async function main() {
   const start = performance.now();
 
@@ -40,10 +42,9 @@ async function main() {
     process.exit(1);
   }
 
+  const bundleKiB = result.outputs.reduce((total, output) => total + output.size, 0) / 1024;
   console.log(
-    `[build]   ✓ JS bundle OK (${result.outputs.length} output(s), ${(
-      result.outputs.reduce((a, o) => a + (o as any).size || 0, 0) / 1024
-    ).toFixed(1)} KiB)`,
+    `[build]   ✓ JS bundle OK (${result.outputs.length} output(s), ${bundleKiB.toFixed(1)} KiB)`,
   );
 
   console.log(
@@ -51,7 +52,7 @@ async function main() {
   );
   {
     const proc2 = Bun.spawnSync({
-      cmd: ["bunx", "tsc", "-p", "packages/versions/tsconfig.json"],
+      cmd: [...localTsc, "-p", "packages/versions/tsconfig.json"],
       stdout: "inherit",
       stderr: "inherit",
       cwd: process.cwd(),
@@ -67,7 +68,7 @@ async function main() {
   // src/tsconfig.json already has emitDeclarationOnly:true, outDir:../dist, rootDir:., composite:true
   // References packages/versions, so its dist must exist (built above)
   const proc = Bun.spawnSync({
-    cmd: ["bunx", "tsc", "-p", "src/tsconfig.json"],
+    cmd: [...localTsc, "-p", "src/tsconfig.json"],
     stdout: "inherit",
     stderr: "inherit",
     cwd: process.cwd(),
