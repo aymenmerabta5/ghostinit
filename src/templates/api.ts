@@ -30,6 +30,7 @@ export function apiPackage(hasBilling = true, hasMessaging = false): TemplateFil
           "@repo/contracts": "workspace:*",
           "@repo/database": "workspace:*",
           "@repo/modules": "workspace:*",
+          ...(hasBilling ? { "@repo/billing": "workspace:*" } : {}),
           ...(hasMessaging ? { "@repo/realtime": "workspace:*" } : {}),
           zod: `^${v.validation.zod}`,
         },
@@ -47,6 +48,7 @@ export function apiPackage(hasBilling = true, hasMessaging = false): TemplateFil
     file(
       "packages/api/src/context.ts",
       `import { auth } from "@repo/auth";
+import { isAdminRole } from "@repo/auth/access";
 
 export interface ApiContext {
   user?: {
@@ -64,23 +66,18 @@ export async function createContext(headers: Headers): Promise<ApiContext> {
   if (!session?.user) {
     return {};
   }
-  const raw = session.user as unknown as { role?: string; banned?: boolean };
   return {
     user: {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: raw.role ?? "user",
-      banned: raw.banned ?? null,
+      role: session.user.role ?? "user",
+      banned: session.user.banned ?? null,
     },
-    sessionId: (session.session as unknown as { id?: string })?.id,
+    sessionId: session.session.id,
   };
 }
 
-// RBAC helpers — Stagio pattern with effective role + ORPCError codes
-export function isAdminRole(role: string | null | undefined): boolean {
-  return role === "admin" || role === "super_admin";
-}
 export function requireUser(ctx: ApiContext) {
   if (!ctx.user?.id) {
     // Import lazily to avoid circular; but we can throw ORPCError string and map later
@@ -93,7 +90,7 @@ export function requireUser(ctx: ApiContext) {
 }
 export function requireAdmin(ctx: ApiContext) {
   const user = requireUser(ctx);
-  if (!isAdminRole((user as { role?: string }).role)) {
+  if (!isAdminRole(user.role)) {
     throw new Error("FORBIDDEN");
   }
   return user;
@@ -127,17 +124,18 @@ export const health = implementer.health.handler(async () => ({
     file(
       "packages/api/src/middleware/auth.ts",
       `import { ORPCError } from "@orpc/server";
+import { isAdminRole } from "@repo/auth/access";
 import type { ApiContext } from "../context.js";
 
 // oRPC middleware — Stagio pattern: protected + admin with banned check
 export async function protectedProcedure(ctx: ApiContext) {
   if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  if ((ctx.user as unknown as { banned?: boolean })?.banned) throw new ORPCError("FORBIDDEN", { message: "Account suspended", data: { code: "ACCOUNT_SUSPENDED" } } as unknown as never);
+  if (ctx.user.banned) throw new ORPCError("FORBIDDEN", { message: "Account suspended" });
   return ctx.user;
 }
 export async function adminProcedure(ctx: ApiContext) {
   if (!ctx.user?.id) throw new ORPCError("UNAUTHORIZED", { message: "Unauthorized" });
-  if ((ctx.user as { role?: string }).role !== "admin" && (ctx.user as { role?: string }).role !== "super_admin") throw new ORPCError("FORBIDDEN", { message: "Forbidden — admin only" });
+  if (!isAdminRole(ctx.user.role)) throw new ORPCError("FORBIDDEN", { message: "Forbidden — admin only" });
   return ctx.user;
 }
 `,
@@ -181,18 +179,18 @@ interface CodedORPCErrorOptions {
 }
 
 export function createCodedORPCError(status: ORPCStatusCode, code: string, { message, meta, cause }: CodedORPCErrorOptions) {
-  return new ORPCError(status, { message, data: { code, ...(meta ? { meta } : {}) }, cause } as unknown as never);
+  const details = meta ? JSON.stringify({ code, meta }) : code;
+  return new ORPCError(status, { message: \`\${message} [\${details}]\`, cause });
 }
 export function throwCodedORPCError(status: ORPCStatusCode, code: string, options: CodedORPCErrorOptions): never {
   throw createCodedORPCError(status, code, options);
 }
 export function createServiceORPCError(error: unknown, { codeMap, fallbackMessage, fallbackCode = "BAD_REQUEST" }: { codeMap: Record<string, ORPCStatusCode>; fallbackMessage: string; fallbackCode?: ORPCStatusCode }): never {
   if (error instanceof ORPCError) throw error;
-  const svc = error as unknown as { code?: string; message?: string; cause?: unknown };
-  if (svc && typeof svc.code === "string" && typeof svc.message === "string") {
-    throw new ORPCError(codeMap[svc.code] ?? fallbackCode, { message: svc.message, data: { code: svc.code }, cause: svc.cause ?? error } as unknown as never);
+  if (error instanceof Error && "code" in error && typeof error.code === "string") {
+    throw new ORPCError(codeMap[error.code] ?? fallbackCode, { message: error.message, cause: error.cause ?? error });
   }
-  throw new ORPCError("INTERNAL_SERVER_ERROR", { message: fallbackMessage, cause: error } as unknown as never);
+  throw new ORPCError("INTERNAL_SERVER_ERROR", { message: fallbackMessage, cause: error });
 }
 `,
     ),

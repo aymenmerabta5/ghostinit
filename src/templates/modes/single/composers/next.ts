@@ -151,7 +151,7 @@ export function buildNextFiles(
   files.push(file("src/app/admin/layout.tsx", adminLayoutSingleContent()));
   // src/app/admin/layout.tsx imports @/components/admin-guard; the TanStack single
   // composer already emitted it, the Next.js one did not.
-  files.push(file("src/components/admin-guard.tsx", adminGuardContent("next")));
+  files.push(file("src/components/admin-guard.tsx", adminGuardContent("next", "single")));
   files.push(file("src/app/admin/page.tsx", adminDashboardSingleFileContent()));
   files.push(
     file("src/app/admin/users/hooks/use-admin-users.ts", useAdminUsersHookSingleContent()),

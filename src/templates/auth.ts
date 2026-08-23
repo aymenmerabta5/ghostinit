@@ -128,6 +128,8 @@ import { expo } from "@better-auth/expo";`
         exports: {
           ".": "./src/index.ts",
           "./client": "./src/client.ts",
+          "./server": "./src/server.ts",
+          "./access": "./src/access.ts",
         },
         dependencies: {
           "better-auth": `^${v.auth["better-auth"]}`,
@@ -147,7 +149,7 @@ import { expo } from "@better-auth/expo";`
       tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
     ),
     file(
-      "packages/auth/src/index.ts",
+      "packages/auth/src/server.ts",
       `import { betterAuth } from "better-auth";
 
 declare global {
@@ -157,7 +159,9 @@ declare global {
 
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 ${cookieImport}${expoImport}
-import { admin, twoFactor, magicLink, passkey, organization } from "better-auth/plugins";
+import { admin } from "better-auth/plugins/admin";
+import { twoFactor, magicLink, passkey, organization } from "better-auth/plugins";
+import { ac, roles } from "./access.js";
 import { env } from "@repo/config";
 import {
   db,
@@ -281,13 +285,13 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    ${expoPlugin}admin(),
+    ${expoPlugin}admin({ ac, roles, adminRoles: ["admin", "superAdmin"] }),
     twoFactor({ issuer: env.BETTER_AUTH_URL }),
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         const { sendEmail } = await import("@repo/email");
-        const { default: MagicLinkEmail } = await import("@repo/email/templates/MagicLink.js").catch(() => ({ default: null as unknown as React.ComponentType<unknown> }));
-        if (MagicLinkEmail) await (sendEmail as unknown as (a:string,b:string,c:unknown,d:unknown)=>Promise<void>)(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail as unknown as React.ComponentType<{link:string}>, { link: url });
+        const { default: MagicLinkEmail } = await import("@repo/email/templates/MagicLink.js");
+        await sendEmail(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail, { link: url });
       },
     }),
     passkey(),
@@ -303,6 +307,7 @@ export type Auth = typeof auth;
       "packages/auth/src/client.ts",
       `import { createAuthClient } from "better-auth/react";
 import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";
+import { ac, roles } from "./access.js";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -313,12 +318,25 @@ export const authClient = createAuthClient({
         }
       },
     }),
-    adminClient(),
+    adminClient({ ac, roles }),
     magicLinkClient(),
     passkeyClient(),
     organizationClient(),
   ],
 });
+`,
+    ),
+    file(
+      "packages/auth/src/index.ts",
+      `export { auth, type Auth } from "./server.js";
+export {
+  ac,
+  roles,
+  ADMIN_ROLE_NAMES,
+  isAdminRole,
+  type AccessRole,
+  type AdminRole,
+} from "./access.js";
 `,
     ),
   ];
@@ -329,6 +347,7 @@ function convexClientContent(): string {
     `import { createAuthClient } from "better-auth/react";`,
     `import { convexClient } from "@convex-dev/better-auth/client/plugins";`,
     `import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";`,
+    `import { ac, roles } from "./access.js";`,
     ``,
     `// Convex mode – client includes convexClient() plugin for ConvexBetterAuthProvider`,
     `// baseURL uses CONVEX_SITE_URL / SITE_URL for crossDomain cookie flow`,
@@ -357,7 +376,7 @@ function convexClientContent(): string {
     `        }`,
     `      },`,
     `    }),`,
-    `    adminClient(),`,
+    `    adminClient({ ac, roles }),`,
     `  ],`,
     `});`,
     ``,
@@ -419,19 +438,25 @@ function convexServerNextContent(hasMobile = false): string {
     `  convexSiteUrl,`,
     `});`,
     ``,
+    `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
+    `function isRequestHandler(value: unknown): value is RequestHandler {`,
+    `  return typeof value === "function";`,
+    `}`,
+    `function isHandlerMap(value: unknown): value is Record<string, unknown> {`,
+    `  return typeof value === "object" && value !== null;`,
+    `}`,
+    `async function dispatchAuthHandler(candidate: unknown, request: Request): Promise<Response> {`,
+    `  if (isRequestHandler(candidate)) return candidate(request);`,
+    `  if (isHandlerMap(candidate)) {`,
+    `    const methodHandler = candidate[request.method.toUpperCase()];`,
+    `    if (isRequestHandler(methodHandler)) return methodHandler(request);`,
+    `  }`,
+    `  return new Response("Method not allowed", { status: 405 });`,
+    `}`,
+    ``,
     `// Backwards compatible shim for code that does import { auth } from "@repo/auth" expecting auth.handler(req)`,
     `export const auth = {`,
-    `  handler: async (req: Request): Promise<Response> => {`,
-    `    const h = handler as unknown as Record<string, (r: Request) => Promise<Response>> & ((r: Request) => Promise<Response>);`,
-    `    if (typeof h === "function") return (h as (r: Request) => Promise<Response>)(req);`,
-    `    const method = req.method.toUpperCase();`,
-    `    if (method === "GET" && h.GET) return h.GET(req);`,
-    `    if (method === "POST" && h.POST) return h.POST(req);`,
-    `    if (method === "PUT" && (h as unknown as Record<string, (r: Request) => Promise<Response>>).PUT) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).PUT(req);`,
-    `    if (method === "PATCH" && (h as unknown as Record<string, (r: Request) => Promise<Response>>).PATCH) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).PATCH(req);`,
-    `    if (method === "DELETE" && (h as unknown as Record<string, (r: Request) => Promise<Response>>).DELETE) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).DELETE(req);`,
-    `    return new Response("Method not allowed", { status: 405 });`,
-    `  },`,
+    `  handler: (request: Request): Promise<Response> => dispatchAuthHandler(handler, request),`,
     `};`,
     ``,
     `export type Auth = typeof auth;`,
@@ -485,18 +510,24 @@ function convexServerTanstackContent(hasMobile = false): string {
     `  convexSiteUrl,`,
     `});`,
     ``,
+    `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
+    `function isRequestHandler(value: unknown): value is RequestHandler {`,
+    `  return typeof value === "function";`,
+    `}`,
+    `function isHandlerMap(value: unknown): value is Record<string, unknown> {`,
+    `  return typeof value === "object" && value !== null;`,
+    `}`,
+    `async function dispatchAuthHandler(candidate: unknown, request: Request): Promise<Response> {`,
+    `  if (isRequestHandler(candidate)) return candidate(request);`,
+    `  if (isHandlerMap(candidate)) {`,
+    `    const methodHandler = candidate[request.method.toUpperCase()];`,
+    `    if (isRequestHandler(methodHandler)) return methodHandler(request);`,
+    `  }`,
+    `  return new Response("Method not allowed", { status: 405 });`,
+    `}`,
+    ``,
     `export const auth = {`,
-    `  handler: async (req: Request): Promise<Response> => {`,
-    `    const h = handler as unknown as Record<string, (r: Request) => Promise<Response>> & ((r: Request) => Promise<Response>);`,
-    `    if (typeof h === "function") return (h as (r: Request) => Promise<Response>)(req);`,
-    `    const m = req.method.toUpperCase();`,
-    `    if (m === "GET" && h.GET) return h.GET(req);`,
-    `    if (m === "POST" && h.POST) return h.POST(req);`,
-    `    if (m === "PUT" && h.PUT) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).PUT(req);`,
-    `    if (m === "PATCH" && h.PATCH) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).PATCH(req);`,
-    `    if (m === "DELETE" && h.DELETE) return (h as unknown as Record<string, (r: Request) => Promise<Response>>).DELETE(req);`,
-    `    return new Response("Method not allowed", { status: 405 });`,
-    `  },`,
+    `  handler: (request: Request): Promise<Response> => dispatchAuthHandler(handler, request),`,
     `};`,
     ``,
     `export type Auth = typeof auth;`,
@@ -520,6 +551,7 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
           ".": "./src/index.ts",
           "./client": "./src/client.ts",
           "./server": "./src/server.ts",
+          "./access": "./src/access.ts",
         },
         dependencies: {
           "better-auth": `^${v.auth["better-auth"]}`,
@@ -541,7 +573,19 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
       "packages/auth/tsconfig.json",
       tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
     ),
-    file("packages/auth/src/index.ts", `export * from "./server.js";\n`),
+    file(
+      "packages/auth/src/index.ts",
+      `export { auth, type Auth } from "./server.js";
+export {
+  ac,
+  roles,
+  ADMIN_ROLE_NAMES,
+  isAdminRole,
+  type AccessRole,
+  type AdminRole,
+} from "./access.js";
+`,
+    ),
     file("packages/auth/src/client.ts", convexClientContent()),
     file("packages/auth/src/server.ts", serverContent),
   ];

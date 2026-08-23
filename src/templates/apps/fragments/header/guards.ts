@@ -52,7 +52,14 @@ export function SignOutButton(): React.JSX.Element {
 `;
 }
 
-export function adminGuardContent(router: RouterType): string {
+export function adminGuardContent(
+  router: RouterType,
+  mode: "monorepo" | "single" = "monorepo",
+): string {
+  const accessImport =
+    mode === "single"
+      ? `import { isSingleAdminRole as isAdminRole } from "@/lib/access";`
+      : `import { isAdminRole } from "@repo/auth/access";`;
   if (router === "tanstack") {
     return `"use client"
 
@@ -60,18 +67,19 @@ import * as React from 'react'
 import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { authClient } from '../lib/auth-client.js'
+${accessImport}
 
 export function AdminGuard({ children }: { children: React.ReactNode }): React.JSX.Element | null {
   const router = useRouter()
   const { data: session, isPending } = authClient.useSession()
 
   useEffect(() => {
-    if (!isPending && session?.user?.role !== 'admin') {
+    if (!isPending && !isAdminRole(session?.user?.role)) {
       router.navigate({ to: '/' })
     }
   }, [isPending, session, router])
 
-  if (isPending || session?.user?.role !== 'admin') return null
+  if (isPending || !isAdminRole(session?.user?.role)) return null
 
   return <>{children}</>
 }
@@ -83,18 +91,19 @@ import * as React from "react";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "../lib/auth-client.js";
+${accessImport}
 
 export function AdminGuard({ children }: { children: React.ReactNode }): React.JSX.Element | null {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
-    if (!isPending && session?.user?.role !== "admin") {
+    if (!isPending && !isAdminRole(session?.user?.role)) {
       router.replace("/");
     }
   }, [isPending, session, router]);
 
-  if (isPending || session?.user?.role !== "admin") {
+  if (isPending || !isAdminRole(session?.user?.role)) {
     return null;
   }
 

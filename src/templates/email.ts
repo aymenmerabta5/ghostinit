@@ -332,6 +332,7 @@ export function emailFiles(
     "@react-email/components": `^${v.email["@react-email/components"]}`,
     "@react-email/render": `^${v.email["@react-email/render"]}`,
     "@react-email/tailwind": `^${v.email["@react-email/tailwind"]}`,
+    "server-only": `^${v.runtime["server-only"]}`,
   };
   if (mode === "monorepo") {
     (emailDependencies as Record<string, string>)["@repo/config"] = "workspace:*";

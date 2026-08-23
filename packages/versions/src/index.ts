@@ -15,6 +15,7 @@ export const runtime = {
   bun: "1.3.14",
   node: "24.18.0", // LTS target; local has v25.8.0 (EOL) for development only
   "@types/node": "22.20.1",
+  "server-only": "0.0.1",
 } as const;
 
 export const typescript = {
