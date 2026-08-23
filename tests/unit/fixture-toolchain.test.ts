@@ -23,12 +23,22 @@ describe("committed compatibility fixture toolchains", () => {
             devDependencies?: Record<string, string>;
           };
         };
+        packages: Record<string, unknown>;
       };
       expect(pkg.packageManager).toBe("bun@1.4.0");
       expect(pkg.devDependencies?.typescript).toBe("7.0.2");
       expect(pkg.devDependencies?.["@typescript/native-preview"]).toBeUndefined();
-      if (pkg.dependencies?.["bun-types"] !== undefined) {
-        expect(pkg.dependencies["bun-types"]).toBe("1.4.0");
+      if (fixture === "drizzle-betterauth-orpc") {
+        expect(pkg.dependencies?.["bun-types"]).toBe("1.4.0");
+        expect(lock.workspaces[""].dependencies?.["bun-types"]).toBe("1.4.0");
+      }
+      if (fixture === "next-tailwind-biome") {
+        const previewPackages = Object.keys(lock.packages).filter(
+          (packageName) =>
+            packageName === "@typescript/native-preview" ||
+            packageName.startsWith("@typescript/native-preview-"),
+        );
+        expect(previewPackages).toEqual([]);
       }
       expect(lock.workspaces[""].name).toBe(pkg.name);
       expect(lock.workspaces[""].dependencies ?? {}).toEqual(pkg.dependencies ?? {});
