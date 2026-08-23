@@ -75,6 +75,7 @@ export function rootPackageJson(
       ...(isConvex ? { convex: `^${v.convex.convex}` } : {}),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
+      "oxc-parser": v.tooling["oxc-parser"],
       turbo: `^${v.tooling.turbo}`,
       husky: `^${v.tooling.husky}`,
       typescript: `^${v.typescript.typescript}`,

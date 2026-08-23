@@ -1,6 +1,158 @@
 import { file, type TemplateFile } from "../shared.js";
 
+// @allow-long 430: seven generated checks and their shared parser boundary remain auditable together
 // Stagio-inspired quality gates — adapted for ghostinit monorepo/single + nextjs/tanstack/expo/desktop
+
+function oxcContent(): string {
+  return `const { parseSync } = require("oxc-parser");
+const path = require("node:path");
+
+function toPosix(value) {
+  return value.replaceAll("\\\\", "/");
+}
+function relative(file) {
+  return toPosix(path.relative(process.cwd(), file));
+}
+function language(file) {
+  if (file.endsWith(".tsx")) return "tsx";
+  if (file.endsWith(".jsx")) return "jsx";
+  return undefined;
+}
+function parseOwned(file, source) {
+  const result = parseSync(file, source, { sourceType: "module", lang: language(file) });
+  if (result.errors.length > 0) {
+    const details = result.errors.map((error) => error.message).join("; ");
+    throw new Error(\`Parser diagnostics in \${relative(file)}: \${details}\`);
+  }
+  return result.program;
+}
+function walk(root, visit) {
+  const stack = [root];
+  const seen = new Set();
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || typeof node !== "object" || seen.has(node)) continue;
+    seen.add(node);
+    if (Array.isArray(node)) {
+      for (const child of node) stack.push(child);
+      continue;
+    }
+    visit(node);
+    for (const [key, child] of Object.entries(node)) {
+      if (["loc", "range", "start", "end"].includes(key)) continue;
+      if (child && typeof child === "object") stack.push(child);
+    }
+  }
+}
+function stringValue(node) {
+  return node && typeof node === "object" && typeof node.value === "string" ? node.value : null;
+}
+function sourceValue(node) {
+  return stringValue(node?.source);
+}
+function positionOf(source, node) {
+  const end = Number.isInteger(node?.start) ? node.start : 0;
+  let line = 1;
+  let column = 1;
+  for (let index = 0; index < end; index += 1) {
+    if (source.charCodeAt(index) === 10) {
+      line += 1;
+      column = 1;
+    } else column += 1;
+  }
+  return { line, column };
+}
+function importDeclarations(program) {
+  const imports = [];
+  walk(program, (node) => {
+    if (
+      ["ImportDeclaration", "ExportAllDeclaration", "ExportNamedDeclaration"].includes(node.type) &&
+      sourceValue(node)
+    )
+      imports.push(node);
+  });
+  return imports;
+}
+function moduleReferences(program) {
+  const references = [];
+  walk(program, (node) => {
+    const declarationSource = sourceValue(node);
+    if (
+      ["ImportDeclaration", "ExportAllDeclaration", "ExportNamedDeclaration"].includes(node.type) &&
+      declarationSource
+    )
+      references.push({ node, specifier: declarationSource, kind: node.type });
+    if (node.type === "ImportExpression") {
+      const specifier = stringValue(node.source);
+      if (specifier) references.push({ node, specifier, kind: "ImportExpression" });
+    }
+    if (node.type === "CallExpression") {
+      const first = node.arguments?.[0];
+      const specifier = stringValue(first);
+      const isRequire = node.callee?.type === "Identifier" && node.callee.name === "require";
+      const isImport = node.callee?.type === "Import";
+      if (specifier && (isRequire || isImport)) {
+        references.push({ node, specifier, kind: isRequire ? "require" : "import()" });
+      }
+    }
+  });
+  return references;
+}
+function importedNames(node) {
+  return (node.specifiers ?? [])
+    .filter((specifier) => specifier.type === "ImportSpecifier")
+    .map(
+      (specifier) => specifier.imported?.name ?? specifier.imported?.value ?? specifier.local?.name,
+    )
+    .filter((name) => typeof name === "string");
+}
+function jsxName(node) {
+  if (node?.type === "JSXIdentifier") return node.name;
+  if (node?.type === "JSXNamespacedName") return \`\${node.namespace.name}:\${node.name.name}\`;
+  return null;
+}
+function jsxAttribute(opening, name) {
+  return (
+    (opening?.attributes ?? []).find(
+      (attribute) => attribute.type === "JSXAttribute" && jsxName(attribute.name) === name,
+    ) ?? null
+  );
+}
+function jsxAttributeString(opening, name) {
+  const attribute = jsxAttribute(opening, name);
+  const value = attribute?.value;
+  if (!value) return null;
+  if (typeof value.value === "string") return value.value;
+  const expression = value.type === "JSXExpressionContainer" ? value.expression : null;
+  if (typeof expression?.value === "string") return expression.value;
+  if (expression?.type !== "TemplateLiteral" || expression.expressions.length > 0) return null;
+  const quasiValue = expression.quasis.length === 1 ? expression.quasis[0]?.value : null;
+  return typeof quasiValue?.cooked === "string" ? quasiValue.cooked : (quasiValue?.raw ?? null);
+}
+function jsxOpenings(program) {
+  const openings = [];
+  walk(program, (node) => {
+    if (node.type === "JSXOpeningElement") openings.push(node);
+  });
+  return openings;
+}
+module.exports = {
+  importDeclarations,
+  importedNames,
+  jsxAttribute,
+  jsxAttributeString,
+  jsxName,
+  jsxOpenings,
+  parseOwned,
+  positionOf,
+  relative,
+  sourceValue,
+  moduleReferences,
+  toPosix,
+  walk,
+};
+`;
+}
 
 function checkFeatureFolderContent(): string {
   return `#!/usr/bin/env node
@@ -89,102 +241,106 @@ main();
 function checkImportAliasesContent(): string {
   return `#!/usr/bin/env node
 const fs=require("node:fs"), path=require("node:path");
-let ts; try{ ts=require("typescript"); } catch{ console.log("Import alias check skipped (typescript not installed)."); process.exit(0); }
+const {moduleReferences,parseOwned,positionOf,relative}=require("./lib/oxc.cjs");
 function roots(){ const cands=[path.join(process.cwd(),"src"), path.join(process.cwd(),"apps","web","src")]; return cands.filter(fs.existsSync); }
 const TARGET=new Set([".ts",".tsx"]); const STYLE=[".css",".scss",".sass",".less"];
-function toPosix(p){return p.replaceAll("\\\\","/");}
 function list(dir, out=[]){ for(const e of fs.readdirSync(dir,{withFileTypes:true})){ const p=path.join(dir,e.name); if(e.isDirectory()) list(p,out); else if(e.isFile() && TARGET.has(path.extname(e.name))) out.push(p);} return out; }
 function isRel(s){return s.startsWith("./")||s.startsWith("../");}
 function isStyle(s){return STYLE.some(e=>s.endsWith(e));}
-function kind(fp){return fp.endsWith(".tsx")?ts.ScriptKind.TSX:ts.ScriptKind.TS;}
-function add(node,sf,text,fp,viol){ if(!node||!ts.isStringLiteral(node)) return; const spec=node.text; if(!isRel(spec)||isStyle(spec)) return; const {line,character}=sf.getLineAndCharacterOfPosition(node.getStart(sf)); viol.push({file:toPosix(path.relative(process.cwd(),fp)), line:line+1, column:character+1, spec:text.slice(node.getStart(sf),node.getEnd())});}
 function main(){
   const dirs=roots(); if(dirs.length===0){console.error("Missing src root");process.exit(1);}
   const files=dirs.flatMap(d=>list(d)); const viol=[];
-  for(const fp of files){ const txt=fs.readFileSync(fp,"utf8"); const sf=ts.createSourceFile(fp,txt,ts.ScriptTarget.Latest,true,kind(fp)); function visit(n){ if(ts.isImportDeclaration(n)) add(n.moduleSpecifier,sf,txt,fp,viol); else if(ts.isExportDeclaration(n) && n.moduleSpecifier) add(n.moduleSpecifier,sf,txt,fp,viol); ts.forEachChild(n,visit);} visit(sf); }
+  for(const fp of files){
+    const source=fs.readFileSync(fp,"utf8"); const program=parseOwned(fp,source);
+    for(const reference of moduleReferences(program)){
+      if(!isRel(reference.specifier)||isStyle(reference.specifier)) continue;
+      const {line,column}=positionOf(source,reference.node);
+      viol.push({file:relative(fp),line,column,spec:JSON.stringify(reference.specifier)});
+    }
+  }
   if(viol.length===0){console.log("Import alias check passed."); return;}
   console.error("Relative imports forbidden in src/**/*.{ts,tsx}. Use @/ aliases (styles exempt):"); for(const v of viol) console.error(\`\${v.file}:\${v.line}:\${v.column} \${v.spec}\`);
   process.exit(1);
 }
-main();
+try { main(); } catch (error) {
+  const message = error instanceof Error ? error.message : "Unknown parser failure";
+  console.error(message);
+  process.exit(2);
+}
 `;
 }
 
 function checkNextParityContent(): string {
   return `#!/usr/bin/env node
 const fs=require("node:fs"), path=require("node:path");
-let ts; try{ ts=require("typescript"); } catch{ console.log("Next parity check skipped (typescript not installed)."); process.exit(0); }
-const APP_ROOTS=[path.join(process.cwd(),"src","app"), path.join(process.cwd(),"apps","web","src","app")].filter(fs.existsSync);
-if(APP_ROOTS.length===0){ console.log("Next parity check passed (no app dir)."); process.exit(0); }
+const {jsxAttributeString,jsxName,jsxOpenings,parseOwned,positionOf,relative,toPosix}=require("./lib/oxc.cjs");
 const EXT=new Set([".ts",".tsx"]);
 function list(dir, out=[]){ for(const e of fs.readdirSync(dir,{withFileTypes:true})){ const p=path.join(dir,e.name); if(e.isDirectory()) list(p,out); else if(e.isFile()&&EXT.has(path.extname(e.name))) out.push(p);} return out; }
-function toPosix(p){return p.replaceAll("\\\\","/");}
-function rel(p){return toPosix(path.relative(process.cwd(),p));}
-function kind(fp){return fp.endsWith(".tsx")?ts.ScriptKind.TSX:ts.ScriptKind.TS;}
-function tagName(n){ if(ts.isIdentifier(n)) return n.text; if(ts.isJsxNamespacedName(n)) return n.namespace.text+":"+n.name.text; return null; }
-function attr(attrs, name){ for(const a of attrs.properties){ if(!ts.isJsxAttribute(a)) continue; if(a.name.text===name) return a; } return null; }
-function strVal(a){ if(!a?.initializer) return null; if(ts.isStringLiteral(a.initializer)) return a.initializer.text; if(!ts.isJsxExpression(a.initializer)) return null; const e=a.initializer.expression; if(!e) return null; if(ts.isStringLiteral(e)||ts.isNoSubstitutionTemplateLiteral(e)) return e.text; return null; }
+function sourceRootFor(file){ const normalized=toPosix(file); const marker=normalized.includes("/apps/web/src/")?"/apps/web/src/":"/src/"; return normalized.slice(0,normalized.indexOf(marker)+marker.length-1); }
+function hasI18nRouting(file){ return fs.existsSync(path.join(sourceRootFor(file),"i18n","routing.ts")); }
 function main(){
-const files=APP_ROOTS.flatMap(r=>list(r));
-const violations=[];
-for(const fp of files){
-  const txt=fs.readFileSync(fp,"utf8");
-  const sf=ts.createSourceFile(fp,txt,ts.ScriptTarget.Latest,true,kind(fp));
-  function visit(n){
-    if(ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)){
-      const tag = ts.isJsxElement(n)? tagName(n.openingElement.tagName): tagName(n.tagName);
-      if(tag==="img"){
-        const srcAttr = ts.isJsxElement(n)? attr(n.openingElement.attributes,"src"): attr(n.attributes,"src");
-        const allowList = new Set();
-        const relPath=rel(fp);
-        if(!allowList.has(relPath)) violations.push({file:relPath, line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line+1, msg: "Use next/image <Image> instead of <img> for optimization"});
-      }
+  const appRoots=[path.join(process.cwd(),"src","app"),path.join(process.cwd(),"apps","web","src","app")].filter(fs.existsSync);
+  if(appRoots.length===0){ console.log("Next parity check passed (no app dir)."); return; }
+  const files=appRoots.flatMap(r=>list(r)); const violations=[];
+  for(const fp of files){
+    const source=fs.readFileSync(fp,"utf8"); const program=parseOwned(fp,source);
+    for(const opening of jsxOpenings(program)){
+      const tag=jsxName(opening.name); const {line,column}=positionOf(source,opening);
+      if(tag==="img") violations.push({file:relative(fp),line,column,msg:"Use next/image <Image> instead of <img> for optimization"});
       if(tag==="a"){
-        const hrefAttr = ts.isJsxElement(n)? attr(n.openingElement.attributes,"href"): attr(n.attributes,"href");
-        const href = hrefAttr? strVal(hrefAttr): null;
-        if(href && href.startsWith("/") && !href.startsWith("//") && !fp.includes("global-error")) violations.push({file:rel(fp), line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line+1, msg: "Use Link from @/i18n/routing instead of <a href=\\""+href+"\\"> for locale-aware routing"});
+        const href=jsxAttributeString(opening,"href");
+        if(href&&href.startsWith("/")&&!href.startsWith("//")&&!fp.includes("global-error")){
+          const remedy=hasI18nRouting(fp)?'"@/i18n/routing"':"next/link";
+          violations.push({file:relative(fp),line,column,msg:'Use '+remedy+' instead of <a href="'+href+'"> for internal navigation'});
+        }
       }
     }
-    ts.forEachChild(n, visit);
   }
-  visit(sf);
+  if(violations.length===0){ console.log("Next parity check passed."); return; }
+  console.error("Next parity violations:"); for(const v of violations) console.error(\`  \${v.file}:\${v.line}:\${v.column} \${v.msg}\`);
+  process.exit(1);
 }
-if(violations.length===0){ console.log("Next parity check passed."); return; }
-console.error("Next parity violations:"); for(const v of violations) console.error(\`  \${v.file}:\${v.line} \${v.msg}\`);
-process.exit(1);
+try { main(); } catch (error) {
+  const message = error instanceof Error ? error.message : "Unknown parser failure";
+  console.error(message);
+  process.exit(2);
 }
-main();
 `;
 }
 
 function checkNavigationImportsContent(): string {
   return `#!/usr/bin/env node
 const fs=require("node:fs"), path=require("node:path");
-let ts; try{ ts=require("typescript"); } catch{ console.log("Navigation imports check skipped (typescript not installed)."); process.exit(0); }
+const {importDeclarations,importedNames,parseOwned,positionOf,relative,sourceValue,toPosix}=require("./lib/oxc.cjs");
 function roots(){ const cands=[path.join(process.cwd(),"src"), path.join(process.cwd(),"apps","web","src")]; return cands.filter(fs.existsSync); }
 const ALLOWED=new Set(["useSearchParams","useParams","redirect","permanentRedirect","notFound","usePathname"]);
 const ALLOWLIST=new Set(["src/i18n/routing.ts","src/i18n/request.ts","src/app/[locale]/layout.tsx","src/app/layout.tsx","apps/web/src/i18n/routing.ts","apps/web/src/i18n/request.ts","apps/web/src/app/[locale]/layout.tsx","apps/web/src/app/layout.tsx"]);
-function toPosix(p){return p.replaceAll("\\\\","/");}
 function list(dir, out=[]){ for(const e of fs.readdirSync(dir,{withFileTypes:true})){ const p=path.join(dir,e.name); if(e.isDirectory()) list(p,out); else if(e.isFile()&& (p.endsWith(".ts")||p.endsWith(".tsx"))) out.push(p);} return out; }
-function kind(fp){return fp.endsWith(".tsx")?ts.ScriptKind.TSX:ts.ScriptKind.TS;}
-function getSpec(node){ if(!ts.isImportDeclaration(node)) return null; const ms=node.moduleSpecifier; if(!ts.isStringLiteral(ms)) return null; const src=ms.text; const b=node.importClause?.namedBindings; if(!b||!ts.isNamedImports(b)) return {source:src,names:[]}; const names=b.elements.map(el=>el.propertyName?.text ?? el.name.text); return {source:src,names}; }
+function sourceRootFor(file){ const normalized=toPosix(file); const marker=normalized.includes("/apps/web/src/")?"/apps/web/src/":"/src/"; return normalized.slice(0,normalized.indexOf(marker)+marker.length-1); }
+function hasI18nRouting(file){ return fs.existsSync(path.join(sourceRootFor(file),"i18n","routing.ts")); }
 function main(){
   const dirs=roots(); if(dirs.length===0){ console.log("navigation imports check passed (no src)."); return; }
   const files=dirs.flatMap(d=>list(d)); const viol=[];
   for(const fp of files){
-    const rel=toPosix(path.relative(process.cwd(),fp)); if(ALLOWLIST.has(rel)) continue;
-    const txt=fs.readFileSync(fp,"utf8"); const sf=ts.createSourceFile(fp,txt,ts.ScriptTarget.Latest,true,kind(fp));
-    ts.forEachChild(sf, node=>{
-      const info=getSpec(node); if(!info) return;
-      if(info.source==="next/link") viol.push({file:rel, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line+1, msg: 'Import from "next/link". Use "@/i18n/routing" instead'});
-      if(info.source==="next/navigation"){ for(const n of info.names){ if(!ALLOWED.has(n)) viol.push({file:rel, line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line+1, msg: 'Import "'+n+'" from "next/navigation" should come from "@/i18n/routing"'}); } }
-    });
+    const rel=relative(fp); const source=fs.readFileSync(fp,"utf8"); const program=parseOwned(fp,source);
+    if(ALLOWLIST.has(rel)) continue;
+    if(!hasI18nRouting(fp)) continue;
+    for(const node of importDeclarations(program)){
+      if(node.type!=="ImportDeclaration") continue;
+      const specifier=sourceValue(node); const {line,column}=positionOf(source,node);
+      if(specifier==="next/link") viol.push({file:rel,line,column,msg:'Import from "next/link". Use "@/i18n/routing" instead'});
+      if(specifier==="next/navigation"){ for(const name of importedNames(node)){ if(!ALLOWED.has(name)) viol.push({file:rel,line,column,msg:'Import "'+name+'" from "next/navigation" should come from "@/i18n/routing"'}); } }
+    }
   }
   if(viol.length===0){ console.log("Navigation imports check passed."); return; }
-  console.error("Navigation import violations:"); for(const v of viol) console.error(\`  \${v.file}:\${v.line} \${v.msg}\`);
+  console.error("Navigation import violations:"); for(const v of viol) console.error(\`  \${v.file}:\${v.line}:\${v.column} \${v.msg}\`);
   process.exit(1);
 }
-main();
+try { main(); } catch (error) {
+  const message = error instanceof Error ? error.message : "Unknown parser failure";
+  console.error(message);
+  process.exit(2);
+}
 `;
 }
 
@@ -193,7 +349,7 @@ function checkRtlLogicalContent(): string {
 const fs=require("node:fs"), path=require("node:path");
 function roots(){ return [path.join(process.cwd(),"src","components"), path.join(process.cwd(),"src","app","[locale]"), path.join(process.cwd(),"apps","web","src","components"), path.join(process.cwd(),"apps","web","src","app","[locale]")].filter(fs.existsSync); }
 const EXT=/\\.(tsx|ts|jsx|js)$/;
-const PATTERNS=[{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*text-left(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*text-right(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*border-l(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*border-r(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*rounded-l(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*rounded-r(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*-?ml-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*-?mr-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*pl-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*pr-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/}];
+const PATTERNS=[{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*text-left(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*text-right(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*border-l(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*border-r(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*rounded-l(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*rounded-r(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*-?ml-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*-?mr-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*pl-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s|["'\\x60])(?:[^\\s"'\\x60]+:)*pr-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/}];
 const EXCEPT=[/data-\\[side=(left|right)\\]/];
 function hasToken(l){ return PATTERNS.some(tp=>tp.pattern.test(l)); }
 function hasExcept(l){ return EXCEPT.some(p=>p.test(l)); }
@@ -244,5 +400,6 @@ export function lintScriptFiles(): TemplateFile[] {
     file("scripts/check-navigation-imports.cjs", checkNavigationImportsContent()),
     file("scripts/check-rtl-logical.cjs", checkRtlLogicalContent()),
     file("scripts/check-animation-imports.cjs", checkAnimationImportsContent()),
+    file("scripts/lib/oxc.cjs", oxcContent()),
   ];
 }

@@ -175,6 +175,7 @@ export function singlePackageJson(
       ...(isConvex ? {} : { "@types/pg": `^${v.database["@types/pg"]}` }),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
+      "oxc-parser": v.tooling["oxc-parser"],
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,
@@ -260,6 +261,7 @@ export function singlePackageJsonTanstack(
       ...(isConvex ? {} : { "@types/pg": `^${v.database["@types/pg"]}` }),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
+      "oxc-parser": v.tooling["oxc-parser"],
     },
   });
 }
@@ -398,6 +400,7 @@ export function singlePackageJsonExpo(
       "babel-preset-expo": `^${v.expo["babel-preset-expo"]}`,
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
+      "oxc-parser": v.tooling["oxc-parser"],
       typescript: `^${v.typescript.typescript}`,
     },
   });
