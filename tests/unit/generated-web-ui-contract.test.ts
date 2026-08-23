@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { webUiFiles } from "../../src/templates/apps/fragments/web-ui/index.js";
 import { notificationsLibFiles } from "../../src/templates/apps/fragments/lib/notifications.js";
 import { authPackage } from "../../src/templates/auth.js";
@@ -47,5 +49,41 @@ describe("shared web UI contracts", () => {
     const auth = content(authPackage(), "packages/auth/src/server.ts");
     expect(auth).not.toContain("({ user, url, token })");
     expect(auth).not.toContain("as unknown as");
+  });
+
+  test("rendered fixture gives the disabled Select real items and immutable interactions", () => {
+    const integration = readFileSync(
+      resolve(import.meta.dir, "../integration/generated-web-primitives.test.ts"),
+      "utf8",
+    );
+    const disabledSelect = integration.slice(
+      integration.indexOf('<Select items={roles} value="user" disabled>'),
+      integration.indexOf("<NotificationBell"),
+    );
+    expect(disabledSelect).toContain("<SelectContent>");
+    expect(disabledSelect).toContain("<SelectGroup>");
+    expect(disabledSelect).toContain('<SelectItem value="user">User</SelectItem>');
+    expect(disabledSelect).toContain('<SelectItem value="admin">Admin</SelectItem>');
+    expect(integration).toContain('data-testid="disabled-role-value"');
+    expect(integration).toContain('toHaveAttribute("aria-expanded", "false")');
+    expect(integration).toContain('toHaveAttribute("data-disabled", "")');
+    expect(integration).toContain("await disabledTrigger.focus()");
+    expect(integration).toContain("await expect(disabledTrigger).not.toBeFocused()");
+    expect(integration).toContain('await page.keyboard.press("Space")');
+    expect(integration).toContain('getByTestId("disabled-role-value")');
+  });
+
+  test("rendered fixture proves a disabled PasswordField cannot reveal its value", () => {
+    const integration = readFileSync(
+      resolve(import.meta.dir, "../integration/generated-web-primitives.test.ts"),
+      "utf8",
+    );
+    expect(integration).toContain("<PasswordField");
+    expect(integration).toContain('label="Disabled password"');
+    expect(integration).toContain('getByRole("button", { name: "Show password" })');
+    expect(integration).toContain("await expect(disabledReveal).toBeDisabled()");
+    expect(integration).toContain(
+      'await expect(disabledPassword).toHaveAttribute("type", "password")',
+    );
   });
 });

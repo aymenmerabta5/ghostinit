@@ -1,4 +1,4 @@
-// @allow-long 481: one bounded cross-platform harness owns generation, server readiness, browser interaction, and process-tree cleanup
+// @allow-long 444: one bounded cross-platform harness owns generation, server readiness, browser interaction, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -11,6 +11,7 @@ import { FsTransaction } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
 import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwright-cli.js";
+import { ProcessTreeTerminationError, terminateProcessTree } from "../helpers/process-tree.js";
 
 interface RunningServer {
   child: ChildProcessWithoutNullStreams;
@@ -45,6 +46,7 @@ import {
   NotificationBell,
   type NotificationItem,
 } from "@/components/NotificationBell";
+import { PasswordField } from "@/components/form-fields/PasswordField";
 
 const roles: readonly SelectOption[] = [
   { label: "User", value: "user" },
@@ -92,9 +94,17 @@ export default function PrimitiveContractPage(): React.JSX.Element {
         <SelectTrigger aria-label="Disabled role">
           <SelectValue />
         </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+          </SelectGroup>
+        </SelectContent>
       </Select>
+      <PasswordField id="disabled-password" label="Disabled password" disabled defaultValue="secret" />
       <NotificationBell notifications={notifications} onMarkRead={setMarked} />
       <output data-testid="role-value">{role}</output>
+      <output data-testid="disabled-role-value">user</output>
       <output data-testid="marked-value">{marked}</output>
     </main>
   );
@@ -154,8 +164,29 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
 
   const disabledTrigger = page.getByRole("combobox", { name: "Disabled role", exact: true });
   await expect(disabledTrigger).toBeDisabled();
-  await disabledTrigger.click({ force: true });
+  await expect(disabledTrigger).toHaveAttribute("data-disabled", "");
+  await expect(disabledTrigger).toHaveAttribute("aria-expanded", "false");
+  await nameInput.focus();
+  await disabledTrigger.focus();
+  await expect(disabledTrigger).not.toBeFocused();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(disabledTrigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("disabled-role-value")).toHaveText("user");
   await expect(page.getByRole("listbox")).toHaveCount(0);
+  await disabledTrigger.click({ force: true });
+  await expect(disabledTrigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("disabled-role-value")).toHaveText("user");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+
+  const disabledPassword = page.getByLabel("Disabled password");
+  const disabledReveal = page.getByRole("button", { name: "Show password" });
+  await expect(disabledPassword).toBeDisabled();
+  await expect(disabledPassword).toHaveAttribute("type", "password");
+  await expect(disabledReveal).toBeDisabled();
+  await disabledReveal.click({ force: true });
+  await expect(disabledPassword).toHaveAttribute("type", "password");
 });
 `;
 
@@ -223,94 +254,6 @@ function capture(child: ChildProcessWithoutNullStreams): {
     stderr += chunk;
   });
   return { stdout: () => stdout, stderr: () => stderr };
-}
-
-async function waitForExit(
-  child: ChildProcessWithoutNullStreams,
-  timeoutMs: number,
-): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return true;
-  return await new Promise<boolean>((resolveExit) => {
-    const done = (): void => {
-      clearTimeout(timer);
-      child.off("exit", done);
-      child.off("error", done);
-      resolveExit(true);
-    };
-    const timer = setTimeout(() => {
-      child.off("exit", done);
-      child.off("error", done);
-      resolveExit(false);
-    }, timeoutMs);
-    child.once("exit", done);
-    child.once("error", done);
-  });
-}
-
-async function waitForProcessGroupExit(pid: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      process.kill(-pid, 0);
-    } catch {
-      return true;
-    }
-    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
-  }
-  return false;
-}
-
-export async function terminateProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
-  const pid = child.pid;
-  if (pid === undefined) return;
-
-  if (process.platform === "win32") {
-    const killer = spawn("taskkill", ["/PID", String(pid), "/T", "/F"], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
-    await new Promise<void>((resolveKill) => {
-      const timer = setTimeout(() => {
-        killer.kill();
-        resolveKill();
-      }, 10_000);
-      killer.once("exit", () => {
-        clearTimeout(timer);
-        resolveKill();
-      });
-      killer.once("error", () => {
-        clearTimeout(timer);
-        resolveKill();
-      });
-    });
-    if (!(await waitForExit(child, 5_000))) {
-      throw new Error(`Windows process tree ${pid} did not terminate after taskkill`);
-    }
-    return;
-  }
-
-  try {
-    process.kill(-pid, "SIGTERM");
-  } catch {
-    if (!(await waitForExit(child, 1_000))) {
-      throw new Error(`POSIX process tree ${pid} could not receive SIGTERM`);
-    }
-    return;
-  }
-  const childExitedAfterTerm = await waitForExit(child, 2_000);
-  const groupExitedAfterTerm = await waitForProcessGroupExit(pid, 2_000);
-  if (childExitedAfterTerm && groupExitedAfterTerm) return;
-
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    // The group may have exited between the condition check and SIGKILL.
-  }
-  const childExitedAfterKill = await waitForExit(child, 5_000);
-  const groupExitedAfterKill = await waitForProcessGroupExit(pid, 5_000);
-  if (!childExitedAfterKill || !groupExitedAfterKill) {
-    throw new Error(`POSIX process tree ${pid} did not terminate after SIGKILL`);
-  }
 }
 
 async function runBounded(
@@ -445,6 +388,8 @@ describe("generated web primitive interactions", () => {
     const root = mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-"));
     const webRoot = join(root, "apps", "web");
     let server: RunningServer | undefined;
+    let rootRemovalAllowed = true;
+    let operationError: unknown;
     try {
       await runStage("generate fixture", () => writeGeneratedFixture(root));
       const port = await reservePort();
@@ -470,12 +415,30 @@ describe("generated web primitive interactions", () => {
       await runStage("Playwright interaction", () =>
         runLocalPlaywright(webRoot, ["test", "e2e/__primitive-contract.spec.ts"], env),
       );
-    } finally {
-      if (server !== undefined) {
-        await runStage("server process-tree termination", () => terminateProcessTree(server.child));
-      }
-      verifyTempRoot(root);
-      await runStage("temp-root removal", () => rm(root, { recursive: true, force: true }));
+    } catch (error) {
+      if (error instanceof ProcessTreeTerminationError) rootRemovalAllowed = false;
+      operationError = error;
     }
+
+    let cleanupError: unknown;
+    if (server !== undefined) {
+      try {
+        await runStage("server process-tree termination", () => terminateProcessTree(server.child));
+      } catch (error) {
+        rootRemovalAllowed = false;
+        cleanupError = error;
+      }
+    }
+    if (rootRemovalAllowed) {
+      try {
+        verifyTempRoot(root);
+        await runStage("temp-root removal", () => rm(root, { recursive: true, force: true }));
+      } catch (error) {
+        cleanupError = error;
+      }
+    }
+
+    if (cleanupError !== undefined) throw cleanupError;
+    if (operationError !== undefined) throw operationError;
   });
 });

@@ -119,6 +119,10 @@ describe("generation snapshots", () => {
     const i18nProxy = i18nFiles.find((file) => file.path === "apps/web/src/proxy.ts");
     expect(i18nProxy?.content).toContain('from "next-intl/middleware"');
     expect(i18nProxy?.content).toContain('from "@/i18n/routing"');
+    const i18nReadme = i18nFiles.find((file) => file.path === "apps/web/src/i18n/README.md");
+    expect(i18nReadme?.content).toContain("proxy.ts");
+    expect(i18nReadme?.content).toContain("Next 16");
+    expect(i18nReadme?.content).not.toContain("middleware.ts");
 
     const singleI18nFiles = generateProjectFiles(cfg({ mode: "single", i18n: true }));
     const singleI18nPaths = singleI18nFiles.map((file) => file.path);

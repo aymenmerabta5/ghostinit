@@ -4,7 +4,7 @@ import * as v from "../../versions.js";
 export function nextIntlPluginReadme(filePath: string): TemplateFile {
   return file(
     filePath,
-    `# i18n — next-intl 4.x
+    `# i18n: next-intl 4.x
 
 Version: next-intl ${v.i18n["next-intl"]}
 
@@ -13,7 +13,7 @@ Files:
 - request.ts getRequestConfig + hasLocale
 - navigation.ts createNavigation
 - config.ts locales direction names
-- middleware.ts createMiddleware matcher excludes api
+- proxy.ts Next 16 entry delegates locale routing to createMiddleware and excludes api paths
 - messages/{en,fr,ar}.json
 - locale-switcher.tsx client switcher
 

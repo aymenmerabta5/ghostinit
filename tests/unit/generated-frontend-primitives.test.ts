@@ -1,4 +1,7 @@
+// @allow-long 362: one inventory gate compares every Task 3 primitive category across monorepo and single outputs
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { parseSync } from "oxc-parser";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -11,6 +14,7 @@ type PrimitiveCategory =
   | "nonfunctional-select"
   | "partial-notification-bell"
   | "pending-boolean-or-spinner"
+  | "product-semantic-style"
   | "radix-as-child"
   | "raw-interactive-markup"
   | "ungrouped-select-item";
@@ -124,10 +128,27 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   addMissingTokens(records, "field-composition", passwordFieldPath, passwordField, [
     "<Field",
     "<FieldLabel",
-    "<InputGroup>",
+    "<InputGroup",
     "<InputGroupInput",
     "<InputGroupAddon",
+    "data-disabled={disabled || undefined}",
   ]);
+  if (
+    !passwordField.includes("{ label, error, description, className, id, disabled, ref, ...props }")
+  ) {
+    records.push({
+      category: "field-composition",
+      path: passwordFieldPath,
+      evidence: "PasswordField does not destructure disabled",
+    });
+  }
+  if ((passwordField.match(/disabled=\{disabled\}/g) ?? []).length < 2) {
+    records.push({
+      category: "field-composition",
+      path: passwordFieldPath,
+      evidence: "PasswordField does not disable both input and reveal action",
+    });
+  }
 
   for (const [path, content] of [
     [passwordFieldPath, passwordField],
@@ -165,6 +186,28 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     const [path, content] = ui(name);
     for (const match of content.matchAll(/\basChild\b/g)) {
       records.push({ category: "radix-as-child", path, evidence: match[0] });
+    }
+  }
+
+  for (const name of [
+    "alert-dialog.tsx",
+    "breadcrumb.tsx",
+    "checkbox.tsx",
+    "dialog.tsx",
+    "popover.tsx",
+    "select.tsx",
+    "sheet.tsx",
+    "surface-styles.ts",
+    "table.tsx",
+    "tabs.tsx",
+    "textarea.tsx",
+    "tooltip.tsx",
+  ]) {
+    const [path, content] = ui(name);
+    for (const match of content.matchAll(
+      /\b(?:font-serif|text-heading|backdrop-blur(?:-[^\s"']+)?|bg-black\/[^\s"']+)/g,
+    )) {
+      records.push({ category: "product-semantic-style", path, evidence: match[0] });
     }
   }
 
@@ -236,6 +279,14 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
 }
 
 describe("generated shared frontend primitives", () => {
+  test("Task 3 surface source uses the Product register vocabulary", () => {
+    const surfaceSource = readFileSync(
+      resolve(import.meta.dir, "../../src/templates/apps/fragments/lib/surface-styles.ts"),
+      "utf8",
+    );
+    expect(surfaceSource.toLowerCase()).not.toContain("editorial");
+  });
+
   for (const target of targets) {
     test(`${target.label} reviewed shared TSX parses`, () => {
       const diagnostics = target.files
@@ -259,6 +310,7 @@ describe("generated shared frontend primitives", () => {
           "nonfunctional-select",
           "partial-notification-bell",
           "pending-boolean-or-spinner",
+          "product-semantic-style",
           "radix-as-child",
           "raw-interactive-markup",
           "ungrouped-select-item",
@@ -274,6 +326,7 @@ describe("generated shared frontend primitives", () => {
         "nonfunctional-select": 0,
         "partial-notification-bell": 0,
         "pending-boolean-or-spinner": 0,
+        "product-semantic-style": 0,
         "radix-as-child": 0,
         "raw-interactive-markup": 0,
         "ungrouped-select-item": 0,
@@ -283,6 +336,22 @@ describe("generated shared frontend primitives", () => {
     test(`${target.label} declares the configured icon and server-only dependencies`, () => {
       const manifestSource =
         target.files.find((file) => file.path === target.manifestPath)?.content ?? "{}";
+      const manifest = JSON.parse(manifestSource) as {
+        dependencies?: Record<string, string>;
+      };
+      expect(manifest.dependencies?.["lucide-react"]).toBe("1.33.0");
+      expect(manifest.dependencies?.["server-only"]).toBe("0.0.1");
+    });
+  }
+
+  for (const mode of ["monorepo", "single"] as const) {
+    test(`${mode} TanStack declares the configured icon and server-only dependencies`, () => {
+      const files = generateProjectFiles(
+        { ...config(mode), framework: "tanstack-start" },
+        { dryRun: false },
+      );
+      const manifestPath = mode === "monorepo" ? "apps/web/package.json" : "package.json";
+      const manifestSource = files.find((file) => file.path === manifestPath)?.content ?? "{}";
       const manifest = JSON.parse(manifestSource) as {
         dependencies?: Record<string, string>;
       };

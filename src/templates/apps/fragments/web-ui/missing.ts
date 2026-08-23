@@ -204,11 +204,11 @@ import { buttonVariants } from "./button.js";
 export const AlertDialog = BaseAlertDialog.Root;
 export const AlertDialogTrigger = BaseAlertDialog.Trigger;
 export const AlertDialogPortal = BaseAlertDialog.Portal;
-export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 bg-black/20 backdrop-blur-sm", className)} {...props} />);
+export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 bg-foreground/40", className)} {...props} />);
 AlertDialogOverlay.displayName = "AlertDialogOverlay";
 export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Popup>>(({ className, ...props }, ref) => (
   <BaseAlertDialog.Portal>
-    <BaseAlertDialog.Backdrop className="fixed inset-0 bg-black/20 backdrop-blur-sm" />
+    <BaseAlertDialog.Backdrop className="fixed inset-0 bg-foreground/40" />
     <BaseAlertDialog.Popup ref={ref} data-slot="alert-dialog-content" className={cn("fixed start-1/2 top-1/2 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200", className)} {...props} />
   </BaseAlertDialog.Portal>
 ));

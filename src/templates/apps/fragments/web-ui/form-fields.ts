@@ -119,7 +119,7 @@ export interface PasswordFieldProps extends Omit<React.InputHTMLAttributes<HTMLI
   ref?: React.Ref<HTMLInputElement>;
 }
 
-export function PasswordField({ label, error, description, className, id, ref, ...props }: PasswordFieldProps): React.JSX.Element {
+export function PasswordField({ label, error, description, className, id, disabled, ref, ...props }: PasswordFieldProps): React.JSX.Element {
   const [show, setShow] = React.useState(false);
   const autoId = React.useId();
   const fieldId = id ?? autoId;
@@ -129,13 +129,14 @@ export function PasswordField({ label, error, description, className, id, ref, .
     .filter((value): value is string => value !== null)
     .join(" ") || undefined;
   return (
-    <Field className={className} data-invalid={Boolean(error)}>
+    <Field className={className} data-invalid={Boolean(error)} data-disabled={disabled || undefined}>
       {label ? <FieldLabel htmlFor={fieldId}>{label}</FieldLabel> : null}
-      <InputGroup>
+      <InputGroup data-disabled={disabled || undefined}>
         <InputGroupInput
           id={fieldId}
           ref={ref}
           type={show ? "text" : "password"}
+          disabled={disabled}
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy}
           {...props}
@@ -145,6 +146,7 @@ export function PasswordField({ label, error, description, className, id, ref, .
             type="button"
             variant="ghost"
             size="icon"
+            disabled={disabled}
             onClick={() => setShow((visible) => !visible)}
             aria-label={show ? "Hide password" : "Show password"}
           >
