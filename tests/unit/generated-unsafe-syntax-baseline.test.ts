@@ -1,7 +1,8 @@
-// @allow-long 305: the single gate test keeps schema, detector, catalog, and gate invariants in one executable contract
+// @allow-long 447: the single gate test keeps schema, detector, transaction, catalog, and gate invariants in one executable contract
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
   GENERATED_UNSAFE_SYNTAX_CATALOG,
@@ -10,15 +11,37 @@ import {
   collectUnsafeOccurrences,
   findProvenanceRule,
   generateCatalogOccurrences,
+  writeBaselineWithTransaction,
   type UnsafeBaseline,
   type UnsafeDispositionPolicy,
   type UnsafeProvenanceRule,
 } from "../helpers/generated-unsafe-syntax.js";
 
+interface DispositionEvidence {
+  gateEvidence: {
+    configurations: Array<{
+      configKey: string;
+      mode: string;
+      framework: string;
+      database: string;
+      billing: string[];
+      apps: string[];
+      capabilities: string;
+      occurrenceRows: number;
+    }>;
+    occurrenceRows: number;
+  };
+  defaultProjection: {
+    removeInStabilization: number;
+    deferredV1: number;
+  };
+}
+
 const root = resolve(import.meta.dir, "../..");
 const dispositionPath = resolve(root, "evidence/generated/v1-unsafe-syntax-dispositions.json");
 const baselinePath = resolve(root, "evidence/generated/v1-unsafe-syntax-baseline.json");
-const policy = JSON.parse(readFileSync(dispositionPath, "utf8")) as UnsafeDispositionPolicy;
+const policy = JSON.parse(readFileSync(dispositionPath, "utf8")) as UnsafeDispositionPolicy &
+  DispositionEvidence;
 // Deliberately read the occurrence baseline before either schema. The first RED
 // must prove that this factual inventory has not yet been frozen, not fail on a
 // schema or detector implementation detail.
@@ -157,6 +180,94 @@ describe("V1 generated unsafe-syntax baseline", () => {
     ).toThrow("Invalid unsafe provenance regex ^[$");
   });
 
+  test("assertion chains record one outer occurrence in both as-any orientations", () => {
+    const chainPolicy: UnsafeDispositionPolicy = {
+      rules: [
+        {
+          sourceOwner: "src/templates/example.ts",
+          emittedPathPattern: "^src\\/chain\\.ts$",
+          applicableConfigKeys: ["chain"],
+          expectedOccurrences: 2,
+          disposition: "deferred-v1",
+          removalPhase: "V2 Phase 6",
+        },
+      ],
+    };
+    const innerAsAny = collectUnsafeOccurrences(
+      "chain",
+      [{ path: "src/chain.ts", content: "const result = value as any as string;" }],
+      chainPolicy,
+    );
+    const outerAsAny = collectUnsafeOccurrences(
+      "chain",
+      [{ path: "src/chain.ts", content: "const result = value as unknown as any;" }],
+      chainPolicy,
+    );
+
+    expect(innerAsAny.map(({ kind }) => kind)).toEqual(["assertion-chain"]);
+    expect(outerAsAny.map(({ kind }) => kind)).toEqual(["as-any"]);
+    expect(innerAsAny).toHaveLength(1);
+    expect(outerAsAny).toHaveLength(1);
+  });
+
+  test("ts-ignore detection accepts directives and rejects documentation mentions", () => {
+    const directivePolicy: UnsafeDispositionPolicy = {
+      rules: [
+        {
+          sourceOwner: "src/templates/example.ts",
+          emittedPathPattern: "^src\\/directives\\.ts$",
+          applicableConfigKeys: ["directives"],
+          expectedOccurrences: 2,
+          disposition: "deferred-v1",
+          removalPhase: "V2 Phase 6",
+        },
+      ],
+    };
+    const content = [
+      "// Documentation mentions @ts-ignore for users.",
+      "const documentedLine = true;",
+      "/** Documentation for @ts-ignore behavior. */",
+      "const documentedBlock = true;",
+      "// @ts-ignore actual line directive",
+      "missingLine();",
+      "/* @ts-ignore */",
+      "missingBlock();",
+    ].join("\n");
+
+    const directives = collectUnsafeOccurrences(
+      "directives",
+      [{ path: "src/directives.ts", content }],
+      directivePolicy,
+    );
+    expect(directives.map(({ kind }) => kind)).toEqual(["ts-ignore", "ts-ignore"]);
+    expect(directives.map(({ snippet }) => snippet).toSorted(compareText)).toEqual([
+      "/* @ts-ignore */",
+      "// @ts-ignore actual line directive",
+    ]);
+  });
+
+  test("baseline writes stage exact content and stay contained in the transaction root", async () => {
+    const transactionRoot = mkdtempSync(join(tmpdir(), "ghostinit-unsafe-baseline-"));
+    const relativePath = "evidence/generated/baseline.json";
+    const content = '{"schemaVersion":1}\n';
+    try {
+      const first = await writeBaselineWithTransaction(transactionRoot, relativePath, content);
+      expect(first.staged).toEqual([{ path: relativePath, content }]);
+      expect(first.written).toEqual([relativePath]);
+      expect(readFileSync(resolve(transactionRoot, relativePath), "utf8")).toBe(content);
+
+      const unchanged = await writeBaselineWithTransaction(transactionRoot, relativePath, content);
+      expect(unchanged.staged).toEqual([]);
+      expect(unchanged.written).toEqual([]);
+
+      await expect(
+        writeBaselineWithTransaction(transactionRoot, "../escaped-baseline.json", content),
+      ).rejects.toThrow("Path traversal detected");
+    } finally {
+      rmSync(transactionRoot, { recursive: true, force: true });
+    }
+  });
+
   test("all 1,011 catalog occurrences resolve once with exact owner and rule counts", () => {
     const occurrences = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy);
     expect(occurrences).toHaveLength(1011);
@@ -229,17 +340,16 @@ describe("V1 generated unsafe-syntax baseline", () => {
       comparableDispositions.filter(({ disposition }) => disposition === "deferred-v1"),
     ).toHaveLength(85);
 
-    expect(
-      GATE_CONFIGURATIONS.map(({ configKey, config }) => ({
-        configKey,
-        mode: config.mode,
-        framework: config.framework,
-        database: config.database,
-        billing: config.billing,
-        apps: config.apps,
-        capabilities: "on",
-      })),
-    ).toEqual([
+    const actualGateConfigurations = GATE_CONFIGURATIONS.map(({ configKey, config }) => ({
+      configKey,
+      mode: config.mode,
+      framework: config.framework,
+      database: config.database,
+      billing: config.billing,
+      apps: config.apps,
+      preset: config.preset,
+    }));
+    expect(actualGateConfigurations).toEqual([
       {
         configKey: "gate/next-monorepo",
         mode: "monorepo",
@@ -247,7 +357,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
         database: "postgres",
         billing: ["stripe", "chargily"],
         apps: ["web"],
-        capabilities: "on",
+        preset: "saas",
       },
       {
         configKey: "gate/single-next",
@@ -256,18 +366,50 @@ describe("V1 generated unsafe-syntax baseline", () => {
         database: "postgres",
         billing: ["stripe"],
         apps: ["web"],
-        capabilities: "on",
+        preset: "saas",
       },
     ]);
+    expect(
+      actualGateConfigurations.map(({ preset: _preset, ...configuration }) => configuration),
+    ).toEqual(
+      policy.gateEvidence.configurations.map(
+        ({ capabilities: _capabilities, occurrenceRows: _occurrenceRows, ...configuration }) =>
+          configuration,
+      ),
+    );
     const gate = generateCatalogOccurrences(GATE_CONFIGURATIONS, policy);
     expect(gate).toHaveLength(172);
+    expect(gate).toHaveLength(policy.gateEvidence.occurrenceRows);
+    const gateRowsByConfigKey = new Map(GATE_CONFIGURATIONS.map(({ configKey }) => [configKey, 0]));
+    for (const { configKey } of gate) {
+      gateRowsByConfigKey.set(configKey, (gateRowsByConfigKey.get(configKey) ?? 0) + 1);
+    }
+    expect(Object.fromEntries(gateRowsByConfigKey)).toEqual({
+      "gate/next-monorepo": 101,
+      "gate/single-next": 71,
+    });
+    expect(Object.fromEntries(gateRowsByConfigKey)).toEqual(
+      Object.fromEntries(
+        policy.gateEvidence.configurations.map(({ configKey, occurrenceRows }) => [
+          configKey,
+          occurrenceRows,
+        ]),
+      ),
+    );
     const gateRules = gate.map((occurrence) =>
       findProvenanceRule(occurrence.configKey, occurrence.path, policy),
     );
-    expect(
-      gateRules.filter(({ disposition }) => disposition === "remove-in-stabilization"),
-    ).toHaveLength(72);
-    expect(gateRules.filter(({ disposition }) => disposition === "deferred-v1")).toHaveLength(100);
+    const gateDispositionSplit = {
+      removeInStabilization: gateRules.filter(
+        ({ disposition }) => disposition === "remove-in-stabilization",
+      ).length,
+      deferredV1: gateRules.filter(({ disposition }) => disposition === "deferred-v1").length,
+    };
+    expect(gateDispositionSplit).toEqual({ removeInStabilization: 72, deferredV1: 100 });
+    expect(gateDispositionSplit).toEqual({
+      removeInStabilization: policy.defaultProjection.removeInStabilization,
+      deferredV1: policy.defaultProjection.deferredV1,
+    });
 
     const gateOnlyChargily = policy.rules.filter(
       ({ applicableConfigKeys }) =>

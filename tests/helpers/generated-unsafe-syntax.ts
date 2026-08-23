@@ -1,10 +1,11 @@
-// @allow-long 519: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
+// @allow-long 555: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseSync } from "oxc-parser";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
+import { FsTransaction, type StagedFile } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
 
@@ -84,6 +85,7 @@ export interface UnsafeBaseline {
 
 const compiledPolicies = new WeakMap<object, CompiledRule[]>();
 const SOURCE_FILE = /\.[cm]?tsx?$/;
+const TS_IGNORE_DIRECTIVE = /^\s*\/?\s*@ts-ignore(?:\s|$)/;
 
 const normalized = (source: string): string => source.replace(/\s+/g, " ").trim();
 const fingerprint = (source: string): string =>
@@ -100,7 +102,9 @@ function unsafeKind(node: OxcNode, parent: OxcNode | undefined): UnsafeKind | un
     (node.type === "TSAsExpression" || node.type === "TSTypeAssertion") &&
     node.typeAnnotation?.type === "TSAnyKeyword"
   )
-    return "as-any";
+    return parent?.type === "TSAsExpression" || parent?.type === "TSTypeAssertion"
+      ? undefined
+      : "as-any";
   if (
     (node.type === "TSAsExpression" || node.type === "TSTypeAssertion") &&
     (node.expression?.type === "TSAsExpression" || node.expression?.type === "TSTypeAssertion") &&
@@ -205,7 +209,7 @@ function syntaxOccurrences(
   });
 
   for (const comment of parsed.comments) {
-    if (!comment.value.includes("@ts-ignore")) continue;
+    if (!TS_IGNORE_DIRECTIVE.test(comment.value)) continue;
     const marker = source.indexOf("@ts-ignore", comment.start);
     if (marker === -1 || marker >= comment.end) continue;
     const start = source.lastIndexOf("\n", marker - 1) + 1;
@@ -496,8 +500,40 @@ function serializeBaseline(baseline: UnsafeBaseline): string {
   )}\n`;
 }
 
-function main(args: string[]): void {
-  const outputPath = resolve(argumentValue(args, "--write-baseline"));
+export async function writeBaselineWithTransaction(
+  root: string,
+  outputPath: string,
+  content: string,
+): Promise<{ staged: StagedFile[]; written: string[] }> {
+  const transaction = new FsTransaction(root);
+  const relativePath = relative(root, resolve(root, outputPath)).replace(/\\/g, "/");
+  const previousContent = await transaction.readText(relativePath);
+  await transaction.write(relativePath, content);
+  const staged = transaction.getStagedFiles();
+  if (previousContent === content) {
+    if (staged.length !== 0) {
+      throw new Error(`Unchanged baseline unexpectedly staged: ${relativePath}`);
+    }
+  } else if (
+    staged.length !== 1 ||
+    staged[0].path !== relativePath ||
+    staged[0].content !== content
+  ) {
+    throw new Error(`Baseline transaction staged unexpected path or content: ${relativePath}`);
+  }
+  const { written } = await transaction.commit();
+  const expectedWritten = previousContent === content ? [] : [relativePath];
+  if (
+    written.length !== expectedWritten.length ||
+    written.some((path, index) => path !== expectedWritten[index])
+  ) {
+    throw new Error(`Baseline transaction committed unexpected paths: ${written.join(", ")}`);
+  }
+  return { staged, written };
+}
+
+async function main(args: string[]): Promise<void> {
+  const outputPath = argumentValue(args, "--write-baseline");
   const dispositionPath = resolve(argumentValue(args, "--dispositions"));
   const root = resolve(import.meta.dir, "../..");
   const dispositionSchemaPath = resolve(
@@ -512,8 +548,8 @@ function main(args: string[]): void {
   validateArtifact(policy, dispositionSchemaPath, "Unsafe-syntax disposition policy");
   const baseline = buildBaseline(policy);
   validateArtifact(baseline, baselineSchemaPath, "Unsafe-syntax baseline");
-  writeFileSync(outputPath, serializeBaseline(baseline), "utf8");
+  await writeBaselineWithTransaction(root, outputPath, serializeBaseline(baseline));
   console.log(`Wrote ${baseline.entries.length} unsafe occurrences to ${outputPath}`);
 }
 
-if (import.meta.main) main(process.argv.slice(2));
+if (import.meta.main) await main(process.argv.slice(2));
