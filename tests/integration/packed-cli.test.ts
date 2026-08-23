@@ -7,18 +7,21 @@ import { join, resolve } from "node:path";
 const root = resolve(import.meta.dir, "../..");
 
 test("the exact npm tarball contains types and runs when installed", () => {
-  const temp = mkdtempSync(join(tmpdir(), "ghostinit-pack-"));
+  const temp = mkdtempSync(join(tmpdir(), "ghostinit pack-"));
   try {
     execFileSync("bun", ["run", "build"], { cwd: root, stdio: "pipe", shell: false });
-    const npmArgs = ["pack", "--json", "--pack-destination", temp];
-    const packJson =
-      process.platform === "win32"
-        ? execFileSync(
-            process.env.ComSpec ?? "cmd.exe",
-            ["/d", "/s", "/c", `npm pack --json --pack-destination ${temp}`],
-            { cwd: root, encoding: "utf8", shell: false },
-          )
-        : execFileSync("npm", npmArgs, { cwd: root, encoding: "utf8", shell: false });
+    const packed = Bun.spawnSync({
+      cmd: ["npm", "pack", "--json", "--pack-destination", temp],
+      cwd: root,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    if (packed.exitCode !== 0) {
+      throw new Error(
+        `npm pack failed with exit code ${packed.exitCode}: ${new TextDecoder().decode(packed.stderr)}`,
+      );
+    }
+    const packJson = new TextDecoder().decode(packed.stdout);
     const [{ filename, files }] = JSON.parse(packJson) as Array<{
       filename: string;
       files: Array<{ path: string }>;
