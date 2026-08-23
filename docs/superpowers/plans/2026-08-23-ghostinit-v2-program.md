@@ -70,7 +70,7 @@ bun run check
 bun run build
 bun run typecheck
 bun run check:versions
-bun test --timeout 100000 tests/unit/compatibility-ledger.test.ts tests/unit/toolchain-v2.test.ts tests/unit/scripts-typecheck.test.ts tests/unit/typescript7-inventory.test.ts tests/unit/ci-v2.test.ts tests/integration/packed-cli.test.ts
+bun test --timeout 100000 tests/unit/compatibility-ledger.test.ts tests/unit/toolchain-v2.test.ts tests/unit/scripts-typecheck.test.ts tests/unit/typescript7-inventory.test.ts tests/unit/ci-v2.test.ts tests/unit/fixture-toolchain.test.ts tests/integration/packed-cli.test.ts
 bun run test
 bun run pretest:fixtures
 bun run test:fixtures

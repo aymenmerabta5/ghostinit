@@ -1871,6 +1871,133 @@ Expected cached paths are exactly the seven Task 5 files.
 
 ---
 
+### Task 6: Migrate committed compatibility fixtures to the exact toolchain
+
+**Files:**
+
+- Modify: `tests/fixtures/compatibility/drizzle-betterauth-orpc/package.json`
+- Modify: `tests/fixtures/compatibility/drizzle-betterauth-orpc/bun.lock`
+- Modify: `tests/fixtures/compatibility/next-tailwind-biome/package.json`
+- Modify: `tests/fixtures/compatibility/next-tailwind-biome/bun.lock`
+- Modify: `tests/fixtures/compatibility/expo-uniwind-rnr/package.json`
+- Modify: `tests/fixtures/compatibility/expo-uniwind-rnr/bun.lock`
+- Create: `tests/unit/fixture-toolchain.test.ts`
+
+**Interfaces:**
+
+- Produces three committed fixtures whose direct manifests exactly match their Bun 1.4.0 frozen locks and whose compiler is TypeScript 7.0.2.
+- Consumes the exact host toolchain from Tasks 2–3.
+
+- [ ] **Step 1: Write the failing fixture/lock consistency test**
+
+```ts
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const root = resolve(import.meta.dir, "../..");
+const fixtures = ["drizzle-betterauth-orpc", "next-tailwind-biome", "expo-uniwind-rnr"] as const;
+
+describe("committed compatibility fixture toolchains", () => {
+  for (const fixture of fixtures) {
+    test(`${fixture} uses Bun 1.4.0, TypeScript 7.0.2, and a matching lock root`, () => {
+      const directory = resolve(root, "tests/fixtures/compatibility", fixture);
+      const pkg = JSON.parse(readFileSync(resolve(directory, "package.json"), "utf8")) as {
+        name: string;
+        packageManager?: string;
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const lock = Bun.JSONC.parse(readFileSync(resolve(directory, "bun.lock"), "utf8")) as {
+        workspaces: {
+          "": {
+            name: string;
+            dependencies?: Record<string, string>;
+            devDependencies?: Record<string, string>;
+          };
+        };
+      };
+      expect(pkg.packageManager).toBe("bun@1.4.0");
+      expect(pkg.devDependencies?.typescript).toBe("7.0.2");
+      expect(pkg.devDependencies?.["@typescript/native-preview"]).toBeUndefined();
+      if (pkg.dependencies?.["bun-types"] !== undefined) {
+        expect(pkg.dependencies["bun-types"]).toBe("1.4.0");
+      }
+      expect(lock.workspaces[""].name).toBe(pkg.name);
+      expect(lock.workspaces[""].dependencies ?? {}).toEqual(pkg.dependencies ?? {});
+      expect(lock.workspaces[""].devDependencies ?? {}).toEqual(pkg.devDependencies ?? {});
+    });
+  }
+});
+```
+
+- [ ] **Step 2: Run RED and verify all legacy drifts are observed**
+
+```bash
+bun test tests/unit/fixture-toolchain.test.ts --timeout 100000
+```
+
+Expected: FAIL for missing/old `packageManager`, Expo TypeScript `6.0.3`, Drizzle `bun-types@1.3.14`, Next native-preview, and Next lock name/type specs that differ from its manifest.
+
+- [ ] **Step 3: Update fixture manifests only**
+
+For all three fixture manifests, add or set:
+
+```json
+"packageManager": "bun@1.4.0"
+```
+
+Set every `devDependencies.typescript` to `7.0.2`. In the Drizzle fixture set `dependencies["bun-types"]` to `1.4.0`. Remove `@typescript/native-preview` from the Next fixture. Do not upgrade framework/runtime libraries in this task; target adapter compatibility is proven in later phases.
+
+- [ ] **Step 4: Re-run RED against stale locks**
+
+```bash
+bun test tests/unit/fixture-toolchain.test.ts --timeout 100000
+```
+
+Expected: FAIL only because committed lock workspace names/specs still differ from the updated manifests.
+
+- [ ] **Step 5: Regenerate each lock with Bun 1.4.0 and freeze it**
+
+Run in each fixture directory:
+
+```powershell
+foreach ($fixture in @('drizzle-betterauth-orpc','next-tailwind-biome','expo-uniwind-rnr')) {
+  Push-Location "tests/fixtures/compatibility/$fixture"
+  bun install
+  if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+  $before = (Get-FileHash -Algorithm SHA256 -LiteralPath 'bun.lock').Hash
+  bun install --frozen-lockfile
+  if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
+  $after = (Get-FileHash -Algorithm SHA256 -LiteralPath 'bun.lock').Hash
+  if ($before -ne $after) { Pop-Location; throw "Frozen lock changed for $fixture" }
+  Pop-Location
+}
+```
+
+- [ ] **Step 6: Run GREEN and fixture gates**
+
+```bash
+bun test tests/unit/fixture-toolchain.test.ts --timeout 100000
+bun run pretest:fixtures
+bun run test:fixtures
+bun run check
+```
+
+Expected: focused 3/3 pass; every frozen fixture install, fixture test, and host check exits zero.
+
+- [ ] **Step 7: Commit only fixture migration files**
+
+```bash
+git add tests/fixtures/compatibility/drizzle-betterauth-orpc/package.json tests/fixtures/compatibility/drizzle-betterauth-orpc/bun.lock tests/fixtures/compatibility/next-tailwind-biome/package.json tests/fixtures/compatibility/next-tailwind-biome/bun.lock tests/fixtures/compatibility/expo-uniwind-rnr/package.json tests/fixtures/compatibility/expo-uniwind-rnr/bun.lock tests/unit/fixture-toolchain.test.ts
+git diff --cached --name-only
+git commit -m "test: migrate compatibility fixtures to Bun 1.4 and TypeScript 7"
+```
+
+Expected cached paths are exactly the seven Task 6 files.
+
+---
+
 ## Phase 1A final verification
 
 - [ ] **Step 1: Verify exact executables and frozen installation**
@@ -1891,7 +2018,7 @@ bun run check
 bun run build
 bun run typecheck
 bun run check:versions
-bun test --timeout 100000 tests/unit/compatibility-ledger.test.ts tests/unit/toolchain-v2.test.ts tests/unit/scripts-typecheck.test.ts tests/unit/typescript7-inventory.test.ts tests/unit/ci-v2.test.ts tests/integration/packed-cli.test.ts
+bun test --timeout 100000 tests/unit/compatibility-ledger.test.ts tests/unit/toolchain-v2.test.ts tests/unit/scripts-typecheck.test.ts tests/unit/typescript7-inventory.test.ts tests/unit/ci-v2.test.ts tests/unit/fixture-toolchain.test.ts tests/integration/packed-cli.test.ts
 bun run test
 bun run pretest:fixtures
 bun run test:fixtures
