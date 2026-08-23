@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/v1-generated-unsafe-syntax-baseline.schema.json",
+  "title": "GhostInit V1 generated unsafe-syntax baseline",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "detectorVersion",
+    "zeroGatePhase",
+    "catalogKeys",
+    "entries"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../schemas/v1-generated-unsafe-syntax-baseline.schema.json"
+    },
+    "schemaVersion": { "const": 1 },
+    "detectorVersion": { "const": 1 },
+    "zeroGatePhase": { "const": "V2 Phase 6" },
+    "catalogKeys": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "kind",
+        "fingerprint",
+        "sourceOwner",
+        "catalogKeys",
+        "disposition",
+        "removalPhase"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["explicit-any", "as-any", "assertion-chain", "ts-ignore"]
+        },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+        "sourceOwner": { "type": "string", "pattern": "^src/templates/" },
+        "catalogKeys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "disposition": { "enum": ["remove-in-stabilization", "deferred-v1"] },
+        "removalPhase": { "enum": ["Phase 1A", "V2 Phase 6"] }
+      }
+    }
+  }
+}
