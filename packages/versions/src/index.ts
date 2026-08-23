@@ -235,7 +235,7 @@ export const expo = {
   "expo-web-browser": "15.0.7",
   "expo-clipboard": "8.0.6",
   "expo-notifications": "0.32.11",
-  "expo-updates": "0.29.13",
+  "expo-updates": "29.0.13",
   "expo-localization": "16.0.1",
   "@react-native-community/netinfo": "11.3.1",
   "react-native": "0.81.4",

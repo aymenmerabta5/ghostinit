@@ -10,10 +10,7 @@ linker = "isolated"
 # Generated projects omit this (default hoist=true) for Next.js compatibility
 hoist = false
 # Keep lockfile stable and deterministic - allow updates during development
-frozenLockfile = false
-
-[install.lockfile]
-path = "bun.lock"
+frozenLockfile = true
 
 [install.scopes]
 # Default public registry
