@@ -14,9 +14,16 @@
 - The current workspace must remain untouched after the implementation worktree is created.
 - Preserve the current tracked working-tree state and `tests/integration/init-upgrade.test.ts`; do not copy `.agents/` or `.playwright-mcp/` runtime artifacts.
 - Bun is exactly `1.4.0`; TypeScript is exactly `7.0.2`; peers are never overridden.
-- `packages/versions/src/index.ts` remains the legacy generated-project registry during this phase except for correcting the audited nonexistent `expo-updates` pin from `0.29.13` to published `29.0.13`.
+- `packages/versions/src/index.ts` remains the legacy generated-project registry during this phase except for correcting the audited nonexistent `expo-updates` pin from `0.29.13` to published `29.0.13` and the generated-gate amendment below.
 - The public `src/cli.ts` remains on V1.
 - Every task follows red-green-refactor and is independently reviewed.
+
+### Phase 1A generated-gate amendment (2026-08-23)
+
+- Phase 1A additionally permits only the registry-verified missing direct dependencies `server-only@0.0.1` and `lucide-react@1.33.0`; every existing generated dependency pin otherwise remains unchanged.
+- The already-pinned `oxc-parser@0.139.0` generated-lint migration moves forward from Phase 3 into Phase 1A solely because TypeScript 7.0.2 exposes no legacy JavaScript compiler API and the mandatory `bun run test:generated` lint gate cannot run without it. This is dependency placement/migration of an existing pin, not a version refresh.
+- No other dependency addition, pin refresh, V2 production source, generated architecture cutover, or public CLI cutover is permitted by this amendment.
+- `docs/superpowers/plans/2026-08-23-ghostinit-v2-generated-gate-stabilization.md`, `evidence/generated/v1-unsafe-syntax-dispositions.json`, and this amendment must be committed together before stabilization execution or base-SHA recording begins.
 
 ---
 

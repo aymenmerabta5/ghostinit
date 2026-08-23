@@ -1,0 +1,1401 @@
+{
+  "$schema": "../../schemas/v1-generated-unsafe-syntax-dispositions.schema.json",
+  "schemaVersion": 1,
+  "catalogEvidence": {
+    "configKeys": [
+      "gate/next-monorepo",
+      "gate/single-next",
+      "monorepo/nextjs/convex/capabilities-off",
+      "monorepo/nextjs/convex/capabilities-on",
+      "monorepo/nextjs/postgres/capabilities-off",
+      "monorepo/nextjs/postgres/capabilities-on",
+      "monorepo/tanstack-start/convex/capabilities-off",
+      "monorepo/tanstack-start/convex/capabilities-on",
+      "monorepo/tanstack-start/postgres/capabilities-off",
+      "monorepo/tanstack-start/postgres/capabilities-on",
+      "single/nextjs/convex/capabilities-off",
+      "single/nextjs/convex/capabilities-on",
+      "single/nextjs/postgres/capabilities-off",
+      "single/nextjs/postgres/capabilities-on",
+      "single/tanstack-start/convex/capabilities-off",
+      "single/tanstack-start/convex/capabilities-on",
+      "single/tanstack-start/postgres/capabilities-off",
+      "single/tanstack-start/postgres/capabilities-on"
+    ],
+    "occurrenceRows": 1011,
+    "uniqueOwnerPathPatterns": 99,
+    "uniqueSourceOwners": 60,
+    "provenanceRules": 101
+  },
+  "projectionEvidence": {
+    "configKeys": [
+      "monorepo/nextjs/convex/capabilities-off",
+      "monorepo/nextjs/convex/capabilities-on",
+      "monorepo/nextjs/postgres/capabilities-off",
+      "monorepo/nextjs/postgres/capabilities-on",
+      "monorepo/tanstack-start/convex/capabilities-off",
+      "monorepo/tanstack-start/convex/capabilities-on",
+      "monorepo/tanstack-start/postgres/capabilities-off",
+      "monorepo/tanstack-start/postgres/capabilities-on",
+      "single/nextjs/convex/capabilities-off",
+      "single/nextjs/convex/capabilities-on",
+      "single/nextjs/postgres/capabilities-off",
+      "single/nextjs/postgres/capabilities-on",
+      "single/tanstack-start/convex/capabilities-off",
+      "single/tanstack-start/convex/capabilities-on",
+      "single/tanstack-start/postgres/capabilities-off",
+      "single/tanstack-start/postgres/capabilities-on"
+    ],
+    "occurrenceRows": 839,
+    "uniqueOwnerPathPatterns": 94,
+    "uniqueSourceOwners": 55,
+    "provenanceRules": 96,
+    "comparableStripeOnKeys": {
+      "configKeys": [
+        "monorepo/nextjs/postgres/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "removeInStabilization": 72,
+      "deferredV1": 85
+    }
+  },
+  "gateEvidence": {
+    "configurations": [
+      {
+        "configKey": "gate/next-monorepo",
+        "mode": "monorepo",
+        "framework": "nextjs",
+        "database": "postgres",
+        "billing": ["stripe", "chargily"],
+        "apps": ["web"],
+        "capabilities": "on",
+        "occurrenceRows": 101
+      },
+      {
+        "configKey": "gate/single-next",
+        "mode": "single",
+        "framework": "nextjs",
+        "database": "postgres",
+        "billing": ["stripe"],
+        "apps": ["web"],
+        "capabilities": "on",
+        "occurrenceRows": 71
+      }
+    ],
+    "occurrenceRows": 172,
+    "gateOnlyChargilyOccurrences": 15,
+    "gateOnlyOwnerPathPatterns": 5
+  },
+  "defaultProjection": {
+    "configKeys": ["gate/next-monorepo", "gate/single-next"],
+    "removeInStabilization": 72,
+    "deferredV1": 100
+  },
+  "zeroGatePhase": "V2 Phase 6",
+  "rules": [
+    {
+      "sourceOwner": "src/templates/analytics/client.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/client\\/posthog-client\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/config.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/config\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 15,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/consent.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/shared\\/consent\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/consent.ts",
+      "emittedPathPattern": "^src\\/server\\/analytics\\/shared\\/consent\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/experiments.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/client\\/components\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 20,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/hooks.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/client\\/hooks\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 30,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/lib.ts",
+      "emittedPathPattern": "^src\\/lib\\/analytics\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/pageview.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/client\\/pageview\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/provider.ts",
+      "emittedPathPattern": "^src\\/components\\/analytics\\/posthog-provider\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 25,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/proxy.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/api\\/ingest\\/\\[\\.\\.\\.path\\]\\/route\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/proxy.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/api\\/ingest\\/route\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/proxy.ts",
+      "emittedPathPattern": "^src\\/app\\/api\\/ingest\\/route\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/server.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/server\\/posthog-server\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/server.ts",
+      "emittedPathPattern": "^src\\/server\\/analytics\\/posthog-server\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/utils.ts",
+      "emittedPathPattern": "^packages\\/analytics\\/src\\/server\\/utils\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/analytics/utils.ts",
+      "emittedPathPattern": "^src\\/server\\/analytics\\/utils\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/api.ts",
+      "emittedPathPattern": "^packages\\/api\\/src\\/context\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/api.ts",
+      "emittedPathPattern": "^packages\\/api\\/src\\/middleware\\/auth\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/api.ts",
+      "emittedPathPattern": "^packages\\/api\\/src\\/utils\\/service-error\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 20,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/admin/hooks.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/admin\\/users\\/hooks\\/use-admin-users\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/admin/index.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/admin\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/admin/index.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/admin\\.users\\.create\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/admin/index.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/admin\\.users\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/admin/users-page.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/admin\\/users\\/page\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-off",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/api/core.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/api\\/auth\\/\\$splat\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/auth/sign-in.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/sign-in\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/billing/page.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/billing\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/core/hooks.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/hooks\\/use-billing\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/dashboard.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/dashboard\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/lib/feature-flags.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/lib\\/feature-flags-client\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-off",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-off",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/lib/feature-flags.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/lib\\/feature-flags\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-off",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-off",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/lib/feature-flags.ts",
+      "emittedPathPattern": "^src\\/lib\\/feature-flags-client\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/lib/feature-flags.ts",
+      "emittedPathPattern": "^src\\/lib\\/feature-flags\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/settings/hook.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/settings\\/hooks\\/use-settings\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 12,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/settings/profile-card.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/settings\\/components\\/profile-card\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/settings/sessions-card.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/settings\\/components\\/sessions-card\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 12,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/settings/tanstack-page.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/settings\\.tsx$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 38,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/settings/two-factor-card.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/settings\\/components\\/two-factor-card\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/web-ui/overlays.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/components\\/ui\\/breadcrumb\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-off",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-off",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/apps/fragments/web-ui/overlays.ts",
+      "emittedPathPattern": "^src\\/components\\/ui\\/breadcrumb\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/auth.ts",
+      "emittedPathPattern": "^packages\\/auth\\/src\\/index\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 9,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/auth.ts",
+      "emittedPathPattern": "^packages\\/auth\\/src\\/server\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 11,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/billing-generator.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/adapters\\/convex\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 18,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing-generator.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/adapters\\/convex\\.ts$",
+      "applicableConfigKeys": [
+        "single/nextjs/convex/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 16,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/index.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/index\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/index.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/index\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/chargily/checkout.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/chargily\\/checkout\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo"],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/chargily/client.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/chargily\\/client\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo"],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/chargily/subscriptions.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/chargily\\/subscriptions\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo"],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/chargily/webhook.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/chargily\\/webhook\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo"],
+      "expectedOccurrences": 1,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/checkout.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/checkout\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/checkout.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/checkout\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/client.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/client\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/client.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/client\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/customer.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/customer\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/customer.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/customer\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/mappers.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/mappers\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/mappers.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/mappers\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/portal.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/portal\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/portal.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/portal\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/subscriptions.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/subscriptions\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/subscriptions.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/subscriptions\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/webhook.ts",
+      "emittedPathPattern": "^packages\\/billing\\/src\\/providers\\/stripe\\/webhook\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/providers/stripe/webhook.ts",
+      "emittedPathPattern": "^src\\/server\\/billing\\/providers\\/stripe\\/webhook\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 10,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/ui/components/hook.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/billing\\/hooks\\/use-billing-page\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 15,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/ui/components/hook.ts",
+      "emittedPathPattern": "^src\\/app\\/billing\\/hooks\\/use-billing-page\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 15,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/chargily.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/api\\/webhooks\\/chargily\\/route\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo"],
+      "expectedOccurrences": 6,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/stripe.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/api\\/webhooks\\/stripe\\/route\\.ts$",
+      "applicableConfigKeys": ["gate/next-monorepo", "monorepo/nextjs/postgres/capabilities-on"],
+      "expectedOccurrences": 28,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/stripe.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/app\\/api\\/webhooks\\/stripe\\/route\\.ts$",
+      "applicableConfigKeys": ["monorepo/nextjs/convex/capabilities-on"],
+      "expectedOccurrences": 14,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/stripe.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/routes\\/api\\/webhooks\\/stripe\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 14,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/stripe.ts",
+      "emittedPathPattern": "^src\\/app\\/api\\/webhooks\\/stripe\\/route\\.ts$",
+      "applicableConfigKeys": ["gate/single-next", "single/nextjs/postgres/capabilities-on"],
+      "expectedOccurrences": 28,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/billing/webhooks/providers/stripe.ts",
+      "emittedPathPattern": "^src\\/app\\/api\\/webhooks\\/stripe\\/route\\.ts$",
+      "applicableConfigKeys": ["single/nextjs/convex/capabilities-on"],
+      "expectedOccurrences": 14,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/database/convex/http.ts",
+      "emittedPathPattern": "^convex\\/http\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 32,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/database/convex/lib.ts",
+      "emittedPathPattern": "^convex\\/lib\\/auth\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "single/nextjs/convex/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/database/convex/posts.ts",
+      "emittedPathPattern": "^convex\\/posts\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 48,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/database/convex/users.ts",
+      "emittedPathPattern": "^convex\\/users\\.ts$",
+      "applicableConfigKeys": [
+        "monorepo/nextjs/convex/capabilities-off",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-off",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on"
+      ],
+      "expectedOccurrences": 16,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/api/routes.ts",
+      "emittedPathPattern": "^src\\/app\\/api\\/\\[\\.\\.\\.path\\]\\/route\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 40,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/admin.ts",
+      "emittedPathPattern": "^src\\/app\\/admin\\/users\\/create\\/page\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/admin.ts",
+      "emittedPathPattern": "^src\\/app\\/admin\\/users\\/hooks\\/use-admin-users\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/auth.ts",
+      "emittedPathPattern": "^src\\/app\\/forgot-password\\/page\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/auth.ts",
+      "emittedPathPattern": "^src\\/app\\/sign-in\\/page\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/settings.ts",
+      "emittedPathPattern": "^src\\/app\\/settings\\/components\\/profile-card\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/settings.ts",
+      "emittedPathPattern": "^src\\/app\\/settings\\/components\\/two-factor-card\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/pages/settings.ts",
+      "emittedPathPattern": "^src\\/app\\/settings\\/hooks\\/use-settings\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 6,
+      "disposition": "remove-in-stabilization",
+      "removalPhase": "Phase 1A"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/server/db.ts",
+      "emittedPathPattern": "^src\\/server\\/db\\/index\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-off",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-off",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 14,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/api.ts",
+      "emittedPathPattern": "^src\\/routes\\/api\\/rpc\\/\\$splat\\.ts$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 8,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/api.ts",
+      "emittedPathPattern": "^src\\/routes\\/api\\/webhooks\\/stripe\\.ts$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 14,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/core.ts",
+      "emittedPathPattern": "^src\\/routes\\/__root\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/admin.ts",
+      "emittedPathPattern": "^src\\/routes\\/admin\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 8,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/admin.ts",
+      "emittedPathPattern": "^src\\/routes\\/admin\\.users\\.create\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/admin.ts",
+      "emittedPathPattern": "^src\\/routes\\/admin\\.users\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/auth.ts",
+      "emittedPathPattern": "^src\\/routes\\/forgot-password\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 4,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/auth.ts",
+      "emittedPathPattern": "^src\\/routes\\/reset-password\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/auth.ts",
+      "emittedPathPattern": "^src\\/routes\\/sign-in\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 2,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/dashboard.ts",
+      "emittedPathPattern": "^src\\/routes\\/billing\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 8,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/dashboard.ts",
+      "emittedPathPattern": "^src\\/routes\\/dashboard\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 8,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/modes/single/tanstack/pages/dashboard.ts",
+      "emittedPathPattern": "^src\\/routes\\/settings\\.tsx$",
+      "applicableConfigKeys": [
+        "single/tanstack-start/convex/capabilities-off",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-off",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 8,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/services/billing.ts",
+      "emittedPathPattern": "^packages\\/services\\/src\\/billing\\/list-subscriptions\\.service\\.ts$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on",
+        "monorepo/tanstack-start/convex/capabilities-on",
+        "monorepo/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 20,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/services/billing.ts",
+      "emittedPathPattern": "^src\\/server\\/services\\/billing\\/list-subscriptions\\.service\\.ts$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 20,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/shell.ts",
+      "emittedPathPattern": "^apps\\/web\\/src\\/components\\/shell\\/Navbar\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/next-monorepo",
+        "monorepo/nextjs/convex/capabilities-on",
+        "monorepo/nextjs/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 3,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    },
+    {
+      "sourceOwner": "src/templates/shell.ts",
+      "emittedPathPattern": "^src\\/components\\/shell\\/Navbar\\.tsx$",
+      "applicableConfigKeys": [
+        "gate/single-next",
+        "single/nextjs/convex/capabilities-on",
+        "single/nextjs/postgres/capabilities-on",
+        "single/tanstack-start/convex/capabilities-on",
+        "single/tanstack-start/postgres/capabilities-on"
+      ],
+      "expectedOccurrences": 5,
+      "disposition": "deferred-v1",
+      "removalPhase": "V2 Phase 6"
+    }
+  ]
+}
