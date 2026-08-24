@@ -59,19 +59,21 @@ function buildAgentsMdContent(
     "   - stripe: checkout.sessions.create billingPortal deep-link constructEvent raw Body sig. chargily: ChargilyClient api_key mode Product->Price->Checkout checkout_url verifySignature HMAC-SHA256 timingSafeEqual server-only manual recurring DB+ eve cron. paddle: Paddle API_KEY transactions.create checkout_url TransactionCompleted raw body. polar: events.ingest validateEvent whsec base64 license keys.",
   );
   lines.push(
-    "6. **Infrastructure — packages/database auth config email observability**: Drizzle pool max 20 idle SSL schema/index.ts generated. auth Better Auth emailAndPassword autoSignIn false user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit 60 100 IP disabled unless TRUSTED_PROXY. config t3env validation server secrets NEVER client except NEXT_PUBLIC_ tokens. email Resend 4.0.1.",
+    `6. **Infrastructure — packages/database auth config${hasEmail ? " email" : ""} observability**: Drizzle pool max 20 idle SSL schema/index.ts generated. auth Better Auth emailAndPassword autoSignIn false user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit 60 100 IP disabled unless TRUSTED_PROXY. config t3env validation server secrets NEVER client except NEXT_PUBLIC_ tokens.${hasEmail ? " email delivery uses the typed component API." : ""}`,
   );
   lines.push("");
   lines.push(
     `- Billing flexible (${selectedBilling.length ? selectedBilling.join(",") : "none"}): Empty No billing configured + Button Add billing provider when none, Card single when one, TabsList inside Tabs multi/all shared DB idempotent 200 already processed. Env placeholders REPLACE_WITH real via secret() .env.local gitignored t3env server-only.`,
   );
-  lines.push(
-    "- Billing keys conditional .env.example: RESEND always, billing keys only if chosen else placeholder comment.",
-  );
+  if (hasEmail) {
+    lines.push(
+      "- Billing keys conditional .env.example: RESEND is present with email, billing keys only if chosen.",
+    );
+  }
   lines.push(
     hasEmail
       ? "- Email enabled: @repo/email exposes one typed React component sendEmail API and propagates delivery failures."
-      : "- Email disabled: no email package, recovery routes, auth callbacks, or Resend environment entries are emitted.",
+      : "- Email disabled: no email package, recovery routes, auth callbacks, or delivery environment entries are emitted.",
   );
   lines.push(
     "- Services default: packages/services/src/ business logic per generator oRPC contract-first webhooks via Next routes raw Buffer single port.",
@@ -99,17 +101,19 @@ function buildAgentsMdContent(
     "- Dual modes: monorepoFiles returns TemplateFile[] for monorepo must = rootFiles+packageFiles+databasePackage+startDatabaseFiles+authPackage+emailFiles+analyticsFiles+apiPackage+uiPackage+modulesPackage+appsFilesWithConditionalEve+typescriptConfigWithAliases+toolingFiles+servicesFiles+billingFiles conditional+i18nFiles conditional+agenticFiles+eveFiles conditional. oRPC contract-first single port webhooks via Next routes raw Buffer.",
   );
   lines.push(
-    "- .env.example conditional: billing keys only if chosen else placeholder comment — RESEND always when email selected, STRIPE etc only when chosen. Implementation filteredEnvExample billingEnvLines conditional server-only NEVER client except NEXT_PUBLIC_ tokens. Single port 3000 no API_PORT.",
+    hasEmail
+      ? "- .env.example includes the delivery placeholder and only selected billing keys. Server secrets are never public."
+      : "- .env.example includes only selected billing keys. Server secrets are never public.",
   );
   lines.push("");
   lines.push("## Package Roles");
   lines.push("- apps/web presentation Next + oRPC single port webhooks via Next routes raw Buffer");
   lines.push("- apps/eve AI hybrid");
   lines.push("- packages/api oRPC contract");
-  lines.push("- packages/auth Better Auth + Resend");
+  lines.push(`- packages/auth Better Auth${hasEmail ? " + Resend" : ""}`);
   lines.push("- packages/billing flexible 4 providers");
   lines.push("- packages/database Drizzle");
-  lines.push("- packages/email Resend");
+  if (hasEmail) lines.push("- packages/email Resend");
   lines.push("- packages/services capability layer 4");
   lines.push("- packages/modules DDD");
   lines.push("- packages/ui shadcn BaseUI");

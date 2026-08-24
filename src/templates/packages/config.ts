@@ -101,6 +101,7 @@ const CONVEX_SERVER_RUNTIME = [
 export function configPackageFiles(
   framework: ConfigFramework = "nextjs",
   database: "postgres" | "convex" | "none" = "postgres",
+  hasEmail = true,
 ): TemplateFile[] {
   const isConvex = database === "convex";
   const isTanstack = framework === "tanstack-start";
@@ -126,6 +127,16 @@ export function configPackageFiles(
   // So we keep them in server when using nextjs, and in client only when using vite (which allows custom prefix via manual validation)
   // To avoid t3-env error, we add EXPO vars to server for both, and rely on client having them as optional via server validation for nextjs
   const clientPrefixLine = isTanstack ? `  clientPrefix: "VITE_",\n` : "";
+  const emailServer = hasEmail
+    ? `    RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
+    EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
+    EMAIL_FROM_NAME: z.string().min(1).optional(),\n`
+    : "";
+  const emailRuntime = hasEmail
+    ? `    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,\n`
+    : "";
 
   return [
     file(
@@ -182,10 +193,7 @@ ${clientPrefixLine}  server: {${convexServer}${expoVars}
     DATABASE_POOL_SIZE: z.string().regex(/^\\d+$/).default("20").transform((s: string) => Number.parseInt(s, 10)),
     TRUSTED_PROXY: z.enum(["true","false"]).default("false"),
     ANALYTICS_DISABLED: z.enum(["true","false"]).default("false"),
-    RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
-    EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
-    EMAIL_FROM_NAME: z.string().min(1).optional(),
-    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
+${emailServer}    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
     STRIPE_WEBHOOK_SECRET: z.string().min(1).default("REPLACE_WITH_STRIPE_WEBHOOK_SECRET"),
     CHARGILY_API_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_API_KEY"),
     CHARGILY_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_SECRET_KEY"),
@@ -220,10 +228,7 @@ ${clientRuntime}${convexClientRuntime}
     DATABASE_POOL_SIZE: process.env.DATABASE_POOL_SIZE,
     TRUSTED_PROXY: process.env.TRUSTED_PROXY,
     ANALYTICS_DISABLED: process.env.ANALYTICS_DISABLED,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+${emailRuntime}    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     CHARGILY_API_KEY: process.env.CHARGILY_API_KEY,
     CHARGILY_SECRET_KEY: process.env.CHARGILY_SECRET_KEY,

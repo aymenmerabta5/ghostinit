@@ -29,12 +29,23 @@ export type SingleEnvFramework = "nextjs" | "tanstack-start";
 export function singleEnvContent(
   isConvex = false,
   framework: SingleEnvFramework = "nextjs",
+  hasEmail = true,
 ): string {
   const isTanstack = framework === "tanstack-start";
   const envPackage = isTanstack ? "@t3-oss/env-core" : "@t3-oss/env-nextjs";
   const clientVars = isTanstack ? VITE_CLIENT_VARS : NEXT_PUBLIC_CLIENT_VARS;
   const clientRuntime = clientRuntimeEnvLines(isTanstack ? "VITE_" : "NEXT_PUBLIC_");
   const clientPrefixLine = isTanstack ? `  clientPrefix: "VITE_",\n` : "";
+  const emailServer = hasEmail
+    ? `    RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
+    EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
+    EMAIL_FROM_NAME: z.string().min(1).optional(),\n`
+    : "";
+  const emailRuntime = hasEmail
+    ? `    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,\n`
+    : "";
 
   if (isConvex) {
     return `import { createEnv } from "${envPackage}";
@@ -52,10 +63,7 @@ ${clientPrefixLine}  server: {
     BETTER_AUTH_URL: z.string().url(),
     TRUSTED_PROXY: z.enum(["true", "false"]).default("false"),
     ANALYTICS_DISABLED: z.enum(["true", "false"]).default("false"),
-    RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
-    EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
-    EMAIL_FROM_NAME: z.string().min(1).optional(),
-    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
+${emailServer}    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
     STRIPE_WEBHOOK_SECRET: z.string().min(1).default("REPLACE_WITH_STRIPE_WEBHOOK_SECRET"),
     CHARGILY_API_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_API_KEY"),
     CHARGILY_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_SECRET_KEY"),
@@ -85,10 +93,7 @@ ${clientVars}
 ${clientRuntime}
     TRUSTED_PROXY: process.env.TRUSTED_PROXY,
     ANALYTICS_DISABLED: process.env.ANALYTICS_DISABLED,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+${emailRuntime}    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     CHARGILY_API_KEY: process.env.CHARGILY_API_KEY,
     CHARGILY_SECRET_KEY: process.env.CHARGILY_SECRET_KEY,
@@ -133,10 +138,7 @@ ${clientPrefixLine}  server: {
       .transform((s) => Number.parseInt(s, 10)),
     TRUSTED_PROXY: z.enum(["true", "false"]).default("false"),
     ANALYTICS_DISABLED: z.enum(["true", "false"]).default("false"),
-    RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
-    EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
-    EMAIL_FROM_NAME: z.string().min(1).optional(),
-    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
+${emailServer}    STRIPE_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_STRIPE_SECRET_KEY"),
     STRIPE_WEBHOOK_SECRET: z.string().min(1).default("REPLACE_WITH_STRIPE_WEBHOOK_SECRET"),
     CHARGILY_API_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_API_KEY"),
     CHARGILY_SECRET_KEY: z.string().min(1).default("REPLACE_WITH_CHARGILY_SECRET_KEY"),
@@ -171,10 +173,7 @@ ${clientRuntime}
     DATABASE_POOL_SIZE: process.env.DATABASE_POOL_SIZE,
     TRUSTED_PROXY: process.env.TRUSTED_PROXY,
     ANALYTICS_DISABLED: process.env.ANALYTICS_DISABLED,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
-    EMAIL_FROM: process.env.EMAIL_FROM,
-    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+${emailRuntime}    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     CHARGILY_API_KEY: process.env.CHARGILY_API_KEY,
     CHARGILY_SECRET_KEY: process.env.CHARGILY_SECRET_KEY,
@@ -198,7 +197,8 @@ export type Env = typeof env;
 export function singleEnvFile(
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
   framework: SingleEnvFramework = "nextjs",
+  hasEmail = true,
 ): TemplateFile {
   const isConvex = isConvexMap(addonMap);
-  return file("src/lib/env.ts", singleEnvContent(isConvex, framework));
+  return file("src/lib/env.ts", singleEnvContent(isConvex, framework, hasEmail));
 }

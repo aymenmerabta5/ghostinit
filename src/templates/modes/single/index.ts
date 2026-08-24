@@ -85,6 +85,8 @@ export function singleFiles(
     config.i18n,
   );
   const hasEmail = hasAddon(addonMap, "email");
+  const hasApi = hasAddon(addonMap, "api");
+  const hasAnalytics = hasAddon(addonMap, "analytics");
   const selectedBilling = selectedBillingFromAddons(addonMap);
   const effectiveBilling: BillingProviderName[] =
     selectedBilling.length > 0
@@ -121,6 +123,8 @@ export function singleFiles(
             hasEve,
             hasI18n,
             hasEmail,
+            hasApi,
+            hasAnalytics,
             secrets,
             addonMap,
           )
@@ -131,6 +135,8 @@ export function singleFiles(
             hasEve,
             hasI18n,
             hasEmail,
+            hasApi,
+            hasAnalytics,
             secrets,
             addonMap,
           );
@@ -218,8 +224,6 @@ export function singleFiles(
   let deduped = dedupeFilesOrThrow(withoutOld);
   // Conditional stripping for frontend preset
   const hasAuth = hasAddon(addonMap, "auth");
-  const hasAnalytics = hasAddon(addonMap, "analytics");
-  const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (!hasAuth) {
@@ -229,14 +233,6 @@ export function singleFiles(
         !f.content.includes('from "@repo/auth"') &&
         !f.content.includes("auth-client"),
     );
-  }
-  if (!hasAnalytics) {
-    deduped = deduped.filter(
-      (f) => !f.path.includes("analytics") && !f.content.includes('from "@repo/analytics"'),
-    );
-  }
-  if (!hasApi) {
-    deduped = deduped.filter((f) => !f.content.includes('from "@repo/api"'));
   }
   if (!hasCache) {
     deduped = deduped.filter((f) => !f.path.includes("cache"));

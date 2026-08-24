@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { builtinModules } from "node:module";
+import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { parseFile } from "../../src/lib/architecture/parsers/imports.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
@@ -53,7 +54,11 @@ const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `no
 function findUndeclaredImports(files: TemplateFile[]): string[] {
   const byPath = new Map(files.map((file) => [file.path, file.content]));
   const owners = files
-    .filter((file) => file.path === "package.json" || file.path.endsWith("/package.json"))
+    .filter(
+      (file) =>
+        file.path === "package.json" ||
+        /^(?:apps|packages|tooling)\/[^/]+\/package\.json$/.test(file.path),
+    )
     .map((file) => {
       const root = file.path === "package.json" ? "" : file.path.slice(0, -"/package.json".length);
       const manifest = JSON.parse(file.content) as {
@@ -84,14 +89,34 @@ function findUndeclaredImports(files: TemplateFile[]): string[] {
       continue;
     const parsed = parseFile(file.content, extname(file.path));
     for (const specifier of parsed.imports) {
-      if (
-        specifier.startsWith(".") ||
-        specifier.startsWith("@/") ||
-        specifier.startsWith("~/") ||
-        BUILTINS.has(specifier) ||
-        specifier === "bun:test"
-      )
+      if (specifier.startsWith(".") || BUILTINS.has(specifier) || specifier === "bun:test")
         continue;
+      if (specifier.startsWith("@/") || specifier.startsWith("~/")) {
+        const packageSource = file.path.match(/^((?:apps|packages|tooling)\/[^/]+)\/src\//);
+        const sourceRoot = file.path.startsWith("src/")
+          ? "src"
+          : packageSource
+            ? `${packageSource[1]}/src`
+            : undefined;
+        const relativeTarget = specifier.slice(2).split("?")[0] ?? specifier.slice(2);
+        const target = sourceRoot ? `${sourceRoot}/${relativeTarget}` : relativeTarget;
+        const withoutJs = target.replace(/\.js$/, "");
+        const candidates = [
+          target,
+          withoutJs,
+          `${withoutJs}.ts`,
+          `${withoutJs}.tsx`,
+          `${withoutJs}.js`,
+          `${withoutJs}.jsx`,
+          `${withoutJs}.css`,
+          `${withoutJs}/index.ts`,
+          `${withoutJs}/index.tsx`,
+        ];
+        if (!sourceRoot || !candidates.some((candidate) => byPath.has(candidate))) {
+          missing.add(`${owner.name} :: ${file.path} -> ${specifier}`);
+        }
+        continue;
+      }
       const dependency = packageName(specifier);
       if (!owner.declarations.has(dependency)) {
         missing.add(`${owner.name} :: ${file.path} -> ${dependency}`);
@@ -128,6 +153,35 @@ describe("generated package ownership", () => {
       findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
     );
     expect(problems).toEqual([]);
+  });
+
+  test("local alias imports fail closure when their emitted target is missing", () => {
+    const files = generateProjectFiles(
+      projectConfigSchema.parse({
+        name: "demo",
+        mode: "single",
+        framework: "nextjs",
+        database: "postgres",
+        preset: "saas",
+        billing: [],
+        apps: ["web"],
+      }),
+    ).filter(({ path }) => path !== "src/lib/env.ts");
+    expect(findUndeclaredImports(files)).toContain("demo :: src/lib/feature-flags.ts -> @/lib/env");
+  });
+
+  test("single mode has only its flat root package boundary", () => {
+    for (const { key, config } of CLOSURE_MATRIX.filter(({ config }) => config.mode === "single")) {
+      const files = generateProjectFiles(config);
+      const manifests = files.filter(({ path }) => path.endsWith("package.json"));
+      expect(
+        manifests.map(({ path }) => path),
+        key,
+      ).toEqual(["package.json"]);
+      for (const manifest of manifests) {
+        expect(manifest.content, `${key}: ${manifest.path}`).not.toContain("workspace:*");
+      }
+    }
   });
 
   test("single mode keeps Better Auth default roles and its local admin predicate", () => {
@@ -263,5 +317,72 @@ describe("generated package ownership", () => {
         }
       }
     }
+  });
+
+  test("Convex subscription adapters send pagination args and return only the page", async () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        const files = generateProjectFiles(
+          projectConfigSchema.parse({
+            name: "demo",
+            mode,
+            framework,
+            database: "convex",
+            preset: "saas",
+            billing: ["stripe"],
+            apps: ["web"],
+          }),
+        );
+        const adapterPath =
+          mode === "monorepo"
+            ? "packages/billing/src/adapters/convex.ts"
+            : "src/server/billing/adapters/convex.ts";
+        const source = files.find(({ path }) => path === adapterPath)?.content ?? "";
+        const body = source
+          .replace(/^import .*;$/gm, "")
+          .replace("export const billingConvex =", "const billingConvex =")
+          .replace(/^export type .*;$/gm, "");
+        const transpiler = new Bun.Transpiler({ loader: "ts" });
+        const executable = transpiler.transformSync(
+          `function createAdapter(convexClient: unknown, api: unknown) {${body}; return billingConvex;}`,
+        );
+        const createAdapter = new Function(`${executable}; return createAdapter;`)() as (
+          convexClient: { query: (query: unknown, args: unknown) => Promise<unknown> },
+          api: { billing: { listSubscriptions: symbol } },
+        ) => { listSubscriptions: (userId: string) => Promise<Array<{ id: string }>> };
+        const calls: unknown[] = [];
+        const query = Symbol("listSubscriptions");
+        const adapter = createAdapter(
+          {
+            query: async (queryRef, args) => {
+              calls.push({ queryRef, args });
+              return { page: [{ id: "sub_1" }], isDone: true, continueCursor: "" };
+            },
+          },
+          { billing: { listSubscriptions: query } },
+        );
+
+        await expect(adapter.listSubscriptions("user_1")).resolves.toEqual([{ id: "sub_1" }]);
+        expect(calls).toEqual([
+          {
+            queryRef: query,
+            args: {
+              paginationOpts: { numItems: 100, cursor: null },
+              userId: "user_1",
+            },
+          },
+        ]);
+        expect(source).not.toContain("as unknown as");
+      }
+    }
+  });
+
+  test("Convex billing uses an explicit barrel composer instead of marker slicing", () => {
+    const generator = readFileSync(
+      new URL("../../src/templates/billing-generator.ts", import.meta.url),
+      "utf8",
+    );
+    expect(generator).not.toContain('indexOf("// Explicit re-exports from schema")');
+    expect(generator).toContain("convexBillingIndexContent()");
   });
 });

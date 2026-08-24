@@ -65,7 +65,7 @@ export function gitignoreSingle(): TemplateFile {
   );
 }
 
-export function readmeSingle(projectName: string): TemplateFile {
+export function readmeSingle(projectName: string, hasEmail = true): TemplateFile {
   return file(
     "README.md",
     [
@@ -84,7 +84,7 @@ export function readmeSingle(projectName: string): TemplateFile {
       "bun run dev",
       "```",
       "",
-      'Flat structure: `src/app/` UI, `src/server/` capabilities billing/services/email/db/auth, `src/components/ui/` shadcn, `agent/` eve durable if enabled with `withEve({ eveRoot: "./agent" })`.',
+      `Flat structure: \`src/app/\` UI, \`src/server/\` capabilities billing/services${hasEmail ? "/email" : ""}/db/auth, \`src/components/ui/\` shadcn, \`agent/\` eve durable if enabled with \`withEve({ eveRoot: "./agent" })\`.`,
       "",
       "## Billing",
       "",

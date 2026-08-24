@@ -65,4 +65,65 @@ describe("single Next boundary contracts", () => {
     expect(Object.values(manifest.dependencies ?? {})).not.toContain("workspace:*");
     expect(Object.values(manifest.devDependencies ?? {})).not.toContain("workspace:*");
   });
+
+  test("composes API and analytics only when their capabilities are enabled", () => {
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      const disabled = generateProjectFiles(
+        projectConfigSchema.parse({
+          ...filesConfig,
+          framework,
+          preset: "custom",
+          auth: false,
+          api: false,
+          email: false,
+          analytics: false,
+          billing: [],
+        }),
+      );
+      const enabled = generateProjectFiles(
+        projectConfigSchema.parse({
+          ...filesConfig,
+          framework,
+          preset: "custom",
+          auth: false,
+          api: true,
+          email: false,
+          analytics: true,
+          billing: [],
+        }),
+      );
+      const disabledPaths = disabled.map(({ path }) => path);
+      const enabledPaths = enabled.map(({ path }) => path);
+      const disabledSource = disabled.map(({ content }) => content).join("\n");
+      const enabledSource = enabled.map(({ content }) => content).join("\n");
+      const disabledManifest = JSON.parse(
+        disabled.find(({ path }) => path === "package.json")?.content ?? "{}",
+      ) as { dependencies?: Record<string, string> };
+
+      expect(disabledPaths.some((path) => path.startsWith("src/server/api/"))).toBe(false);
+      expect(disabledPaths.some((path) => path.includes("/api/"))).toBe(false);
+      expect(disabledPaths).not.toContain("src/lib/orpc.ts");
+      expect(disabledPaths.some((path) => path.includes("analytics"))).toBe(false);
+      expect(disabledSource).not.toContain("PostHogProvider");
+      expect(disabledSource).not.toContain("@orpc/");
+      expect(disabledManifest.dependencies?.["@orpc/server"]).toBeUndefined();
+      expect(disabledManifest.dependencies?.["posthog-js"]).toBeUndefined();
+      expect(enabledPaths.some((path) => path.startsWith("src/server/api/"))).toBe(true);
+      expect(enabledPaths.some((path) => path.includes("analytics"))).toBe(true);
+      expect(enabledSource).toContain("@orpc/");
+      if (framework === "nextjs") expect(enabledSource).toContain("PostHogProvider");
+    }
+  });
+
+  test("does not emit nested package boundaries in any single framework", () => {
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      const generated = generateProjectFiles(
+        projectConfigSchema.parse({ ...filesConfig, framework }),
+      );
+      expect(
+        generated.filter(({ path }) => path.endsWith("package.json")).map(({ path }) => path),
+      ).toEqual(["package.json"]);
+      expect(generated.map(({ content }) => content).join("\n")).not.toContain("workspace:*");
+    }
+  });
 });

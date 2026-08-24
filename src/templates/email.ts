@@ -89,6 +89,9 @@ export async function sendEmail<T extends object>(
     to: Array.isArray(to) ? to : [to],
     subject,
     html,
+    replyTo: options?.replyTo,
+    cc: options?.cc,
+    bcc: options?.bcc,
   });
   if (error) throw new Error(error.message ?? "Email delivery failed");
   if (!data?.id) throw new Error("Email provider returned no delivery ID");

@@ -23,7 +23,7 @@ export function buildAgentsMdContent(
   );
   lines.push(`- Runtime: bun only (bun ${v.runtime.bun}, bunfig.toml hoist true, bun.lock or npm)`);
   lines.push(
-    `- Stack: Next.js ${v.nextStack.next} App Router React ${v.nextStack.react} TS ${v.typescript.typescript} Drizzle ${v.database["drizzle-orm"]} PG 18.4 Better Auth ${v.auth["better-auth"]} Resend 4.0.1 Zod 4.4.3 TanStack Query 5.101.2 Form 1.33.1 Tailwind 4.3.2 Base UI 1.6.0 eve 0.24.6 if chosen`,
+    `- Stack: Next.js ${v.nextStack.next} App Router React ${v.nextStack.react} TS ${v.typescript.typescript} Drizzle ${v.database["drizzle-orm"]} PG 18.4 Better Auth ${v.auth["better-auth"]}${hasEmail ? " Resend 4.0.1" : ""} Zod 4.4.3 TanStack Query 5.101.2 Form 1.33.1 Tailwind 4.3.2 Base UI 1.6.0 eve 0.24.6 if chosen`,
   );
   lines.push(
     "- Billing: " +
@@ -36,10 +36,10 @@ export function buildAgentsMdContent(
   lines.push("## Package Roles — Single Mode Flat");
   lines.push("");
   lines.push(
-    "- **src/app/** UI Layer 1 + Transport: marketing / page.tsx, layout.tsx globals.css tailwind @import, sign-in TanStack Form FieldGroup Field validators email contains @ password >=8 authClient.signIn.email, sign-up, 2fa code regex 6 digits, dashboard RSC protected auth.api.getSession(headers) redirect /sign-in, settings layout, admin guard role admin, billing page tabs per provider via billingUiFiles single mode shadcn Tabs+Card+Table+Badge+Alert+Empty+Sonner, agent page if eve useEveAgent chat, forgot-password page.tsx FieldGroup Field email contains @ authClient.forgetPassword redirectTo /reset-password, reset-password page.tsx FieldGroup Field password >=8 authClient.resetPassword token searchParams",
+    `- **src/app/** UI Layer 1 + Transport: marketing / page.tsx, layout.tsx globals.css tailwind @import, sign-in TanStack Form FieldGroup Field validators email contains @ password >=8 authClient.signIn.email, sign-up, 2fa code regex 6 digits, dashboard RSC protected auth.api.getSession(headers) redirect /sign-in, settings layout, admin guard role admin, billing page tabs per provider via billingUiFiles single mode shadcn Tabs+Card+Table+Badge+Alert+Empty+Sonner, agent page if eve useEveAgent chat${hasEmail ? ", forgot-password page.tsx and reset-password page.tsx use the typed recovery flow" : ""}`,
   );
   lines.push(
-    "- **src/server/** capabilities: services/ business logic src/server/services/billing/create-checkout.service.ts transactional boundary BillingProviderPort, email/send-reset-password.service.ts Resend behind port, invoices/create-invoice.service.ts spanning modules belongs services not module, Result ok/err local lib/result.ts",
+    `- **src/server/** capabilities: services/ business logic src/server/services/billing/create-checkout.service.ts transactional boundary BillingProviderPort${hasEmail ? ", email/send-reset-password.service.ts behind the delivery port" : ""}, invoices/create-invoice.service.ts spanning modules belongs services not module, Result ok/err local lib/result.ts`,
   );
   lines.push(
     "- **src/server/billing/** vendors layer 5 abstraction: interface.ts port stable, domain/types.ts, schema/billing.ts provider enum billing_provider stripe|chargily|paddle|polar subscriptions checkouts invoices customers products prices license_keys usage_events webhook_events unique provider+providerEventId onConflictDoNothing, providers stripe.ts Stripe(SECRET,{apiVersion:'2025-03-31.basil'}) checkout.sessions.create line_items mode subscription automatic_tax success_url cancel_url billingPortal.sessions.create, chargily.ts ChargilyClient server-only checkout_url edahabia|cib payment_method verifySignature raw Buffer 400 missing 403 invalid, paddle.ts Paddle API_KEY transactions.create checkout url TransactionCompleted paddle-signature unmarshal raw body string, polar.ts Polar accessToken checkouts.create products customerName checkout url events.ingest metering license seats @polar-sh/nextjs Webhooks validateEvent whsec base64",

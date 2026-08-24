@@ -13,6 +13,7 @@ import { billingFiles } from "../../../billing-generator.js";
 import { emailFiles } from "../../../email.js";
 import { analyticsFiles } from "../../../analytics.js";
 import { eveFiles as genEveFiles } from "../../../eve.js";
+import { i18nFiles } from "../../../i18n.js";
 
 import { singlePackageJsonTanstack } from "../package.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
@@ -105,11 +106,14 @@ export function buildTanstackFiles(
   hasEve: boolean,
   hasI18n: boolean,
   hasEmail: boolean,
+  hasApi: boolean,
+  hasAnalytics: boolean,
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
   const isNone = hasAddon(addonMap, "none");
+  const hasAuth = hasAddon(addonMap, "auth");
   const files: TemplateFile[] = [];
   files.push(
     file(
@@ -123,6 +127,8 @@ export function buildTanstackFiles(
         isConvex,
         false,
         hasEmail,
+        hasApi,
+        hasAnalytics,
       ),
     ),
   );
@@ -134,25 +140,31 @@ export function buildTanstackFiles(
   files.push(file("src/router.tsx", singleRouterTanstackContent()));
   files.push(file("src/routes/__root.tsx", singleRootRouteTanstackContent()));
   files.push(file("src/routes/index.tsx", singleMarketingPageTanstackContent()));
-  files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
-  files.push(file("src/routes/sign-up.tsx", singleSignUpRouteTanstackContent()));
-  if (hasEmail) {
+  if (hasAuth) {
+    files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
+    files.push(file("src/routes/sign-up.tsx", singleSignUpRouteTanstackContent()));
+  }
+  if (hasAuth && hasEmail) {
     files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
     files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
   }
-  files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
-  files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent()));
-  files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent()));
-  files.push(file("src/routes/billing.tsx", singleBillingRouteTanstackContent()));
-  // Admin routes — mirror monorepo TanStack admin for typed Link to="/admin" support
-  files.push(file("src/routes/admin.tsx", singleTanstackAdminContent()));
-  files.push(file("src/routes/admin.users.tsx", singleTanstackAdminUsersContent()));
-  files.push(file("src/routes/admin.users.create.tsx", singleTanstackAdminCreateContent()));
+  if (hasAuth) {
+    files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
+    files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent()));
+    files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent()));
+    files.push(file("src/routes/billing.tsx", singleBillingRouteTanstackContent()));
+    files.push(file("src/routes/admin.tsx", singleTanstackAdminContent()));
+    files.push(file("src/routes/admin.users.tsx", singleTanstackAdminUsersContent()));
+    files.push(file("src/routes/admin.users.create.tsx", singleTanstackAdminCreateContent()));
+  }
   files.push(file("src/routes/$notFound.tsx", singleNotFoundRouteTanstackContent()));
-  files.push(file("src/routes/api/auth/$splat.ts", singleAuthApiRouteTanstackContent()));
-  files.push(file("src/routes/api/rpc/$splat.ts", singleRpcApiRouteTanstackContent()));
-  files.push(file("src/routes/api/health.ts", singleHealthApiRouteTanstackContent()));
-  files.push(file("src/routes/api/openapi.ts", singleOpenapiApiRouteTanstackContent()));
+  if (hasAuth)
+    files.push(file("src/routes/api/auth/$splat.ts", singleAuthApiRouteTanstackContent()));
+  if (hasApi) {
+    files.push(file("src/routes/api/rpc/$splat.ts", singleRpcApiRouteTanstackContent()));
+    files.push(file("src/routes/api/health.ts", singleHealthApiRouteTanstackContent()));
+    files.push(file("src/routes/api/openapi.ts", singleOpenapiApiRouteTanstackContent()));
+  }
   if (effectiveBilling.includes("stripe"))
     files.push(
       file("src/routes/api/webhooks/stripe.ts", singleStripeWebhookTanstackContent(isConvex)),
@@ -186,26 +198,32 @@ export function buildTanstackFiles(
       file("src/routes/api/webhooks/polar.ts", singlePolarWebhookTanstackContent(isConvex)),
     );
   }
-  files.push(file("src/server/api/context.ts", singleApiContextContent()));
-  files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
-  files.push(file("src/server/api/procedures/me.ts", singleApiMeProcedureContent()));
-  files.push(file("src/server/api/contract.ts", singleApiContractContent()));
-  files.push(file("src/server/api/router.ts", singleApiRouterContent()));
-  files.push(file("src/server/api/index.ts", singleApiIndexContent()));
-  files.push(file("src/server/api/openapi.ts", singleApiOpenapiContent()));
+  if (hasApi) {
+    files.push(file("src/server/api/context.ts", singleApiContextContent()));
+    files.push(file("src/server/api/procedures/health.ts", singleApiHealthProcedureContent()));
+    files.push(file("src/server/api/procedures/me.ts", singleApiMeProcedureContent()));
+    files.push(file("src/server/api/contract.ts", singleApiContractContent()));
+    files.push(file("src/server/api/router.ts", singleApiRouterContent()));
+    files.push(file("src/server/api/index.ts", singleApiIndexContent()));
+    files.push(file("src/server/api/openapi.ts", singleApiOpenapiContent()));
+  }
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
   files.push(file("src/components/header.tsx", singleHeaderTanstackContent()));
-  files.push(file("src/components/sign-out-button.tsx", singleSignOutButtonTanstackContent()));
-  files.push(file("src/components/admin-guard.tsx", singleAdminGuardTanstackContent()));
+  if (hasAuth) {
+    files.push(file("src/components/sign-out-button.tsx", singleSignOutButtonTanstackContent()));
+    files.push(file("src/components/admin-guard.tsx", singleAdminGuardTanstackContent()));
+  }
   if (isConvex) {
-    files.push(file("src/components/providers.tsx", singleProvidersTanstackContentConvex()));
+    files.push(file("src/components/providers.tsx", singleProvidersTanstackContentConvex(hasAuth)));
   } else {
     files.push(file("src/components/providers.tsx", singleProvidersTanstackContent()));
   }
   if (isConvex) {
-    files.push(file("src/lib/auth-client.ts", authClientSingleConvex()));
-    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingleConvex()));
+    if (hasAuth) {
+      files.push(file("src/lib/auth-client.ts", authClientSingleConvex()));
+      files.push(file("src/server/auth/index.ts", serverAuthTanstackSingleConvex()));
+    }
     files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
     const convexAll = convexDatabaseFiles(projectName, runtime, "single");
     for (const cf of convexAll) {
@@ -214,13 +232,17 @@ export function buildTanstackFiles(
       }
     }
   } else if (isNone) {
-    files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
+    if (hasAuth) {
+      files.push(file("src/lib/auth-client.ts", authClientSingle()));
+      files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
+    }
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   } else {
-    files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
+    if (hasAuth) {
+      files.push(file("src/lib/auth-client.ts", authClientSingle()));
+      files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
+    }
     files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
@@ -241,12 +263,12 @@ export function buildTanstackFiles(
       if (!files.some((existing) => existing.path === f.path)) files.push(f);
     }
   }
-  files.push(file("src/lib/orpc.ts", singleOrpcClientTanstackContent()));
+  if (hasApi) files.push(file("src/lib/orpc.ts", singleOrpcClientTanstackContent()));
   files.push(file("src/hooks/use-copy.ts", useCopyHookSingleContent()));
   files.push(file("src/hooks/use-billing.ts", useBillingHookSingleContent()));
-  files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
+  if (hasAuth) files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
   files.push(gitignoreSingle());
-  files.push(readmeSingle(projectName));
+  files.push(readmeSingle(projectName, hasEmail));
   const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
     filteredEnvExample(projectName, secrets, effectiveBilling, hasEmail, runtime, dbType, {
@@ -268,7 +290,12 @@ export function buildTanstackFiles(
       hasEmail,
     ),
   );
-  files.push(singleEnvFile(addonMap, "tanstack-start"));
+  files.push(singleEnvFile(addonMap, "tanstack-start", hasEmail));
+  if (hasI18n) {
+    files.push(
+      ...i18nFiles({ mode: "single", runtime, framework: "tanstack-start", addons: addonMap }),
+    );
+  }
 
   files.push(
     ...(servicesFiles(
@@ -281,8 +308,9 @@ export function buildTanstackFiles(
     ) as TemplateFile[]),
   );
 
-  const billingRaw =
-    effectiveBilling.length > 0
+  const billingRaw = !hasApi
+    ? []
+    : effectiveBilling.length > 0
       ? (billingFiles(
           { mode: "single", runtime, addons: addonMap } as {
             mode: "single";
@@ -321,16 +349,18 @@ export function buildTanstackFiles(
       ) as TemplateFile[]),
     );
   }
-  files.push(
-    ...(analyticsFiles(
-      { mode: "single", runtime, framework: "tanstack-start" } as {
-        mode: "single";
-        runtime: "node" | "bun";
-        framework: "tanstack-start";
-      },
-      runtime,
-    ) as TemplateFile[]),
-  );
+  if (hasAnalytics) {
+    files.push(
+      ...(analyticsFiles(
+        { mode: "single", runtime, framework: "tanstack-start" } as {
+          mode: "single";
+          runtime: "node" | "bun";
+          framework: "tanstack-start";
+        },
+        runtime,
+      ) as TemplateFile[]),
+    );
+  }
 
   if (hasEve) {
     const eveRaw = genEveFiles(projectName, runtime);

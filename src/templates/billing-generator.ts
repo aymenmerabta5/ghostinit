@@ -30,11 +30,53 @@ import {
 import { billingUiFiles } from "./billing/ui/billing-page.js";
 import { convexApiImport } from "./billing/webhooks/providers/shared.js";
 import { billingApiFiles } from "./billing/api/routes.js";
+import { convexBillingIndexContent } from "./billing/convex-index.js";
 // Shared multi-root template resolver. This file used to carry a private
 // near-verbatim copy, which meant host-only pragmas were not stripped here.
 import { loadTemplate as load, tryLoadTemplate as tryLoad } from "./template-loader.js";
 
 type Runtime = "node" | "bun";
+
+function convexAdapterContent(databaseImport: string, adapterPath: string): string {
+  return `import type { FunctionArgs } from "convex/server";
+import { convexClient } from "${databaseImport}";
+import { api } from "${convexApiImport(adapterPath)}";
+
+type UpsertWebhookEventArgs = FunctionArgs<typeof api.billing.upsertWebhookEvent>;
+type CheckWebhookEventArgs = FunctionArgs<typeof api.billing.checkWebhookEvent>;
+type UpsertCustomerArgs = FunctionArgs<typeof api.billing.upsertCustomer>;
+type UpsertSubscriptionArgs = FunctionArgs<typeof api.billing.upsertSubscription>;
+type UpsertCheckoutArgs = FunctionArgs<typeof api.billing.upsertCheckout>;
+type UpsertInvoiceArgs = FunctionArgs<typeof api.billing.upsertInvoice>;
+type InsertUsageEventArgs = FunctionArgs<typeof api.billing.insertUsageEvent>;
+
+export const billingConvex = {
+  upsertWebhookEvent: (args: UpsertWebhookEventArgs) =>
+    convexClient.mutation(api.billing.upsertWebhookEvent, args),
+  checkWebhookEvent: (args: CheckWebhookEventArgs) =>
+    convexClient.query(api.billing.checkWebhookEvent, args),
+  upsertCustomer: (args: UpsertCustomerArgs) =>
+    convexClient.mutation(api.billing.upsertCustomer, args),
+  upsertSubscription: (args: UpsertSubscriptionArgs) =>
+    convexClient.mutation(api.billing.upsertSubscription, args),
+  upsertCheckout: (args: UpsertCheckoutArgs) =>
+    convexClient.mutation(api.billing.upsertCheckout, args),
+  upsertInvoice: (args: UpsertInvoiceArgs) =>
+    convexClient.mutation(api.billing.upsertInvoice, args),
+  insertUsageEvent: (args: InsertUsageEventArgs) =>
+    convexClient.mutation(api.billing.insertUsageEvent, args),
+  listSubscriptions: async (userId: string) => {
+    const result = await convexClient.query(api.billing.listSubscriptions, {
+      paginationOpts: { numItems: 100, cursor: null },
+      userId,
+    });
+    return result.page;
+  },
+};
+
+export type BillingConvex = typeof billingConvex;
+`;
+}
 
 function selectedBilling(map?: AddonInstallerMap): string[] {
   if (!map) return [...allBillingProviders];
@@ -387,10 +429,7 @@ export function billingFiles(
   // from "./index", which only resolves by accident depending on what else got
   // emitted next to it — see the same note in database.ts.
   const schemaContent = load("./billing/schema/index.ts");
-  const rawIndexContent = load("./billing/index.ts");
-  const indexContent = isConvex
-    ? `${rawIndexContent.slice(0, rawIndexContent.indexOf("// Explicit re-exports from schema"))}${rawIndexContent.slice(rawIndexContent.indexOf("import { BILLING_PROVIDER_NAMES }"))}`
-    : rawIndexContent;
+  const indexContent = isConvex ? convexBillingIndexContent() : load("./billing/index.ts");
 
   const files: TemplateFile[] = [];
 
@@ -400,45 +439,8 @@ export function billingFiles(
     // the adapter's own path rather than hardcoding it (both are 4 dirs deep).
     const monorepoAdapterPath = "packages/billing/src/adapters/convex.ts";
     const singleAdapterPath = "src/server/billing/adapters/convex.ts";
-    const adapterContent = `import { convexClient } from "@repo/database";
-import { api } from "${convexApiImport(monorepoAdapterPath)}";
-
-export const billingConvex = {
-  upsertWebhookEvent: (args: { provider: string; providerEventId: string; type: string; payload: any; processed?: boolean }) =>
-    convexClient.mutation(api.billing.upsertWebhookEvent, args as unknown as { provider: string; providerEventId: string; type: string; payload: unknown }),
-  checkWebhookEvent: (args: { provider: string; providerEventId: string }) =>
-    convexClient.query(api.billing.checkWebhookEvent, args as unknown as Record<string, unknown>),
-  upsertCustomer: (args: any) => convexClient.mutation(api.billing.upsertCustomer, args),
-  upsertSubscription: (args: any) => convexClient.mutation(api.billing.upsertSubscription, args),
-  upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),
-  upsertInvoice: (args: any) => convexClient.mutation(api.billing.upsertInvoice, args),
-  insertUsageEvent: (args: any) => convexClient.mutation(api.billing.insertUsageEvent, args),
-  listSubscriptions: (userId: string) =>
-    convexClient.query(api.billing.listSubscriptions, { userId }),
-};
-
-export type BillingConvex = typeof billingConvex;
-`;
-
-    const singleAdapterContent = `import { convexClient } from "@/server/db";
-import { api } from "${convexApiImport(singleAdapterPath)}";
-
-export const billingConvex = {
-  upsertWebhookEvent: (args: { provider: string; providerEventId: string; type: string; payload: any; processed?: boolean }) =>
-    convexClient.mutation(api.billing.upsertWebhookEvent, args as unknown as { provider: string; providerEventId: string; type: string; payload: unknown }),
-  checkWebhookEvent: (args: { provider: string; providerEventId: string }) =>
-    convexClient.query(api.billing.checkWebhookEvent, args as unknown as Record<string, unknown>),
-  upsertCustomer: (args: any) => convexClient.mutation(api.billing.upsertCustomer, args),
-  upsertSubscription: (args: any) => convexClient.mutation(api.billing.upsertSubscription, args),
-  upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),
-  upsertInvoice: (args: any) => convexClient.mutation(api.billing.upsertInvoice, args),
-  insertUsageEvent: (args: any) => convexClient.mutation(api.billing.insertUsageEvent, args),
-  listSubscriptions: (userId: string) =>
-    convexClient.query(api.billing.listSubscriptions, { userId }),
-};
-
-export type BillingConvex = typeof billingConvex;
-`;
+    const adapterContent = convexAdapterContent("@repo/database", monorepoAdapterPath);
+    const singleAdapterContent = convexAdapterContent("@/server/db", singleAdapterPath);
 
     if (mode === "monorepo") {
       return [

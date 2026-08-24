@@ -66,6 +66,10 @@ describe("generated email capability", () => {
       const auth = read(authPath);
       const envExample = read(".env.example");
       const envLocal = read(".env.local");
+      const typedEnv = read(
+        corner.mode === "monorepo" ? "packages/config/src/env.ts" : "src/lib/env.ts",
+      );
+      const agents = read("AGENTS.md");
 
       if (corner.email) {
         const manifest = JSON.parse(read(emailManifestPath)) as {
@@ -82,6 +86,9 @@ describe("generated email capability", () => {
         expect(read(signInPath)).toContain("/forgot-password");
         expect(envExample).toContain("RESEND_API_KEY=");
         expect(envLocal).toContain("RESEND_API_KEY=");
+        expect(typedEnv).toContain("RESEND_API_KEY");
+        expect(typedEnv).toContain("EMAIL_FROM");
+        expect(agents).toContain(corner.mode === "monorepo" ? "@repo/email" : "src/server/email");
 
         const send = read(emailSendPath);
         expect(send).toContain('throw new Error("RESEND_API_KEY is not configured")');
@@ -89,6 +96,9 @@ describe("generated email capability", () => {
         expect(send).toContain('throw new Error("Email provider returned no delivery ID")');
         expect(send).not.toContain("return { success: false");
         expect(send).not.toContain("sendEmailHtml");
+        expect(send).toContain("replyTo: options?.replyTo");
+        expect(send).toContain("cc: options?.cc");
+        expect(send).toContain("bcc: options?.bcc");
         expect(
           corner.files.some(({ path }) =>
             /templates\/(?:forgot-password|verification)\.ts$/.test(path),
@@ -121,6 +131,15 @@ describe("generated email capability", () => {
         expect(read(signInPath)).not.toContain("/forgot-password");
         expect(envExample).not.toContain("RESEND_API_KEY");
         expect(envLocal).not.toContain("RESEND_API_KEY");
+        expect(typedEnv).not.toContain("RESEND_API_KEY");
+        expect(typedEnv).not.toContain("EMAIL_FROM");
+        expect(typedEnv).not.toContain("EMAIL_FROM_NAME");
+        expect(agents).not.toContain("packages/email");
+        expect(agents).not.toContain("src/server/email");
+        expect(agents).not.toContain("forgot-password");
+        expect(agents).not.toContain("reset-password");
+        expect(agents).not.toContain("send-reset-password");
+        expect(agents).not.toContain("Resend");
       }
     });
   }

@@ -10,8 +10,9 @@ export function packagesComposerFiles(
   framework: "nextjs" | "tanstack-start" = "nextjs",
   database: "postgres" | "convex" | "none" = "postgres",
   hasAnalytics = true,
+  hasEmail = true,
 ): TemplateFile[] {
-  const pkgRaw = genPackageFiles(runtime, framework, database);
+  const pkgRaw = genPackageFiles(runtime, framework, database, hasEmail);
   const pkgFiltered = pkgRaw.filter(
     (f: TemplateFile) => !f.path.startsWith("packages/typescript-config/"),
   );

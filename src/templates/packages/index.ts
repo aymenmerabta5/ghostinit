@@ -9,10 +9,11 @@ export function packageFiles(
   // CONVEX_* block only when the project actually uses Convex — see config.ts.
   framework: ConfigFramework = "nextjs",
   database: "postgres" | "convex" | "none" = "postgres",
+  hasEmail = true,
 ): TemplateFile[] {
   return [
     ...tsConfigFiles(),
-    ...configPackageFiles(framework, database),
+    ...configPackageFiles(framework, database, hasEmail),
     ...corePackagesFiles(runtime),
   ];
 }

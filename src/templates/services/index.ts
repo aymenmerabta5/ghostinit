@@ -49,37 +49,42 @@ export function err<E = Error>(error: E): Result<never, E> {
       file("src/server/kernel/index.ts", `export { ok, err, type Result } from "./result.js";\n`),
     );
   }
-  files.push(
-    file(
-      `${isMonorepo ? "packages/services" : "src/server/services"}/package.json`,
-      packageJson({
-        name: "@repo/services",
-        exports: { ".": "./src/index.ts" },
-        scripts: codeScripts(),
-        dependencies: {
-          ...(isMonorepo ? { "@repo/kernel": "workspace:*" } : {}),
-          "server-only": `^${v.runtime["server-only"]}`,
-          zod: `^${v.validation.zod}`,
-          ...(withBilling
-            ? {
-                "@repo/billing": "workspace:*",
-                "@repo/database": "workspace:*",
-                "drizzle-orm": `^${v.database["drizzle-orm"]}`,
-              }
-            : {}),
-        },
-      }),
-    ),
-  );
-  files.push(
-    file(
-      `${isMonorepo ? "packages/services" : "src/server/services"}/tsconfig.json`,
-      tsconfig({
-        include: ["src/**/*"],
-        compilerOptions: { composite: true, declaration: true, outDir: "./dist", rootDir: "./src" },
-      }),
-    ),
-  );
+  if (isMonorepo) {
+    files.push(
+      file(
+        "packages/services/package.json",
+        packageJson({
+          name: "@repo/services",
+          exports: { ".": "./src/index.ts" },
+          scripts: codeScripts(),
+          dependencies: {
+            "@repo/kernel": "workspace:*",
+            "server-only": `^${v.runtime["server-only"]}`,
+            zod: `^${v.validation.zod}`,
+            ...(withBilling
+              ? {
+                  "@repo/billing": "workspace:*",
+                  "@repo/database": "workspace:*",
+                  "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+                }
+              : {}),
+          },
+        }),
+      ),
+      file(
+        "packages/services/tsconfig.json",
+        tsconfig({
+          include: ["src/**/*"],
+          compilerOptions: {
+            composite: true,
+            declaration: true,
+            outDir: "./dist",
+            rootDir: "./src",
+          },
+        }),
+      ),
+    );
+  }
   // Stagio pattern: typed ServiceError with code, mirrored in api mapper.
   // Every service file carries `import "server-only"` — enforced by check-server-only lint.
   files.push(

@@ -11,6 +11,8 @@ function buildDeps(
   isConvex = false,
   hasMessaging = false,
   hasEmail = true,
+  hasApi = true,
+  hasAnalytics = true,
 ): Record<string, string> {
   const baseConvex: Record<string, string> = isConvex
     ? {
@@ -34,12 +36,6 @@ function buildDeps(
         ...baseConvex,
         zod: `^${v.validation.zod}`,
         "@t3-oss/env-core": `^${v.validation["@t3-oss/env-core"]}`,
-        "@orpc/server": `^${v.orpc["@orpc/server"]}`,
-        "@orpc/contract": `^${v.orpc["@orpc/contract"]}`,
-        "@orpc/client": `^${v.orpc["@orpc/client"]}`,
-        "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
-        "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        "@orpc/zod": `^${v.orpc["@orpc/zod"]}`,
         sonner: `^${v.ui.sonner}`,
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
@@ -49,8 +45,6 @@ function buildDeps(
         "next-themes": `^${v.ui["next-themes"]}`,
         "lucide-react": `^${v.ui["lucide-react"]}`,
         "server-only": `^${v.runtime["server-only"]}`,
-        "posthog-js": `^${v.analytics["posthog-js"]}`,
-        "posthog-node": `^${v.analytics["posthog-node"]}`,
       }
     : {
         next: `^${v.nextStack.next}`,
@@ -62,12 +56,6 @@ function buildDeps(
         "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
-        "@orpc/server": `^${v.orpc["@orpc/server"]}`,
-        "@orpc/contract": `^${v.orpc["@orpc/contract"]}`,
-        "@orpc/client": `^${v.orpc["@orpc/client"]}`,
-        "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
-        "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        "@orpc/zod": `^${v.orpc["@orpc/zod"]}`,
         sonner: `^${v.ui.sonner}`,
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
@@ -77,9 +65,20 @@ function buildDeps(
         "next-themes": `^${v.ui["next-themes"]}`,
         "lucide-react": `^${v.ui["lucide-react"]}`,
         "server-only": `^${v.runtime["server-only"]}`,
-        "posthog-js": `^${v.analytics["posthog-js"]}`,
-        "posthog-node": `^${v.analytics["posthog-node"]}`,
       };
+
+  if (hasApi) {
+    deps["@orpc/server"] = `^${v.orpc["@orpc/server"]}`;
+    deps["@orpc/contract"] = `^${v.orpc["@orpc/contract"]}`;
+    deps["@orpc/client"] = `^${v.orpc["@orpc/client"]}`;
+    deps["@orpc/react-query"] = `^${v.orpc["@orpc/react-query"]}`;
+    deps["@orpc/openapi"] = `^${v.orpc["@orpc/openapi"]}`;
+    deps["@orpc/zod"] = `^${v.orpc["@orpc/zod"]}`;
+  }
+  if (hasAnalytics) {
+    deps["posthog-js"] = `^${v.analytics["posthog-js"]}`;
+    deps["posthog-node"] = `^${v.analytics["posthog-node"]}`;
+  }
 
   if (hasEmail) {
     deps["@react-email/components"] = `^${v.email["@react-email/components"]}`;
@@ -123,6 +122,8 @@ export function singlePackageJson(
   isConvex = false,
   hasMessaging = false,
   hasEmail = true,
+  hasApi = true,
+  hasAnalytics = true,
 ): string {
   const lintAll =
     "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs";
@@ -184,6 +185,8 @@ export function singlePackageJson(
       isConvex,
       hasMessaging,
       hasEmail,
+      hasApi,
+      hasAnalytics,
     ),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
@@ -211,6 +214,8 @@ export function singlePackageJsonTanstack(
   isConvex = false,
   hasMessaging = false,
   hasEmail = true,
+  hasApi = true,
+  hasAnalytics = true,
 ): string {
   void hasI18n;
   const lintAll =
@@ -261,7 +266,17 @@ export function singlePackageJsonTanstack(
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex, hasMessaging, hasEmail),
+    dependencies: buildDeps(
+      selectedBilling,
+      hasEve,
+      false,
+      true,
+      isConvex,
+      hasMessaging,
+      hasEmail,
+      hasApi,
+      hasAnalytics,
+    ),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,
