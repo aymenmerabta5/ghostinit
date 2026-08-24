@@ -1,4 +1,4 @@
-// @allow-long 362: one inventory gate compares every Task 3 primitive category across monorepo and single outputs
+// @allow-long 680: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -8,6 +8,7 @@ import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
 
 type PrimitiveCategory =
+  | "ad-hoc-empty-state"
   | "field-composition"
   | "internal-icon-size"
   | "manual-overlay-z-index"
@@ -16,6 +17,7 @@ type PrimitiveCategory =
   | "pending-boolean-or-spinner"
   | "product-semantic-style"
   | "radix-as-child"
+  | "raw-form-control"
   | "raw-interactive-markup"
   | "ungrouped-select-item";
 
@@ -27,12 +29,17 @@ interface PrimitiveRecord {
 
 interface GeneratedTarget {
   label: string;
+  mode: "monorepo" | "single";
+  framework: "nextjs" | "tanstack-start";
   sourceRoot: string;
   manifestPath: string;
   files: TemplateFile[];
 }
 
-const config = (mode: "monorepo" | "single"): ProjectConfig => ({
+const config = (
+  mode: "monorepo" | "single",
+  framework: "nextjs" | "tanstack-start" = "nextjs",
+): ProjectConfig => ({
   name: "primitive-contract",
   runtime: "bun",
   version: "0.1.0",
@@ -40,7 +47,7 @@ const config = (mode: "monorepo" | "single"): ProjectConfig => ({
   billing: [],
   features: [],
   database: "postgres",
-  framework: "nextjs",
+  framework,
   apps: ["web"],
   preset: "saas",
 });
@@ -48,21 +55,120 @@ const config = (mode: "monorepo" | "single"): ProjectConfig => ({
 const targets: GeneratedTarget[] = [
   {
     label: "next-monorepo",
+    mode: "monorepo",
+    framework: "nextjs",
     sourceRoot: "apps/web/src",
     manifestPath: "apps/web/package.json",
     files: generateProjectFiles(config("monorepo"), { dryRun: false }),
   },
   {
     label: "single-next",
+    mode: "single",
+    framework: "nextjs",
     sourceRoot: "src",
     manifestPath: "package.json",
     files: generateProjectFiles(config("single"), { dryRun: false }),
+  },
+  {
+    label: "tanstack-monorepo",
+    mode: "monorepo",
+    framework: "tanstack-start",
+    sourceRoot: "apps/web/src",
+    manifestPath: "apps/web/package.json",
+    files: generateProjectFiles(config("monorepo", "tanstack-start"), { dryRun: false }),
+  },
+  {
+    label: "single-tanstack",
+    mode: "single",
+    framework: "tanstack-start",
+    sourceRoot: "src",
+    manifestPath: "package.json",
+    files: generateProjectFiles(config("single", "tanstack-start"), { dryRun: false }),
   },
 ];
 
 function source(target: GeneratedTarget, relativePath: string): string {
   const path = `${target.sourceRoot}/${relativePath}`;
   return target.files.find((file) => file.path === path)?.content ?? "";
+}
+
+interface ReviewedGapRecord {
+  category: PrimitiveCategory;
+  relativePath: string;
+  ordinal: number;
+}
+
+interface ConsumerPaths {
+  adminUsers: string;
+  adminCreate: string;
+  adminUserActions: string;
+  dangerZone?: string;
+  header: string;
+}
+
+function consumerPaths(target: GeneratedTarget): ConsumerPaths {
+  if (target.framework === "tanstack-start") {
+    return {
+      adminUsers: "routes/admin.users.tsx",
+      adminCreate: "routes/admin.users.create.tsx",
+      adminUserActions: "routes/admin.users.tsx",
+      ...(target.mode === "monorepo" ? { dangerZone: "routes/settings.tsx" } : {}),
+      header: "components/header.tsx",
+    };
+  }
+  return {
+    adminUsers: "app/admin/users/page.tsx",
+    adminCreate: "app/admin/users/create/page.tsx",
+    adminUserActions: "app/admin/users/components/user-row.tsx",
+    dangerZone: "app/settings/components/danger-zone-card.tsx",
+    header: "components/header.tsx",
+  };
+}
+
+function repeatedReviewedRecord(
+  category: PrimitiveCategory,
+  relativePath: string,
+  count = 1,
+): ReviewedGapRecord[] {
+  return Array.from({ length: count }, (_, ordinal) => ({
+    category,
+    relativePath,
+    ordinal: ordinal + 1,
+  }));
+}
+
+function legacyReviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
+  const consumers = consumerPaths(target);
+  const shared = [
+    ...repeatedReviewedRecord("field-composition", "components/form-fields/SelectField.tsx"),
+    ...repeatedReviewedRecord("field-composition", "components/form-fields/PasswordField.tsx"),
+    ...repeatedReviewedRecord("internal-icon-size", "components/form-fields/PasswordField.tsx", 2),
+    ...repeatedReviewedRecord("internal-icon-size", "components/NotificationBell.tsx"),
+    ...repeatedReviewedRecord("internal-icon-size", "components/ui/checkbox.tsx"),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/alert-dialog.tsx", 3),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/dialog.tsx", 2),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/dropdown-menu.tsx", 4),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/popover.tsx", 2),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/select.tsx"),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/sheet.tsx", 2),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/surface-styles.ts", 3),
+    ...repeatedReviewedRecord("manual-overlay-z-index", "components/ui/tooltip.tsx", 2),
+    ...repeatedReviewedRecord("nonfunctional-select", "components/ui/select.tsx"),
+    ...repeatedReviewedRecord("partial-notification-bell", "components/NotificationBell.tsx"),
+    ...repeatedReviewedRecord("pending-boolean-or-spinner", "components/ui/form.tsx"),
+    ...repeatedReviewedRecord("ungrouped-select-item", "components/form-fields/SelectField.tsx"),
+  ];
+  const consumer = [
+    ...repeatedReviewedRecord("radix-as-child", consumers.adminUserActions, 2),
+    ...repeatedReviewedRecord("radix-as-child", consumers.dangerZone ?? consumers.adminCreate),
+    ...repeatedReviewedRecord("radix-as-child", consumers.header),
+    ...repeatedReviewedRecord("ad-hoc-empty-state", consumers.adminUsers),
+    ...(target.mode === "monorepo"
+      ? repeatedReviewedRecord("raw-form-control", consumers.adminUsers)
+      : []),
+    ...repeatedReviewedRecord("raw-form-control", consumers.adminCreate),
+  ];
+  return [...shared, ...consumer];
 }
 
 function addMissingTokens(
@@ -100,6 +206,39 @@ function rawInteractiveElements(path: string, content: string): string[] {
   };
   visit(parsed.program);
   return raw;
+}
+
+function pendingFormExpectations(
+  target: GeneratedTarget,
+): Array<{ relativePath: string; count: number }> {
+  const auth =
+    target.framework === "nextjs"
+      ? [
+          "app/2fa/page.tsx",
+          "app/forgot-password/page.tsx",
+          "app/reset-password/page.tsx",
+          "app/sign-in/page.tsx",
+          "app/sign-up/page.tsx",
+        ]
+      : [
+          "routes/2fa.tsx",
+          "routes/forgot-password.tsx",
+          "routes/reset-password.tsx",
+          "routes/sign-in.tsx",
+          "routes/sign-up.tsx",
+        ];
+  const expectations = auth.map((relativePath) => ({ relativePath, count: 1 }));
+  const consumers = consumerPaths(target);
+  expectations.push({ relativePath: consumers.adminCreate, count: 1 });
+  if (target.framework === "nextjs") {
+    expectations.push({
+      relativePath: "app/settings/components/profile-card.tsx",
+      count: 1,
+    });
+  } else if (target.mode === "monorepo") {
+    expectations.push({ relativePath: "routes/settings.tsx", count: 6 });
+  }
+  return expectations;
 }
 
 function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
@@ -256,6 +395,31 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
       }
     }
   }
+
+  for (const { relativePath, count } of pendingFormExpectations(target)) {
+    const path = `${target.sourceRoot}/${relativePath}`;
+    const content = source(target, relativePath);
+    const useFormCount = (content.match(/\buseForm\(\{/g) ?? []).length;
+    const subscribeCount = (content.match(/<(?:form|[A-Za-z][A-Za-z0-9]*Form)\.Subscribe\b/g) ?? [])
+      .length;
+    const spinnerCount = (content.match(/<Spinner\s+data-icon=/g) ?? []).length;
+    const disabledCount = (content.match(/disabled=\{!canSubmit \|\| isSubmitting\}/g) ?? [])
+      .length;
+    for (const [evidence, actual] of [
+      ["concrete useForm call", useFormCount],
+      ["form.Subscribe", subscribeCount],
+      ["composed Spinner", spinnerCount],
+      ["submission disabled state", disabledCount],
+    ] as const) {
+      if (actual < count) {
+        records.push({
+          category: "pending-boolean-or-spinner",
+          path,
+          evidence: `expected ${count} ${evidence} occurrence(s), received ${actual}`,
+        });
+      }
+    }
+  }
   if (selectField.includes("<SelectContent>{options.map")) {
     records.push({
       category: "ungrouped-select-item",
@@ -275,6 +439,115 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     }
   }
 
+  const consumers = consumerPaths(target);
+  const consumerEntries = Object.values(consumers).filter(
+    (relativePath): relativePath is string => typeof relativePath === "string",
+  );
+  for (const relativePath of new Set(consumerEntries)) {
+    const path = `${target.sourceRoot}/${relativePath}`;
+    const content = source(target, relativePath);
+    for (const match of content.matchAll(/\basChild\b/g)) {
+      records.push({ category: "radix-as-child", path, evidence: match[0] });
+    }
+  }
+
+  const adminUsersPath = `${target.sourceRoot}/${consumers.adminUsers}`;
+  const adminUsers = source(target, consumers.adminUsers);
+  addMissingTokens(records, "field-composition", adminUsersPath, adminUsers, [
+    "<Field",
+    "<FieldLabel",
+    "<Input",
+    "<FieldDescription",
+    "admin-user-search-description",
+    "admin-user-search-error",
+    "aria-describedby=",
+  ]);
+  addMissingTokens(records, "ad-hoc-empty-state", adminUsersPath, adminUsers, [
+    "<Empty",
+    "<EmptyHeader",
+    "<EmptyTitle",
+    "<EmptyDescription",
+    "<EmptyContent",
+  ]);
+  if (/text-center[^>]*>\s*No users/i.test(adminUsers)) {
+    records.push({
+      category: "ad-hoc-empty-state",
+      path: adminUsersPath,
+      evidence: "styled No users fallback",
+    });
+  }
+
+  const adminCreatePath = `${target.sourceRoot}/${consumers.adminCreate}`;
+  const adminCreate = source(target, consumers.adminCreate);
+  addMissingTokens(records, "field-composition", adminCreatePath, adminCreate, [
+    "<FieldGroup",
+    "<Field",
+    "<FieldLabel",
+    "<Input",
+    "<FieldDescription",
+  ]);
+  addMissingTokens(records, "nonfunctional-select", adminCreatePath, adminCreate, [
+    "<Select items={ROLE_OPTIONS}",
+    "value={field.state.value}",
+    "onValueChange=",
+    "<SelectGroup>",
+  ]);
+  for (const [value, label] of [
+    ["user", "User"],
+    ["admin", "Admin"],
+  ] as const) {
+    if (!new RegExp(`<SelectItem value=["']${value}["']>${label}</SelectItem>`).test(adminCreate)) {
+      records.push({
+        category: "nonfunctional-select",
+        path: adminCreatePath,
+        evidence: `missing ${value} SelectItem`,
+      });
+    }
+  }
+
+  for (const [relativePath, content] of [
+    [consumers.adminUsers, adminUsers],
+    [consumers.adminCreate, adminCreate],
+  ] as const) {
+    const path = `${target.sourceRoot}/${relativePath}`;
+    for (const element of rawInteractiveElements(path, content).filter(
+      (name) => name === "input" || name === "select",
+    )) {
+      records.push({ category: "raw-form-control", path, evidence: `<${element}>` });
+    }
+  }
+
+  const headerPath = `${target.sourceRoot}/${consumers.header}`;
+  addMissingTokens(records, "radix-as-child", headerPath, source(target, consumers.header), [
+    "<DropdownMenuTrigger",
+    "render={<Button",
+    "<Avatar",
+  ]);
+
+  const userActionsPath = `${target.sourceRoot}/${consumers.adminUserActions}`;
+  const userActions = source(target, consumers.adminUserActions);
+  if (target.framework === "nextjs") {
+    if ((userActions.match(/<DialogTrigger\s+render=\{<Button/g) ?? []).length < 2) {
+      records.push({
+        category: "radix-as-child",
+        path: userActionsPath,
+        evidence: "missing two composed role/ban Dialog triggers",
+      });
+    }
+  }
+
+  if (consumers.dangerZone !== undefined) {
+    const path = `${target.sourceRoot}/${consumers.dangerZone}`;
+    const content = source(target, consumers.dangerZone);
+    if (!content.includes("<DialogTrigger render={<Button")) {
+      records.push({
+        category: "radix-as-child",
+        path,
+        evidence: "missing composed danger-zone Dialog trigger",
+      });
+    }
+  }
+
   return records;
 }
 
@@ -288,22 +561,32 @@ describe("generated shared frontend primitives", () => {
   });
 
   for (const target of targets) {
-    test(`${target.label} reviewed shared TSX parses`, () => {
+    test(`${target.label} enumerates and parses every reviewed primitive record`, () => {
+      const inventory = legacyReviewedRecords(target);
+      expect(inventory).toHaveLength(target.mode === "monorepo" ? 36 : 35);
+      const reviewedRelativePaths = new Set([
+        ...inventory.map(({ relativePath }) => relativePath),
+        ...pendingFormExpectations(target).map(({ relativePath }) => relativePath),
+      ]);
+      expect(
+        [...reviewedRelativePaths].filter((relativePath) => source(target, relativePath) === ""),
+      ).toEqual([]);
       const diagnostics = target.files
-        .filter(
-          ({ path }) =>
-            path.startsWith(`${target.sourceRoot}/components/`) && path.endsWith(".tsx"),
-        )
+        .filter(({ path }) => {
+          if (!path.startsWith(`${target.sourceRoot}/`) || !path.endsWith(".tsx")) return false;
+          return reviewedRelativePaths.has(path.slice(target.sourceRoot.length + 1));
+        })
         .flatMap(({ path, content }) =>
           parseSync(path, content).errors.map((error) => `${path}: ${error.message}`),
         );
       expect(diagnostics).toEqual([]);
     });
 
-    test(`${target.label} has zero Task 3 primitive inventory records`, () => {
+    test(`${target.label} has zero reviewed primitive and consumer inventory records`, () => {
       const records = collectPrimitiveRecords(target);
       const counts = Object.fromEntries(
         [
+          "ad-hoc-empty-state",
           "field-composition",
           "internal-icon-size",
           "manual-overlay-z-index",
@@ -312,6 +595,7 @@ describe("generated shared frontend primitives", () => {
           "pending-boolean-or-spinner",
           "product-semantic-style",
           "radix-as-child",
+          "raw-form-control",
           "raw-interactive-markup",
           "ungrouped-select-item",
         ].map((category) => [
@@ -320,6 +604,7 @@ describe("generated shared frontend primitives", () => {
         ]),
       );
       expect(counts, JSON.stringify(records, null, 2)).toEqual({
+        "ad-hoc-empty-state": 0,
         "field-composition": 0,
         "internal-icon-size": 0,
         "manual-overlay-z-index": 0,
@@ -328,6 +613,7 @@ describe("generated shared frontend primitives", () => {
         "pending-boolean-or-spinner": 0,
         "product-semantic-style": 0,
         "radix-as-child": 0,
+        "raw-form-control": 0,
         "raw-interactive-markup": 0,
         "ungrouped-select-item": 0,
       });

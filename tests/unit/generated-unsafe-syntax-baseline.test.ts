@@ -1,4 +1,4 @@
-// @allow-long 447: the single gate test keeps schema, detector, transaction, catalog, and gate invariants in one executable contract
+// @allow-long 730: the single gate test keeps schema, detector, transaction, catalog, and gate invariants in one executable contract
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -113,6 +113,74 @@ const TASK4_SAFE_REMOVAL_IDS = new Set([
     ),
   ),
 ]);
+const TASK5_REMOVAL_IDS = new Set([
+  "gate/single-next::src/app/settings/components/profile-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "gate/single-next::src/app/settings/components/two-factor-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "gate/single-next::src/app/settings/components/two-factor-card.tsx::assertion-chain::e1828b2b0e620be0::1",
+  "gate/single-next::src/app/settings/hooks/use-settings.ts::assertion-chain::619b221bce3a6a52::1",
+  "gate/single-next::src/app/settings/hooks/use-settings.ts::assertion-chain::e1828b2b0e620be0::1",
+  "single/nextjs/convex/capabilities-on::src/app/settings/components/profile-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/convex/capabilities-on::src/app/settings/components/two-factor-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/convex/capabilities-on::src/app/settings/components/two-factor-card.tsx::assertion-chain::e1828b2b0e620be0::1",
+  "single/nextjs/convex/capabilities-on::src/app/settings/hooks/use-settings.ts::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/convex/capabilities-on::src/app/settings/hooks/use-settings.ts::assertion-chain::e1828b2b0e620be0::1",
+  "single/nextjs/postgres/capabilities-on::src/app/settings/components/profile-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/postgres/capabilities-on::src/app/settings/components/two-factor-card.tsx::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/postgres/capabilities-on::src/app/settings/components/two-factor-card.tsx::assertion-chain::e1828b2b0e620be0::1",
+  "single/nextjs/postgres/capabilities-on::src/app/settings/hooks/use-settings.ts::assertion-chain::619b221bce3a6a52::1",
+  "single/nextjs/postgres/capabilities-on::src/app/settings/hooks/use-settings.ts::assertion-chain::e1828b2b0e620be0::1",
+]);
+const TASK5_TYPED_REMOVAL_IDS = new Set([
+  "gate/next-monorepo::apps/web/src/app/admin/users/hooks/use-admin-users.ts::assertion-chain::d61d546fe68c45f8::1",
+  "gate/next-monorepo::apps/web/src/app/admin/users/page.tsx::assertion-chain::234f2de83496c835::1",
+  "gate/next-monorepo::apps/web/src/app/settings/components/profile-card.tsx::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/nextjs/convex/capabilities-off::apps/web/src/app/admin/users/page.tsx::assertion-chain::234f2de83496c835::1",
+  "monorepo/nextjs/convex/capabilities-on::apps/web/src/app/admin/users/hooks/use-admin-users.ts::assertion-chain::d61d546fe68c45f8::1",
+  "monorepo/nextjs/convex/capabilities-on::apps/web/src/app/admin/users/page.tsx::assertion-chain::234f2de83496c835::1",
+  "monorepo/nextjs/convex/capabilities-on::apps/web/src/app/settings/components/profile-card.tsx::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/nextjs/postgres/capabilities-off::apps/web/src/app/admin/users/page.tsx::assertion-chain::234f2de83496c835::1",
+  "monorepo/nextjs/postgres/capabilities-on::apps/web/src/app/admin/users/hooks/use-admin-users.ts::assertion-chain::d61d546fe68c45f8::1",
+  "monorepo/nextjs/postgres/capabilities-on::apps/web/src/app/admin/users/page.tsx::assertion-chain::234f2de83496c835::1",
+  "monorepo/nextjs/postgres/capabilities-on::apps/web/src/app/settings/components/profile-card.tsx::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/admin.users.create.tsx::assertion-chain::8367f56f76246bd3::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::63c1858a777c441c::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::0e5cc559ced8b22d::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::2d01e4b86e54c553::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::56c65f489e5d9ce0::2",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::56c65f489e5d9ce0::3",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::88ee7d3956ab5461::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::92d9841583968ea9::2",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::92d9841583968ea9::3",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::b4eab65b59ea0979::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::c875337dcdbae4c6::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::d65d975095989386::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::e574cef3495cded7::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.create.tsx::assertion-chain::8367f56f76246bd3::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::63c1858a777c441c::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::0e5cc559ced8b22d::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::2d01e4b86e54c553::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::56c65f489e5d9ce0::2",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::56c65f489e5d9ce0::3",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::88ee7d3956ab5461::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::92d9841583968ea9::2",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::92d9841583968ea9::3",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::b4eab65b59ea0979::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::c875337dcdbae4c6::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::d65d975095989386::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::e574cef3495cded7::1",
+]);
+const TASK5_AXIS_REMOVAL_IDS = new Set([
+  "gate/single-next::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::1",
+  "gate/single-next::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::2",
+  "single/nextjs/postgres/capabilities-off::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::1",
+  "single/nextjs/postgres/capabilities-off::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::2",
+  "single/nextjs/postgres/capabilities-on::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::1",
+  "single/nextjs/postgres/capabilities-on::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::2",
+  "single/tanstack-start/postgres/capabilities-off::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::1",
+  "single/tanstack-start/postgres/capabilities-off::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::2",
+  "single/tanstack-start/postgres/capabilities-on::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::1",
+  "single/tanstack-start/postgres/capabilities-on::src/server/db/index.ts::explicit-any::d6a7cd2a7371b1a1::2",
+]);
 const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS, ...TASK4_OWNERS]);
 
 function isTask4CapabilityRemoval(entry: (typeof baseline.entries)[number]): boolean {
@@ -160,6 +228,9 @@ const LEGITIMATE_REMOVAL_IDS = new Set(
   baseline.entries
     .filter(
       (entry) =>
+        TASK5_AXIS_REMOVAL_IDS.has(entry.id) ||
+        TASK5_TYPED_REMOVAL_IDS.has(entry.id) ||
+        TASK5_REMOVAL_IDS.has(entry.id) ||
         TASK4_SAFE_REMOVAL_IDS.has(entry.id) ||
         isTask4CapabilityRemoval(entry) ||
         (entry.disposition === "remove-in-stabilization" &&
@@ -392,8 +463,8 @@ describe("V1 generated unsafe-syntax baseline", () => {
   test("catalog exactly matches the frozen baseline minus enumerated removals", () => {
     const occurrences = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy);
     const allowedEntries = baseline.entries.filter(({ id }) => !LEGITIMATE_REMOVAL_IDS.has(id));
-    expect(occurrences).toHaveLength(765);
-    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(246);
+    expect(occurrences).toHaveLength(703);
+    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(308);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -489,26 +560,38 @@ describe("V1 generated unsafe-syntax baseline", () => {
     expect(actualIds.filter((id) => TASK4_SAFE_REMOVAL_IDS.has(id))).toEqual([]);
   });
 
+  test("Task 5 removes exactly its assigned disposition IDs", () => {
+    const actualIds = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy).map(
+      ({ id }) => id,
+    );
+    expect(TASK5_REMOVAL_IDS.size).toBe(15);
+    expect(actualIds.filter((id) => TASK5_REMOVAL_IDS.has(id))).toEqual([]);
+    expect(TASK5_TYPED_REMOVAL_IDS.size).toBe(37);
+    expect(actualIds.filter((id) => TASK5_TYPED_REMOVAL_IDS.has(id))).toEqual([]);
+    expect(TASK5_AXIS_REMOVAL_IDS.size).toBe(10);
+    expect(actualIds.filter((id) => TASK5_AXIS_REMOVAL_IDS.has(id))).toEqual([]);
+  });
+
   test("projection and default gates retain the factual V1 ceiling", () => {
     const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
     expect(PROJECTION_CONFIGURATIONS.map(({ configKey }) => configKey)).toHaveLength(16);
-    expect(projection).toHaveLength(618);
+    expect(projection).toHaveLength(566);
     const projectionRules = new Map(
       projection.map((occurrence) => {
         const rule = findProvenanceRule(occurrence.configKey, occurrence.path, policy);
         return [ruleKey(rule), rule];
       }),
     );
-    expect(projectionRules.size).toBe(75);
+    expect(projectionRules.size).toBe(69);
     expect(
       new Set(
         [...projectionRules.values()].map(
           ({ sourceOwner, emittedPathPattern }) => `${sourceOwner}::${emittedPathPattern}`,
         ),
       ).size,
-    ).toBe(73);
+    ).toBe(67);
     expect(new Set([...projectionRules.values()].map(({ sourceOwner }) => sourceOwner)).size).toBe(
-      46,
+      42,
     );
 
     const comparableKeys = new Set([
@@ -521,10 +604,10 @@ describe("V1 generated unsafe-syntax baseline", () => {
     );
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "remove-in-stabilization"),
-    ).toHaveLength(47);
+    ).toHaveLength(42);
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "deferred-v1"),
-    ).toHaveLength(85);
+    ).toHaveLength(80);
 
     const actualGateConfigurations = GATE_CONFIGURATIONS.map(({ configKey, config }) => ({
       configKey,
@@ -564,15 +647,15 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ),
     );
     const gate = generateCatalogOccurrences(GATE_CONFIGURATIONS, policy);
-    expect(gate).toHaveLength(147);
+    expect(gate).toHaveLength(137);
     expect(policy.gateEvidence.occurrenceRows).toBe(172);
     const gateRowsByConfigKey = new Map(GATE_CONFIGURATIONS.map(({ configKey }) => [configKey, 0]));
     for (const { configKey } of gate) {
       gateRowsByConfigKey.set(configKey, (gateRowsByConfigKey.get(configKey) ?? 0) + 1);
     }
     expect(Object.fromEntries(gateRowsByConfigKey)).toEqual({
-      "gate/next-monorepo": 85,
-      "gate/single-next": 62,
+      "gate/next-monorepo": 82,
+      "gate/single-next": 55,
     });
     const gateRules = gate.map((occurrence) =>
       findProvenanceRule(occurrence.configKey, occurrence.path, policy),
@@ -583,7 +666,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ).length,
       deferredV1: gateRules.filter(({ disposition }) => disposition === "deferred-v1").length,
     };
-    expect(gateDispositionSplit).toEqual({ removeInStabilization: 47, deferredV1: 100 });
+    expect(gateDispositionSplit).toEqual({ removeInStabilization: 42, deferredV1: 95 });
     expect({
       removeInStabilization: policy.defaultProjection.removeInStabilization,
       deferredV1: policy.defaultProjection.deferredV1,

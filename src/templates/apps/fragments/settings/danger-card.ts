@@ -35,7 +35,7 @@ export function DangerZoneCard(): React.JSX.Element {
       </CardContent>
       <CardFooter>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button variant="destructive">Delete account</Button></DialogTrigger>
+          <DialogTrigger render={<Button variant="destructive" />}>Delete account</DialogTrigger>
           <DialogContent><DialogHeader><DialogTitle>Delete account?</DialogTitle><DialogDescription className="max-w-[60ch]">This will permanently delete your account and all associated data. This action cannot be undone.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button variant="destructive" onClick={() => void handleDelete()}>Confirm delete</Button></DialogFooter></DialogContent>
         </Dialog>
       </CardFooter>

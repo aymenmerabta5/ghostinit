@@ -162,7 +162,8 @@ export function singleNotFoundRouteTanstackContent(): string {
   return [
     "import * as React from 'react'",
     "import { createFileRoute, Link } from '@tanstack/react-router'",
-    "import { Button, Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'",
+    "import { Button } from '@/components/ui/button'",
+    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'",
     "",
     "export const Route = createFileRoute('/$notFound')({ component: NotFoundPage })",
     "function NotFoundPage(): React.JSX.Element {",
@@ -170,7 +171,7 @@ export function singleNotFoundRouteTanstackContent(): string {
     "    <main className='min-h-screen bg-background flex items-center justify-center p-6'>",
     "      <Card className='w-full max-w-[420px] shadow-sm'>",
     "        <CardHeader><CardTitle className='text-2xl tracking-tight'>Page not found</CardTitle><CardDescription className='max-w-[60ch]'>The page you are looking for does not exist or was moved.</CardDescription></CardHeader>",
-    "        <CardContent className='flex flex-col gap-3'><Button asChild><Link to='/'>Back to home</Link></Button></CardContent>",
+    "        <CardContent className='flex flex-col gap-3'><Button render={<Link to='/' />} nativeButton={false}>Back to home</Button></CardContent>",
     "      </Card>",
     "    </main>",
     "  )",

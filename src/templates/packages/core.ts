@@ -85,7 +85,12 @@ export function corePackagesFiles(runtime: "node" | "bun" = "bun"): TemplateFile
     ),
     file(
       "packages/kernel/src/admin.ts",
-      `export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }\nexport interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; }\n`,
+      `export const USER_ROLES = ["user", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+export interface AdminUser { id: string; name: string | null; email: string; role: UserRole; banned: boolean; }
+export interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: UserRole) => Promise<void>; }
+export function isUserRole(value: unknown): value is UserRole { return value === "user" || value === "admin"; }
+`,
     ),
     file(
       "packages/kernel/src/hooks.ts",
@@ -93,7 +98,7 @@ export function corePackagesFiles(runtime: "node" | "bun" = "bun"): TemplateFile
     ),
     file(
       "packages/kernel/src/index.ts",
-      `export * from "./result.js";\nexport type { BillingSubscription, UseBillingReturn } from "./billing.js";\nexport type { AdminUser, UseAdminUsersReturn } from "./admin.js";\nexport type { UseCopyReturn } from "./hooks.js";\n`,
+      `export * from "./result.js";\nexport type { BillingSubscription, UseBillingReturn } from "./billing.js";\nexport { USER_ROLES, isUserRole } from "./admin.js";\nexport type { AdminUser, UserRole, UseAdminUsersReturn } from "./admin.js";\nexport type { UseCopyReturn } from "./hooks.js";\n`,
     ),
     file(
       "packages/testing/package.json",

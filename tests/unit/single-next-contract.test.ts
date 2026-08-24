@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { buildAddonInstallerMap, hasAddon } from "../../src/lib/addons.js";
 import { projectConfigSchema } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 
@@ -44,6 +45,38 @@ describe("single Next boundary contracts", () => {
     ) as { dependencies?: Record<string, string> };
     expect(manifest.dependencies?.["@t3-oss/env-core"]).toBeDefined();
     expect(manifest.dependencies?.["@t3-oss/env-nextjs"]).toBeUndefined();
+  });
+
+  test("keeps database none distinct from cache and deploy none", () => {
+    const addons = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "postgres",
+      mode: "single",
+      framework: "tanstack-start",
+      apps: ["web"],
+      preset: "saas",
+      cache: "none",
+      deploy: "none",
+    });
+    expect(hasAddon(addons, "database:postgres")).toBe(true);
+    expect(hasAddon(addons, "database:none")).toBe(false);
+    expect(hasAddon(addons, "none")).toBe(true);
+
+    const tanstackFiles = generateProjectFiles(
+      projectConfigSchema.parse({ ...filesConfig, framework: "tanstack-start" }),
+    );
+    const localEnv = tanstackFiles.find(({ path }) => path === ".env.local")?.content ?? "";
+    expect(localEnv).toContain("POSTGRES_PASSWORD=");
+    expect(localEnv).not.toContain("# Database disabled (--database none)");
+    const viteConfig = tanstackFiles.find(({ path }) => path === "vite.config.ts")?.content ?? "";
+    expect(viteConfig).toContain("from 'node:url'");
+    expect(viteConfig).toContain("'@': fileURLToPath(new URL('./src', import.meta.url))");
+    const notFound =
+      tanstackFiles.find(({ path }) => path === "src/routes/$notFound.tsx")?.content ?? "";
+    expect(notFound).toContain("import { Button } from '@/components/ui/button'");
+    expect(notFound).toContain("render={<Link to='/' />}");
+    expect(notFound).not.toContain("asChild");
   });
 
   test("auth sends the typed ResetPassword component", () => {
@@ -182,5 +215,70 @@ describe("single Next boundary contracts", () => {
         }
       }
     }
+  });
+
+  test("preserves TanStack inference and composes pending state", () => {
+    const form = read("src/components/ui/form.tsx");
+    expect(form).toContain("interface FormController");
+    expect(form).toContain("handleSubmit(): Promise<void>");
+    expect(form).not.toContain("FormApi<");
+    expect(form).not.toContain("isPending");
+  });
+
+  test("uses Better Auth 1.6.23 inferred contracts without type escapes", () => {
+    const affectedPaths = [
+      "src/components/ui/form.tsx",
+      "src/app/sign-in/page.tsx",
+      "src/app/forgot-password/page.tsx",
+      "src/app/reset-password/page.tsx",
+      "src/app/2fa/page.tsx",
+      "src/app/settings/components/profile-card.tsx",
+      "src/app/settings/components/two-factor-card.tsx",
+      "src/app/admin/users/hooks/use-admin-users.ts",
+      "src/app/admin/users/components/user-row.tsx",
+      "src/app/admin/users/create/page.tsx",
+      "src/lib/kernel.ts",
+    ];
+    const owned = files
+      .filter(({ path }) => affectedPaths.includes(path))
+      .map(({ content }) => content)
+      .join("\n");
+    expect(owned).not.toMatch(/\bas unknown as\b|:\s*any\b|@ts-ignore/);
+    expect(read("src/app/forgot-password/page.tsx")).toContain("authClient.requestPasswordReset");
+    expect(read("src/app/sign-in/page.tsx")).toContain("context.data.twoFactorRedirect");
+    expect(read("src/app/settings/components/two-factor-card.tsx")).toContain(
+      "result.data.totpURI",
+    );
+    expect(read("src/app/settings/components/two-factor-card.tsx")).toContain(
+      "result.data.backupCodes",
+    );
+  });
+
+  test("owns a closed role union and uses the local Select", () => {
+    const kernel = read("src/lib/kernel.ts");
+    expect(kernel).toContain('export const USER_ROLES = ["user", "admin"] as const');
+    expect(kernel).toContain("export type UserRole = (typeof USER_ROLES)[number]");
+    expect(kernel).toContain("export interface AdminUser");
+    expect(read("src/app/admin/users/components/user-row.tsx")).toContain('from "@/lib/kernel"');
+    const create = read("src/app/admin/users/create/page.tsx");
+    expect(create).toContain("<Select items={ROLE_OPTIONS}");
+    expect(create).not.toContain("<select");
+
+    const monorepoFiles = generateProjectFiles(
+      projectConfigSchema.parse({ ...filesConfig, mode: "monorepo" }),
+    );
+    const readMonorepo = (path: string): string =>
+      monorepoFiles.find((file) => file.path === path)?.content ?? "";
+    const monorepoKernel = readMonorepo("packages/kernel/src/admin.ts");
+    expect(monorepoKernel).toContain('export const USER_ROLES = ["user", "admin"] as const');
+    expect(monorepoKernel).toContain("role: UserRole");
+    expect(readMonorepo("packages/kernel/src/index.ts")).toContain("UserRole");
+    const monorepoHook = readMonorepo("apps/web/src/app/admin/users/hooks/use-admin-users.ts");
+    expect(monorepoHook).toContain('isUserRole(user.role) ? user.role : "user"');
+    expect(monorepoHook).toContain("currentRole: UserRole");
+    expect(monorepoHook).not.toContain("as unknown as");
+    expect(readMonorepo("apps/web/src/app/admin/users/components/user-row.tsx")).toContain(
+      'from "@repo/kernel"',
+    );
   });
 });

@@ -112,7 +112,7 @@ export function buildTanstackFiles(
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
-  const isNone = hasAddon(addonMap, "none");
+  const isNone = hasAddon(addonMap, "database:none");
   const hasAuth = hasAddon(addonMap, "auth");
   const files: TemplateFile[] = [];
   files.push(

@@ -46,50 +46,50 @@ import { useRouter } from "next/navigation";`
           </Link>`;
 
   const navLinks = isNext
-    ? `              <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">Dashboard</Link>
+    ? `              <Button variant="ghost" size="sm" render={<Link href="/dashboard" />} nativeButton={false}>
+                Dashboard
               </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/billing">Billing</Link>
+              <Button variant="ghost" size="sm" render={<Link href="/billing" />} nativeButton={false}>
+                Billing
               </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/settings">Settings</Link>
+              <Button variant="ghost" size="sm" render={<Link href="/settings" />} nativeButton={false}>
+                Settings
               </Button>
               {user?.role === "admin" ? (
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/admin/users">Admin</Link>
+                <Button variant="ghost" size="sm" render={<Link href="/admin/users" />} nativeButton={false}>
+                  Admin
                 </Button>
               ) : null}`
-    : `              <Button variant="ghost" size="sm" asChild>
-                <Link to="/dashboard">Dashboard</Link>
+    : `              <Button variant="ghost" size="sm" render={<Link to="/dashboard" />} nativeButton={false}>
+                Dashboard
               </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/billing">Billing</Link>
+              <Button variant="ghost" size="sm" render={<Link to="/billing" />} nativeButton={false}>
+                Billing
               </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/settings">Settings</Link>
+              <Button variant="ghost" size="sm" render={<Link to="/settings" />} nativeButton={false}>
+                Settings
               </Button>
               {user?.role === 'admin' ? (
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/admin">Admin</Link>
+                <Button variant="ghost" size="sm" render={<Link to="/admin" />} nativeButton={false}>
+                  Admin
                 </Button>
               ) : null}`;
 
   const signInUp = isNext
     ? `<div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/sign-in">Sign in</Link>
+              <Button variant="ghost" size="sm" render={<Link href="/sign-in" />} nativeButton={false}>
+                Sign in
               </Button>
-              <Button size="sm" asChild>
-                <Link href="/sign-up">Sign up</Link>
+              <Button size="sm" render={<Link href="/sign-up" />} nativeButton={false}>
+                Sign up
               </Button>
             </div>`
     : `<div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/sign-in">Sign in</Link>
+              <Button variant="ghost" size="sm" render={<Link to="/sign-in" />} nativeButton={false}>
+                Sign in
               </Button>
-              <Button size="sm" asChild>
-                <Link to="/sign-up">Sign up</Link>
+              <Button size="sm" render={<Link to="/sign-up" />} nativeButton={false}>
+                Sign up
               </Button>
             </div>`;
 
@@ -141,12 +141,10 @@ ${navLinks}
             <div className="size-9 animate-pulse rounded-full bg-muted" aria-hidden />
           ) : isAuthenticated ? (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu">
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="rounded-full" aria-label="User menu" />}>
                   <Avatar className="size-8">
                     <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                   </Avatar>
-                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="flex flex-col gap-1">

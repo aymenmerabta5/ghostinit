@@ -98,6 +98,7 @@ export type OptionalAddon = (typeof optionalAddons)[number];
 
 export const defaultAddons = [...coreAddons, ...saasAddons] as const;
 export type DefaultAddon = (typeof defaultAddons)[number];
+export type DatabaseAddonKey = `database:${DatabaseProvider}`;
 
 // Preset defaults — what each preset implies when no explicit overrides
 export const presetDefaults: Record<
@@ -158,6 +159,7 @@ export type AddonKey =
   | BillingProviderName
   | FeatureName
   | DatabaseProvider
+  | DatabaseAddonKey
   | ProjectMode
   | FrameworkName
   | AppName
@@ -651,6 +653,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     ...BILLING_PROVIDERS,
     ...availableFeatures,
     ...availableDatabases,
+    ...availableDatabases.map((database) => `database:${database}`),
     ...availableModes,
     ...availableFrameworks,
     ...availableApps,
@@ -732,6 +735,11 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // deploy targets
   const effectiveDeploy = input.deploy ?? "none";
   for (const d of availableDeployTargets) map[d] = { inUse: d === effectiveDeploy };
+  // Axis-qualified database keys remain unambiguous when cache/deploy also use
+  // the public legacy key "none".
+  for (const database of availableDatabases) {
+    map[`database:${database}`] = { inUse: database === input.database };
+  }
   return map as AddonInstallerMap;
 }
 

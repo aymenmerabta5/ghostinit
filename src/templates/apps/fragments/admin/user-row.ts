@@ -8,8 +8,8 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import type { AdminUser } from "../hooks/use-admin-users.js";
-interface UserRowProps { user: AdminUser; onToggleBan: (id: string, banned: boolean) => void; onSetRole: (id: string, role: string) => void; }
+import type { AdminUser, UserRole } from "@repo/kernel";
+interface UserRowProps { user: AdminUser; onToggleBan: (id: string, banned: boolean) => void; onSetRole: (id: string, role: UserRole) => void; }
 export function UserRow({ user, onToggleBan, onSetRole }: UserRowProps): React.JSX.Element {
   const [banOpen, setBanOpen] = useState(false);
   const [roleOpen, setRoleOpen] = useState(false);
@@ -25,11 +25,11 @@ export function UserRow({ user, onToggleBan, onSetRole }: UserRowProps): React.J
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
-          <DialogTrigger asChild><Button size="sm" variant="outline">{user.role === "admin" ? "Demote" : "Make admin"}</Button></DialogTrigger>
+          <DialogTrigger render={<Button size="sm" variant="outline" />}>{user.role === "admin" ? "Demote" : "Make admin"}</DialogTrigger>
           <DialogContent><DialogHeader><DialogTitle>{user.role === "admin" ? "Demote user?" : "Make admin?"}</DialogTitle><DialogDescription>Change role for {user.email} to {user.role === "admin" ? "user" : "admin"}.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setRoleOpen(false)}>Cancel</Button><Button onClick={() => { onSetRole(user.id, user.role); setRoleOpen(false); }}>Confirm</Button></DialogFooter></DialogContent>
         </Dialog>
         <Dialog open={banOpen} onOpenChange={setBanOpen}>
-          <DialogTrigger asChild><Button size="sm" variant={user.banned ? "default" : "destructive"}>{user.banned ? "Unban" : "Ban"}</Button></DialogTrigger>
+          <DialogTrigger render={<Button size="sm" variant={user.banned ? "default" : "destructive"} />}>{user.banned ? "Unban" : "Ban"}</DialogTrigger>
           <DialogContent><DialogHeader><DialogTitle>{user.banned ? "Unban user?" : "Ban user?"}</DialogTitle><DialogDescription>{user.banned ? "Restore access for" : "Revoke access for"} {user.email}.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setBanOpen(false)}>Cancel</Button><Button variant={user.banned ? "default" : "destructive"} onClick={() => { onToggleBan(user.id, user.banned); setBanOpen(false); }}>{user.banned ? "Unban" : "Ban"}</Button></DialogFooter></DialogContent>
         </Dialog>
       </div>

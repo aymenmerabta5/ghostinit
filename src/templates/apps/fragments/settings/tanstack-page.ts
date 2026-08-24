@@ -1,3 +1,4 @@
+// @allow-long 340: one route owns six cohesive account settings sections and their shared auth boundary
 import { file, type TemplateFile } from "../../../shared.js";
 import {
   tanstackGetSessionFnContent,
@@ -5,7 +6,8 @@ import {
 } from "../auth/tanstack-guard.js";
 
 export function tanstackSettingsPageContent(): string {
-  return `import * as React from 'react'
+  return `// @allow-long 320: six cohesive account settings sections share one protected TanStack route
+import * as React from 'react'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getRequestHeaders } from '@tanstack/react-start/server'
@@ -16,12 +18,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
+import { Spinner } from "@/components/ui/spinner";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const profileSchema = z.object({ name: z.string().min(2, "Name must be at least 2 characters").max(50, "Name must be under 50") });
 const passwordSchema = z.object({ currentPassword: z.string().min(1, "Current password required"), newPassword: z.string().min(8, "At least 8 characters").max(64) });
@@ -36,22 +39,22 @@ export const Route = createFileRoute('/settings')({
 
 function ProfileSection(): React.JSX.Element {
   const { data: session } = authClient.useSession();
-  const user = session?.user as unknown as { name?: string | null; email?: string; role?: string } | undefined;
+  const user = session?.user;
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
   const form = useForm({
-    defaultValues: { name: (user?.name as string) ?? "" } as { name: string },
+    defaultValues: { name: user?.name ?? "" } as { name: string },
     validators: { onSubmit: ({ value }) => { const p = profileSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
     onSubmit: async ({ value }) => {
       setError(null); setSuccess(null);
       const parsed = profileSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid name"); return; }
-      const res = await (authClient as unknown as { updateUser: (d: { name: string }) => Promise<{ error?: { message?: string } }> }).updateUser({ name: parsed.data.name });
-      if ((res as unknown as { error?: { message?: string } })?.error) setError((res as unknown as { error: { message?: string } }).error.message ?? "Failed");
+      const result = await authClient.updateUser({ name: parsed.data.name });
+      if (result.error) setError(result.error.message ?? "Failed to update profile");
       else setSuccess("Profile updated");
     },
   });
-  React.useEffect(() => { if (user?.name) form.setFieldValue("name", user.name as string); }, [user?.name]);
+  React.useEffect(() => { if (user?.name) form.setFieldValue("name", user.name); }, [user?.name, form]);
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Profile</CardTitle><CardDescription className="max-w-[60ch]">Update your display name. Email {String(user?.email ?? '')}. Role {String(user?.role ?? 'user')}.</CardDescription></CardHeader>
@@ -61,7 +64,9 @@ function ProfileSection(): React.JSX.Element {
         <Form form={form} className="flex flex-col gap-4">
           <FieldGroup><TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length < 2 ? "At least 2 characters" : undefined), onSubmit: ({ value }) => { const p = profileSchema.safeParse({ name: value }); return p.success ? undefined : p.error.issues[0]?.message; } }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="profile-name">Name</FieldLabel><Input id="profile-name" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" aria-invalid={field.state.meta.errors.length > 0} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your display name visible to workspace.</FieldDescription>)}</Field>)}</TanStackField></FieldGroup>
           <div className="flex items-center gap-2"><Badge variant="secondary">{String(user?.role ?? 'user')}</Badge><Badge variant="outline">{String(user?.email ?? '')}</Badge></div>
-          <SubmitButton size="sm">Update profile</SubmitButton>
+          <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+            {([canSubmit, isSubmitting]) => <SubmitButton size="sm" disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Updating profile…" : "Update profile"}</SubmitButton>}
+          </form.Subscribe>
         </Form>
       </CardContent>
     </Card>
@@ -78,8 +83,8 @@ function PasswordSection(): React.JSX.Element {
       setError(null); setSuccess(null);
       const parsed = passwordSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid password"); return; }
-      const res = await (authClient as unknown as { changePassword: (d: { currentPassword: string; newPassword: string; revokeOtherSessions: boolean }) => Promise<{ error?: { message?: string } }> }).changePassword({ currentPassword: parsed.data.currentPassword, newPassword: parsed.data.newPassword, revokeOtherSessions: true });
-      if ((res as unknown as { error?: { message?: string } })?.error) setError((res as unknown as { error: { message?: string } }).error.message ?? "Failed");
+      const result = await authClient.changePassword({ currentPassword: parsed.data.currentPassword, newPassword: parsed.data.newPassword, revokeOtherSessions: true });
+      if (result.error) setError(result.error.message ?? "Failed to update password");
       else { setSuccess("Password updated"); form.reset(); }
     },
   });
@@ -94,7 +99,9 @@ function PasswordSection(): React.JSX.Element {
             <TanStackField form={form} name="currentPassword" validators={{ onChange: ({ value }) => (value.length < 1 ? "Required" : undefined), onSubmit: ({ value }) => (value.length < 1 ? "Current password required" : undefined) }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="current-password-tan">Current password</FieldLabel><Input id="current-password-tan" name={field.name} type="password" required autoComplete="current-password" aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : null}</Field>)}</TanStackField>
             <TanStackField form={form} name="newPassword" validators={{ onChange: ({ value }) => (value.length > 0 && value.length < 8 ? "At least 8 characters" : undefined), onSubmit: ({ value }) => (value.length < 8 ? "Password must be at least 8" : undefined) }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="new-password-tan">New password</FieldLabel><Input id="new-password-tan" name={field.name} type="password" required minLength={8} autoComplete="new-password" aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Must be at least 8 characters.</FieldDescription>)}</Field>)}</TanStackField>
           </FieldGroup>
-          <SubmitButton>Update password</SubmitButton>
+          <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+            {([canSubmit, isSubmitting]) => <SubmitButton disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Updating password…" : "Update password"}</SubmitButton>}
+          </form.Subscribe>
         </Form>
       </CardContent>
     </Card>
@@ -103,14 +110,11 @@ function PasswordSection(): React.JSX.Element {
 
 function TwoFactorSection(): React.JSX.Element {
   const { data: session } = authClient.useSession();
-  const user = session?.user as unknown as { twoFactorEnabled?: boolean | null } | undefined;
   const [totpUri, setTotpUri] = React.useState<string | null>(null);
-  const [backupCodes, setBackupCodes] = React.useState<string | null>(null);
+  const [backupCodes, setBackupCodes] = React.useState<string[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const serverEnabled = user?.twoFactorEnabled ?? false;
   const [optimisticEnabled, setOptimisticEnabled] = React.useState<boolean | null>(null);
-  const enabled = optimisticEnabled ?? serverEnabled;
-  React.useEffect(() => { if (optimisticEnabled !== null && optimisticEnabled === serverEnabled) setOptimisticEnabled(null); }, [optimisticEnabled, serverEnabled]);
+  const enabled = optimisticEnabled ?? session?.user.twoFactorEnabled ?? false;
   const enableSchema = z.object({ password: z.string().min(1, "Password required") });
   const enableForm = useForm({
     defaultValues: { password: "" } as { password: string },
@@ -119,10 +123,10 @@ function TwoFactorSection(): React.JSX.Element {
       setError(null);
       const parsed = enableSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
-      const res = await (authClient as unknown as { twoFactor: { enable: (d: { password: string }) => Promise<{ error?: { message?: string }; data?: { totpURI?: string | null; backupCodes?: string[] | string | null } }> } }).twoFactor.enable({ password: parsed.data.password });
-      if (res.error) { setError(res.error.message ?? "Failed"); return; }
-      setTotpUri(res.data?.totpURI ? String(res.data.totpURI) : null);
-      setBackupCodes(res.data?.backupCodes ? String(res.data.backupCodes) : null);
+      const result = await authClient.twoFactor.enable({ password: parsed.data.password });
+      if (result.error) { setError(result.error.message ?? "Failed to enable two-factor authentication"); return; }
+      setTotpUri(result.data.totpURI);
+      setBackupCodes(result.data.backupCodes);
     },
   });
   const verifyForm = useForm({
@@ -132,8 +136,8 @@ function TwoFactorSection(): React.JSX.Element {
       setError(null);
       const parsed = totpSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid code"); return; }
-      const res = await (authClient as unknown as { twoFactor: { verifyTotp: (d: { code: string; trustDevice: boolean }) => Promise<{ error?: { message?: string } }> } }).twoFactor.verifyTotp({ code: parsed.data.code, trustDevice: true });
-      if (res.error) { setError(res.error.message ?? "Invalid code"); return; }
+      const result = await authClient.twoFactor.verifyTotp({ code: parsed.data.code, trustDevice: true });
+      if (result.error) { setError(result.error.message ?? "Invalid code"); return; }
       setOptimisticEnabled(true); setTotpUri(null); setBackupCodes(null); verifyForm.reset(); enableForm.reset();
     },
   });
@@ -144,8 +148,8 @@ function TwoFactorSection(): React.JSX.Element {
       setError(null);
       const parsed = enableSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; }
-      const res = await (authClient as unknown as { twoFactor: { disable: (d: { password: string }) => Promise<{ error?: { message?: string } }> } }).twoFactor.disable({ password: parsed.data.password });
-      if (res.error) { setError(res.error.message ?? "Failed"); return; }
+      const result = await authClient.twoFactor.disable({ password: parsed.data.password });
+      if (result.error) { setError(result.error.message ?? "Failed to disable two-factor authentication"); return; }
       setOptimisticEnabled(false); disableForm.reset();
     },
   });
@@ -158,7 +162,9 @@ function TwoFactorSection(): React.JSX.Element {
           <Form form={disableForm} className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground max-w-[65ch]">2FA is currently enabled for your account.</p>
             <FieldGroup><TanStackField form={disableForm} name="password" validators={{ onChange: ({ value }) => (value.length ? undefined : "Password required"), onSubmit: ({ value }) => (value.length ? undefined : "Password required") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="disable-2fa-tan">Password</FieldLabel><Input id="disable-2fa-tan" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-            <SubmitButton variant="outline">Disable 2FA</SubmitButton>
+            <disableForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+              {([canSubmit, isSubmitting]) => <SubmitButton variant="outline" disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Disabling 2FA…" : "Disable 2FA"}</SubmitButton>}
+            </disableForm.Subscribe>
           </Form>
         ) : (
           <div className="flex flex-col gap-4">
@@ -166,15 +172,19 @@ function TwoFactorSection(): React.JSX.Element {
               <Form form={enableForm} className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground max-w-[65ch]">Enable TOTP-based two-factor authentication.</p>
                 <FieldGroup><TanStackField form={enableForm} name="password" validators={{ onChange: ({ value }) => (value.length ? undefined : "Password required"), onSubmit: ({ value }) => (value.length ? undefined : "Password required") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="enable-2fa-tan">Password</FieldLabel><Input id="enable-2fa-tan" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-                <SubmitButton>Enable 2FA</SubmitButton>
+                <enableForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+                  {([canSubmit, isSubmitting]) => <SubmitButton disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Preparing 2FA…" : "Enable 2FA"}</SubmitButton>}
+                </enableForm.Subscribe>
               </Form>
             ) : (
               <Form form={verifyForm} className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground max-w-[65ch]">Scan the TOTP URI in your authenticator app, then enter the code to verify.</p>
                 <div className="break-all rounded-md bg-muted/40 border p-3 text-xs font-mono">{totpUri}</div>
-                {backupCodes ? <div className="flex flex-col gap-2"><p className="text-sm font-medium">Backup codes</p><pre className="break-all rounded-md bg-muted/40 border p-3 text-xs font-mono whitespace-pre-wrap">{backupCodes}</pre><p className="text-xs text-muted-foreground max-w-[60ch]">Store these securely. Each code can be used once.</p></div> : null}
+                {backupCodes ? <div className="flex flex-col gap-2"><p className="text-sm font-medium">Backup codes</p><pre className="break-all rounded-md bg-muted/40 border p-3 text-xs font-mono whitespace-pre-wrap">{backupCodes.join("\\n")}</pre><p className="text-xs text-muted-foreground max-w-[60ch]">Store these securely. Each code can be used once.</p></div> : null}
                 <FieldGroup><TanStackField form={verifyForm} name="code" validators={{ onChange: ({ value }) => (/^[0-9]{6}$/.test(value) ? undefined : "Enter a 6-digit code"), onSubmit: ({ value }) => (totpSchema.safeParse(value).success ? undefined : "Enter a 6-digit code") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="verify-code-tan">Verification code</FieldLabel><Input id="verify-code-tan" name={field.name} inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={field.state.value} onChange={(e) => field.handleChange(e.target.value.replace(/[^0-9]/g, "").slice(0,6))} onBlur={field.handleBlur} placeholder="000000" className="font-mono tracking-widest text-center" />{field.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-                <SubmitButton>Verify and enable</SubmitButton>
+                <verifyForm.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+                  {([canSubmit, isSubmitting]) => <SubmitButton disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Verifying 2FA…" : "Verify and enable"}</SubmitButton>}
+                </verifyForm.Subscribe>
               </Form>
             )}
           </div>
@@ -241,6 +251,7 @@ function SessionsSection(): React.JSX.Element {
 
 function DangerZoneSection(): React.JSX.Element {
   const [error, setError] = React.useState<string | null>(null);
+  const [open, setOpen] = React.useState(false);
   const deleteSchema = z.object({ confirm: z.literal("DELETE", { errorMap: () => ({ message: 'Type DELETE to confirm' }) }) });
   const form = useForm({
     defaultValues: { confirm: "" } as { confirm: string },
@@ -251,7 +262,7 @@ function DangerZoneSection(): React.JSX.Element {
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? 'Type DELETE to confirm'); return; }
       const res = await (authClient as unknown as { deleteUser?: () => Promise<{ error?: { message?: string } }> }).deleteUser?.();
       if ((res as unknown as { error?: { message?: string } })?.error) setError((res as unknown as { error: { message?: string } }).error.message ?? "Failed");
-      else window.location.href = "/";
+      else { setOpen(false); window.location.href = "/"; }
     },
   });
   return (
@@ -259,10 +270,21 @@ function DangerZoneSection(): React.JSX.Element {
       <CardHeader><CardTitle className="text-base text-destructive">Danger zone</CardTitle><CardDescription className="max-w-[60ch]">Delete your account and all associated data. This action cannot be undone.</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-3">
         {error ? <Alert variant="destructive"><AlertTitle>Delete failed</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-        <Form form={form} className="flex flex-col gap-3">
-          <FieldGroup><TanStackField form={form} name="confirm" validators={{ onChange: ({ value }) => (value === "DELETE" ? undefined : 'Type DELETE to confirm'), onSubmit: ({ value }) => (value === "DELETE" ? undefined : 'Type DELETE to confirm') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="danger-confirm">Type DELETE to confirm</FieldLabel><Input id="danger-confirm" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="DELETE" />{field.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-          <SubmitButton variant="destructive">Delete account</SubmitButton>
-        </Form>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger render={<Button variant="destructive" />}>Delete account</DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Delete account?</DialogTitle><DialogDescription>This permanently deletes your account and associated data.</DialogDescription></DialogHeader>
+            <Form form={form} className="flex flex-col gap-3">
+              <FieldGroup><TanStackField form={form} name="confirm" validators={{ onChange: ({ value }) => (value === "DELETE" ? undefined : 'Type DELETE to confirm'), onSubmit: ({ value }) => (value === "DELETE" ? undefined : 'Type DELETE to confirm') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="danger-confirm">Type DELETE to confirm</FieldLabel><Input id="danger-confirm" name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder="DELETE" />{field.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+                  {([canSubmit, isSubmitting]) => <SubmitButton variant="destructive" disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Deleting account…" : "Confirm delete"}</SubmitButton>}
+                </form.Subscribe>
+              </DialogFooter>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
@@ -284,8 +306,8 @@ function SettingsPage(): React.JSX.Element {
           <SessionsSection />
           <DangerZoneSection />
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild><Link to="/dashboard">Dashboard</Link></Button>
-            <Button variant="outline" size="sm" asChild><Link to="/billing">Billing</Link></Button>
+            <Button variant="outline" size="sm" render={<Link to="/dashboard" />} nativeButton={false}>Dashboard</Button>
+            <Button variant="outline" size="sm" render={<Link to="/billing" />} nativeButton={false}>Billing</Button>
           </div>
         </div>
       </div>

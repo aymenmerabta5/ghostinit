@@ -1,4 +1,4 @@
-// @allow-long 444: one bounded cross-platform harness owns generation, server readiness, browser interaction, and process-tree cleanup
+// @allow-long 560: one bounded cross-platform harness owns two generated targets, server readiness, browser interaction, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -19,6 +19,18 @@ interface RunningServer {
   stderr: () => string;
 }
 
+type BrowserTargetKind = "next-monorepo" | "single-tanstack";
+
+interface BrowserTarget {
+  kind: BrowserTargetKind;
+  root: string;
+  appRoot: string;
+  fixturePath: string;
+  port: number;
+  url: string;
+  env: NodeJS.ProcessEnv;
+}
+
 type CommandResult =
   | { kind: "exit"; code: number | null }
   | { kind: "error"; error: Error }
@@ -26,7 +38,7 @@ type CommandResult =
 
 const fixtureRoute = `"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Field,
   FieldLabel,
@@ -66,6 +78,8 @@ const notifications: NotificationItem[] = [
 export default function PrimitiveContractPage(): React.JSX.Element {
   const [role, setRole] = useState("user");
   const [marked, setMarked] = useState("none");
+  const [hydrationState, setHydrationState] = useState("waiting");
+  useEffect(() => setHydrationState("ready"), []);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col gap-6 p-6">
@@ -106,10 +120,23 @@ export default function PrimitiveContractPage(): React.JSX.Element {
       <output data-testid="role-value">{role}</output>
       <output data-testid="disabled-role-value">user</output>
       <output data-testid="marked-value">{marked}</output>
+      <output data-testid="hydration-state" className="sr-only">{hydrationState}</output>
     </main>
   );
 }
 `;
+
+function fixtureRouteFor(kind: BrowserTargetKind): string {
+  if (kind === "next-monorepo") return fixtureRoute;
+  return fixtureRoute
+    .replace(
+      'import { useEffect, useState } from "react";',
+      'import { useEffect, useState } from "react";\nimport { createFileRoute } from "@tanstack/react-router";',
+    )
+    .concat(
+      '\nexport const Route = createFileRoute("/primitive-contract")({ component: PrimitiveContractPage });\n',
+    );
+}
 
 const playwrightSpec = `import { expect, test, type Locator, type Page } from "@playwright/test";
 
@@ -125,7 +152,16 @@ async function expectActiveFocusVisible(page: Page): Promise<void> {
 test("shared primitives preserve keyboard, focus, controlled value, and mark-read behavior", async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
   await page.goto("/primitive-contract");
+  await expect(page.getByTestId("hydration-state")).toHaveText("ready", { timeout: 30_000 });
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 
   const nameInput = page.getByLabel("Name");
   await page.locator('label[for="name"]').click();
@@ -190,33 +226,51 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
 });
 `;
 
-function projectConfig(): ProjectConfig {
+function projectConfig(kind: BrowserTargetKind): ProjectConfig {
   return {
     name: "primitive-contract",
     runtime: "bun",
     version: "0.1.0",
-    mode: "monorepo",
-    preset: "saas",
+    mode: kind === "next-monorepo" ? "monorepo" : "single",
+    preset: kind === "next-monorepo" ? "saas" : "custom",
     cache: "none",
     deploy: "none",
     billing: [],
     features: [],
     database: "postgres",
-    framework: "nextjs",
+    framework: kind === "next-monorepo" ? "nextjs" : "tanstack-start",
     apps: ["web"],
+    ...(kind === "single-tanstack"
+      ? { auth: false, api: false, email: false, analytics: false }
+      : {}),
   };
 }
 
-async function writeGeneratedFixture(root: string): Promise<void> {
+async function writeGeneratedFixture(
+  root: string,
+  kind: BrowserTargetKind,
+): Promise<{ appRoot: string; fixturePath: string }> {
   const transaction = new FsTransaction(root);
-  const files = generateProjectFiles(projectConfig(), { dryRun: false });
+  const files = generateProjectFiles(projectConfig(kind), { dryRun: false });
   for (const file of files) await transaction.write(file.path, file.content);
-  await transaction.write("apps/web/src/app/primitive-contract/page.tsx", fixtureRoute);
-  await transaction.write("apps/web/e2e/__primitive-contract.spec.ts", playwrightSpec);
+  const appRoot = kind === "next-monorepo" ? join(root, "apps", "web") : root;
+  const fixturePath =
+    kind === "next-monorepo"
+      ? "apps/web/src/app/primitive-contract/page.tsx"
+      : "src/routes/primitive-contract.tsx";
+  await transaction.write(fixturePath, fixtureRouteFor(kind));
+  if (kind === "next-monorepo") {
+    await transaction.write("apps/web/e2e/__primitive-contract.spec.ts", playwrightSpec);
+  }
   const stagedPaths = transaction.getStagedFiles().map(({ path }) => path);
-  expect(stagedPaths).toContain("apps/web/src/app/primitive-contract/page.tsx");
-  expect(stagedPaths).toContain("apps/web/e2e/__primitive-contract.spec.ts");
+  expect(stagedPaths).toContain(".env.local");
+  expect(stagedPaths).toContain(fixturePath);
+  if (kind === "next-monorepo") {
+    expect(stagedPaths).toContain("apps/web/e2e/__primitive-contract.spec.ts");
+  }
   await transaction.commit();
+  expect(existsSync(join(root, ".env.local"))).toBe(true);
+  return { appRoot, fixturePath };
 }
 
 export async function reservePort(): Promise<number> {
@@ -307,25 +361,31 @@ async function runBun(cwd: string, args: string[], env: NodeJS.ProcessEnv): Prom
   await runBounded(nativeExecutable("bun", bun), args, cwd, env, 600_000);
 }
 
-function nativeExecutable(name: "bun", resolved: string): string {
+async function runBunx(cwd: string, args: string[], env: NodeJS.ProcessEnv): Promise<void> {
+  const bunx = Bun.which("bunx");
+  if (bunx === null) throw new Error("bunx executable was not found");
+  await runBounded(nativeExecutable("bunx", bunx), args, cwd, env, 120_000);
+}
+
+function nativeExecutable(name: "bun" | "bunx", resolved: string): string {
   if (process.platform !== "win32" || !/\.(?:cmd|bat)$/i.test(resolved)) return resolved;
   return Bun.which(`${name}.exe`) ?? resolved;
 }
 
-export function startServer(root: string, port: number, env: NodeJS.ProcessEnv): RunningServer {
+export function startServer(target: BrowserTarget): RunningServer {
   const bun = Bun.which("bun");
   if (bun === null) throw new Error("bun executable was not found");
-  const child = spawn(
-    nativeExecutable("bun", bun),
-    ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(port)],
-    {
-      cwd: join(root, "apps", "web"),
-      env,
-      windowsHide: true,
-      detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  const args =
+    target.kind === "next-monorepo"
+      ? ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(target.port)]
+      : ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(target.port)];
+  const child = spawn(nativeExecutable("bun", bun), args, {
+    cwd: target.appRoot,
+    env: target.env,
+    windowsHide: true,
+    detached: process.platform !== "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const output = capture(child);
   return { child, ...output };
 }
@@ -384,59 +444,101 @@ function verifyTempRoot(root: string): void {
 }
 
 describe("generated web primitive interactions", () => {
-  test("Next monorepo primitives work with keyboard and controlled state", async () => {
-    const root = mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-"));
-    const webRoot = join(root, "apps", "web");
-    let server: RunningServer | undefined;
-    let rootRemovalAllowed = true;
+  test("Next monorepo and single TanStack primitives share the interaction contract", async () => {
+    const roots = [
+      mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
+      mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
+    ];
+    const targets: BrowserTarget[] = [];
+    const servers = new Map<string, RunningServer>();
+    const rootRemovalAllowed = new Map(roots.map((root) => [root, true]));
     let operationError: unknown;
     try {
-      await runStage("generate fixture", () => writeGeneratedFixture(root));
-      const port = await reservePort();
-      const url = `http://127.0.0.1:${port}`;
-      const env = createGeneratedProcessEnv(root, url);
-      expect(env.POSTGRES_PASSWORD).toBeTruthy();
-      expect(env.BETTER_AUTH_SECRET?.length).toBeGreaterThanOrEqual(32);
-      expect(env.BETTER_AUTH_URL).toBeTruthy();
-      expect(env.NEXT_PUBLIC_APP_URL).toBe(url);
-      expect(env.VITE_APP_URL).toBe(url);
-      await runStage("bun install", () => runBun(root, ["install"], env));
-      expect(existsSync(join(webRoot, "node_modules", "@playwright", "test", "package.json"))).toBe(
-        true,
-      );
-      await runStage("Playwright Chromium provisioning", () =>
-        runLocalPlaywright(webRoot, ["install", "chromium"], env),
-      );
-      const runningServer = startServer(root, port, env);
-      server = runningServer;
-      await runStage("Next readiness", () =>
-        waitForHttp200(`${url}/primitive-contract`, runningServer, 120_000),
-      );
-      await runStage("Playwright interaction", () =>
-        runLocalPlaywright(webRoot, ["test", "e2e/__primitive-contract.spec.ts"], env),
-      );
+      for (const [index, kind] of (["next-monorepo", "single-tanstack"] as const).entries()) {
+        const root = roots[index];
+        let generated: { appRoot: string; fixturePath: string } | undefined;
+        await runStage(`${kind} generate fixture`, async () => {
+          generated = await writeGeneratedFixture(root, kind);
+        });
+        if (generated === undefined) throw new Error(`Failed to generate ${kind}`);
+        const port = await reservePort();
+        const url = `http://127.0.0.1:${port}`;
+        const env = createGeneratedProcessEnv(root, url);
+        expect(env.POSTGRES_PASSWORD).toBeTruthy();
+        expect(env.BETTER_AUTH_SECRET?.length).toBeGreaterThanOrEqual(32);
+        expect(env.BETTER_AUTH_URL).toBeTruthy();
+        expect(env.NEXT_PUBLIC_APP_URL).toBe(url);
+        expect(env.VITE_APP_URL).toBe(url);
+        targets.push({ kind, root, ...generated, port, url, env });
+      }
+
+      const nextTarget = targets[0];
+      const tanstackTarget = targets[1];
+      await Promise.all([
+        runStage("next-monorepo bun install", () =>
+          runBun(nextTarget.root, ["install"], nextTarget.env),
+        ),
+        runStage("single-tanstack bun install", () =>
+          runBun(tanstackTarget.root, ["install"], tanstackTarget.env),
+        ),
+      ]);
+      expect(
+        existsSync(join(nextTarget.appRoot, "node_modules", "@playwright", "test", "package.json")),
+      ).toBe(true);
+
+      for (const target of targets) {
+        if (target.kind === "single-tanstack") {
+          await runStage("single-tanstack route generation", () =>
+            runBunx(target.appRoot, ["--no-install", "tsr", "generate"], target.env),
+          );
+        }
+        await runStage(`${target.kind} Playwright Chromium provisioning`, () =>
+          runLocalPlaywright(nextTarget.appRoot, ["install", "chromium"], target.env),
+        );
+        const runningServer = startServer(target);
+        servers.set(target.root, runningServer);
+        await runStage(`${target.kind} readiness`, () =>
+          waitForHttp200(`${target.url}/primitive-contract`, runningServer, 120_000),
+        );
+        await runStage(`${target.kind} Playwright interaction`, () =>
+          runLocalPlaywright(
+            nextTarget.appRoot,
+            ["test", "e2e/__primitive-contract.spec.ts"],
+            target.env,
+          ),
+        );
+        await runStage(`${target.kind} server process-tree termination`, () =>
+          terminateProcessTree(runningServer.child),
+        );
+        servers.delete(target.root);
+      }
     } catch (error) {
-      if (error instanceof ProcessTreeTerminationError) rootRemovalAllowed = false;
+      if (error instanceof ProcessTreeTerminationError) {
+        for (const root of servers.keys()) rootRemovalAllowed.set(root, false);
+      }
       operationError = error;
     }
 
     let cleanupError: unknown;
-    if (server !== undefined) {
+    for (const [root, server] of servers) {
       try {
         await runStage("server process-tree termination", () => terminateProcessTree(server.child));
       } catch (error) {
-        rootRemovalAllowed = false;
-        cleanupError = error;
+        rootRemovalAllowed.set(root, false);
+        cleanupError ??= error;
       }
     }
-    if (rootRemovalAllowed) {
-      try {
-        verifyTempRoot(root);
-        await runStage("temp-root removal", () => rm(root, { recursive: true, force: true }));
-      } catch (error) {
-        cleanupError = error;
-      }
-    }
+    await Promise.all(
+      roots.toReversed().map(async (root) => {
+        if (!rootRemovalAllowed.get(root)) return;
+        try {
+          verifyTempRoot(root);
+          await runStage("temp-root removal", () => rm(root, { recursive: true, force: true }));
+        } catch (error) {
+          cleanupError ??= error;
+        }
+      }),
+    );
 
     if (cleanupError !== undefined) throw cleanupError;
     if (operationError !== undefined) throw operationError;

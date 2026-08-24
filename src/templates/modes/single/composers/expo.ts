@@ -381,7 +381,7 @@ export function buildExpoFiles(
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
-  const isNone = hasAddon(addonMap, "none");
+  const isNone = hasAddon(addonMap, "database:none");
   const files: TemplateFile[] = [];
 
   files.push(

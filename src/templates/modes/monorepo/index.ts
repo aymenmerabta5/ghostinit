@@ -115,7 +115,7 @@ export function monorepoFiles(
   const effectiveDatabase = (configuredDatabase ??
     (hasAddon(addonMap, "convex")
       ? "convex"
-      : hasAddon(addonMap, "none")
+      : hasAddon(addonMap, "database:none")
         ? "none"
         : "postgres")) as DatabaseProvider;
 

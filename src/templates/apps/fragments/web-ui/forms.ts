@@ -225,25 +225,29 @@ ToggleGroupItem.displayName = "ToggleGroupItem";
       `"use client";
 
 import * as React from "react";
-import { Field, useForm, type FormApi } from "@tanstack/react-form";
+import { Field, useForm } from "@tanstack/react-form";
 import { Button, type ButtonProps } from "./button.js";
 import { cn } from "../../lib/utils.js";
 
 export { Field, useForm };
 
-export interface FormProps<TFormData = unknown> {
-  form: FormApi<TFormData, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
-  onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
+export interface FormController {
+  handleSubmit(): Promise<void>;
+}
+
+export interface FormProps {
+  form: FormController;
+  onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Form<TFormData = unknown>({
+export function Form({
   form,
   onSubmit,
   children,
   className,
-}: FormProps<TFormData>): React.JSX.Element {
+}: FormProps): React.JSX.Element {
   return (
     <form
       data-slot="form"

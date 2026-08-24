@@ -5,8 +5,16 @@ export function useAdminUsersHook(): TemplateFile {
     `"use client";
 import { useEffect, useState, useCallback } from "react";
 import { authClient } from "../../../../lib/auth-client.js";
-import type { AdminUser, UseAdminUsersReturn } from "@repo/kernel";
-export function useAdminUsers(): UseAdminUsersReturn {
+import { isUserRole } from "@repo/kernel";
+import type { AdminUser, UserRole, UseAdminUsersReturn } from "@repo/kernel";
+interface AdminUsersViewState {
+  search: string;
+  setSearch: (search: string) => void;
+  page: number;
+  setPage: (page: number) => void;
+  limit: number;
+}
+export function useAdminUsers(): UseAdminUsersReturn & AdminUsersViewState {
   const [data, setData] = useState<{ users: AdminUser[]; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,9 +25,9 @@ export function useAdminUsers(): UseAdminUsersReturn {
     setError(null); setLoading(true);
     try {
       const offset = (page - 1) * limit;
-      const result = await authClient.admin.listUsers({ query: { limit, offset, search: search || undefined } as unknown as { limit:number; offset:number; search?:string } });
+      const result = await authClient.admin.listUsers({ query: { limit, offset, searchValue: search || undefined, searchField: "email", searchOperator: "contains" } });
       if (result.error) { setError(result.error.message ?? "Failed to load users"); return; }
-      if (result.data) setData({ users: result.data.users.map((u: { id: string; name: string | null; email: string; role?: string | null; banned?: boolean | null }) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: result.data.total });
+      if (result.data) setData({ users: result.data.users.map((user) => ({ id: user.id, name: user.name, email: user.email, role: isUserRole(user.role) ? user.role : "user", banned: user.banned ?? false })), total: result.data.total });
     } finally { setLoading(false); }
   }, [page, search]);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -27,9 +35,9 @@ export function useAdminUsers(): UseAdminUsersReturn {
     if (banned) await authClient.admin.unbanUser({ userId }); else await authClient.admin.banUser({ userId });
     await refresh();
   }, [refresh]);
-  const setRole = useCallback(async (userId: string, currentRole: string) => {
+  const setRole = useCallback(async (userId: string, currentRole: UserRole) => {
     const role = currentRole === "admin" ? "user" : "admin";
-    await authClient.admin.setRole({ userId, role: role as "admin" | "user" });
+    await authClient.admin.setRole({ userId, role });
     await refresh();
   }, [refresh]);
   return { data, error, loading, refresh, toggleBan, setRole, search, setSearch, page, setPage, limit };
