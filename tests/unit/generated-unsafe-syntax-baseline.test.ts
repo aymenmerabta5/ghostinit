@@ -215,6 +215,24 @@ const TASK5_REVIEW_REMOVAL_IDS = new Set([
   "single/tanstack-start/postgres/capabilities-on::src/routes/settings.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "single/tanstack-start/postgres/capabilities-on::src/routes/settings.tsx::assertion-chain::ef2c97ce8ba2d902::1",
 ]);
+const TASK5_MAPPING_REMOVAL_IDS = new Set([
+  "monorepo/nextjs/convex/capabilities-off::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "monorepo/nextjs/convex/capabilities-off::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/nextjs/convex/capabilities-on::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "monorepo/nextjs/convex/capabilities-on::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/tanstack-start/convex/capabilities-off::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "monorepo/tanstack-start/convex/capabilities-off::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "monorepo/tanstack-start/convex/capabilities-on::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "monorepo/tanstack-start/convex/capabilities-on::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "single/nextjs/convex/capabilities-off::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "single/nextjs/convex/capabilities-off::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "single/nextjs/convex/capabilities-on::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "single/nextjs/convex/capabilities-on::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "single/tanstack-start/convex/capabilities-off::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "single/tanstack-start/convex/capabilities-off::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+  "single/tanstack-start/convex/capabilities-on::convex/users.ts::assertion-chain::272eb435c27066d0::1",
+  "single/tanstack-start/convex/capabilities-on::convex/users.ts::assertion-chain::9f821147cf9f4a09::1",
+]);
 const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS, ...TASK4_OWNERS]);
 
 function isTask4CapabilityRemoval(entry: (typeof baseline.entries)[number]): boolean {
@@ -262,6 +280,7 @@ const LEGITIMATE_REMOVAL_IDS = new Set(
   baseline.entries
     .filter(
       (entry) =>
+        TASK5_MAPPING_REMOVAL_IDS.has(entry.id) ||
         TASK5_REVIEW_REMOVAL_IDS.has(entry.id) ||
         TASK5_AXIS_REMOVAL_IDS.has(entry.id) ||
         TASK5_TYPED_REMOVAL_IDS.has(entry.id) ||
@@ -503,8 +522,8 @@ describe("V1 generated unsafe-syntax baseline", () => {
       .filter(({ id }) => !currentIds.has(id) && !LEGITIMATE_REMOVAL_IDS.has(id))
       .map(({ id }) => id);
     expect(unenumeratedRemovals).toEqual([]);
-    expect(occurrences).toHaveLength(671);
-    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(340);
+    expect(occurrences).toHaveLength(655);
+    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(356);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -612,28 +631,30 @@ describe("V1 generated unsafe-syntax baseline", () => {
     expect(actualIds.filter((id) => TASK5_AXIS_REMOVAL_IDS.has(id))).toEqual([]);
     expect(TASK5_REVIEW_REMOVAL_IDS.size).toBe(32);
     expect(actualIds.filter((id) => TASK5_REVIEW_REMOVAL_IDS.has(id))).toEqual([]);
+    expect(TASK5_MAPPING_REMOVAL_IDS.size).toBe(16);
+    expect(actualIds.filter((id) => TASK5_MAPPING_REMOVAL_IDS.has(id))).toEqual([]);
   });
 
   test("projection and default gates retain the factual V1 ceiling", () => {
     const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
     expect(PROJECTION_CONFIGURATIONS.map(({ configKey }) => configKey)).toHaveLength(16);
-    expect(projection).toHaveLength(534);
+    expect(projection).toHaveLength(518);
     const projectionRules = new Map(
       projection.map((occurrence) => {
         const rule = findProvenanceRule(occurrence.configKey, occurrence.path, policy);
         return [ruleKey(rule), rule];
       }),
     );
-    expect(projectionRules.size).toBe(62);
+    expect(projectionRules.size).toBe(61);
     expect(
       new Set(
         [...projectionRules.values()].map(
           ({ sourceOwner, emittedPathPattern }) => `${sourceOwner}::${emittedPathPattern}`,
         ),
       ).size,
-    ).toBe(60);
+    ).toBe(59);
     expect(new Set([...projectionRules.values()].map(({ sourceOwner }) => sourceOwner)).size).toBe(
-      40,
+      39,
     );
 
     const comparableKeys = new Set([

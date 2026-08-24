@@ -1,3 +1,4 @@
+// @allow-long 320: exact installed-type fixture keeps generated declarations and cleanup in one auditable boundary
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -65,18 +66,77 @@ function verifyTempRoot(root: string): void {
   }
 }
 
-const apiDeclaration = `import type { FunctionReference } from "convex/server";
-export interface RequestUser {
-  _id: string;
-  name: string;
-  email: string;
-  role?: string;
-}
-export declare const api: {
-  users: {
-    me: FunctionReference<"query", "public", Record<string, never>, RequestUser | null>;
+const dataModelDeclaration = `import type {
+  DataModelFromSchemaDefinition,
+  DocumentByName,
+  SystemTableNames,
+  TableNamesInDataModel,
+} from "convex/server";
+import type { GenericId } from "convex/values";
+import schema from "../schema.js";
+export type TableNames = TableNamesInDataModel<DataModel>;
+export type Doc<TableName extends TableNames> = DocumentByName<DataModel, TableName>;
+export type Id<TableName extends TableNames | SystemTableNames> = GenericId<TableName>;
+export type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+`;
+
+const serverDeclaration = `import type {
+  ActionBuilder,
+  GenericActionCtx,
+  GenericMutationCtx,
+  GenericQueryCtx,
+  HttpActionBuilder,
+  MutationBuilder,
+  QueryBuilder,
+} from "convex/server";
+import type { DataModel } from "./dataModel.js";
+export declare const query: QueryBuilder<DataModel, "public">;
+export declare const internalQuery: QueryBuilder<DataModel, "internal">;
+export declare const mutation: MutationBuilder<DataModel, "public">;
+export declare const internalMutation: MutationBuilder<DataModel, "internal">;
+export declare const action: ActionBuilder<DataModel, "public">;
+export declare const internalAction: ActionBuilder<DataModel, "internal">;
+export declare const httpAction: HttpActionBuilder;
+export type QueryCtx = GenericQueryCtx<DataModel>;
+export type MutationCtx = GenericMutationCtx<DataModel>;
+export type ActionCtx = GenericActionCtx<DataModel>;
+`;
+
+const apiDeclaration = `import type * as auth from "../auth.js";
+import type * as users from "../users.js";
+import type { ApiFromModules, FunctionReference } from "convex/server";
+type EmptyArgs = Record<string, never>;
+type InternalQuery = FunctionReference<"query", "internal", EmptyArgs, unknown>;
+type InternalMutation = FunctionReference<"mutation", "internal", EmptyArgs, unknown>;
+type AuthAdapter = {
+  create: InternalMutation;
+  findOne: InternalQuery;
+  findMany: InternalQuery;
+  updateOne: InternalMutation;
+  updateMany: InternalMutation;
+  deleteOne: InternalMutation;
+  deleteMany: InternalMutation;
+};
+type AppApi = ApiFromModules<{ auth: typeof auth; users: typeof users }>;
+export declare const api: AppApi;
+export declare const internal: AppApi;
+export declare const components: {
+  betterAuth: {
+    adapter: AuthAdapter;
   };
 };
+`;
+
+const requestUserContract = `import type { FunctionReturnType } from "convex/server";
+import type { Doc } from "./convex/_generated/dataModel.js";
+import { api } from "./convex/_generated/api.js";
+type Equal<Left, Right> =
+  (<Value>() => Value extends Left ? 1 : 2) extends
+  (<Value>() => Value extends Right ? 1 : 2) ? true : false;
+type Assert<Condition extends true> = Condition;
+export type ApiUserIsAppUser = Assert<
+  Equal<FunctionReturnType<typeof api.users.me>, Doc<"users"> | null>
+>;
 `;
 
 const frameworkDeclarations = `declare module "@tanstack/react-start" {
@@ -137,14 +197,51 @@ describe("generated Convex request-user boundary", () => {
         );
         const auth = files.find(({ path }) => path === variant.authPath)?.content ?? "";
         const admin = files.find(({ path }) => path === variant.adminPath)?.content ?? "";
+        const schema = files.find(({ path }) => path === "convex/schema.ts")?.content ?? "";
+        const convexAuth = files.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
+        const users = files.find(({ path }) => path === "convex/users.ts")?.content ?? "";
+        const authConfig =
+          files.find(({ path }) => path === "convex/auth.config.ts")?.content ?? "";
         expect(auth, variant.mode).toContain("fetchAuthQuery(api.users.me, {})");
         expect(admin, variant.mode).toContain("getRequestUser()");
+        expect(schema, variant.mode).toContain("authId: v.optional(v.string())");
+        expect(schema, variant.mode).toContain('.index("by_authId", ["authId"])');
+        expect(convexAuth, variant.mode).toContain(
+          "const authFunctions: AuthFunctions = internal.auth",
+        );
+        expect(convexAuth, variant.mode).toContain("triggers: {");
+        expect(convexAuth, variant.mode).toContain(
+          "export const { onCreate, onUpdate, onDelete } = authComponent.triggersApi()",
+        );
+        expect(users, variant.mode).toContain('.withIndex("by_authId"');
+        expect(users, variant.mode).not.toContain("as unknown as");
         await transaction.write(`${variant.fixtureRoot}/${variant.authPath}`, auth);
         await transaction.write(`${variant.fixtureRoot}/${variant.adminPath}`, admin);
+        await transaction.write(`${variant.fixtureRoot}/convex/schema.ts`, schema);
+        await transaction.write(`${variant.fixtureRoot}/convex/auth.ts`, convexAuth);
+        await transaction.write(`${variant.fixtureRoot}/convex/users.ts`, users);
+        await transaction.write(`${variant.fixtureRoot}/convex/auth.config.ts`, authConfig);
         await transaction.write(
           `${variant.fixtureRoot}/convex/_generated/api.d.ts`,
           apiDeclaration,
         );
+        await transaction.write(
+          `${variant.fixtureRoot}/convex/_generated/dataModel.d.ts`,
+          dataModelDeclaration,
+        );
+        await transaction.write(
+          `${variant.fixtureRoot}/convex/_generated/server.d.ts`,
+          serverDeclaration,
+        );
+        await transaction.write(
+          `${variant.fixtureRoot}/request-user-contract.ts`,
+          requestUserContract,
+        );
+        if (variant.mode === "monorepo") {
+          const access =
+            files.find(({ path }) => path === "packages/auth/src/access.ts")?.content ?? "";
+          await transaction.write(`${variant.fixtureRoot}/packages/auth/src/access.ts`, access);
+        }
       }
       await transaction.write("framework.d.ts", frameworkDeclarations);
       await transaction.write(
@@ -181,6 +278,7 @@ describe("generated Convex request-user boundary", () => {
               types: ["node", "react"],
               paths: {
                 "@repo/auth": ["./monorepo/packages/auth/src/server.ts"],
+                "@repo/auth/access": ["./monorepo/packages/auth/src/access.ts"],
                 "@/server/auth": ["./single/src/server/auth/index.ts"],
               },
             },
