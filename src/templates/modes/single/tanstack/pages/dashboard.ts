@@ -75,12 +75,29 @@ export function singleDashboardRouteTanstackContent(): string {
   ].join("\n");
 }
 
-export function singleSettingsRouteTanstackContent(): string {
+function settingsRequestUserImports(isConvex: boolean): string {
+  return isConvex
+    ? `import { getRequestUser } from '@/server/auth'`
+    : `import { getRequestHeaders } from '@tanstack/react-start/server'
+import { getRequestUser } from '@/server/auth'`;
+}
+
+function settingsRequestUserServerFn(isConvex: boolean): string {
+  return isConvex
+    ? `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
+  return await getRequestUser()
+})`
+    : `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  return await getRequestUser(headers)
+})`;
+}
+
+export function singleSettingsRouteTanstackContent(isConvex = false): string {
   return `import * as React from 'react'
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { auth } from '@/server/auth'
+${settingsRequestUserImports(isConvex)}
 import { authClient } from '@/lib/auth-client'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -102,25 +119,20 @@ function isSettingsAction(value: unknown): value is SettingsAction {
   return value === '/2fa' || value === '/dashboard'
 }
 
-const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders()
-  const session = await auth.api.getSession({ headers })
-  return session
-})
+${settingsRequestUserServerFn(isConvex)}
 
 export const Route = createFileRoute('/settings')({
   beforeLoad: async () => {
-    const session = await getSessionFn()
-    if (!session?.user) throw redirect({ to: '/sign-in' })
-    return { session }
+    const user = await getRequestUserFn()
+    if (!user) throw redirect({ to: '/sign-in' })
+    return { user }
   },
   component: SettingsPage,
 })
 
 function SettingsPage(): React.JSX.Element {
-  const { session } = Route.useRouteContext()
+  const { user } = Route.useRouteContext()
   const navigate = useNavigate()
-  const user = session.user
   const [securityAction, setSecurityAction] = React.useState<SettingsAction>('/2fa')
   const [deletePassword, setDeletePassword] = React.useState('')
   const [deleteError, setDeleteError] = React.useState<string | null>(null)

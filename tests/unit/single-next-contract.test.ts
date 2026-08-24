@@ -305,7 +305,7 @@ describe("single Next boundary contracts", () => {
     );
   });
 
-  test("uses inferred Better Auth server sessions in every TanStack admin variant", () => {
+  test("uses the owning request-user boundary in every TanStack guard", () => {
     const variants = [
       { mode: "monorepo" as const, database: "postgres" as const, root: "apps/web/src" },
       { mode: "monorepo" as const, database: "convex" as const, root: "apps/web/src" },
@@ -322,28 +322,57 @@ describe("single Next boundary contracts", () => {
         }),
       );
       const key = `${variant.mode}/${variant.database}`;
-      const admin = ["admin.tsx", "admin.users.tsx", "admin.users.create.tsx"]
-        .map(
-          (relativePath) =>
-            generated.find(({ path }) => path === `${variant.root}/routes/${relativePath}`)
-              ?.content ?? "",
-        )
+      const routes = ["admin.tsx", "admin.users.tsx", "admin.users.create.tsx", "settings.tsx"].map(
+        (relativePath) =>
+          generated.find(({ path }) => path === `${variant.root}/routes/${relativePath}`)
+            ?.content ?? "",
+      );
+      const guards = routes
+        .map((content) => {
+          const componentIndex = content.indexOf("\n  component:");
+          return componentIndex === -1 ? content : content.slice(0, componentIndex);
+        })
         .join("\n");
-      expect(admin, key).toContain("const headers = getRequestHeaders()");
-      expect(admin, key).toContain("auth.api.getSession({ headers })");
-      expect(admin, key).not.toMatch(
+      expect(guards, key).toContain("getRequestUser");
+      expect(guards, key).toContain(
+        variant.database === "convex" ? "getRequestUser()" : "getRequestUser(headers)",
+      );
+      expect(guards, key).not.toContain("auth.api.getSession");
+      expect(guards, key).not.toMatch(
         /\bas unknown as\b|Route\.useRouteContext\(\) as|session\.user as/,
       );
+      if (variant.database === "convex") {
+        expect(guards, key).not.toContain("getRequestHeaders");
+      }
+    }
+  });
 
-      if (variant.mode === "single") {
-        const authServer =
-          generated.find(({ path }) => path === "src/server/auth/index.ts")?.content ?? "";
-        expect(authServer, key).not.toContain("as unknown as");
-        if (variant.database === "convex") {
-          expect(authServer, key).toContain("export interface SingleAuthSession");
-          expect(authServer, key).toContain(
-            "getSession: async ({ headers }: { headers: Headers }): Promise<SingleAuthSession | null>",
+  test("exports a real request-user implementation from every auth server owner", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        for (const database of ["postgres", "convex"] as const) {
+          const generated = generateProjectFiles(
+            projectConfigSchema.parse({ ...filesConfig, mode, framework, database }),
           );
+          const path =
+            mode === "monorepo" ? "packages/auth/src/server.ts" : "src/server/auth/index.ts";
+          const authServer = generated.find((file) => file.path === path)?.content ?? "";
+          const key = `${mode}/${framework}/${database}`;
+          expect(authServer, key).toContain("export async function getRequestUser");
+          if (database === "postgres") {
+            expect(authServer, key).toContain("auth.api.getSession({ headers })");
+            expect(authServer, key).toContain("return session?.user ?? null");
+          } else {
+            expect(authServer, key).toContain(
+              framework === "nextjs" ? "convexBetterAuthNextJs" : "convexBetterAuthReactStart",
+            );
+            expect(authServer, key).toContain(
+              'import { api } from "../../../convex/_generated/api"',
+            );
+            expect(authServer, key).toContain("fetchAuthQuery(api.users.me, {})");
+            expect(authServer, key).not.toContain("SingleAuthSession");
+            expect(authServer, key).not.toContain("return null");
+          }
         }
       }
     }

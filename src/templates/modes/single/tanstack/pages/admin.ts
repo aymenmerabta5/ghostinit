@@ -1,22 +1,41 @@
-export function singleTanstackAdminContent(): string {
+function requestUserImports(isConvex: boolean): string[] {
+  return isConvex
+    ? ["import { getRequestUser } from '@/server/auth'"]
+    : [
+        "import { getRequestHeaders } from '@tanstack/react-start/server'",
+        "import { getRequestUser } from '@/server/auth'",
+      ];
+}
+
+function requestUserServerFn(isConvex: boolean): string[] {
+  return isConvex
+    ? [
+        "const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {",
+        "  return await getRequestUser()",
+        "})",
+      ]
+    : [
+        "const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {",
+        "  const headers = getRequestHeaders()",
+        "  return await getRequestUser(headers)",
+        "})",
+      ];
+}
+
+export function singleTanstackAdminContent(isConvex = false): string {
   return [
     "import * as React from 'react'",
     "import { createFileRoute, redirect, Link } from '@tanstack/react-router'",
     "import { createServerFn } from '@tanstack/react-start'",
-    "import { getRequestHeaders } from '@tanstack/react-start/server'",
-    "import { auth } from '@/server/auth'",
+    ...requestUserImports(isConvex),
     "",
-    "const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {",
-    "  const headers = getRequestHeaders()",
-    "  const session = await auth.api.getSession({ headers })",
-    "  return session ?? null",
-    "})",
+    ...requestUserServerFn(isConvex),
     "",
     "export const Route = createFileRoute('/admin')({",
     "  beforeLoad: async () => {",
-    "    const session = await getSessionFn()",
-    "    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })",
-    "    return { session }",
+    "    const user = await getRequestUserFn()",
+    "    if (!user || user.role !== 'admin') throw redirect({ to: '/' })",
+    "    return { user }",
     "  },",
     "  component: AdminPage,",
     "})",
@@ -38,13 +57,12 @@ export function singleTanstackAdminContent(): string {
   ].join("\n");
 }
 
-export function singleTanstackAdminUsersContent(): string {
+export function singleTanstackAdminUsersContent(isConvex = false): string {
   return [
     "import * as React from 'react'",
     "import { createFileRoute, redirect, Link } from '@tanstack/react-router'",
     "import { createServerFn } from '@tanstack/react-start'",
-    "import { getRequestHeaders } from '@tanstack/react-start/server'",
-    "import { auth } from '@/server/auth'",
+    ...requestUserImports(isConvex),
     "import { authClient } from '@/lib/auth-client'",
     "import { Button } from '@/components/ui/button'",
     "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'",
@@ -58,17 +76,13 @@ export function singleTanstackAdminUsersContent(): string {
     "import { isUserRole } from '@/lib/kernel'",
     "import type { AdminUser } from '@/lib/kernel'",
     "",
-    "const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {",
-    "  const headers = getRequestHeaders()",
-    "  const session = await auth.api.getSession({ headers })",
-    "  return session ?? null",
-    "})",
+    ...requestUserServerFn(isConvex),
     "",
     "export const Route = createFileRoute('/admin/users')({",
     "  beforeLoad: async () => {",
-    "    const session = await getSessionFn()",
-    "    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })",
-    "    return { session }",
+    "    const user = await getRequestUserFn()",
+    "    if (!user || user.role !== 'admin') throw redirect({ to: '/' })",
+    "    return { user }",
     "  },",
     "  component: AdminUsersPage,",
     "})",
@@ -110,13 +124,12 @@ export function singleTanstackAdminUsersContent(): string {
   ].join("\n");
 }
 
-export function singleTanstackAdminCreateContent(): string {
+export function singleTanstackAdminCreateContent(isConvex = false): string {
   return [
     "import * as React from 'react'",
     "import { createFileRoute, redirect, Link, useRouter } from '@tanstack/react-router'",
     "import { createServerFn } from '@tanstack/react-start'",
-    "import { getRequestHeaders } from '@tanstack/react-start/server'",
-    "import { auth } from '@/server/auth'",
+    ...requestUserImports(isConvex),
     "import { authClient } from '@/lib/auth-client'",
     "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'",
     "import { Button } from '@/components/ui/button'",
@@ -130,17 +143,13 @@ export function singleTanstackAdminCreateContent(): string {
     "import { isUserRole } from '@/lib/kernel'",
     "import type { UserRole } from '@/lib/kernel'",
     "",
-    "const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {",
-    "  const headers = getRequestHeaders()",
-    "  const session = await auth.api.getSession({ headers })",
-    "  return session ?? null",
-    "})",
+    ...requestUserServerFn(isConvex),
     "",
     "export const Route = createFileRoute('/admin/users/create')({",
     "  beforeLoad: async () => {",
-    "    const session = await getSessionFn()",
-    "    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })",
-    "    return { session }",
+    "    const user = await getRequestUserFn()",
+    "    if (!user || user.role !== 'admin') throw redirect({ to: '/' })",
+    "    return { user }",
     "  },",
     "  component: AdminCreateUserPage,",
     "})",

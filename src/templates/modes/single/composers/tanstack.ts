@@ -151,11 +151,13 @@ export function buildTanstackFiles(
   if (hasAuth) {
     files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
     files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent()));
-    files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent()));
+    files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent(isConvex)));
     files.push(file("src/routes/billing.tsx", singleBillingRouteTanstackContent()));
-    files.push(file("src/routes/admin.tsx", singleTanstackAdminContent()));
-    files.push(file("src/routes/admin.users.tsx", singleTanstackAdminUsersContent()));
-    files.push(file("src/routes/admin.users.create.tsx", singleTanstackAdminCreateContent()));
+    files.push(file("src/routes/admin.tsx", singleTanstackAdminContent(isConvex)));
+    files.push(file("src/routes/admin.users.tsx", singleTanstackAdminUsersContent(isConvex)));
+    files.push(
+      file("src/routes/admin.users.create.tsx", singleTanstackAdminCreateContent(isConvex)),
+    );
   }
   files.push(file("src/routes/$notFound.tsx", singleNotFoundRouteTanstackContent()));
   if (hasAuth)

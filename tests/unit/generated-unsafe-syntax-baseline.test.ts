@@ -188,12 +188,16 @@ const TASK5_REVIEW_REMOVAL_IDS = new Set([
   "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/admin.users.create.tsx::assertion-chain::8f557185e84a90d2::1",
   "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::8f557185e84a90d2::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::2942bbd1c52a8b0f::1",
+  "monorepo/tanstack-start/convex/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::37852dad5b62915e::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.tsx::assertion-chain::8f557185e84a90d2::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.create.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.create.tsx::assertion-chain::8f557185e84a90d2::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/admin.users.tsx::assertion-chain::8f557185e84a90d2::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::2942bbd1c52a8b0f::1",
+  "monorepo/tanstack-start/postgres/capabilities-on::apps/web/src/routes/settings.tsx::assertion-chain::37852dad5b62915e::1",
   "single/tanstack-start/convex/capabilities-on::src/routes/admin.tsx::assertion-chain::2942bbd1c52a8b0f::1",
   "single/tanstack-start/convex/capabilities-on::src/routes/admin.tsx::assertion-chain::45830b71a5321214::1",
   "single/tanstack-start/convex/capabilities-on::src/routes/admin.users.create.tsx::assertion-chain::2942bbd1c52a8b0f::1",
@@ -499,8 +503,8 @@ describe("V1 generated unsafe-syntax baseline", () => {
       .filter(({ id }) => !currentIds.has(id) && !LEGITIMATE_REMOVAL_IDS.has(id))
       .map(({ id }) => id);
     expect(unenumeratedRemovals).toEqual([]);
-    expect(occurrences).toHaveLength(675);
-    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(336);
+    expect(occurrences).toHaveLength(671);
+    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(340);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -606,14 +610,14 @@ describe("V1 generated unsafe-syntax baseline", () => {
     expect(actualIds.filter((id) => TASK5_TYPED_REMOVAL_IDS.has(id))).toEqual([]);
     expect(TASK5_AXIS_REMOVAL_IDS.size).toBe(10);
     expect(actualIds.filter((id) => TASK5_AXIS_REMOVAL_IDS.has(id))).toEqual([]);
-    expect(TASK5_REVIEW_REMOVAL_IDS.size).toBe(28);
+    expect(TASK5_REVIEW_REMOVAL_IDS.size).toBe(32);
     expect(actualIds.filter((id) => TASK5_REVIEW_REMOVAL_IDS.has(id))).toEqual([]);
   });
 
   test("projection and default gates retain the factual V1 ceiling", () => {
     const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
     expect(PROJECTION_CONFIGURATIONS.map(({ configKey }) => configKey)).toHaveLength(16);
-    expect(projection).toHaveLength(538);
+    expect(projection).toHaveLength(534);
     const projectionRules = new Map(
       projection.map((occurrence) => {
         const rule = findProvenanceRule(occurrence.configKey, occurrence.path, policy);

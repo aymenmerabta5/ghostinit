@@ -4,7 +4,7 @@
  * auth shared via fragments/auth (email validators, signIn/signUp logic)
  * dashboard shared via fragments/dashboard, layout via fragments/layout, theme via fragments/theme
  * recovery via fragments/recovery with RouterType (next | tanstack) — DRY, no inline 66 LOC copies
- * settings via fragments/settings with RouterType — uses tanstackGetSessionFnContent + tanstackAuthBeforeLoadContent helpers
+ * settings via fragments/settings with RouterType — uses the database-aware getRequestUser boundary
  * billing via fragments/billing with RouterType — new fragment, was only inline 66 LOC
  *
  * Fragment extraction trigger: When TanStack files exceed 300 LOC or third framework added,
@@ -34,7 +34,7 @@ import {
 } from "./fragments/seo.js";
 import { tanstackInstrumentationContent } from "./fragments/instrumentation.js";
 
-export function tanstackPageFiles(hasEmail = true): TemplateFile[] {
+export function tanstackPageFiles(hasEmail = true, isConvex = false): TemplateFile[] {
   return [
     rootRoute(),
     marketingRoute(),
@@ -43,9 +43,9 @@ export function tanstackPageFiles(hasEmail = true): TemplateFile[] {
     twoFactorRoute(),
     ...recoveryFiles("tanstack", hasEmail),
     dashboardRoute(),
-    ...settingsFiles("tanstack"),
+    ...settingsFiles("tanstack", isConvex),
     ...billingFiles("tanstack"),
-    ...tanstackAdminFiles(),
+    ...tanstackAdminFiles(isConvex),
     unauthorizedRoute(),
     forbiddenRoute(),
     notFoundRoute(),

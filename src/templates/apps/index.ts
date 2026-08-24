@@ -49,9 +49,13 @@ export function tanstackStartFiles(
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
       ? hasAddon(addonsOrHasEve as AddonInstallerMap, "api")
       : true;
+  const isConvex =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "convex")
+      : false;
   return [
     ...tanstackCoreFiles(runtime, addonsOrHasEve),
-    ...tanstackPageFiles(hasEmail),
+    ...tanstackPageFiles(hasEmail, isConvex),
     ...(hasApi ? tanstackApiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime),

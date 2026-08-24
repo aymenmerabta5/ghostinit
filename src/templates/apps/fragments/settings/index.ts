@@ -24,9 +24,9 @@ export {
   tanstackSettingsPageContent,
 };
 
-export function settingsFiles(router: RouterType = "next"): TemplateFile[] {
+export function settingsFiles(router: RouterType = "next", isConvex = false): TemplateFile[] {
   if (router === "tanstack") {
-    return [tanstackSettingsPage()];
+    return [tanstackSettingsPage(isConvex)];
   }
   return [
     settingsLayout(),

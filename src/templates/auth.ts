@@ -321,6 +321,11 @@ ${magicLinkPlugin}
   ],${trustedOrigins}
 });
 
+export async function getRequestUser(headers: Headers) {
+  const session = await auth.api.getSession({ headers });
+  return session?.user ?? null;
+}
+
 export type Auth = typeof auth;
 `,
     ),
@@ -348,7 +353,7 @@ ${hasEmail ? "    magicLinkClient(),\n" : ""}    passkeyClient(),
     ),
     file(
       "packages/auth/src/index.ts",
-      `export { auth, type Auth } from "./server.js";
+      `export { auth, getRequestUser, type Auth } from "./server.js";
 export {
   ac,
   roles,
@@ -410,6 +415,7 @@ function convexServerNextContent(hasMobile = false): string {
     : "";
   return [
     `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";${expoNote}`,
+    `import { api } from "../../../convex/_generated/api";`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
@@ -459,6 +465,10 @@ function convexServerNextContent(hasMobile = false): string {
     `  convexSiteUrl,`,
     `});`,
     ``,
+    `export async function getRequestUser() {`,
+    `  return await fetchAuthQuery(api.users.me, {});`,
+    `}`,
+    ``,
     `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
     `function isRequestHandler(value: unknown): value is RequestHandler {`,
     `  return typeof value === "function";`,
@@ -491,6 +501,7 @@ function convexServerTanstackContent(hasMobile = false): string {
     : "";
   return [
     `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";${expoNote}`,
+    `import { api } from "../../../convex/_generated/api";`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
@@ -530,6 +541,10 @@ function convexServerTanstackContent(hasMobile = false): string {
     `  convexUrl,`,
     `  convexSiteUrl,`,
     `});`,
+    ``,
+    `export async function getRequestUser() {`,
+    `  return await fetchAuthQuery(api.users.me, {});`,
+    `}`,
     ``,
     `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
     `function isRequestHandler(value: unknown): value is RequestHandler {`,
@@ -600,7 +615,7 @@ function convexPackageFiles(
     ),
     file(
       "packages/auth/src/index.ts",
-      `export { auth, type Auth } from "./server.js";
+      `export { auth, getRequestUser, type Auth } from "./server.js";
 export {
   ac,
   roles,

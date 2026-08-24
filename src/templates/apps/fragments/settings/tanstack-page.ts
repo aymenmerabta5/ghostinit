@@ -1,17 +1,30 @@
 // @allow-long 340: one route owns six cohesive account settings sections and their shared auth boundary
 import { file, type TemplateFile } from "../../../shared.js";
-import {
-  tanstackGetSessionFnContent,
-  tanstackAuthBeforeLoadContent,
-} from "../auth/tanstack-guard.js";
 
-export function tanstackSettingsPageContent(): string {
+function requestUserImports(isConvex: boolean): string {
+  return isConvex
+    ? `import { getRequestUser } from '@repo/auth'`
+    : `import { getRequestHeaders } from '@tanstack/react-start/server'
+import { getRequestUser } from '@repo/auth'`;
+}
+
+function requestUserServerFn(isConvex: boolean): string {
+  return isConvex
+    ? `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
+  return await getRequestUser()
+})`
+    : `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  return await getRequestUser(headers)
+})`;
+}
+
+export function tanstackSettingsPageContent(isConvex = false): string {
   return `// @allow-long 320: six cohesive account settings sections share one protected TanStack route
 import * as React from 'react'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestHeaders } from '@tanstack/react-start/server'
-import { auth } from '@repo/auth'
+${requestUserImports(isConvex)}
 import { authClient } from '../lib/auth-client.js'
 import { z } from "zod";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -30,10 +43,14 @@ const profileSchema = z.object({ name: z.string().min(2, "Name must be at least 
 const passwordSchema = z.object({ currentPassword: z.string().min(1, "Current password required"), newPassword: z.string().min(8, "At least 8 characters").max(64) });
 const totpSchema = z.object({ code: z.string().regex(/^[0-9]{6}$/, "Enter a 6-digit code") });
 
-${tanstackGetSessionFnContent()}
+${requestUserServerFn(isConvex)}
 
 export const Route = createFileRoute('/settings')({
-  ${tanstackAuthBeforeLoadContent()}
+  beforeLoad: async () => {
+    const user = await getRequestUserFn()
+    if (!user) throw redirect({ to: '/sign-in' })
+    return { user }
+  },
   component: SettingsPage,
 })
 
@@ -317,13 +334,16 @@ function SettingsPage(): React.JSX.Element {
 `;
 }
 
-export function settingsPageContent(router: "next" | "tanstack" = "next"): string {
-  if (router === "tanstack") return tanstackSettingsPageContent();
+export function settingsPageContent(
+  router: "next" | "tanstack" = "next",
+  isConvex = false,
+): string {
+  if (router === "tanstack") return tanstackSettingsPageContent(isConvex);
   // Next version delegated to existing page.ts content via import, but keep placeholder for interface parity
   // Actual Next files are componentized; this wrapper returns TanStack when needed
-  return tanstackSettingsPageContent();
+  return tanstackSettingsPageContent(isConvex);
 }
 
-export function tanstackSettingsPage(): TemplateFile {
-  return file("apps/web/src/routes/settings.tsx", tanstackSettingsPageContent());
+export function tanstackSettingsPage(isConvex = false): TemplateFile {
+  return file("apps/web/src/routes/settings.tsx", tanstackSettingsPageContent(isConvex));
 }
