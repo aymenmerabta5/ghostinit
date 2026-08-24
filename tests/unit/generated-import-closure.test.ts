@@ -44,6 +44,32 @@ const CLOSURE_MATRIX = (["monorepo", "single"] as const).flatMap((mode) =>
   ),
 );
 
+const INDEPENDENT_CAPABILITY_MATRIX = (["monorepo", "single"] as const).flatMap((mode) =>
+  (["nextjs", "tanstack-start"] as const).flatMap((framework) =>
+    (["postgres", "convex"] as const).flatMap((database) =>
+      [
+        { key: "api-on-auth-off", auth: false, api: true, billing: [] as string[] },
+        { key: "billing-on-api-off", auth: false, api: false, billing: ["stripe"] },
+      ].map((input) => ({
+        key: `${mode}/${framework}/${database}/${input.key}`,
+        config: projectConfigSchema.parse({
+          name: "demo",
+          mode,
+          framework,
+          database,
+          preset: "custom",
+          auth: input.auth,
+          api: input.api,
+          email: false,
+          analytics: false,
+          billing: input.billing,
+          apps: ["web"],
+        }),
+      })),
+    ),
+  ),
+);
+
 const packageName = (specifier: string): string =>
   specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
@@ -149,8 +175,9 @@ describe("generated package ownership", () => {
   });
 
   test("every maintained import is declared by its nearest root or workspace owner", () => {
-    const problems = CLOSURE_MATRIX.flatMap(({ key, config }) =>
-      findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
+    const problems = [...CLOSURE_MATRIX, ...INDEPENDENT_CAPABILITY_MATRIX].flatMap(
+      ({ key, config }) =>
+        findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
     );
     expect(problems).toEqual([]);
   });
@@ -180,6 +207,19 @@ describe("generated package ownership", () => {
       ).toEqual(["package.json"]);
       for (const manifest of manifests) {
         expect(manifest.content, `${key}: ${manifest.path}`).not.toContain("workspace:*");
+      }
+    }
+  });
+
+  test("API and billing selections derive their required auth and API packages", () => {
+    for (const { key, config } of INDEPENDENT_CAPABILITY_MATRIX) {
+      const paths = generateProjectFiles(config).map(({ path }) => path);
+      if (config.mode === "monorepo") {
+        expect(paths, key).toContain("packages/auth/package.json");
+        expect(paths, key).toContain("packages/api/package.json");
+      } else {
+        expect(paths, key).toContain("src/server/auth/index.ts");
+        expect(paths, key).toContain("src/server/api/index.ts");
       }
     }
   });

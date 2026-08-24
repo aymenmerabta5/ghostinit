@@ -70,6 +70,12 @@ describe("generated email capability", () => {
         corner.mode === "monorepo" ? "packages/config/src/env.ts" : "src/lib/env.ts",
       );
       const agents = read("AGENTS.md");
+      const allAgentDocs = [
+        read("AGENTS.md"),
+        read("CLAUDE.md"),
+        read(".cursor/rules/ghostinit.mdc"),
+        read(".windsurf/rules/ghostinit.md"),
+      ].join("\n");
 
       if (corner.email) {
         const manifest = JSON.parse(read(emailManifestPath)) as {
@@ -140,6 +146,20 @@ describe("generated email capability", () => {
         expect(agents).not.toContain("reset-password");
         expect(agents).not.toContain("send-reset-password");
         expect(agents).not.toContain("Resend");
+        if (corner.mode === "monorepo") {
+          for (const claim of [
+            "packages/services + billing + email",
+            "modules+billing+email+database",
+            "packages/email",
+            "@repo/email",
+            "emailFiles",
+            "recovery routes",
+            "auth callbacks",
+            "Email disabled",
+          ]) {
+            expect(allAgentDocs, `${corner.key}: ${claim}`).not.toContain(claim);
+          }
+        }
       }
     });
   }

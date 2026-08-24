@@ -114,6 +114,59 @@ const TASK4_SAFE_REMOVAL_IDS = new Set([
   ),
 ]);
 const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS, ...TASK4_OWNERS]);
+
+function isTask4CapabilityRemoval(entry: (typeof baseline.entries)[number]): boolean {
+  const configKey = entry.catalogKeys[0] ?? "";
+  if (/^(?:monorepo|single)\/(?:nextjs|tanstack-start)\/convex\/capabilities-on$/.test(configKey)) {
+    if (
+      entry.sourceOwner === "src/templates/billing-generator.ts" &&
+      /(?:packages\/billing\/src|src\/server\/billing)\/adapters\/convex\.ts$/.test(entry.path)
+    ) {
+      return true;
+    }
+    if (
+      entry.sourceOwner === "src/templates/billing/index.ts" &&
+      /(?:packages\/billing\/src|src\/server\/billing)\/index\.ts$/.test(entry.path)
+    ) {
+      return true;
+    }
+  }
+
+  if (/^single\/nextjs\/(?:postgres|convex)\/capabilities-off$/.test(configKey)) {
+    return [
+      ["src/templates/modes/single/api/routes.ts", /^src\/app\/api\/\[\.\.\.path\]\/route\.ts$/],
+      ["src/templates/analytics/proxy.ts", /^src\/app\/api\/ingest\/route\.ts$/],
+      [
+        "src/templates/billing/ui/components/hook.ts",
+        /^src\/app\/billing\/hooks\/use-billing-page\.ts$/,
+      ],
+    ].some(([owner, pattern]) => owner === entry.sourceOwner && pattern.test(entry.path));
+  }
+
+  if (/^single\/tanstack-start\/(?:postgres|convex)\/capabilities-off$/.test(configKey)) {
+    return [
+      ["src/templates/modes/single/tanstack/pages/admin.ts", /^src\/routes\/admin\.tsx$/],
+      ["src/templates/modes/single/tanstack/api.ts", /^src\/routes\/api\/rpc\/\$splat\.ts$/],
+      [
+        "src/templates/modes/single/tanstack/pages/dashboard.ts",
+        /^src\/routes\/(?:billing|dashboard|settings)\.tsx$/,
+      ],
+    ].some(([owner, pattern]) => owner === entry.sourceOwner && pattern.test(entry.path));
+  }
+  return false;
+}
+
+const LEGITIMATE_REMOVAL_IDS = new Set(
+  baseline.entries
+    .filter(
+      (entry) =>
+        TASK4_SAFE_REMOVAL_IDS.has(entry.id) ||
+        isTask4CapabilityRemoval(entry) ||
+        (entry.disposition === "remove-in-stabilization" &&
+          STABILIZED_OWNERS.has(entry.sourceOwner)),
+    )
+    .map(({ id }) => id),
+);
 const dispositionSchema = JSON.parse(
   readFileSync(
     resolve(root, "schemas/v1-generated-unsafe-syntax-dispositions.schema.json"),
@@ -336,14 +389,11 @@ describe("V1 generated unsafe-syntax baseline", () => {
     }
   });
 
-  test("catalog stays within the frozen baseline after safe removals", () => {
+  test("catalog exactly matches the frozen baseline minus enumerated removals", () => {
     const occurrences = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy);
-    const allowedEntries = baseline.entries.filter(
-      ({ id, disposition, sourceOwner }) =>
-        !TASK4_SAFE_REMOVAL_IDS.has(id) &&
-        (disposition !== "remove-in-stabilization" || !STABILIZED_OWNERS.has(sourceOwner)),
-    );
+    const allowedEntries = baseline.entries.filter(({ id }) => !LEGITIMATE_REMOVAL_IDS.has(id));
     expect(occurrences).toHaveLength(765);
+    expect(LEGITIMATE_REMOVAL_IDS.size).toBe(246);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -351,6 +401,13 @@ describe("V1 generated unsafe-syntax baseline", () => {
     );
 
     const allowedById = new Map(allowedEntries.map((entry) => [entry.id, entry]));
+    const actualIds = new Set(occurrences.map(({ id }) => id));
+    const removedIds = baseline.entries
+      .map(({ id }) => id)
+      .filter((id) => !actualIds.has(id))
+      .toSorted(compareText);
+    expect(removedIds).toEqual([...LEGITIMATE_REMOVAL_IDS].toSorted(compareText));
+    expect(occurrences.map(({ id }) => id)).toEqual(allowedEntries.map(({ id }) => id));
     for (const actual of occurrences) {
       const entry = allowedById.get(actual.id);
       expect(entry, actual.id).toBeDefined();
@@ -372,14 +429,11 @@ describe("V1 generated unsafe-syntax baseline", () => {
     }
     for (const rule of policy.rules) {
       const key = ruleKey(rule);
-      if (
-        STABILIZED_OWNERS.has(rule.sourceOwner) &&
-        rule.disposition === "remove-in-stabilization"
-      ) {
-        expect(actualRuleCounts.get(key), key).toBeUndefined();
-      } else {
-        expect(actualRuleCounts.get(key) ?? 0, key).toBeLessThanOrEqual(rule.expectedOccurrences);
-      }
+      const expectedCount = allowedEntries.filter((entry) => {
+        const configKey = entry.catalogKeys[0] ?? "";
+        return ruleKey(findProvenanceRule(configKey, entry.path, policy)) === key;
+      }).length;
+      expect(actualRuleCounts.get(key) ?? 0, key).toBe(expectedCount);
     }
   });
 

@@ -111,7 +111,14 @@ describe("single Next boundary contracts", () => {
       expect(enabledPaths.some((path) => path.startsWith("src/server/api/"))).toBe(true);
       expect(enabledPaths.some((path) => path.includes("analytics"))).toBe(true);
       expect(enabledSource).toContain("@orpc/");
-      if (framework === "nextjs") expect(enabledSource).toContain("PostHogProvider");
+      expect(enabledSource).toContain("PostHogProvider");
+      const enabledProvider =
+        enabled.find(({ path }) => path === "src/components/providers.tsx")?.content ?? "";
+      expect(enabledProvider).toContain("PostHogProvider");
+      expect(enabledProvider).toContain("<PostHogProvider>");
+      const disabledProvider =
+        disabled.find(({ path }) => path === "src/components/providers.tsx")?.content ?? "";
+      expect(disabledProvider).not.toContain("PostHogProvider");
     }
   });
 
@@ -124,6 +131,56 @@ describe("single Next boundary contracts", () => {
         generated.filter(({ path }) => path.endsWith("package.json")).map(({ path }) => path),
       ).toEqual(["package.json"]);
       expect(generated.map(({ content }) => content).join("\n")).not.toContain("workspace:*");
+    }
+  });
+
+  test("derives auth and API requirements for independent capability selections", () => {
+    const cases = [
+      { key: "api-on-auth-off", auth: false, api: true, billing: [] as string[] },
+      { key: "billing-on-api-off", auth: false, api: false, billing: ["stripe"] },
+    ];
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      for (const database of ["postgres", "convex"] as const) {
+        for (const capabilityCase of cases) {
+          const generated = generateProjectFiles(
+            projectConfigSchema.parse({
+              ...filesConfig,
+              framework,
+              database,
+              preset: "custom",
+              auth: capabilityCase.auth,
+              api: capabilityCase.api,
+              email: false,
+              analytics: false,
+              billing: capabilityCase.billing,
+            }),
+          );
+          const key = `${framework}/${database}/${capabilityCase.key}`;
+          const paths = generated.map(({ path }) => path);
+          const manifest = JSON.parse(
+            generated.find(({ path }) => path === "package.json")?.content ?? "{}",
+          ) as { dependencies?: Record<string, string> };
+          expect(paths, key).toContain("src/server/auth/index.ts");
+          expect(paths, key).toContain("src/lib/auth-client.ts");
+          expect(paths, key).toContain("src/server/api/index.ts");
+          expect(paths, key).toContain("src/lib/orpc.ts");
+          expect(manifest.dependencies?.["@orpc/server"], key).toBeDefined();
+          expect(manifest.dependencies?.["better-auth"], key).toBeDefined();
+          if (capabilityCase.billing.length > 0) {
+            const route =
+              framework === "nextjs"
+                ? "src/app/api/billing/subscriptions/route.ts"
+                : "src/routes/api/billing/subscriptions.ts";
+            expect(paths, key).toContain(route);
+            if (database === "convex") {
+              expect(
+                generated.find(({ path }) => path === route)?.content ?? "",
+                key,
+              ).not.toContain("drizzle-orm");
+            }
+          }
+        }
+      }
     }
   });
 });

@@ -85,13 +85,25 @@ export function singleFiles(
     config.i18n,
   );
   const hasEmail = hasAddon(addonMap, "email");
-  const hasApi = hasAddon(addonMap, "api");
+  const requestedAuth = hasAddon(addonMap, "auth");
+  const requestedApi = hasAddon(addonMap, "api");
   const hasAnalytics = hasAddon(addonMap, "analytics");
   const selectedBilling = selectedBillingFromAddons(addonMap);
   const effectiveBilling: BillingProviderName[] =
     selectedBilling.length > 0
       ? selectedBilling
       : ((config.billing ?? []) as BillingProviderName[]);
+  // V1 contracts include authenticated `me`, and every billing route is both
+  // API-backed and authenticated. Resolve those implications once, before any
+  // manifest or file composer runs.
+  const hasBilling = effectiveBilling.length > 0 || hasAddon(addonMap, "billing");
+  const effectiveApi = requestedApi || hasBilling;
+  const effectiveAuth = requestedAuth || effectiveApi;
+  const compositionAddons: AddonInstallerMap = {
+    ...addonMap,
+    api: { inUse: effectiveApi },
+    auth: { inUse: effectiveAuth },
+  };
 
   const effectiveApps: string[] = ((): string[] => {
     const cfgApps = config.apps as string[] | undefined;
@@ -123,10 +135,10 @@ export function singleFiles(
             hasEve,
             hasI18n,
             hasEmail,
-            hasApi,
+            effectiveApi,
             hasAnalytics,
             secrets,
-            addonMap,
+            compositionAddons,
           )
         : buildNextFiles(
             config.name,
@@ -135,10 +147,10 @@ export function singleFiles(
             hasEve,
             hasI18n,
             hasEmail,
-            hasApi,
+            effectiveApi,
             hasAnalytics,
             secrets,
-            addonMap,
+            compositionAddons,
           );
 
   const enrichedAgents = updatedAgentsMd(config.name, effectiveBilling, hasEve, hasI18n, hasEmail);
@@ -223,7 +235,7 @@ export function singleFiles(
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
   let deduped = dedupeFilesOrThrow(withoutOld);
   // Conditional stripping for frontend preset
-  const hasAuth = hasAddon(addonMap, "auth");
+  const hasAuth = effectiveAuth;
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (!hasAuth) {

@@ -215,9 +215,14 @@ export function buildTanstackFiles(
     files.push(file("src/components/admin-guard.tsx", singleAdminGuardTanstackContent()));
   }
   if (isConvex) {
-    files.push(file("src/components/providers.tsx", singleProvidersTanstackContentConvex(hasAuth)));
+    files.push(
+      file(
+        "src/components/providers.tsx",
+        singleProvidersTanstackContentConvex(hasAuth, hasAnalytics),
+      ),
+    );
   } else {
-    files.push(file("src/components/providers.tsx", singleProvidersTanstackContent()));
+    files.push(file("src/components/providers.tsx", singleProvidersTanstackContent(hasAnalytics)));
   }
   if (isConvex) {
     if (hasAuth) {

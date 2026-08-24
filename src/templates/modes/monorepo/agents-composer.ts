@@ -21,7 +21,7 @@ function buildAgentsMdContent(
   lines.push("## Snapshot");
   lines.push(`- Name: ${projectName}`);
   lines.push(
-    "- Mode: monorepo (workspaces apps/* packages/* tooling/* covers packages/services + billing + email via packages/* glob)",
+    `- Mode: monorepo (workspaces apps/* packages/* tooling/* covers packages/services + billing${hasEmail ? " + email" : ""} via packages/* glob)`,
   );
   lines.push(`- Runtime: bun only (bun ${v.runtime.bun}, bunfig.toml hoist true, bun.lock)`);
   lines.push(`- Framework: ${framework}`);
@@ -47,7 +47,7 @@ function buildAgentsMdContent(
     "2. **API contract — packages/api**: oRPC contract-first context auth.api.getSession health GET ok time me GET user contract router os.prefix(/api) openapi.",
   );
   lines.push(
-    "3. **Services — packages/services capability layer 4 default**: business logic Input/Deps(Result) spanning modules+billing+email+database. No business logic leaks into procedures. Integration boundaries stable APIs consumable by oRPC + Server Actions + RSC direct.",
+    `3. **Services — packages/services capability layer 4 default**: business logic Input/Deps(Result) spanning modules+billing${hasEmail ? "+email" : ""}+database. No business logic leaks into procedures. Integration boundaries stable APIs consumable by oRPC + Server Actions + RSC direct.`,
   );
   lines.push(
     "4. **Modules — packages/modules DDD**: src/<name>/ domain/types.ts Entity id domain/index application/index ports/index.ts Port tests/domain-types.test.ts. Per-module DB schema packages/database/src/schema/<name>.ts pgTable pluralized userId FK cascade.",
@@ -70,11 +70,11 @@ function buildAgentsMdContent(
       "- Billing keys conditional .env.example: RESEND is present with email, billing keys only if chosen.",
     );
   }
-  lines.push(
-    hasEmail
-      ? "- Email enabled: @repo/email exposes one typed React component sendEmail API and propagates delivery failures."
-      : "- Email disabled: no email package, recovery routes, auth callbacks, or delivery environment entries are emitted.",
-  );
+  if (hasEmail) {
+    lines.push(
+      "- Email enabled: @repo/email exposes one typed React component sendEmail API and propagates delivery failures.",
+    );
+  }
   lines.push(
     "- Services default: packages/services/src/ business logic per generator oRPC contract-first webhooks via Next routes raw Buffer single port.",
   );
@@ -82,7 +82,7 @@ function buildAgentsMdContent(
     "- Import alias @ always: @/* -> ./src/* + @repo/* -> packages/*/src via typescript-config paths explicit mappings 15 packages baseUrl explicit.",
   );
   lines.push(
-    "- Workspaces: root package.json workspaces [apps/*, packages/*, tooling/*] covers packages/services + billing + email. bunfig.toml hoist true bun.lock.",
+    `- Workspaces: root package.json workspaces [apps/*, packages/*, tooling/*] covers packages/services + billing${hasEmail ? " + email" : ""}. bunfig.toml hoist true bun.lock.`,
   );
   lines.push(
     hasI18n
@@ -98,7 +98,7 @@ function buildAgentsMdContent(
     "- AgenticFiles + eveFiles conditional if eve: enriched AGENTS.md/CLAUDE.md/cursor/windsurf rules still emitted per task.",
   );
   lines.push(
-    "- Dual modes: monorepoFiles returns TemplateFile[] for monorepo must = rootFiles+packageFiles+databasePackage+startDatabaseFiles+authPackage+emailFiles+analyticsFiles+apiPackage+uiPackage+modulesPackage+appsFilesWithConditionalEve+typescriptConfigWithAliases+toolingFiles+servicesFiles+billingFiles conditional+i18nFiles conditional+agenticFiles+eveFiles conditional. oRPC contract-first single port webhooks via Next routes raw Buffer.",
+    `- Dual modes: monorepoFiles composes rootFiles+packageFiles+databasePackage+startDatabaseFiles+authPackage${hasEmail ? "+emailFiles" : ""}+analyticsFiles+apiPackage+uiPackage+modulesPackage+appsFilesWithConditionalEve+typescriptConfigWithAliases+toolingFiles+servicesFiles+billingFiles conditional+i18nFiles conditional+agenticFiles+eveFiles conditional. oRPC contract-first single port webhooks via Next routes raw Buffer.`,
   );
   lines.push(
     hasEmail

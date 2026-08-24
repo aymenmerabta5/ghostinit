@@ -119,10 +119,20 @@ export function monorepoFiles(
         ? "none"
         : "postgres")) as DatabaseProvider;
 
-  const hasAuth = hasAddon(addonMap, "auth");
+  const requestedAuth = hasAddon(addonMap, "auth");
   const hasAnalytics = hasAddon(addonMap, "analytics");
   const hasEmail = hasAddon(addonMap, "email");
-  const hasApi = hasAddon(addonMap, "api");
+  const requestedApi = hasAddon(addonMap, "api");
+  // V1 exposes authenticated `me`, and billing transport requires both API and
+  // auth. Resolve implications before passing the map to any composer.
+  const hasBilling = effectiveBilling.length > 0 || hasAddon(addonMap, "billing");
+  const hasApi = requestedApi || hasBilling;
+  const hasAuth = requestedAuth || hasApi;
+  const compositionAddons: AddonInstallerMap = {
+    ...addonMap,
+    api: { inUse: hasApi },
+    auth: { inUse: hasAuth },
+  };
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   const hasMessaging = hasAddon(addonMap, "messaging") || config.messaging === true;
@@ -136,7 +146,7 @@ export function monorepoFiles(
       ctx,
       runtime,
       effectiveBilling,
-      addonMap,
+      compositionAddons,
       effectiveDatabase,
       effectiveFramework,
       effectiveApps,
@@ -150,8 +160,8 @@ export function monorepoFiles(
       hasAnalytics,
       hasEmail,
     ),
-    ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
-    ...(hasAuth ? authComposerFiles(effectiveFramework, addonMap, hasEmail) : []),
+    ...databaseComposerFiles(config.name, runtime, compositionAddons, effectiveDatabase),
+    ...(hasAuth ? authComposerFiles(effectiveFramework, compositionAddons, hasEmail) : []),
     ...(hasApi ? apiComposerFiles(effectiveBilling, hasMessaging, effectiveDatabase) : []),
     ...uiComposerFiles(),
     ...modulesComposerFiles(
@@ -159,17 +169,17 @@ export function monorepoFiles(
       effectiveBilling.length > 0,
       hasMessaging && effectiveDatabase === "postgres",
     ),
-    ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps, hasEmail),
+    ...appsComposerFiles(runtime, compositionAddons, effectiveFramework, effectiveApps, hasEmail),
     ...servicesComposerFiles(
       config.name,
       runtime,
-      addonMap,
+      compositionAddons,
       hasEve,
       hasI18n,
       effectiveFramework,
       hasEmail,
     ),
-    ...billingComposerFiles("monorepo", runtime, addonMap, effectiveBilling),
+    ...billingComposerFiles("monorepo", runtime, compositionAddons, effectiveBilling),
     ...(hasCache ? cacheComposerFiles(runtime) : []),
     ...(hasPdf
       ? pdfComposerFiles(
