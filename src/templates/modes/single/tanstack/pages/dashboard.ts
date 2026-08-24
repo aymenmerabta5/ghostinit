@@ -76,47 +76,125 @@ export function singleDashboardRouteTanstackContent(): string {
 }
 
 export function singleSettingsRouteTanstackContent(): string {
-  return [
-    "import * as React from 'react'",
-    "import { createFileRoute, Link, redirect } from '@tanstack/react-router'",
-    "import { createServerFn } from '@tanstack/react-start'",
-    "import { getRequestHeaders } from '@tanstack/react-start/server'",
-    "import { auth } from '@/server/auth'",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input, Badge, Separator, Alert, AlertTitle, AlertDescription } from '@/components/ui/card'",
-    "",
-    "const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {",
-    "  const headers = getRequestHeaders() as unknown as Headers",
-    "  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<{ user?: { email?: string; name?: string | null; role?: string } } | null> } }).api.getSession({ headers })",
-    "  return session ?? null",
-    "})",
-    "",
-    "export const Route = createFileRoute('/settings')({",
-    "  beforeLoad: async () => {",
-    "    const session = await getSessionFn()",
-    "    if (!session?.user) throw redirect({ to: '/sign-in' })",
-    "    return { session }",
-    "  },",
-    "  component: SettingsPage,",
-    "})",
-    "",
-    "function SettingsPage(): React.JSX.Element {",
-    "  const { session } = Route.useRouteContext() as { session: { user: { email: string; name?: string | null; role?: string } } }",
-    "  const user = session?.user",
-    "  return (",
-    "    <main className='min-h-screen bg-background p-6 md:p-8'>",
-    "      <div className='mx-auto max-w-5xl flex flex-col gap-8'>",
-    "        <div className='flex flex-col gap-2'><h1 className='text-2xl font-semibold tracking-tight'>Settings</h1><p className='text-sm text-muted-foreground max-w-[65ch]'>Manage account and workspace preferences. TanStack protected via createServerFn + getRequestHeaders.</p></div>",
-    "        <Separator />",
-    "        <div className='grid gap-6 md:grid-cols-3'>",
-    "          <Card className='md:col-span-2'><CardHeader><CardTitle className='text-base'>Profile</CardTitle><CardDescription className='max-w-[60ch]'>Signed in as {String(user?.email ?? '')}. Role {String(user?.role ?? 'user')}.</CardDescription></CardHeader><CardContent className='flex flex-col gap-4'><div className='flex flex-col gap-2'><span className='text-sm font-medium'>Name</span><Input defaultValue={String(user?.name ?? '')} readOnly /></div><div className='flex items-center gap-2'><Badge variant='secondary'>{String(user?.role ?? 'user')}</Badge><Badge variant='outline'>{String(user?.email ?? '')}</Badge></div><Alert><AlertTitle>Profile editing</AlertTitle><AlertDescription className='max-w-[60ch]'>Use authClient.updateUser from client components. Server route shows protected data via createServerFn pattern per Context7.</AlertDescription></Alert><div className='flex gap-2'><Button variant='outline' size='sm' asChild><Link to='/dashboard'>Dashboard</Link></Button><Button variant='outline' size='sm' asChild><Link to='/billing'>Billing</Link></Button></div></CardContent></Card>",
-    "          <Card><CardHeader><CardTitle className='text-base'>Security</CardTitle></CardHeader><CardContent className='flex flex-col gap-2'><Button variant='outline' size='sm' asChild><Link to='/2fa'>Two-factor</Link></Button><Button variant='outline' size='sm' asChild><Link to='/forgot-password'>Reset password</Link></Button></CardContent></Card>",
-    "        </div>",
-    "      </div>",
-    "    </main>",
-    "  )",
-    "}",
-    "",
-  ].join("\n");
+  return `import * as React from 'react'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
+import { auth } from '@/server/auth'
+import { authClient } from '@/lib/auth-client'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from '@/components/ui/empty'
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+
+type SettingsAction = '/2fa' | '/dashboard'
+const SETTINGS_ACTIONS = [
+  { label: 'Two-factor authentication', value: '/2fa' },
+  { label: 'Dashboard', value: '/dashboard' },
+] satisfies readonly { label: string; value: SettingsAction }[]
+function isSettingsAction(value: unknown): value is SettingsAction {
+  return value === '/2fa' || value === '/dashboard'
+}
+
+const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session
+})
+
+export const Route = createFileRoute('/settings')({
+  beforeLoad: async () => {
+    const session = await getSessionFn()
+    if (!session?.user) throw redirect({ to: '/sign-in' })
+    return { session }
+  },
+  component: SettingsPage,
+})
+
+function SettingsPage(): React.JSX.Element {
+  const { session } = Route.useRouteContext()
+  const navigate = useNavigate()
+  const user = session.user
+  const [securityAction, setSecurityAction] = React.useState<SettingsAction>('/2fa')
+  const [deletePassword, setDeletePassword] = React.useState('')
+  const [deleteError, setDeleteError] = React.useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = React.useState(false)
+  async function handleDelete(): Promise<void> {
+    setDeleteError(null)
+    const result = await authClient.deleteUser({ password: deletePassword })
+    if (result.error) { setDeleteError(result.error.message ?? 'Failed to delete account'); return }
+    setDeleteOpen(false)
+    void navigate({ to: '/' })
+  }
+  return (
+    <main className='min-h-screen bg-background p-6 md:p-8'>
+      <div className='mx-auto max-w-5xl flex flex-col gap-8'>
+        <div className='flex flex-col gap-2'>
+          <h1 className='text-2xl font-semibold tracking-tight'>Settings</h1>
+          <p className='text-sm text-muted-foreground max-w-[65ch]'>Manage account and workspace preferences.</p>
+        </div>
+        <Separator />
+        <div className='grid gap-6 md:grid-cols-3'>
+          <Card className='md:col-span-2'>
+            <CardHeader><CardTitle className='text-base'>Profile</CardTitle><CardDescription className='max-w-[60ch]'>Signed in as {user.email}. Role {user.role ?? 'user'}.</CardDescription></CardHeader>
+            <CardContent className='flex flex-col gap-4'>
+              <Field>
+                <FieldLabel htmlFor='settings-name'>Name</FieldLabel>
+                <Input id='settings-name' value={user.name} readOnly aria-describedby='settings-name-description' />
+                <FieldDescription id='settings-name-description'>Update your display name from an authenticated profile form.</FieldDescription>
+              </Field>
+              <div className='flex items-center gap-2'><Badge variant='secondary'>{user.role ?? 'user'}</Badge><Badge variant='outline'>{user.email}</Badge></div>
+              <Button variant='outline' size='sm' render={<Link to='/dashboard' />} nativeButton={false}>Dashboard</Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className='text-base'>Security</CardTitle><CardDescription>Choose the next account action.</CardDescription></CardHeader>
+            <CardContent className='flex flex-col gap-4'>
+              <Field>
+                <FieldLabel id='settings-action-label' htmlFor='settings-action'>Account action</FieldLabel>
+                <Select items={SETTINGS_ACTIONS} value={securityAction} onValueChange={(value) => { if (isSettingsAction(value)) setSecurityAction(value) }}>
+                  <SelectTrigger id='settings-action' aria-labelledby='settings-action-label' aria-describedby='settings-action-description'><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectGroup><SelectItem value='/2fa'>Two-factor authentication</SelectItem><SelectItem value='/dashboard'>Dashboard</SelectItem></SelectGroup></SelectContent>
+                </Select>
+                <FieldDescription id='settings-action-description'>Open the selected protected destination.</FieldDescription>
+              </Field>
+              <Button variant='outline' onClick={() => void navigate({ to: securityAction })}>Open destination</Button>
+            </CardContent>
+          </Card>
+        </div>
+        <Empty className='rounded-lg border bg-card'>
+          <EmptyHeader><EmptyTitle>No connected accounts</EmptyTitle><EmptyDescription>No external identity providers are linked to this account.</EmptyDescription></EmptyHeader>
+          <EmptyContent><Button variant='outline' render={<Link to='/dashboard' />} nativeButton={false}>Return to dashboard</Button></EmptyContent>
+        </Empty>
+        <Card className='border-destructive/30'>
+          <CardHeader><CardTitle className='text-base text-destructive'>Danger zone</CardTitle><CardDescription>Delete your account and associated data.</CardDescription></CardHeader>
+          <CardContent>
+            <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+              <DialogTrigger render={<Button variant='destructive' />}>Delete account</DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Delete account?</DialogTitle><DialogDescription>This action cannot be undone. Confirm with your password.</DialogDescription></DialogHeader>
+                {deleteError ? <Alert variant='destructive'><AlertTitle>Unable to delete</AlertTitle><AlertDescription id='settings-delete-password-error'>{deleteError}</AlertDescription></Alert> : null}
+                <Field data-invalid={deleteError !== null}>
+                  <FieldLabel htmlFor='settings-delete-password'>Password</FieldLabel>
+                  <Input id='settings-delete-password' type='password' value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} aria-invalid={deleteError !== null} aria-describedby={deleteError ? 'settings-delete-password-error' : 'settings-delete-password-description'} aria-errormessage={deleteError ? 'settings-delete-password-error' : undefined} />
+                  {!deleteError ? <FieldDescription id='settings-delete-password-description'>Your current password is required.</FieldDescription> : null}
+                </Field>
+                <DialogFooter><Button variant='outline' onClick={() => setDeleteOpen(false)}>Cancel</Button><Button variant='destructive' disabled={!deletePassword} onClick={() => void handleDelete()}>Confirm delete</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  )
+}
+`;
 }
 
 export function singleBillingRouteTanstackContent(): string {

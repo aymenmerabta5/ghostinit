@@ -54,7 +54,7 @@ export default function AdminUsersPage(): React.JSX.Element {
         <Empty className="rounded-lg border bg-card">
           <EmptyHeader>
             <EmptyTitle>{search ? "No matching users" : "No users yet"}</EmptyTitle>
-            <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email or name.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
+            <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email address.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
           </EmptyHeader>
           <EmptyContent className="flex justify-center">
             {search ? <Button variant="outline" onClick={() => { setSearch(""); setPage(1); }}>Clear search</Button> : <Button render={<Link href="/admin/users/create" />} nativeButton={false}>Create user</Button>}

@@ -34,15 +34,15 @@ import { getRequestHeaders } from '@tanstack/react-start/server'
 import { auth } from '@repo/auth'
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<unknown> } }).api.getSession({ headers })
-  return session as { user?: { role?: string; email?: string; name?: string | null } } | null
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session
 })
 
 export const Route = createFileRoute('/admin')({
   beforeLoad: async () => {
     const session = await getSessionFn()
-    if (!session?.user || (session.user as { role?: string }).role !== 'admin') throw redirect({ to: '/' })
+    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })
     return { session }
   },
   component: AdminPage,
@@ -84,15 +84,15 @@ import { isUserRole } from "@repo/kernel";
 import type { AdminUser } from "@repo/kernel";
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<unknown> } }).api.getSession({ headers })
-  return session as { user?: { role?: string } } | null
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session
 })
 
 export const Route = createFileRoute('/admin/users')({
   beforeLoad: async () => {
     const session = await getSessionFn()
-    if (!session?.user || (session.user as { role?: string }).role !== 'admin') throw redirect({ to: '/' })
+    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })
     return { session }
   },
   component: AdminUsersPage,
@@ -157,7 +157,7 @@ function AdminUsersPage(): React.JSX.Element {
       <Empty className="rounded-lg border bg-card">
         <EmptyHeader>
           <EmptyTitle>{search ? "No matching users" : "No users yet"}</EmptyTitle>
-          <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email or name.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
+          <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email address.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
         </EmptyHeader>
         <EmptyContent className="flex justify-center">{search ? <Button variant="outline" onClick={() => { setSearch(""); setPage(1); }}>Clear search</Button> : <Button render={<Link to="/admin/users/create" />} nativeButton={false}>Create user</Button>}</EmptyContent>
       </Empty>
@@ -206,15 +206,15 @@ import { isUserRole } from "@repo/kernel";
 import type { UserRole } from "@repo/kernel";
 
 const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<unknown> } }).api.getSession({ headers })
-  return session as { user?: { role?: string } } | null
+  const headers = getRequestHeaders()
+  const session = await auth.api.getSession({ headers })
+  return session
 })
 
 export const Route = createFileRoute('/admin/users/create')({
   beforeLoad: async () => {
     const session = await getSessionFn()
-    if (!session?.user || (session.user as { role?: string }).role !== 'admin') throw redirect({ to: '/' })
+    if (!session?.user || session.user.role !== 'admin') throw redirect({ to: '/' })
     return { session }
   },
   component: AdminCreateUserPage,
@@ -253,9 +253,9 @@ function AdminCreateUserPage(): React.JSX.Element {
             {error ? <Alert variant="destructive"><AlertTitle>Failed to create</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
-                <TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : 'Name required') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Name</FieldLabel><Input value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} placeholder="Ada Lovelace" />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
-                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email'), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : 'Enter a valid email') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Email</FieldLabel><Input type="email" value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} placeholder="you@example.com" />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
-                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters'), onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(f) => (<Field data-invalid={f.state.meta.errors.length > 0}><FieldLabel>Password</FieldLabel><Input type="password" value={f.state.value} onChange={(e) => f.handleChange(e.target.value)} onBlur={f.handleBlur} />{f.state.meta.errors.length ? (<FieldDescription className="text-destructive">{String(f.state.meta.errors[0])}</FieldDescription>) : null}</Field>)}</TanStackField>
+                <TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : 'Name required') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-name">Name</FieldLabel><Input id="create-user-name" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-name-error" : "create-user-name-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-name-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-name-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-name-description">Display name for the account.</FieldDescription>}</Field>)}</TanStackField>
+                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email'), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : 'Enter a valid email') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-email">Email</FieldLabel><Input id="create-user-email" type="email" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-email-error" : "create-user-email-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-email-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-email-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-email-description">Account email address.</FieldDescription>}</Field>)}</TanStackField>
+                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters'), onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-password">Password</FieldLabel><Input id="create-user-password" type="password" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-password-error" : "create-user-password-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-password-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-password-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-password-description">At least 8 characters.</FieldDescription>}</Field>)}</TanStackField>
                 <TanStackField form={form} name="role">{(field) => (<Field><FieldLabel id="role-label" htmlFor="role">Role</FieldLabel><Select items={ROLE_OPTIONS} value={field.state.value} onValueChange={(role) => { if (isUserRole(role)) field.handleChange(role); }}><SelectTrigger id="role" aria-labelledby="role-label" onBlur={field.handleBlur}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="user">User</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectGroup></SelectContent></Select><FieldDescription>Admins can manage all users.</FieldDescription></Field>)}</TanStackField>
               </FieldGroup>
               <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>

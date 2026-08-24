@@ -1,4 +1,4 @@
-// @allow-long 680: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
+// @allow-long 800: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -19,6 +19,7 @@ type PrimitiveCategory =
   | "radix-as-child"
   | "raw-form-control"
   | "raw-interactive-markup"
+  | "unsafe-type-escape"
   | "ungrouped-select-item";
 
 interface PrimitiveRecord {
@@ -102,7 +103,7 @@ interface ConsumerPaths {
   adminUsers: string;
   adminCreate: string;
   adminUserActions: string;
-  dangerZone?: string;
+  dangerZone: string;
   header: string;
 }
 
@@ -112,7 +113,7 @@ function consumerPaths(target: GeneratedTarget): ConsumerPaths {
       adminUsers: "routes/admin.users.tsx",
       adminCreate: "routes/admin.users.create.tsx",
       adminUserActions: "routes/admin.users.tsx",
-      ...(target.mode === "monorepo" ? { dangerZone: "routes/settings.tsx" } : {}),
+      dangerZone: "routes/settings.tsx",
       header: "components/header.tsx",
     };
   }
@@ -160,7 +161,7 @@ function legacyReviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
   ];
   const consumer = [
     ...repeatedReviewedRecord("radix-as-child", consumers.adminUserActions, 2),
-    ...repeatedReviewedRecord("radix-as-child", consumers.dangerZone ?? consumers.adminCreate),
+    ...repeatedReviewedRecord("radix-as-child", consumers.dangerZone),
     ...repeatedReviewedRecord("radix-as-child", consumers.header),
     ...repeatedReviewedRecord("ad-hoc-empty-state", consumers.adminUsers),
     ...(target.mode === "monorepo"
@@ -180,6 +181,45 @@ function addMissingTokens(
 ): void {
   for (const token of tokens) {
     if (!content.includes(token)) records.push({ category, path, evidence: `missing ${token}` });
+  }
+}
+
+function addFieldAssociationRecords(
+  records: PrimitiveRecord[],
+  path: string,
+  content: string,
+  id: string,
+): void {
+  const label = new RegExp(`<FieldLabel\\b[^>]*htmlFor=["']${id}["']`).exec(content);
+  if (label === null || label.index === undefined) {
+    records.push({
+      category: "field-composition",
+      path,
+      evidence: `missing FieldLabel association for ${id}`,
+    });
+    return;
+  }
+  const fieldOpenings = [...content.slice(0, label.index).matchAll(/<Field(?:\s|>)/g)];
+  const fieldStart = fieldOpenings.at(-1)?.index ?? label.index;
+  const fieldEnd = content.indexOf("</Field>", label.index);
+  const field = content.slice(fieldStart, fieldEnd === -1 ? content.length : fieldEnd);
+  const requirements = [
+    "data-invalid=",
+    `id="${id}"`,
+    "aria-invalid=",
+    "aria-describedby=",
+    "aria-errormessage=",
+    `${id}-description`,
+    `${id}-error`,
+  ];
+  for (const requirement of requirements) {
+    if (!field.includes(requirement) && !field.includes(requirement.replaceAll('"', "'"))) {
+      records.push({
+        category: "field-composition",
+        path,
+        evidence: `${id} missing ${requirement}`,
+      });
+    }
   }
 }
 
@@ -492,6 +532,11 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     "onValueChange=",
     "<SelectGroup>",
   ]);
+  if (target.mode === "monorepo" && target.framework === "tanstack-start") {
+    for (const id of ["create-user-name", "create-user-email", "create-user-password"]) {
+      addFieldAssociationRecords(records, adminCreatePath, adminCreate, id);
+    }
+  }
   for (const [value, label] of [
     ["user", "User"],
     ["admin", "Admin"],
@@ -514,6 +559,77 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
       (name) => name === "input" || name === "select",
     )) {
       records.push({ category: "raw-form-control", path, evidence: `<${element}>` });
+    }
+  }
+
+  if (/different email or name|email or name/i.test(adminUsers)) {
+    records.push({
+      category: "product-semantic-style",
+      path: adminUsersPath,
+      evidence: "search copy claims unsupported name matching",
+    });
+  }
+
+  if (target.mode === "single") {
+    const forgotPath =
+      target.framework === "nextjs" ? "app/forgot-password/page.tsx" : "routes/forgot-password.tsx";
+    const resetPath =
+      target.framework === "nextjs" ? "app/reset-password/page.tsx" : "routes/reset-password.tsx";
+    addFieldAssociationRecords(
+      records,
+      `${target.sourceRoot}/${forgotPath}`,
+      source(target, forgotPath),
+      "forgot-email",
+    );
+    for (const id of ["new-password", "confirm-password"]) {
+      addFieldAssociationRecords(
+        records,
+        `${target.sourceRoot}/${resetPath}`,
+        source(target, resetPath),
+        id,
+      );
+    }
+  }
+
+  if (target.mode === "single" && target.framework === "tanstack-start") {
+    const settingsPath = `${target.sourceRoot}/${consumers.dangerZone}`;
+    const settings = source(target, consumers.dangerZone);
+    addMissingTokens(records, "field-composition", settingsPath, settings, [
+      "from '@/components/ui/field'",
+      "from '@/components/ui/input'",
+      "<Field",
+      "<FieldLabel",
+      "<Input",
+      "<FieldDescription",
+    ]);
+    addMissingTokens(records, "nonfunctional-select", settingsPath, settings, [
+      "from '@/components/ui/select'",
+      "<Select items={SETTINGS_ACTIONS}",
+      "onValueChange=",
+      "<SelectGroup>",
+      "<SelectItem",
+    ]);
+    addMissingTokens(records, "ad-hoc-empty-state", settingsPath, settings, [
+      "from '@/components/ui/empty'",
+      "<Empty",
+      "<EmptyHeader",
+      "<EmptyTitle",
+      "<EmptyDescription",
+      "<EmptyContent",
+    ]);
+    addMissingTokens(records, "radix-as-child", settingsPath, settings, [
+      "from '@/components/ui/dialog'",
+      "<Dialog",
+      "<DialogTrigger render={<Button",
+      "<DialogTitle",
+    ]);
+    for (const element of rawInteractiveElements(settingsPath, settings).filter(
+      (name) => name === "input" || name === "select",
+    )) {
+      records.push({ category: "raw-form-control", path: settingsPath, evidence: `<${element}>` });
+    }
+    for (const match of settings.matchAll(/\bas unknown as\b|Route\.useRouteContext\(\) as/g)) {
+      records.push({ category: "unsafe-type-escape", path: settingsPath, evidence: match[0] });
     }
   }
 
@@ -560,6 +676,18 @@ describe("generated shared frontend primitives", () => {
     expect(surfaceSource.toLowerCase()).not.toContain("editorial");
   });
 
+  test("browser contract checks page and console errors after all interactions", () => {
+    const integration = readFileSync(
+      resolve(import.meta.dir, "../integration/generated-web-primitives.test.ts"),
+      "utf8",
+    );
+    expect(integration.match(/expect\(pageErrors\)\.toEqual\(\[\]\)/g)).toHaveLength(2);
+    expect(integration.match(/expect\(consoleErrors\)\.toEqual\(\[\]\)/g)).toHaveLength(2);
+    expect(integration.lastIndexOf("expect(pageErrors).toEqual([])")).toBeGreaterThan(
+      integration.indexOf("disabledReveal.click"),
+    );
+  });
+
   for (const target of targets) {
     test(`${target.label} enumerates and parses every reviewed primitive record`, () => {
       const inventory = legacyReviewedRecords(target);
@@ -597,6 +725,7 @@ describe("generated shared frontend primitives", () => {
           "radix-as-child",
           "raw-form-control",
           "raw-interactive-markup",
+          "unsafe-type-escape",
           "ungrouped-select-item",
         ].map((category) => [
           category,
@@ -615,6 +744,7 @@ describe("generated shared frontend primitives", () => {
         "radix-as-child": 0,
         "raw-form-control": 0,
         "raw-interactive-markup": 0,
+        "unsafe-type-escape": 0,
         "ungrouped-select-item": 0,
       });
     });

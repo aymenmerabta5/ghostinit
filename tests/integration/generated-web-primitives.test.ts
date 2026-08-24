@@ -1,4 +1,4 @@
-// @allow-long 560: one bounded cross-platform harness owns two generated targets, server readiness, browser interaction, and process-tree cleanup
+// @allow-long 580: one bounded cross-platform harness owns two generated targets, server readiness, browser interaction, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -14,6 +14,7 @@ import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwrigh
 import { ProcessTreeTerminationError, terminateProcessTree } from "../helpers/process-tree.js";
 
 interface RunningServer {
+  kind: BrowserTargetKind;
   child: ChildProcessWithoutNullStreams;
   stdout: () => string;
   stderr: () => string;
@@ -223,6 +224,8 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
   await expect(disabledReveal).toBeDisabled();
   await disabledReveal.click({ force: true });
   await expect(disabledPassword).toHaveAttribute("type", "password");
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
 });
 `;
 
@@ -387,7 +390,13 @@ export function startServer(target: BrowserTarget): RunningServer {
     stdio: ["ignore", "pipe", "pipe"],
   });
   const output = capture(child);
-  return { child, ...output };
+  return { kind: target.kind, child, ...output };
+}
+
+function hasReadinessAnnouncement(server: RunningServer): boolean {
+  const output = `${server.stdout()}\n${server.stderr()}`;
+  if (!/ready in/i.test(output)) return false;
+  return server.kind === "next-monorepo" || /Local:\s+http:\/\/127\.0\.0\.1/i.test(output);
 }
 
 export async function waitForHttp200(
@@ -396,9 +405,17 @@ export async function waitForHttp200(
   timeoutMs: number,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+  let announced = false;
   while (Date.now() < deadline) {
     if (server.child.exitCode !== null || server.child.signalCode !== null) {
-      throw new Error(`Generated server exited before readiness:\n${server.stderr()}`);
+      throw new Error(
+        `Generated server exited before readiness:\n${server.stdout().slice(-12_000)}\n${server.stderr().slice(-12_000)}`,
+      );
+    }
+    announced ||= hasReadinessAnnouncement(server);
+    if (!announced) {
+      await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
+      continue;
     }
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });

@@ -1,4 +1,7 @@
+// @allow-long 380: one single-mode contract keeps capability, auth, session, and generated-browser plan invariants together
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { buildAddonInstallerMap, hasAddon } from "../../src/lib/addons.js";
 import { projectConfigSchema } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -18,6 +21,26 @@ const files = generateProjectFiles(filesConfig);
 const read = (path: string): string => files.find((file) => file.path === path)?.content ?? "";
 
 describe("single Next boundary contracts", () => {
+  test("documents the measured clean-Windows browser bound", () => {
+    const plan = readFileSync(
+      resolve(
+        import.meta.dir,
+        "../../docs/superpowers/plans/2026-08-23-ghostinit-v2-generated-gate-stabilization.md",
+      ),
+      "utf8",
+    );
+    const browserCommands = [
+      ...plan.matchAll(
+        /bun test tests\/integration\/generated-web-primitives\.test\.ts --timeout (\d+)/g,
+      ),
+    ];
+    expect(browserCommands).toHaveLength(3);
+    expect(browserCommands.map((match) => match[1])).toEqual(["900000", "900000", "900000"]);
+    expect(plan).toContain("parallel installs");
+    expect(plan).toContain("verified cleanup");
+    expect(plan).toContain("readiness remains 120000ms");
+  });
+
   test("uses local typed env for flags", () => {
     const server = read("src/lib/feature-flags.ts");
     const client = read("src/lib/feature-flags-client.ts");
@@ -280,5 +303,49 @@ describe("single Next boundary contracts", () => {
     expect(readMonorepo("apps/web/src/app/admin/users/components/user-row.tsx")).toContain(
       'from "@repo/kernel"',
     );
+  });
+
+  test("uses inferred Better Auth server sessions in every TanStack admin variant", () => {
+    const variants = [
+      { mode: "monorepo" as const, database: "postgres" as const, root: "apps/web/src" },
+      { mode: "monorepo" as const, database: "convex" as const, root: "apps/web/src" },
+      { mode: "single" as const, database: "postgres" as const, root: "src" },
+      { mode: "single" as const, database: "convex" as const, root: "src" },
+    ];
+    for (const variant of variants) {
+      const generated = generateProjectFiles(
+        projectConfigSchema.parse({
+          ...filesConfig,
+          mode: variant.mode,
+          database: variant.database,
+          framework: "tanstack-start",
+        }),
+      );
+      const key = `${variant.mode}/${variant.database}`;
+      const admin = ["admin.tsx", "admin.users.tsx", "admin.users.create.tsx"]
+        .map(
+          (relativePath) =>
+            generated.find(({ path }) => path === `${variant.root}/routes/${relativePath}`)
+              ?.content ?? "",
+        )
+        .join("\n");
+      expect(admin, key).toContain("const headers = getRequestHeaders()");
+      expect(admin, key).toContain("auth.api.getSession({ headers })");
+      expect(admin, key).not.toMatch(
+        /\bas unknown as\b|Route\.useRouteContext\(\) as|session\.user as/,
+      );
+
+      if (variant.mode === "single") {
+        const authServer =
+          generated.find(({ path }) => path === "src/server/auth/index.ts")?.content ?? "";
+        expect(authServer, key).not.toContain("as unknown as");
+        if (variant.database === "convex") {
+          expect(authServer, key).toContain("export interface SingleAuthSession");
+          expect(authServer, key).toContain(
+            "getSession: async ({ headers }: { headers: Headers }): Promise<SingleAuthSession | null>",
+          );
+        }
+      }
+    }
   });
 });

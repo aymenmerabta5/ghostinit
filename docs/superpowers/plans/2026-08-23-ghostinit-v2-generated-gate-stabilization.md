@@ -1403,9 +1403,11 @@ The Playwright spec proves: clicking the Name label focuses its input; Tab reach
 
 - [ ] **Step 10: Run GREEN and lint the generated shared corner**
 
+Clean-Windows browser-bound amendment: the final two-target harness uses parallel installs and verified cleanup. Measured Task 5 evidence was 262451ms/290616ms for the installs, 122501ms/191819ms for verified cleanup, and 520170ms total. Use a 900000ms outer test bound; the per-child install bound remains 600000ms, readiness remains 120000ms, and the Playwright child bound remains 300000ms. The former 300000ms outer bound cannot include two clean installs plus verified recursive cleanup and is not a passing claim.
+
 ```bash
 bun test tests/unit/generated-web-ui-contract.test.ts tests/unit/generated-frontend-primitives.test.ts tests/unit/generated-unsafe-syntax-baseline.test.ts tests/unit/generation-matrix.test.ts --timeout 100000
-bun test tests/integration/generated-web-primitives.test.ts --timeout 300000
+bun test tests/integration/generated-web-primitives.test.ts --timeout 900000
 bun run build
 ```
 
@@ -1963,9 +1965,11 @@ Remove the `remove-in-stabilization` entries assigned to Task 5 files, then add 
 
 - [ ] **Step 8: Run GREEN structural, rendered, and build gates**
 
+On clean Windows, retain the measured 900000ms outer browser bound documented in Task 3. Parallel installs and verified cleanup are required; internal install/readiness/Playwright bounds remain 600000ms/120000ms/300000ms.
+
 ```bash
 bun test tests/unit/single-next-contract.test.ts tests/unit/generated-web-ui-contract.test.ts tests/unit/generated-frontend-primitives.test.ts tests/unit/generated-unsafe-syntax-baseline.test.ts --timeout 100000
-bun test tests/integration/generated-web-primitives.test.ts --timeout 300000
+bun test tests/integration/generated-web-primitives.test.ts --timeout 900000
 bun test tests/unit/generation-matrix.test.ts --timeout 100000
 bun run build
 ```
@@ -2735,9 +2739,11 @@ Expected: `1.4.0`, `Version 7.0.2`, and `rg` exits 1 with no match.
 
 - [ ] **Step 2: Run every focused contract**
 
+The generated browser contract uses the clean-Windows 900000ms outer bound from Tasks 3/5. This preserves the measured parallel installs and verified cleanup while keeping the existing narrower child/readiness limits.
+
 ```bash
 bun test --timeout 100000 tests/unit/generated-import-closure.test.ts tests/unit/generated-unsafe-syntax-baseline.test.ts tests/unit/lint-scripts-template.test.ts tests/unit/generated-web-ui-contract.test.ts tests/unit/generated-frontend-primitives.test.ts tests/unit/single-next-contract.test.ts tests/unit/email-capability.test.ts tests/unit/stripe-analytics-contract.test.ts tests/unit/stripe-webhook-runtime.test.ts tests/unit/billing-webhooks.test.ts tests/unit/import-alias-policy.test.ts
-bun test tests/integration/generated-web-primitives.test.ts --timeout 300000
+bun test tests/integration/generated-web-primitives.test.ts --timeout 900000
 bun test tests/integration/stripe-webhook-typecheck.test.ts --timeout 600000
 ```
 
