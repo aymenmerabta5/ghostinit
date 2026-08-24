@@ -1,4 +1,5 @@
-export function singleSignInRouteTanstackContent(): string {
+// @allow-long 312: four TanStack auth route string manifests stay together for route parity
+export function singleSignInRouteTanstackContent(hasEmail = true): string {
   return [
     '"use client"',
     "import * as React from 'react'",
@@ -27,7 +28,7 @@ export function singleSignInRouteTanstackContent(): string {
     "      setError(null)",
     "      const result = await authClient.signIn.email({ email: value.email, password: value.password, callbackURL: '/dashboard' })",
     "      if (result.error) { setError(result.error.message ?? 'Sign in failed'); return }",
-    "      if ((result.data as unknown as string)?.twoFactorRedirect) { void navigate({ to: '/2fa' }); return }",
+    "      if (result.data?.twoFactorRedirect) { void navigate({ to: '/2fa' }); return }",
     "      void navigate({ to: '/dashboard' })",
     "    },",
     "  })",
@@ -45,14 +46,18 @@ export function singleSignInRouteTanstackContent(): string {
     "            <Form form={form} className='flex flex-col gap-6'>",
     "              <FieldGroup>",
     "                <TanStackField form={form} name='email' validators={{ onSubmit: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor='signin-email'>Email</FieldLabel><Input id='signin-email' name={field.name} type='email' placeholder='you@example.com' autoComplete='email' required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : <FieldDescription>Your account email address.</FieldDescription>}</Field>)}</TanStackField>",
-    "                <TanStackField form={form} name='password' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className='flex items-center justify-between gap-2'><FieldLabel htmlFor='signin-password'>Password</FieldLabel><Link to='/forgot-password' className='text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot?</Link></div><Input id='signin-password' name={field.name} type='password' autoComplete='current-password' required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : null}</Field>)}</TanStackField>",
+    `                <TanStackField form={form} name='password' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className='flex items-center justify-between gap-2'><FieldLabel htmlFor='signin-password'>Password</FieldLabel>${hasEmail ? "<Link to='/forgot-password' className='text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot?</Link>" : ""}</div><Input id='signin-password' name={field.name} type='password' autoComplete='current-password' required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : null}</Field>)}</TanStackField>`,
     "              </FieldGroup>",
     "              <SubmitButton className='w-full'>Sign in</SubmitButton>",
     "            </Form>",
     "          </CardContent>",
     "          <CardFooter className='flex flex-col gap-3'>",
     "            <div className='flex w-full justify-between text-sm'>",
-    "              <Link to='/forgot-password' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot password?</Link>",
+    ...(hasEmail
+      ? [
+          "              <Link to='/forgot-password' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot password?</Link>",
+        ]
+      : []),
     "              <Link to='/sign-up' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Create account</Link>",
     "            </div>",
     "          </CardFooter>",
@@ -151,7 +156,7 @@ export function singleForgotPasswordRouteTanstackContent(): string {
     "    onSubmit: async ({ value }) => {",
     "      setError(null); setStatus(null)",
     "      if (!value.email.includes('@')) { setError('Enter a valid email that contains @'); return }",
-    "      const result = await (authClient as unknown as string).requestPasswordReset?.({ email: value.email, redirectTo: '/reset-password' }) ?? await (authClient as unknown as string).forgetPassword({ email: value.email, redirectTo: '/reset-password' })",
+    "      const result = await authClient.requestPasswordReset({ email: value.email, redirectTo: '/reset-password' })",
     "      if (result.error) { setError(result.error.message ?? 'Failed to send reset link'); return }",
     "      setStatus('If this email exists, check your inbox for the reset link.')",
     "    },",
@@ -209,7 +214,7 @@ export function singleResetPasswordRouteTanstackContent(): string {
     "      setError(null)",
     "      if (value.newPassword !== value.confirmPassword) { setError('Passwords do not match'); return }",
     "      if (value.newPassword.length < 8) { setError('Password must be at least 8 characters'); return }",
-    "      const result = await authClient.resetPassword({ newPassword: value.newPassword, token: token! } as unknown as string)",
+    "      const result = await authClient.resetPassword({ newPassword: value.newPassword, token: token! })",
     "      if (result.error) { setError(result.error.message ?? 'Failed to reset password'); return }",
     "      void navigate({ to: '/sign-in' })",
     "    },",

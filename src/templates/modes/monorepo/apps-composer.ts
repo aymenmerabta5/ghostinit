@@ -14,6 +14,7 @@ function appsFilesWithConditionalEve(
   runtime: "node" | "bun",
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
+  _hasEmail = true,
 ): TemplateFile[] {
   const hasEve = hasAddon(addons, "eve");
   const isTanstack = framework === "tanstack-start" || hasAddon(addons, "tanstack-start");
@@ -364,6 +365,7 @@ export function appsComposerFiles(
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
   appsOrFrameworkMaybe?: string[] | FrameworkName,
+  hasEmail = true,
 ): TemplateFile[] {
   let effectiveFramework: FrameworkName = framework;
   let effectiveApps: string[] = ["web"];
@@ -394,7 +396,9 @@ export function appsComposerFiles(
   const hasMobile = effectiveApps.includes("mobile");
   const hasDesktop = effectiveApps.includes("desktop");
 
-  const webFiles = hasWeb ? appsFilesWithConditionalEve(runtime, addons, effectiveFramework) : [];
+  const webFiles = hasWeb
+    ? appsFilesWithConditionalEve(runtime, addons, effectiveFramework, hasEmail)
+    : [];
   const mobileFiles = hasMobile ? genExpoFiles(runtime, addons) : [];
   const desktopFiles = hasDesktop ? desktopCoreFiles(runtime, addons) : [];
 

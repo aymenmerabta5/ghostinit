@@ -84,6 +84,7 @@ export function singleFiles(
     (config.features ?? []).includes("i18n" as FeatureName) ||
     config.i18n,
   );
+  const hasEmail = hasAddon(addonMap, "email");
   const selectedBilling = selectedBillingFromAddons(addonMap);
   const effectiveBilling: BillingProviderName[] =
     selectedBilling.length > 0
@@ -119,12 +120,22 @@ export function singleFiles(
             effectiveBilling,
             hasEve,
             hasI18n,
+            hasEmail,
             secrets,
             addonMap,
           )
-        : buildNextFiles(config.name, runtime, effectiveBilling, hasEve, secrets, addonMap);
+        : buildNextFiles(
+            config.name,
+            runtime,
+            effectiveBilling,
+            hasEve,
+            hasI18n,
+            hasEmail,
+            secrets,
+            addonMap,
+          );
 
-  const enrichedAgents = updatedAgentsMd(config.name, effectiveBilling, hasEve, hasI18n);
+  const enrichedAgents = updatedAgentsMd(config.name, effectiveBilling, hasEve, hasI18n, hasEmail);
   const withoutOld = files.filter(
     (f) =>
       ![
@@ -147,7 +158,7 @@ export function singleFiles(
     (!config.framework && !hasAddon(addonMap, "tanstack-start"));
   if (hasWebSingle && isNextSingle) for (const f of proxyFiles(mode, hasI18n)) withoutOld.push(f);
   for (const f of accessFiles(mode)) withoutOld.push(f);
-  if (hasWebSingle) for (const f of shellFiles(mode)) withoutOld.push(f);
+  if (hasWebSingle && isNextSingle) for (const f of shellFiles(mode)) withoutOld.push(f);
   // Deploy config (Dockerfile / fly.toml / vercel.json) — same emitter as monorepo
   for (const f of deployFiles(config.name, config.deploy ?? "none")) withoutOld.push(f);
   // pdf: inject server pdf package + route + mobile/desktop helpers when opted in
@@ -208,7 +219,6 @@ export function singleFiles(
   // Conditional stripping for frontend preset
   const hasAuth = hasAddon(addonMap, "auth");
   const hasAnalytics = hasAddon(addonMap, "analytics");
-  const hasEmail = hasAddon(addonMap, "email");
   const hasApi = hasAddon(addonMap, "api");
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
@@ -223,11 +233,6 @@ export function singleFiles(
   if (!hasAnalytics) {
     deduped = deduped.filter(
       (f) => !f.path.includes("analytics") && !f.content.includes('from "@repo/analytics"'),
-    );
-  }
-  if (!hasEmail) {
-    deduped = deduped.filter(
-      (f) => !f.path.includes("email") && !f.content.includes('from "@repo/email"'),
     );
   }
   if (!hasApi) {

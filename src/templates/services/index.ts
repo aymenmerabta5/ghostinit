@@ -8,6 +8,7 @@ import {
 } from "../shared.js";
 import * as v from "../versions.js";
 import type { AddonInstallerMap, ProjectMode } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 import { billingServiceFiles } from "./billing.js";
 import { emailServiceFiles } from "./email.js";
 import { invoiceServiceFiles } from "./invoice.js";
@@ -23,6 +24,9 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
   const base = isMonorepo ? "packages/services/src" : "src/server/services";
   const files: TemplateFile[] = [];
   const withBilling = hasBillingAddon(addons);
+  const withEmail = addons ? hasAddon(addons as AddonInstallerMap, "email") : true;
+  const database =
+    addons && hasAddon(addons as AddonInstallerMap, "convex") ? "convex" : "postgres";
 
   // Single mode has no @repo/kernel package, and the service files import
   // `@/server/kernel/result.js`. Emit the module so those imports resolve —
@@ -53,7 +57,7 @@ export function err<E = Error>(error: E): Result<never, E> {
         exports: { ".": "./src/index.ts" },
         scripts: codeScripts(),
         dependencies: {
-          "@repo/kernel": "workspace:*",
+          ...(isMonorepo ? { "@repo/kernel": "workspace:*" } : {}),
           "server-only": `^${v.runtime["server-only"]}`,
           zod: `^${v.validation.zod}`,
           ...(withBilling
@@ -89,12 +93,12 @@ export function err<E = Error>(error: E): Result<never, E> {
   // no-billing projects with a barrel importing a file that was never generated.
   const barrelLines = [
     ...(withBilling ? [`export * as billing from "./billing/index.js";`] : []),
-    `export * as email from "./email/index.js";`,
+    ...(withEmail ? [`export * as email from "./email/index.js";`] : []),
     `export * as invoice from "./invoice/index.js";`,
   ];
   files.push(file(`${base}/index.ts`, `${barrelLines.join("\n")}\n`));
-  if (withBilling) files.push(...billingServiceFiles(mode as ProjectMode));
-  files.push(...emailServiceFiles(mode as ProjectMode));
+  if (withBilling) files.push(...billingServiceFiles(mode as ProjectMode, database));
+  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode));
   files.push(...invoiceServiceFiles(mode as ProjectMode));
   return files;
 }

@@ -9,8 +9,9 @@ export function updatedAgentsMd(
   selectedBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  hasEmail = true,
 ): TemplateFile {
-  const content = buildAgentsMdContent(projectName, selectedBilling, hasEve, hasI18n);
+  const content = buildAgentsMdContent(projectName, selectedBilling, hasEve, hasI18n, hasEmail);
   return file("AGENTS.md", content);
 }
 

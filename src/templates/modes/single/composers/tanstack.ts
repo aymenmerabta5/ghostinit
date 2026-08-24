@@ -104,6 +104,7 @@ export function buildTanstackFiles(
   effectiveBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  hasEmail: boolean,
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
@@ -113,7 +114,16 @@ export function buildTanstackFiles(
   files.push(
     file(
       "package.json",
-      singlePackageJsonTanstack(projectName, runtime, effectiveBilling, hasEve, hasI18n, isConvex),
+      singlePackageJsonTanstack(
+        projectName,
+        runtime,
+        effectiveBilling,
+        hasEve,
+        hasI18n,
+        isConvex,
+        false,
+        hasEmail,
+      ),
     ),
   );
   files.push(file("vite.config.ts", singleViteConfigTanstackContent()));
@@ -124,10 +134,12 @@ export function buildTanstackFiles(
   files.push(file("src/router.tsx", singleRouterTanstackContent()));
   files.push(file("src/routes/__root.tsx", singleRootRouteTanstackContent()));
   files.push(file("src/routes/index.tsx", singleMarketingPageTanstackContent()));
-  files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent()));
+  files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
   files.push(file("src/routes/sign-up.tsx", singleSignUpRouteTanstackContent()));
-  files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
-  files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
+  if (hasEmail) {
+    files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
+    files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
+  }
   files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
   files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent()));
   files.push(file("src/routes/settings.tsx", singleSettingsRouteTanstackContent()));
@@ -203,12 +215,12 @@ export function buildTanstackFiles(
     }
   } else if (isNone) {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle(hasEmail)));
     files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
@@ -217,7 +229,7 @@ export function buildTanstackFiles(
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
-  for (const f of webLibFiles("src")) {
+  for (const f of webLibFiles("src", "tanstack-start")) {
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||
@@ -237,16 +249,24 @@ export function buildTanstackFiles(
   files.push(readmeSingle(projectName));
   const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
-    filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime, dbType, {
+    filteredEnvExample(projectName, secrets, effectiveBilling, hasEmail, runtime, dbType, {
       framework: "tanstack-start",
       hasMobile: false,
     }),
   );
   files.push(
-    filteredEnvLocal(projectName, secrets, effectiveBilling, runtime, dbType, {
-      framework: "tanstack-start",
-      hasMobile: false,
-    }),
+    filteredEnvLocal(
+      projectName,
+      secrets,
+      effectiveBilling,
+      runtime,
+      dbType,
+      {
+        framework: "tanstack-start",
+        hasMobile: false,
+      },
+      hasEmail,
+    ),
   );
   files.push(singleEnvFile(addonMap, "tanstack-start"));
 
@@ -286,16 +306,21 @@ export function buildTanstackFiles(
           runtime,
         ) as TemplateFile[]);
   const billingServerOnly = billingRaw.filter(
-    (f) => f.path.startsWith("src/server/") || f.path.startsWith("src/server/db/"),
+    (f) =>
+      f.path.startsWith("src/server/") ||
+      f.path.startsWith("src/server/db/") ||
+      f.path.startsWith("src/routes/api/billing/"),
   );
   files.push(...billingServerOnly);
 
-  files.push(
-    ...(emailFiles(
-      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
-      runtime,
-    ) as TemplateFile[]),
-  );
+  if (hasEmail) {
+    files.push(
+      ...(emailFiles(
+        { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+        runtime,
+      ) as TemplateFile[]),
+    );
+  }
   files.push(
     ...(analyticsFiles(
       { mode: "single", runtime, framework: "tanstack-start" } as {

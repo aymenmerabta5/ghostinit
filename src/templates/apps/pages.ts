@@ -16,6 +16,7 @@ import { adminFiles } from "./fragments/admin/index.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { agentFiles } from "./fragments/agent/index.js";
 import { resolveHasEve, type FeatureInput } from "./fragments/features.js";
+import { hasAddon, type AddonInstallerMap } from "../../lib/addons.js";
 import {
   manifestFileContent,
   opengraphImageContent,
@@ -30,6 +31,10 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
   // build-breaking import into every monorepo project that did not enable the
   // eve feature (single mode already gated this correctly).
   const hasEve = resolveHasEve(addonsOrHasEve);
+  const hasEmail =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "email")
+      : true;
   return [
     layout(),
     globalErrorPage(),
@@ -46,13 +51,13 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
     dashboardLoading(),
     instrumentation(),
     marketingPage(),
-    signInPage(),
+    signInPage(hasEmail),
     signUpPage(),
     twoFactorPage(),
     dashboardPage(),
     ...(hasEve ? agentFiles() : []),
     ...settingsFiles(),
-    ...recoveryFiles(),
+    ...recoveryFiles("next", hasEmail),
     ...adminFiles(),
   ];
 }
@@ -81,8 +86,8 @@ function layout(): TemplateFile {
 function marketingPage(): TemplateFile {
   return file("apps/web/src/app/page.tsx", buildMarketingPageContent("next"));
 }
-function signInPage(): TemplateFile {
-  return file("apps/web/src/app/sign-in/page.tsx", signInPageContent("next"));
+function signInPage(hasEmail = true): TemplateFile {
+  return file("apps/web/src/app/sign-in/page.tsx", signInPageContent("next", hasEmail));
 }
 function signUpPage(): TemplateFile {
   return file("apps/web/src/app/sign-up/page.tsx", signUpPageContent("next"));

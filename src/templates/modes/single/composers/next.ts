@@ -97,6 +97,8 @@ export function buildNextFiles(
   runtime: "node" | "bun",
   effectiveBilling: BillingProviderName[],
   hasEve: boolean,
+  hasI18n: boolean,
+  hasEmail: boolean,
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
 ): TemplateFile[] {
@@ -106,7 +108,16 @@ export function buildNextFiles(
   files.push(
     file(
       "package.json",
-      singlePackageJson(projectName, runtime, effectiveBilling, hasEve, false, isConvex),
+      singlePackageJson(
+        projectName,
+        runtime,
+        effectiveBilling,
+        hasEve,
+        hasI18n,
+        isConvex,
+        false,
+        hasEmail,
+      ),
     ),
   );
   files.push(file("next.config.ts", singleNextConfigContent(hasEve)));
@@ -115,9 +126,11 @@ export function buildNextFiles(
   files.push(file("src/app/globals.css", singleGlobalsCss()));
   files.push(file("src/app/layout.tsx", singleLayout()));
   files.push(file("src/app/page.tsx", singleMarketingPage()));
-  files.push(file("src/app/forgot-password/page.tsx", forgotPasswordPageSingle()));
-  files.push(file("src/app/reset-password/page.tsx", resetPasswordPageSingle()));
-  files.push(file("src/app/sign-in/page.tsx", signInPageSingle()));
+  if (hasEmail) {
+    files.push(file("src/app/forgot-password/page.tsx", forgotPasswordPageSingle()));
+    files.push(file("src/app/reset-password/page.tsx", resetPasswordPageSingle()));
+  }
+  files.push(file("src/app/sign-in/page.tsx", signInPageSingle(hasEmail)));
   files.push(file("src/app/sign-up/page.tsx", signUpPageSingle()));
   files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle()));
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
@@ -172,12 +185,12 @@ export function buildNextFiles(
     }
   } else if (isNone) {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthSingle(hasEmail)));
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
-    files.push(file("src/server/auth/index.ts", serverAuthSingle()));
+    files.push(file("src/server/auth/index.ts", serverAuthSingle(hasEmail)));
     files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
@@ -187,7 +200,7 @@ export function buildNextFiles(
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   // Generic web lib (animations, feature-flags, storage, notifications, hooks, form-fields, dialogs) — scaffolder starter, not domain copy.
-  for (const f of webLibFiles("src")) {
+  for (const f of webLibFiles("src", "nextjs")) {
     // singleWebUiFiles already covers form-fields/dialogs under web-ui, but webLibFiles also includes them via webUiFiles duplication.
     // Filter to avoid duplicate paths: keep only lib/* and hooks/* and surface-styles
     if (
@@ -216,16 +229,24 @@ export function buildNextFiles(
   files.push(readmeSingle(projectName));
   const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
-    filteredEnvExample(projectName, secrets, effectiveBilling, true, runtime, dbType, {
+    filteredEnvExample(projectName, secrets, effectiveBilling, hasEmail, runtime, dbType, {
       framework: "nextjs",
       hasMobile: false,
     }),
   );
   files.push(
-    filteredEnvLocal(projectName, secrets, effectiveBilling, runtime, dbType, {
-      framework: "nextjs",
-      hasMobile: false,
-    }),
+    filteredEnvLocal(
+      projectName,
+      secrets,
+      effectiveBilling,
+      runtime,
+      dbType,
+      {
+        framework: "nextjs",
+        hasMobile: false,
+      },
+      hasEmail,
+    ),
   );
   files.push(singleEnvFile(addonMap));
 
@@ -260,12 +281,14 @@ export function buildNextFiles(
         } as never);
 
   files.push(...(billingFiles(billingArg, runtime) as TemplateFile[]));
-  files.push(
-    ...(emailFiles(
-      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
-      runtime,
-    ) as TemplateFile[]),
-  );
+  if (hasEmail) {
+    files.push(
+      ...(emailFiles(
+        { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+        runtime,
+      ) as TemplateFile[]),
+    );
+  }
   files.push(
     ...(analyticsFiles(
       { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },

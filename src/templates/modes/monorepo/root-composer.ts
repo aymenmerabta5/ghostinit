@@ -20,6 +20,7 @@ export function rootComposerFiles(
   framework?: FrameworkName,
   apps?: AppName[],
   deploy: string = "none",
+  hasEmail = true,
 ): TemplateFile[] {
   const raw = genRootFiles(
     projectName,
@@ -39,7 +40,7 @@ export function rootComposerFiles(
     projectName,
     secrets,
     selectedBilling,
-    true,
+    hasEmail,
     runtime,
     effectiveDb,
     audience,
@@ -51,6 +52,7 @@ export function rootComposerFiles(
     runtime,
     effectiveDb,
     audience,
+    hasEmail,
   );
   return raw.map((f: TemplateFile) => {
     if (f.path === ".env.example") return filteredExample;

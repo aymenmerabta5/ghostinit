@@ -74,6 +74,7 @@ export function filteredEnvLocal(
     framework: "nextjs",
     hasMobile: false,
   },
+  includeResend = true,
 ): TemplateFile {
   return sharedFilteredEnvLocal(
     projectName,
@@ -83,5 +84,6 @@ export function filteredEnvLocal(
     "monorepo",
     database,
     audience,
+    includeResend,
   );
 }

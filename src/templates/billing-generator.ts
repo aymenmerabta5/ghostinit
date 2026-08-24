@@ -381,16 +381,18 @@ export function billingFiles(
   }
   const interfaceContent = load("./billing/providers/interface.ts");
   const domainContent = load("./billing/domain/types.ts");
+  const isConvex = Boolean(addons && hasAddon(addons, "convex"));
   // The self-contained barrel: defines customerRelations and re-exports
   // ./enums + ./tables/*. billing.ts would instead re-export customerRelations
   // from "./index", which only resolves by accident depending on what else got
   // emitted next to it — see the same note in database.ts.
   const schemaContent = load("./billing/schema/index.ts");
-  const indexContent = load("./billing/index.ts");
+  const rawIndexContent = load("./billing/index.ts");
+  const indexContent = isConvex
+    ? `${rawIndexContent.slice(0, rawIndexContent.indexOf("// Explicit re-exports from schema"))}${rawIndexContent.slice(rawIndexContent.indexOf("import { BILLING_PROVIDER_NAMES }"))}`
+    : rawIndexContent;
 
   const files: TemplateFile[] = [];
-
-  const isConvex = Boolean(addons && hasAddon(addons, "convex"));
 
   function billingConvexAdapterFiles(): TemplateFile[] {
     if (!isConvex) return [];
@@ -411,8 +413,8 @@ export const billingConvex = {
   upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),
   upsertInvoice: (args: any) => convexClient.mutation(api.billing.upsertInvoice, args),
   insertUsageEvent: (args: any) => convexClient.mutation(api.billing.insertUsageEvent, args),
-  listSubscriptionsByUser: (userId: string) =>
-    convexClient.query(api.billing.listSubscriptionsByUser, { userId: userId as unknown as string }),
+  listSubscriptions: (userId: string) =>
+    convexClient.query(api.billing.listSubscriptions, { userId }),
 };
 
 export type BillingConvex = typeof billingConvex;
@@ -431,6 +433,8 @@ export const billingConvex = {
   upsertCheckout: (args: any) => convexClient.mutation(api.billing.upsertCheckout, args),
   upsertInvoice: (args: any) => convexClient.mutation(api.billing.upsertInvoice, args),
   insertUsageEvent: (args: any) => convexClient.mutation(api.billing.insertUsageEvent, args),
+  listSubscriptions: (userId: string) =>
+    convexClient.query(api.billing.listSubscriptions, { userId }),
 };
 
 export type BillingConvex = typeof billingConvex;
@@ -529,6 +533,7 @@ All webhooks Buffer.from(await req.arrayBuffer()) NOT req.json()
       ...billingApiFiles(
         "monorepo",
         billingFramework === "tanstack-start" ? "tanstack-start" : "nextjs",
+        isConvex ? "convex" : "postgres",
       ),
       file(
         "packages/billing/src/webhooks/README.md",
@@ -545,7 +550,7 @@ Convex: uses convexClient.mutation(api.billing.*) with composite idempotency [pr
       file("src/server/billing/providers/interface.ts", interfaceContent),
       file("src/server/billing/domain/types.ts", domainContent),
       file("src/server/billing/index.ts", indexContent),
-      file("src/server/db/schema/billing.ts", schemaContent),
+      ...(isConvex ? [] : [file("src/server/db/schema/billing.ts", schemaContent)]),
       file(
         "src/server/billing/NOTE.md",
         `Single mode modular billing <300 — providers split into services:
@@ -557,7 +562,7 @@ Convex: billing mutations via convexClient.mutation(api.billing.*)
 `,
       ),
       ...interfaceSplitFiles("single"),
-      ...schemaSplitFiles("single"),
+      ...(isConvex ? [] : schemaSplitFiles("single")),
       ...providerFiles(selected, addonsPresent, addons, "single"),
       ...webhookRoutes(selected, addonsPresent, addons, "single"),
       ...billingConvexAdapterFiles(),
@@ -567,6 +572,7 @@ Convex: billing mutations via convexClient.mutation(api.billing.*)
       ...billingApiFiles(
         "single",
         billingFramework === "tanstack-start" ? "tanstack-start" : "nextjs",
+        isConvex ? "convex" : "postgres",
       ),
     );
   }

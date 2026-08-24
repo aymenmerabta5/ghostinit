@@ -66,7 +66,54 @@ const TASK3_OWNERS = new Set([
   "src/templates/apps/fragments/settings/two-factor-card.ts",
   "src/templates/auth.ts",
 ]);
-const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS]);
+const TASK4_OWNERS = new Set([
+  "src/templates/apps/fragments/auth/sign-in.ts",
+  "src/templates/apps/fragments/lib/feature-flags.ts",
+  "src/templates/apps/fragments/recovery/forgot-password.ts",
+  "src/templates/apps/fragments/recovery/reset-password.ts",
+  "src/templates/auth.ts",
+  "src/templates/modes/single/pages/auth.ts",
+  "src/templates/modes/single/pages/password.ts",
+  "src/templates/modes/single/server/auth.ts",
+  "src/templates/modes/single/tanstack/pages/auth.ts",
+]);
+const TASK4_SAFE_REMOVAL_IDS = new Set([
+  "monorepo/nextjs/convex/capabilities-on::packages/billing/src/adapters/convex.ts::assertion-chain::724b73c800be67a5::1",
+  "monorepo/tanstack-start/convex/capabilities-on::packages/billing/src/adapters/convex.ts::assertion-chain::724b73c800be67a5::1",
+  "single/tanstack-start/convex/capabilities-on::src/components/shell/Navbar.tsx::assertion-chain::1cb91e5a4a9377d9::1",
+  "single/tanstack-start/convex/capabilities-on::src/routes/forgot-password.tsx::assertion-chain::aa52595493dbf798::1",
+  "single/tanstack-start/convex/capabilities-on::src/routes/forgot-password.tsx::assertion-chain::aa52595493dbf798::2",
+  "single/tanstack-start/postgres/capabilities-on::src/components/shell/Navbar.tsx::assertion-chain::1cb91e5a4a9377d9::1",
+  "single/tanstack-start/postgres/capabilities-on::src/routes/forgot-password.tsx::assertion-chain::aa52595493dbf798::1",
+  "single/tanstack-start/postgres/capabilities-on::src/routes/forgot-password.tsx::assertion-chain::aa52595493dbf798::2",
+  "single/tanstack-start/convex/capabilities-on::src/routes/reset-password.tsx::assertion-chain::f604ece91be800b2::1",
+  "single/tanstack-start/convex/capabilities-on::src/routes/sign-in.tsx::assertion-chain::47ff23bab957d527::1",
+  "single/tanstack-start/postgres/capabilities-on::src/routes/reset-password.tsx::assertion-chain::f604ece91be800b2::1",
+  "single/tanstack-start/postgres/capabilities-on::src/routes/sign-in.tsx::assertion-chain::47ff23bab957d527::1",
+  ...[
+    {
+      configKey: "monorepo/nextjs/convex/capabilities-on",
+      path: "packages/services/src/billing/list-subscriptions.service.ts",
+    },
+    {
+      configKey: "monorepo/tanstack-start/convex/capabilities-on",
+      path: "packages/services/src/billing/list-subscriptions.service.ts",
+    },
+    {
+      configKey: "single/nextjs/convex/capabilities-on",
+      path: "src/server/services/billing/list-subscriptions.service.ts",
+    },
+    {
+      configKey: "single/tanstack-start/convex/capabilities-on",
+      path: "src/server/services/billing/list-subscriptions.service.ts",
+    },
+  ].flatMap(({ configKey, path }) =>
+    ["30b0649f104a15aa", "3caa6446bbd98ebf", "a08029b9ccdd3b63", "ddef7ce058d5d767"].map(
+      (fingerprint) => `${configKey}::${path}::assertion-chain::${fingerprint}::1`,
+    ),
+  ),
+]);
+const STABILIZED_OWNERS = new Set([...TASK1_OWNERS, ...TASK3_OWNERS, ...TASK4_OWNERS]);
 const dispositionSchema = JSON.parse(
   readFileSync(
     resolve(root, "schemas/v1-generated-unsafe-syntax-dispositions.schema.json"),
@@ -292,10 +339,11 @@ describe("V1 generated unsafe-syntax baseline", () => {
   test("catalog matches the frozen baseline after removing stabilized owner occurrences", () => {
     const occurrences = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy);
     const expectedEntries = baseline.entries.filter(
-      ({ disposition, sourceOwner }) =>
-        disposition !== "remove-in-stabilization" || !STABILIZED_OWNERS.has(sourceOwner),
+      ({ id, disposition, sourceOwner }) =>
+        !TASK4_SAFE_REMOVAL_IDS.has(id) &&
+        (disposition !== "remove-in-stabilization" || !STABILIZED_OWNERS.has(sourceOwner)),
     );
-    expect(occurrences).toHaveLength(918);
+    expect(occurrences).toHaveLength(845);
     expect(baseline.entries).toHaveLength(1011);
     expect(new Set(baseline.entries.map(({ id }) => id)).size).toBe(1011);
     expect(baseline.entries.map(({ id }) => id)).toEqual(
@@ -323,11 +371,19 @@ describe("V1 generated unsafe-syntax baseline", () => {
       const key = ruleKey(findProvenanceRule(occurrence.configKey, occurrence.path, policy));
       actualRuleCounts.set(key, (actualRuleCounts.get(key) ?? 0) + 1);
     }
+    const safeRemovalCounts = new Map<string, number>();
+    for (const entry of baseline.entries) {
+      if (!TASK4_SAFE_REMOVAL_IDS.has(entry.id)) continue;
+      const key = ruleKey(findProvenanceRule(entry.catalogKeys[0] ?? "", entry.path, policy));
+      safeRemovalCounts.set(key, (safeRemovalCounts.get(key) ?? 0) + 1);
+    }
     for (const rule of policy.rules) {
-      const expected = STABILIZED_OWNERS.has(rule.sourceOwner)
-        ? undefined
-        : rule.expectedOccurrences;
-      expect(actualRuleCounts.get(ruleKey(rule)), ruleKey(rule)).toBe(expected);
+      const key = ruleKey(rule);
+      const expected =
+        STABILIZED_OWNERS.has(rule.sourceOwner) && rule.disposition === "remove-in-stabilization"
+          ? undefined
+          : rule.expectedOccurrences - (safeRemovalCounts.get(key) ?? 0) || undefined;
+      expect(actualRuleCounts.get(key), key).toBe(expected);
     }
   });
 
@@ -365,26 +421,44 @@ describe("V1 generated unsafe-syntax baseline", () => {
     ).toEqual([]);
   });
 
+  test("Task 4 owners have no remaining remove-in-stabilization occurrences", () => {
+    const actualIds = generateCatalogOccurrences(GENERATED_UNSAFE_SYNTAX_CATALOG, policy).map(
+      ({ id }) => id,
+    );
+    const removalEntriesById = new Map(
+      baseline.entries
+        .filter(({ disposition }) => disposition === "remove-in-stabilization")
+        .map((entry) => [entry.id, entry]),
+    );
+    expect(
+      actualIds.filter(
+        (id) =>
+          removalEntriesById.get(id) && TASK4_OWNERS.has(removalEntriesById.get(id)!.sourceOwner),
+      ),
+    ).toEqual([]);
+    expect(actualIds.filter((id) => TASK4_SAFE_REMOVAL_IDS.has(id))).toEqual([]);
+  });
+
   test("projection and default gates retain the factual V1 ceiling", () => {
     const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
     expect(PROJECTION_CONFIGURATIONS.map(({ configKey }) => configKey)).toHaveLength(16);
-    expect(projection).toHaveLength(764);
+    expect(projection).toHaveLength(698);
     const projectionRules = new Map(
       projection.map((occurrence) => {
         const rule = findProvenanceRule(occurrence.configKey, occurrence.path, policy);
         return [ruleKey(rule), rule];
       }),
     );
-    expect(projectionRules.size).toBe(86);
+    expect(projectionRules.size).toBe(77);
     expect(
       new Set(
         [...projectionRules.values()].map(
           ({ sourceOwner, emittedPathPattern }) => `${sourceOwner}::${emittedPathPattern}`,
         ),
       ).size,
-    ).toBe(84);
+    ).toBe(75);
     expect(new Set([...projectionRules.values()].map(({ sourceOwner }) => sourceOwner)).size).toBe(
-      50,
+      47,
     );
 
     const comparableKeys = new Set([
@@ -397,7 +471,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
     );
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "remove-in-stabilization"),
-    ).toHaveLength(54);
+    ).toHaveLength(47);
     expect(
       comparableDispositions.filter(({ disposition }) => disposition === "deferred-v1"),
     ).toHaveLength(85);
@@ -440,15 +514,15 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ),
     );
     const gate = generateCatalogOccurrences(GATE_CONFIGURATIONS, policy);
-    expect(gate).toHaveLength(154);
+    expect(gate).toHaveLength(147);
     expect(policy.gateEvidence.occurrenceRows).toBe(172);
     const gateRowsByConfigKey = new Map(GATE_CONFIGURATIONS.map(({ configKey }) => [configKey, 0]));
     for (const { configKey } of gate) {
       gateRowsByConfigKey.set(configKey, (gateRowsByConfigKey.get(configKey) ?? 0) + 1);
     }
     expect(Object.fromEntries(gateRowsByConfigKey)).toEqual({
-      "gate/next-monorepo": 87,
-      "gate/single-next": 67,
+      "gate/next-monorepo": 85,
+      "gate/single-next": 62,
     });
     const gateRules = gate.map((occurrence) =>
       findProvenanceRule(occurrence.configKey, occurrence.path, policy),
@@ -459,7 +533,7 @@ describe("V1 generated unsafe-syntax baseline", () => {
       ).length,
       deferredV1: gateRules.filter(({ disposition }) => disposition === "deferred-v1").length,
     };
-    expect(gateDispositionSplit).toEqual({ removeInStabilization: 54, deferredV1: 100 });
+    expect(gateDispositionSplit).toEqual({ removeInStabilization: 47, deferredV1: 100 });
     expect({
       removeInStabilization: policy.defaultProjection.removeInStabilization,
       deferredV1: policy.defaultProjection.deferredV1,

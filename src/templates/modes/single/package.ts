@@ -10,6 +10,7 @@ function buildDeps(
   isTanstack = false,
   isConvex = false,
   hasMessaging = false,
+  hasEmail = true,
 ): Record<string, string> {
   const baseConvex: Record<string, string> = isConvex
     ? {
@@ -32,8 +33,7 @@ function buildDeps(
         "better-auth": `^${v.auth["better-auth"]}`,
         ...baseConvex,
         zod: `^${v.validation.zod}`,
-        "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
-        resend: `^${v.email.resend}`,
+        "@t3-oss/env-core": `^${v.validation["@t3-oss/env-core"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/contract": `^${v.orpc["@orpc/contract"]}`,
         "@orpc/client": `^${v.orpc["@orpc/client"]}`,
@@ -60,7 +60,6 @@ function buildDeps(
         ...baseConvex,
         zod: `^${v.validation.zod}`,
         "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
-        resend: `^${v.email.resend}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
@@ -81,6 +80,13 @@ function buildDeps(
         "posthog-js": `^${v.analytics["posthog-js"]}`,
         "posthog-node": `^${v.analytics["posthog-node"]}`,
       };
+
+  if (hasEmail) {
+    deps["@react-email/components"] = `^${v.email["@react-email/components"]}`;
+    deps["@react-email/render"] = `^${v.email["@react-email/render"]}`;
+    deps["@react-email/tailwind"] = `^${v.email["@react-email/tailwind"]}`;
+    deps.resend = `^${v.email.resend}`;
+  }
 
   const has = (n: BillingProviderName) => selectedBilling.includes(n);
   if (has("stripe")) deps.stripe = `^${v.billing.stripe}`;
@@ -116,6 +122,7 @@ export function singlePackageJson(
   hasI18n: boolean,
   isConvex = false,
   hasMessaging = false,
+  hasEmail = true,
 ): string {
   const lintAll =
     "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs";
@@ -169,7 +176,15 @@ export function singlePackageJson(
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex, hasMessaging),
+    dependencies: buildDeps(
+      selectedBilling,
+      hasEve,
+      hasI18n,
+      false,
+      isConvex,
+      hasMessaging,
+      hasEmail,
+    ),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       typescript: `^${v.typescript.typescript}`,
@@ -195,6 +210,7 @@ export function singlePackageJsonTanstack(
   hasI18n: boolean,
   isConvex = false,
   hasMessaging = false,
+  hasEmail = true,
 ): string {
   void hasI18n;
   const lintAll =
@@ -245,7 +261,7 @@ export function singlePackageJsonTanstack(
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex, hasMessaging),
+    dependencies: buildDeps(selectedBilling, hasEve, false, true, isConvex, hasMessaging, hasEmail),
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       "@tanstack/router-plugin": `^${v.tanstackStart["@tanstack/router-plugin"]}`,

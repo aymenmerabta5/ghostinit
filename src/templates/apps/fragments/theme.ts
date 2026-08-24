@@ -107,7 +107,20 @@ export function ThemeToggle(): React.JSX.Element {
  */
 export type RouterType = "next" | "tanstack";
 
-export function providersFileContent(router: RouterType, isConvex = false): string {
+export function providersFileContent(
+  router: RouterType,
+  isConvex = false,
+  hasAnalytics = true,
+): string {
+  const analyticsImport = hasAnalytics
+    ? `import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";`
+    : "";
+  const suspenseStart = router === "tanstack" ? "<React.Suspense" : "<Suspense";
+  const suspenseEnd = router === "tanstack" ? "</React.Suspense>" : "</Suspense>";
+  const analyticsOpen = hasAnalytics
+    ? `<PostHogProvider>\n          ${suspenseStart} fallback={null}>\n            <PostHogPageView />\n          ${suspenseEnd}`
+    : "";
+  const analyticsClose = hasAnalytics ? `</PostHogProvider>` : "";
   if (isConvex) {
     if (router === "tanstack") {
       return `"use client";
@@ -119,7 +132,7 @@ import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { authClient } from "@/lib/auth-client";
 import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
-import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
+${analyticsImport}
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL;
 if (!convexUrl) {
@@ -133,15 +146,12 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   return (
     <ConvexBetterAuthProvider client={convex} authClient={authClient}>
       <QueryClientProvider client={queryClient}>
-        <PostHogProvider>
+        ${analyticsOpen}
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            <React.Suspense fallback={null}>
-              <PostHogPageView />
-            </React.Suspense>
             {children}
             <Toaster richColors position="bottom-right" />
           </ThemeProvider>
-        </PostHogProvider>
+        ${analyticsClose}
       </QueryClientProvider>
     </ConvexBetterAuthProvider>
   );
@@ -150,14 +160,14 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
     }
     return `"use client";
 
-import { useState, Suspense } from "react";
+import { useState${hasAnalytics ? ", Suspense" : ""} } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConvexReactClient } from "convex/react";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { authClient } from "@/lib/auth-client";
 import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
-import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
+${analyticsImport}
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 if (!convexUrl) {
@@ -171,15 +181,12 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   return (
     <ConvexBetterAuthProvider client={convex} authClient={authClient}>
       <QueryClientProvider client={queryClient}>
-        <PostHogProvider>
+        ${analyticsOpen}
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            <Suspense fallback={null}>
-              <PostHogPageView />
-            </Suspense>
             {children}
             <Toaster richColors position="bottom-right" />
           </ThemeProvider>
-        </PostHogProvider>
+        ${analyticsClose}
       </QueryClientProvider>
     </ConvexBetterAuthProvider>
   );
@@ -194,22 +201,19 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
-import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
+${analyticsImport}
 
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [queryClient] = React.useState(() => new QueryClient());
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PostHogProvider>
+      ${analyticsOpen}
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          <React.Suspense fallback={null}>
-            <PostHogPageView />
-          </React.Suspense>
           {children}
           <Toaster richColors position="bottom-right" />
         </ThemeProvider>
-      </PostHogProvider>
+      ${analyticsClose}
     </QueryClientProvider>
   );
 }
@@ -217,26 +221,23 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   }
   return `"use client";
 
-import { useState, Suspense } from "react";
+import { useState${hasAnalytics ? ", Suspense" : ""} } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
-import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
+${analyticsImport}
 
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [queryClient] = useState(() => new QueryClient());
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PostHogProvider>
+      ${analyticsOpen}
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          <Suspense fallback={null}>
-            <PostHogPageView />
-          </Suspense>
           {children}
           <Toaster richColors position="bottom-right" />
         </ThemeProvider>
-      </PostHogProvider>
+      ${analyticsClose}
     </QueryClientProvider>
   );
 }

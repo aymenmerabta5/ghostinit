@@ -34,14 +34,14 @@ import {
 } from "./fragments/seo.js";
 import { tanstackInstrumentationContent } from "./fragments/instrumentation.js";
 
-export function tanstackPageFiles(): TemplateFile[] {
+export function tanstackPageFiles(hasEmail = true): TemplateFile[] {
   return [
     rootRoute(),
     marketingRoute(),
-    signInRoute(),
+    signInRoute(hasEmail),
     signUpRoute(),
     twoFactorRoute(),
-    ...recoveryFiles("tanstack"),
+    ...recoveryFiles("tanstack", hasEmail),
     dashboardRoute(),
     ...settingsFiles("tanstack"),
     ...billingFiles("tanstack"),
@@ -66,8 +66,8 @@ function marketingRoute(): TemplateFile {
   return file("apps/web/src/routes/index.tsx", buildMarketingPageContent("tanstack"));
 }
 
-function signInRoute(): TemplateFile {
-  return file("apps/web/src/routes/sign-in.tsx", signInPageContent("tanstack"));
+function signInRoute(hasEmail = true): TemplateFile {
+  return file("apps/web/src/routes/sign-in.tsx", signInPageContent("tanstack", hasEmail));
 }
 
 function signUpRoute(): TemplateFile {

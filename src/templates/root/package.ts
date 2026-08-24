@@ -21,6 +21,7 @@ export function rootPackageJson(
 ): TemplateFile {
   const installCmd = runtime === "bun" ? "bun install" : "npm install";
   const isConvex = isConvexAddon(addonMap);
+  const hasAuth = addonMap ? hasAddon(addonMap as AddonInstallerMap, "auth") : true;
 
   const baseScripts: Record<string, string> = {
     dev: "turbo run dev",
@@ -70,6 +71,17 @@ export function rootPackageJson(
     packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
     workspaces: ["apps/*", "packages/*", "tooling/*"],
     scripts,
+    dependencies: isConvex
+      ? {
+          "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+          ...(hasAuth
+            ? {
+                "@repo/auth": "workspace:*",
+                "better-auth": `^${v.auth["better-auth"]}`,
+              }
+            : {}),
+        }
+      : {},
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       ...(isConvex ? { convex: `^${v.convex.convex}` } : {}),

@@ -59,8 +59,9 @@ export function tanstackCoreFiles(
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
   const addonMap = resolveAddonMapTanstack(hasEveInput, addonMapExplicit);
+  const hasEmail = addonMap ? hasAddon(addonMap, "email") : true;
   return [
-    webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap),
+    webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap, hasEmail),
     viteConfig(hasEve, effectiveHasI18n),
     nitroConfig(),
     routerFile(),
@@ -77,7 +78,7 @@ export function tanstackCoreFiles(
     // it left every TanStack project referencing components that were never
     // generated (TS2307 across the whole app).
     ...webUiFiles(),
-    ...webLibFiles(),
+    ...webLibFiles("apps/web/src", "tanstack-start"),
   ];
 }
 
@@ -87,6 +88,7 @@ function webPackageTanstack(
   _hasI18n = false,
   _framework: string = "tanstack-start",
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
+  hasEmail = true,
 ): TemplateFile {
   return file(
     "apps/web/package.json",
@@ -117,7 +119,8 @@ function webPackageTanstack(
         "@repo/config": "workspace:*",
         "@repo/contracts": "workspace:*",
         "@repo/database": "workspace:*",
-        "@repo/email": "workspace:*",
+        ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
+        "@repo/kernel": "workspace:*",
         "@repo/modules": "workspace:*",
         "@repo/observability": "workspace:*",
         "@repo/ui": "workspace:*",

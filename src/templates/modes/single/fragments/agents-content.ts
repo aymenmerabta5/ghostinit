@@ -6,6 +6,7 @@ export function buildAgentsMdContent(
   selectedBilling: BillingProviderName[],
   hasEve: boolean,
   hasI18n: boolean,
+  hasEmail = true,
 ): string {
   const lines: string[] = [];
   lines.push("# AGENTS.md — " + projectName);
@@ -30,7 +31,7 @@ export function buildAgentsMdContent(
         ? "none selected, UI shows No billing configured + Button Add billing provider"
         : selectedBilling.join(",")),
   );
-  lines.push("- Features: eve=" + hasEve + " i18n=" + hasI18n);
+  lines.push("- Features: eve=" + hasEve + " i18n=" + hasI18n + " email=" + hasEmail);
   lines.push("");
   lines.push("## Package Roles — Single Mode Flat");
   lines.push("");
@@ -43,14 +44,16 @@ export function buildAgentsMdContent(
   lines.push(
     "- **src/server/billing/** vendors layer 5 abstraction: interface.ts port stable, domain/types.ts, schema/billing.ts provider enum billing_provider stripe|chargily|paddle|polar subscriptions checkouts invoices customers products prices license_keys usage_events webhook_events unique provider+providerEventId onConflictDoNothing, providers stripe.ts Stripe(SECRET,{apiVersion:'2025-03-31.basil'}) checkout.sessions.create line_items mode subscription automatic_tax success_url cancel_url billingPortal.sessions.create, chargily.ts ChargilyClient server-only checkout_url edahabia|cib payment_method verifySignature raw Buffer 400 missing 403 invalid, paddle.ts Paddle API_KEY transactions.create checkout url TransactionCompleted paddle-signature unmarshal raw body string, polar.ts Polar accessToken checkouts.create products customerName checkout url events.ingest metering license seats @polar-sh/nextjs Webhooks validateEvent whsec base64",
   );
-  lines.push(
-    "- **src/server/email/** Resend default: constants.ts EMAIL_FROM, index.ts Resend client warns if REPLACE_WITH placeholder, send.ts wrapper, templates forgot-password.tsx reset-password.tsx HTML tables",
-  );
+  if (hasEmail) {
+    lines.push(
+      "- **src/server/email/** Resend component API: sendEmail(to, subject, Component, props) throws on configuration, rendering, provider, or response failure. ResetPasswordEmail and VerifyEmail are typed React Email components.",
+    );
+  }
   lines.push(
     "- **src/server/db/** Drizzle pool max 20 idle 30s SSL, schema/auth.ts users sessions accounts verifications twoFactor, schema/billing.ts shared, index.ts builds connectionString from DATABASE_URL or POSTGRES_* fallback",
   );
   lines.push(
-    `- **src/server/auth/** Better Auth ${v.auth["better-auth"]} emailAndPassword autoSignIn false SECURITY user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit memory window 60 max 100 IP disabled unless TRUSTED_PROXY, plugins admin twoFactor nextCookies, sendResetPassword hook Resend via forgotPasswordTemplate`,
+    `- **src/server/auth/** Better Auth ${v.auth["better-auth"]} emailAndPassword autoSignIn false SECURITY user delete enabled session cookieCache compact httpOnly secure sameSite lax rateLimit memory window 60 max 100 IP disabled unless TRUSTED_PROXY, plugins admin twoFactor nextCookies${hasEmail ? ", sendResetPassword and sendVerificationEmail await the typed component email API" : ""}`,
   );
   lines.push(
     "- **src/lib/** auth-client.ts createAuthClient twoFactorClient onTwoFactorRedirect /2fa adminClient, orpc.ts typed client, utils.ts cn clsx+twMerge",

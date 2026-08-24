@@ -99,7 +99,11 @@ function resolveFrameworkAndConvex(
   return { framework, isConvex };
 }
 
-function postgresPackageFiles(framework: AuthFramework, hasMobile = false): TemplateFile[] {
+function postgresPackageFiles(
+  framework: AuthFramework,
+  hasMobile = false,
+  hasEmail = true,
+): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
   const cookieImport = isTanstack
     ? `import { tanstackStartCookies } from "better-auth/tanstack-start";`
@@ -118,6 +122,42 @@ import { expo } from "@better-auth/expo";`
     ? `
   trustedOrigins: [env.BETTER_AUTH_URL, "__APP_SCHEME__://"],`
     : "";
+  const emailImports = hasEmail
+    ? `
+import {
+  sendEmail,
+  ResetPasswordEmail,
+  VerifyEmail,
+  MagicLinkEmail,
+} from "@repo/email";`
+    : "";
+  const resetPasswordHook = hasEmail
+    ? `
+    sendResetPassword: async ({ user, url }) => {
+      const appName = env.APP_NAME;
+      const subject = \`Reset your password - \${appName}\`;
+      await sendEmail(user.email, subject, ResetPasswordEmail, { link: url, appName });
+    },`
+    : "";
+  const verificationConfig = hasEmail
+    ? `
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail(user.email, \`Verify your email - \${env.APP_NAME}\`, VerifyEmail, { link: url, appName: env.APP_NAME });
+    },
+  },`
+    : "";
+  const magicLinkPlugin = hasEmail
+    ? `
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        await sendEmail(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail, { link: url, appName: env.APP_NAME });
+      },
+    }),`
+    : "";
+  const emailPluginImport = hasEmail ? ", magicLink" : "";
 
   return [
     file(
@@ -136,7 +176,7 @@ import { expo } from "@better-auth/expo";`
           ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
           "@repo/database": "workspace:*",
-          "@repo/email": "workspace:*",
+          ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
         },
         devDependencies: {
           "@types/node": `^${v.runtime["@types/node"]}`,
@@ -160,9 +200,10 @@ declare global {
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 ${cookieImport}${expoImport}
 import { admin } from "better-auth/plugins/admin";
-import { twoFactor, magicLink, passkey, organization } from "better-auth/plugins";
+import { twoFactor${emailPluginImport}, passkey, organization } from "better-auth/plugins";
 import { ac, roles } from "./access.js";
 import { env } from "@repo/config";
+${emailImports}
 import {
   db,
   accounts,
@@ -205,22 +246,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignInAfterRegistration: false,
-    requireEmailVerification: false,
-    sendResetPassword: async ({ user, url }) => {
-      const { sendEmail } = await import("@repo/email");
-      const { default: ResetPasswordEmail } = await import("@repo/email/templates/ResetPassword.js");
-      await sendEmail(user.email, \`Reset your password - \${env.APP_NAME}\`, ResetPasswordEmail, { link: url, appName: env.APP_NAME });
-    },
-  },
-  emailVerification: {
-    sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      const { sendEmail } = await import("@repo/email");
-      const { default: VerifyEmail } = await import("@repo/email/templates/VerifyEmail.js");
-      await sendEmail(user.email, \`Verify your email - \${env.APP_NAME}\`, VerifyEmail, { link: url, appName: env.APP_NAME });
-    },
-  },
+    requireEmailVerification: false,${resetPasswordHook}
+  },${verificationConfig}
   socialProviders: {
     ...(env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_ID.startsWith("REPLACE_WITH") && env.GOOGLE_CLIENT_SECRET && !env.GOOGLE_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
     ...(env.GITHUB_CLIENT_ID && !env.GITHUB_CLIENT_ID.startsWith("REPLACE_WITH") && env.GITHUB_CLIENT_SECRET && !env.GITHUB_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),
@@ -287,13 +314,7 @@ export const auth = betterAuth({
   plugins: [
     ${expoPlugin}admin({ ac, roles, adminRoles: ["admin", "superAdmin"] }),
     twoFactor({ issuer: env.BETTER_AUTH_URL }),
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        const { sendEmail } = await import("@repo/email");
-        const { default: MagicLinkEmail } = await import("@repo/email/templates/MagicLink.js");
-        await sendEmail(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail, { link: url });
-      },
-    }),
+${magicLinkPlugin}
     passkey(),
     organization(),
     ${cookiePlugin},
@@ -306,7 +327,7 @@ export type Auth = typeof auth;
     file(
       "packages/auth/src/client.ts",
       `import { createAuthClient } from "better-auth/react";
-import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient, twoFactorClient${hasEmail ? ", magicLinkClient" : ""}, passkeyClient, organizationClient } from "better-auth/client/plugins";
 import { ac, roles } from "./access.js";
 
 export const authClient = createAuthClient({
@@ -319,8 +340,7 @@ export const authClient = createAuthClient({
       },
     }),
     adminClient({ ac, roles }),
-    magicLinkClient(),
-    passkeyClient(),
+${hasEmail ? "    magicLinkClient(),\n" : ""}    passkeyClient(),
     organizationClient(),
   ],
 });
@@ -342,11 +362,11 @@ export {
   ];
 }
 
-function convexClientContent(): string {
+function convexClientContent(hasEmail = true): string {
   return [
     `import { createAuthClient } from "better-auth/react";`,
     `import { convexClient } from "@convex-dev/better-auth/client/plugins";`,
-    `import { adminClient, twoFactorClient, magicLinkClient, passkeyClient, organizationClient } from "better-auth/client/plugins";`,
+    `import { adminClient, twoFactorClient${hasEmail ? ", magicLinkClient" : ""}, passkeyClient, organizationClient } from "better-auth/client/plugins";`,
     `import { ac, roles } from "./access.js";`,
     ``,
     `// Convex mode – client includes convexClient() plugin for ConvexBetterAuthProvider`,
@@ -377,6 +397,7 @@ function convexClientContent(): string {
     `      },`,
     `    }),`,
     `    adminClient({ ac, roles }),`,
+    ...(hasEmail ? [`    magicLinkClient(),`] : []),
     `  ],`,
     `});`,
     ``,
@@ -535,7 +556,11 @@ function convexServerTanstackContent(hasMobile = false): string {
   ].join("\n");
 }
 
-function convexPackageFiles(framework: AuthFramework, hasMobile = false): TemplateFile[] {
+function convexPackageFiles(
+  framework: AuthFramework,
+  hasMobile = false,
+  hasEmail = true,
+): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
   const serverContent = isTanstack
     ? convexServerTanstackContent(hasMobile)
@@ -557,7 +582,7 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
           "better-auth": `^${v.auth["better-auth"]}`,
           ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
-          "@repo/email": "workspace:*",
+          ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
           convex: `^${v.convex.convex}`,
           "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
         },
@@ -586,7 +611,7 @@ export {
 } from "./access.js";
 `,
     ),
-    file("packages/auth/src/client.ts", convexClientContent()),
+    file("packages/auth/src/client.ts", convexClientContent(hasEmail)),
     file("packages/auth/src/server.ts", serverContent),
   ];
 }
@@ -594,6 +619,7 @@ export {
 export function authPackage(
   frameworkOrAddons?: AuthFrameworkInput,
   maybeAddons?: Record<string, { inUse: boolean } | boolean> | AddonInstallerMap,
+  options: { hasEmail?: boolean } = {},
 ): TemplateFile[] {
   // Parameter types already line up with resolveFrameworkAndConvex — no cast needed.
   const { framework, isConvex } = resolveFrameworkAndConvex(frameworkOrAddons, maybeAddons);
@@ -607,8 +633,9 @@ export function authPackage(
       return false;
     }
   });
+  const hasEmail = options.hasEmail ?? true;
   if (isConvex) {
-    return convexPackageFiles(framework, hasMobile);
+    return convexPackageFiles(framework, hasMobile, hasEmail);
   }
-  return postgresPackageFiles(framework, hasMobile);
+  return postgresPackageFiles(framework, hasMobile, hasEmail);
 }

@@ -1,6 +1,6 @@
 export { forgotPasswordPageSingle, resetPasswordPageSingle } from "./password.js";
 
-export function signInPageSingle(): string {
+export function signInPageSingle(hasEmail = true): string {
   return [
     '"use client";',
     "",
@@ -27,7 +27,7 @@ export function signInPageSingle(): string {
     "      setError(null);",
     "      const result = await authClient.signIn.email({ email: value.email, password: value.password, callbackURL: '/dashboard' });",
     "      if (result.error) { setError(result.error.message ?? 'Sign in failed'); return; }",
-    "      if ((result.data as unknown as string)?.twoFactorRedirect) { router.push('/2fa'); return; }",
+    "      if (result.data?.twoFactorRedirect) { router.push('/2fa'); return; }",
     "      router.push('/dashboard');",
     "    },",
     "  });",
@@ -46,14 +46,18 @@ export function signInPageSingle(): string {
     "            <Form form={form} className='flex flex-col gap-6'>",
     "              <FieldGroup>",
     "                <TanStackField form={form} name='email' validators={{ onSubmit: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor='signin-email'>Email</FieldLabel><Input id='signin-email' name={field.name} type='email' placeholder='you@example.com' autoComplete='email' required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : <FieldDescription>Your account email address.</FieldDescription>}</Field>)}</TanStackField>",
-    "                <TanStackField form={form} name='password' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className='flex items-center justify-between gap-2'><FieldLabel htmlFor='signin-password'>Password</FieldLabel><Link href='/forgot-password' className='text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot?</Link></div><Input id='signin-password' name={field.name} type='password' autoComplete='current-password' required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : null}</Field>)}</TanStackField>",
+    `                <TanStackField form={form} name='password' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className='flex items-center justify-between gap-2'><FieldLabel htmlFor='signin-password'>Password</FieldLabel>${hasEmail ? "<Link href='/forgot-password' className='text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot?</Link>" : ""}</div><Input id='signin-password' name={field.name} type='password' autoComplete='current-password' required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : null}</Field>)}</TanStackField>`,
     "              </FieldGroup>",
     "              <SubmitButton className='w-full'>Sign in</SubmitButton>",
     "            </Form>",
     "          </CardContent>",
     "          <CardFooter className='flex flex-col gap-3'>",
     "            <div className='flex w-full justify-between text-sm'>",
-    "              <Link href='/forgot-password' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot password?</Link>",
+    ...(hasEmail
+      ? [
+          "              <Link href='/forgot-password' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Forgot password?</Link>",
+        ]
+      : []),
     "              <Link href='/sign-up' className='text-muted-foreground hover:text-foreground underline-offset-4 hover:underline'>Create account</Link>",
     "            </div>",
     "          </CardFooter>",

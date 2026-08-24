@@ -26,6 +26,7 @@ import { file, type TemplateFile } from "../../shared.js";
 import type { ProjectMode } from "../../../lib/addons.js";
 
 export type BillingApiFramework = "nextjs" | "tanstack-start";
+export type BillingApiDatabase = "postgres" | "convex";
 
 interface Paths {
   /** import specifier for the auth instance */
@@ -38,6 +39,8 @@ interface Paths {
   schema: string;
   /** import specifier for the logger */
   observability: string;
+  /** import specifier for the mode-correct Convex billing adapter */
+  convexAdapter: string;
 }
 
 function pathsFor(mode: ProjectMode): Paths {
@@ -48,6 +51,7 @@ function pathsFor(mode: ProjectMode): Paths {
         db: "@repo/database",
         schema: "@repo/billing",
         observability: "@repo/observability",
+        convexAdapter: "@repo/billing/adapters",
       }
     : {
         auth: "@/server/auth",
@@ -55,6 +59,7 @@ function pathsFor(mode: ProjectMode): Paths {
         db: "@/server/db",
         schema: "@/server/db/schema/billing",
         observability: "@/server/observability",
+        convexAdapter: "@/server/billing/adapters",
       };
 }
 
@@ -96,7 +101,25 @@ import { getBillingProvider } from "${p.billing}";
 `;
 }
 
-function subscriptionsHandler(p: Paths): string {
+function subscriptionsHandler(p: Paths, database: BillingApiDatabase): string {
+  if (database === "convex") {
+    return `${preambleMinimal(p)}
+import { billingConvex } from "${p.convexAdapter}";
+
+export async function GET(request: Request): Promise<Response> {
+  const user = await requireUser(request);
+  if (!user) return json({ error: "Unauthorized" }, 401);
+
+  try {
+    const subscriptions = await billingConvex.listSubscriptions(user.id);
+    return json({ subscriptions, invoices: [], usageEvents: [], licenseKeys: [] });
+  } catch (err) {
+    logger.error(\`[billing:subscriptions] \${messageOf(err)}\`);
+    return json({ error: "Failed to load billing data" }, 500);
+  }
+}
+`;
+  }
   return `${preambleMinimal(p)}
 import { eq, inArray } from "drizzle-orm";
 import { db } from "${p.db}";
@@ -350,7 +373,7 @@ export const Route = createFileRoute("${routePath}")({ server: { handlers: { ${m
 
 const ROUTES: Array<{
   slug: string;
-  build: (p: Paths) => string;
+  build: (p: Paths, database: BillingApiDatabase) => string;
   methods: string[];
   /** Only emit when this provider was selected (static SDK import). */
   requiresProvider?: string;
@@ -373,6 +396,7 @@ const ROUTES: Array<{
 export function billingApiFiles(
   mode: ProjectMode,
   framework: BillingApiFramework = "nextjs",
+  database: BillingApiDatabase = "postgres",
   selectedProviders: readonly string[] = [],
 ): TemplateFile[] {
   const p = pathsFor(mode);
@@ -381,7 +405,7 @@ export function billingApiFiles(
   return ROUTES.filter(
     (r) => !r.requiresProvider || selectedProviders.includes(r.requiresProvider),
   ).map(({ slug, build, methods }) => {
-    const source = build(p);
+    const source = build(p, database);
     if (framework === "tanstack-start") {
       return file(
         `${appBase}/routes/api/billing/${slug}.ts`,

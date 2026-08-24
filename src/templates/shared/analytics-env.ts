@@ -25,6 +25,7 @@ export function analyticsEnvLines(audience: EnvAudience = DEFAULT_AUDIENCE): str
     ...publicVarLines(audience, "POSTHOG_SESSION_RECORDING", "false"),
     ...publicVarLines(audience, "POSTHOG_AUTOCAPTURE", "true"),
     ...publicVarLines(audience, "ANALYTICS_DISABLED", "false"),
+    "ANALYTICS_DISABLED=false",
   ];
 }
 

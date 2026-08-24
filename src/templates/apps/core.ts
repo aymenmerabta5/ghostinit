@@ -63,13 +63,14 @@ export function coreFiles(
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
   const addonMap = resolveAddonMap(hasEveInput, addonMapExplicit);
+  const hasEmail = addonMap ? hasAddon(addonMap, "email") : true;
   return [
-    webPackage(runtime, hasEve, effectiveHasI18n, addonMap),
+    webPackage(runtime, hasEve, effectiveHasI18n, addonMap, hasEmail),
     nextConfig(hasEve, effectiveHasI18n),
     postcssConfig(),
     globalCss(runtime),
     ...webUiFiles(),
-    ...webLibFiles(),
+    ...webLibFiles("apps/web/src", "nextjs"),
   ];
 }
 
@@ -78,6 +79,7 @@ function webPackage(
   hasEve = false,
   hasI18n = false,
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
+  hasEmail = true,
 ): TemplateFile {
   return file(
     "apps/web/package.json",
@@ -106,7 +108,7 @@ function webPackage(
         "@repo/config": "workspace:*",
         "@repo/contracts": "workspace:*",
         "@repo/database": "workspace:*",
-        "@repo/email": "workspace:*",
+        ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
         "@repo/kernel": "workspace:*",
         "@repo/modules": "workspace:*",
         "@repo/observability": "workspace:*",

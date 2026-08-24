@@ -1,13 +1,15 @@
 import { sharedValidators } from "./validators.js";
 import { linkTo, signInNavigateLogic, type RouterType } from "./navigation.js";
 
-export function signInFormFields(router: RouterType): string {
-  const forgot = linkTo(
-    router,
-    "/forgot-password",
-    "text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline",
-    "Forgot?",
-  );
+export function signInFormFields(router: RouterType, hasEmail = true): string {
+  const forgot = hasEmail
+    ? linkTo(
+        router,
+        "/forgot-password",
+        "text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline",
+        "Forgot?",
+      )
+    : "";
   return `              <FieldGroup>
                 <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined), onSubmit: ({ value }) => (${sharedValidators.email}), }}>
                   {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="signin-email">Email</FieldLabel><Input id="signin-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your account email address.</FieldDescription>)}</Field>)}
@@ -35,7 +37,7 @@ export function oauthButtons(_router: RouterType): string {
             <div className="relative flex items-center gap-3 py-2"><span className="h-px flex-1 bg-border" /><span className="text-xs text-muted-foreground">or</span><span className="h-px flex-1 bg-border" /></div>`;
 }
 
-export function signInPageContent(router: RouterType): string {
+export function signInPageContent(router: RouterType, hasEmail = true): string {
   const isTanstack = router === "tanstack";
   const routerHook = isTanstack
     ? `  const navigate = useNavigate()\n  const [error, setError] = useState<string | null>(null)`
@@ -55,8 +57,8 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nim
     ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>`
     : `<Link href="/" className="text-sm text-muted-foreground hover:text-foreground">\n          ← Back to home\n        </Link>`;
   const footerLinks = isTanstack
-    ? `<div className="flex w-full justify-between text-sm"><Link to="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Forgot password?</Link><Link to="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Create account</Link></div>`
-    : `<div className="flex w-full justify-between text-sm"><Link href="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Forgot password?\n              </Link><Link href="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Create account\n              </Link></div>`;
+    ? `<div className="flex w-full ${hasEmail ? "justify-between" : "justify-end"} text-sm">${hasEmail ? '<Link to="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Forgot password?</Link>' : ""}<Link to="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Create account</Link></div>`
+    : `<div className="flex w-full ${hasEmail ? "justify-between" : "justify-end"} text-sm">${hasEmail ? '<Link href="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Forgot password?\n              </Link>' : ""}<Link href="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Create account\n              </Link></div>`;
 
   return `${imports}
 
@@ -86,7 +88,7 @@ ${signInNavigateLogic(router)}
             {error ? (<Alert variant="destructive"><AlertTitle>Unable to sign in</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>) : null}
 ${oauthButtons(router)}
             <Form form={form} className="flex flex-col gap-6">
-${signInFormFields(router)}
+${signInFormFields(router, hasEmail)}
             </Form>
           </CardContent>
           <CardFooter className="flex-col gap-3">${footerLinks}</CardFooter>

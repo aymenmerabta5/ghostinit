@@ -42,7 +42,7 @@ export function authClientSingleConvex(): string {
   ].join("\n");
 }
 
-export function serverAuthSingle(): string {
+export function serverAuthSingle(hasEmail = true): string {
   return [
     "import { betterAuth } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
@@ -51,8 +51,13 @@ export function serverAuthSingle(): string {
     "import { twoFactor } from 'better-auth/plugins';",
     "import { db } from '@/server/db';",
     "import * as schema from '@/server/db/schema/auth';",
-    "import { sendEmail } from '@/server/email';",
-    "import { forgotPasswordTemplate } from '@/server/email/templates/forgot-password';",
+    ...(hasEmail
+      ? [
+          'import { sendEmail } from "@/server/email";',
+          'import ResetPasswordEmail from "@/server/email/templates/ResetPassword";',
+          'import VerifyEmail from "@/server/email/templates/VerifyEmail";',
+        ]
+      : []),
     "",
     "const _authSecret = process.env.BETTER_AUTH_SECRET!;",
     'if (!_authSecret || _authSecret.length < 32 || _authSecret.startsWith("REPLACE_WITH") || _authSecret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {',
@@ -67,17 +72,37 @@ export function serverAuthSingle(): string {
     "  emailAndPassword: {",
     "    enabled: true,",
     "    autoSignInAfterRegistration: false,",
-    "    sendResetPassword: async ({ user, url, token }) => {",
-    "      await sendEmail({ to: user.email, subject: 'Reset password', html: forgotPasswordTemplate({ url, token, email: user.email }) });",
-    "    },",
+    ...(hasEmail
+      ? [
+          "    sendResetPassword: async ({ user, url }) => {",
+          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
+          "      const subject = `Reset your password - ${appName}`;",
+          "      await sendEmail(user.email, subject, ResetPasswordEmail,",
+          "        { link: url, appName },",
+          "      );",
+          "    },",
+        ]
+      : []),
     "  },",
+    ...(hasEmail
+      ? [
+          "  emailVerification: {",
+          "    sendOnSignUp: true,",
+          "    autoSignInAfterVerification: true,",
+          "    sendVerificationEmail: async ({ user, url }) => {",
+          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
+          "      await sendEmail(user.email, `Verify your email - ${appName}`, VerifyEmail, { link: url, appName });",
+          "    },",
+          "  },",
+        ]
+      : []),
     "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), nextCookies()],",
     "});",
     "",
   ].join("\n");
 }
 
-export function serverAuthTanstackSingle(): string {
+export function serverAuthTanstackSingle(hasEmail = true): string {
   return [
     "import { betterAuth } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
@@ -86,8 +111,13 @@ export function serverAuthTanstackSingle(): string {
     "import { twoFactor } from 'better-auth/plugins';",
     "import { db } from '@/server/db';",
     "import * as schema from '@/server/db/schema/auth';",
-    "import { sendEmail } from '@/server/email';",
-    "import { forgotPasswordTemplate } from '@/server/email/templates/forgot-password';",
+    ...(hasEmail
+      ? [
+          'import { sendEmail } from "@/server/email";',
+          'import ResetPasswordEmail from "@/server/email/templates/ResetPassword";',
+          'import VerifyEmail from "@/server/email/templates/VerifyEmail";',
+        ]
+      : []),
     "",
     "const _authSecret = process.env.BETTER_AUTH_SECRET!;",
     'if (!_authSecret || _authSecret.length < 32 || _authSecret.startsWith("REPLACE_WITH") || _authSecret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {',
@@ -102,10 +132,30 @@ export function serverAuthTanstackSingle(): string {
     "  emailAndPassword: {",
     "    enabled: true,",
     "    autoSignInAfterRegistration: false,",
-    "    sendResetPassword: async ({ user, url, token }) => {",
-    "      await sendEmail({ to: user.email, subject: 'Reset password', html: forgotPasswordTemplate({ url, token, email: user.email }) });",
-    "    },",
+    ...(hasEmail
+      ? [
+          "    sendResetPassword: async ({ user, url }) => {",
+          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
+          "      const subject = `Reset your password - ${appName}`;",
+          "      await sendEmail(user.email, subject, ResetPasswordEmail,",
+          "        { link: url, appName },",
+          "      );",
+          "    },",
+        ]
+      : []),
     "  },",
+    ...(hasEmail
+      ? [
+          "  emailVerification: {",
+          "    sendOnSignUp: true,",
+          "    autoSignInAfterVerification: true,",
+          "    sendVerificationEmail: async ({ user, url }) => {",
+          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
+          "      await sendEmail(user.email, `Verify your email - ${appName}`, VerifyEmail, { link: url, appName });",
+          "    },",
+          "  },",
+        ]
+      : []),
     "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), tanstackStartCookies()],",
     "});",
     "",

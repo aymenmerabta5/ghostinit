@@ -26,10 +26,12 @@ export const EMAIL_FROM_FORMATTED = \`\${EMAIL_FROM_NAME} <\${EMAIL_FROM}>\`;
 export const RESEND_API_KEY = env.RESEND_API_KEY;
 `;
   }
-  return `export const EMAIL_FROM = process.env.EMAIL_FROM ?? "noreply@example.com";
-export const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME ?? process.env.APP_NAME ?? "GhostInit";
+  return `import { env } from "@/lib/env";
+
+export const EMAIL_FROM = env.EMAIL_FROM ?? "noreply@example.com";
+export const EMAIL_FROM_NAME = env.EMAIL_FROM_NAME ?? env.APP_NAME ?? "GhostInit";
 export const EMAIL_FROM_FORMATTED = \`\${EMAIL_FROM_NAME} <\${EMAIL_FROM}>\`;
-export const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "";
+export const RESEND_API_KEY = env.RESEND_API_KEY;
 `;
 }
 
@@ -56,12 +58,7 @@ function sendContent(mode: ProjectMode): string {
   const isMonorepo = mode === "monorepo";
   const envImport = isMonorepo
     ? `import { env } from "@repo/config";`
-    : `const env = {
-  RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
-  EMAIL_FROM: process.env.EMAIL_FROM ?? "noreply@example.com",
-} as const;`;
-  const fromRef = isMonorepo ? `env.EMAIL_FROM` : `env.EMAIL_FROM`;
-  const apiKeyRef = isMonorepo ? `env.RESEND_API_KEY` : `env.RESEND_API_KEY`;
+    : `import { env } from "@/lib/env";`;
   // Single mode stays plain node; monorepo can use server-only guard when available.
   const serverOnlyImport = isMonorepo ? `import "server-only";\n` : ``;
   return `${serverOnlyImport}import * as React from "react";
@@ -76,73 +73,26 @@ export interface SendEmailOptions {
   bcc?: string | string[];
 }
 
-export async function sendEmail<T>(
+export async function sendEmail<T extends object>(
   to: string | string[],
   subject: string,
   EmailComponent: React.ComponentType<T>,
-  componentProps: T,
+  componentProps: T & React.Attributes,
   options?: SendEmailOptions,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    if (!${apiKeyRef} || ${apiKeyRef}.includes("REPLACE_WITH")) {
-      console.warn("[ghostinit] RESEND_API_KEY not configured — skipping email delivery");
-      return { success: false, error: "Email not configured" };
-    }
-    const resend = new Resend(${apiKeyRef});
-    const html = await render(React.createElement(EmailComponent as React.ElementType, componentProps));
-    const from = options?.from ?? ${fromRef};
-    if (!from) throw new Error("EMAIL_FROM is not configured");
-    const { data, error } = await resend.emails.send({
-      from,
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      html,
-      replyTo: options?.replyTo,
-      cc: options?.cc,
-      bcc: options?.bcc,
-    });
-    if (error) {
-      console.error("[ghostinit] Resend API error", error);
-      throw new Error(\`Email sending failed: \${(error as { message?: string }).message ?? "unknown"}\`);
-    }
-    if (!data) throw new Error("Email sending failed: No response data");
-    console.info("[ghostinit] Email sent", { to, subject, id: (data as { id?: string }).id });
-    return { success: true };
-  } catch (error) {
-    console.error("[ghostinit] Error sending email", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+): Promise<{ id: string }> {
+  if (!env.RESEND_API_KEY || env.RESEND_API_KEY.includes("REPLACE_WITH")) {
+    throw new Error("RESEND_API_KEY is not configured");
   }
-}
-
-// Legacy html-string helper for callers that already have html (kept for back-compat with auth.ts string templates)
-export async function sendEmailHtml(
-  to: string | string[],
-  subject: string,
-  html: string,
-  options?: SendEmailOptions,
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    if (!${apiKeyRef} || ${apiKeyRef}.includes("REPLACE_WITH")) {
-      console.warn("[ghostinit] RESEND_API_KEY not configured — skipping email delivery");
-      return { success: false, error: "Email not configured" };
-    }
-    const resend = new Resend(${apiKeyRef});
-    const from = options?.from ?? ${fromRef};
-    const { data, error } = await resend.emails.send({
-      from,
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      html,
-      replyTo: options?.replyTo,
-      cc: options?.cc,
-      bcc: options?.bcc,
-    });
-    if (error) throw new Error((error as { message?: string }).message ?? "Resend error");
-    if (!data) throw new Error("No response data");
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
-  }
+  const html = await render(React.createElement(EmailComponent, componentProps));
+  const { data, error } = await new Resend(env.RESEND_API_KEY).emails.send({
+    from: options?.from ?? env.EMAIL_FROM,
+    to: Array.isArray(to) ? to : [to],
+    subject,
+    html,
+  });
+  if (error) throw new Error(error.message ?? "Email delivery failed");
+  if (!data?.id) throw new Error("Email provider returned no delivery ID");
+  return { id: data.id };
 }
 `;
 }
@@ -282,7 +232,6 @@ export default function WelcomeEmail({ appName = "GhostInit", name, dashboardUrl
 }
 `;
 
-// Backwards-compat string templates kept as wrappers around React Email render — ensures auth.ts still works if it passes html
 const magicLinkContent = `import { Button, Heading, Section, Text } from "@react-email/components";
 import EmailLayout from "./EmailLayout.js";
 
@@ -298,23 +247,6 @@ export default function MagicLinkEmail({ link, appName = "GhostInit" }: { link: 
     </EmailLayout>
   );
 }
-`;
-
-const legacyForgotWrapper = `import { render } from "@react-email/render";
-import * as React from "react";
-import ResetPasswordEmail from "./ResetPassword.js";
-export async function forgotPasswordTemplate(props: { url: string; appName?: string }): Promise<string> {
-  return render(React.createElement(ResetPasswordEmail, { link: props.url, appName: props.appName }));
-}
-export type ForgotPasswordEmailProps = { url: string; token?: string; appName?: string; email?: string };
-`;
-const legacyVerificationWrapper = `import { render } from "@react-email/render";
-import * as React from "react";
-import VerifyEmail from "./VerifyEmail.js";
-export async function verificationTemplate(props: { url: string; appName?: string }): Promise<string> {
-  return render(React.createElement(VerifyEmail, { link: props.url, appName: props.appName }));
-}
-export type VerificationEmailProps = { url: string; token?: string; appName?: string; email?: string };
 `;
 
 export function emailFiles(
@@ -394,9 +326,6 @@ describe("@repo/email barrel", () => {
       file("packages/email/src/templates/ResetPassword.tsx", resetPasswordContent),
       file("packages/email/src/templates/Welcome.tsx", welcomeContent),
       file("packages/email/src/templates/MagicLink.tsx", magicLinkContent),
-      // Legacy string-API compat — keeps existing auth.ts imports working during migration
-      file("packages/email/src/templates/forgot-password.ts", legacyForgotWrapper),
-      file("packages/email/src/templates/verification.ts", legacyVerificationWrapper),
     );
   } else {
     files.push(
@@ -408,8 +337,6 @@ describe("@repo/email barrel", () => {
       file("src/server/email/templates/ResetPassword.tsx", resetPasswordContent),
       file("src/server/email/templates/Welcome.tsx", welcomeContent),
       file("src/server/email/templates/MagicLink.tsx", magicLinkContent),
-      file("src/server/email/templates/forgot-password.ts", legacyForgotWrapper),
-      file("src/server/email/templates/verification.ts", legacyVerificationWrapper),
     );
   }
 

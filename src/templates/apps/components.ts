@@ -38,8 +38,9 @@ function isConvex(input?: AddonMapInput): boolean {
 
 export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
   const convex = isConvex(addonMap);
+  const analytics = addonMap ? hasAddon(addonMap as AddonInstallerMap, "analytics") : true;
   const base: TemplateFile[] = [
-    providersComponent(convex),
+    providersComponent(convex, analytics),
     themeProviderComponent(),
     themeToggleComponent(),
     headerComponent(),
@@ -65,8 +66,11 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(isConvex = false): TemplateFile {
-  return file("apps/web/src/components/providers.tsx", providersFileContent("next", isConvex));
+function providersComponent(isConvex = false, hasAnalytics = true): TemplateFile {
+  return file(
+    "apps/web/src/components/providers.tsx",
+    providersFileContent("next", isConvex, hasAnalytics),
+  );
 }
 
 function convexClientProviderComponent(): TemplateFile {

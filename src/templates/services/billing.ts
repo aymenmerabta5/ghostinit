@@ -50,8 +50,34 @@ export async function createPortalSessionService(input: CreatePortalSessionInput
 `;
 }
 
-function listSubscriptionsContent(mode: ProjectMode): string {
+function listSubscriptionsContent(
+  mode: ProjectMode,
+  database: "postgres" | "convex" = "postgres",
+): string {
   const resultImport = resultImportForMode(mode);
+  if (database === "convex") {
+    const adapterImport =
+      mode === "monorepo"
+        ? `import { billingConvex } from "@repo/billing/adapters";`
+        : `import { billingConvex } from "@/server/billing/adapters";`;
+    return `import "server-only";\n${resultImport}
+${adapterImport}
+export interface BillingSnapshot {
+  subscriptions: Array<Record<string, unknown>>;
+  invoices: Array<Record<string, unknown>>;
+  usageEvents: Array<Record<string, unknown>>;
+  licenseKeys: Array<Record<string, unknown>>;
+}
+export async function listSubscriptionsService(userId: string): Promise<Result<BillingSnapshot, Error>> {
+  try {
+    const subscriptions = await billingConvex.listSubscriptions(userId);
+    return ok({ subscriptions, invoices: [], usageEvents: [], licenseKeys: [] });
+  } catch (e) {
+    return err(e instanceof Error ? e : new Error(String(e)));
+  }
+}
+`;
+  }
   const dbImport =
     mode === "monorepo"
       ? `import { eq, inArray } from "drizzle-orm";
@@ -91,12 +117,15 @@ export async function listSubscriptionsService(userId: string): Promise<Result<B
 `;
 }
 
-export function billingServiceFiles(mode: ProjectMode): TemplateFile[] {
+export function billingServiceFiles(
+  mode: ProjectMode,
+  database: "postgres" | "convex" = "postgres",
+): TemplateFile[] {
   const base = mode === "monorepo" ? "packages/services/src" : "src/server/services";
   return [
     file(`${base}/billing/index.ts`, sharedBillingIndex),
     file(`${base}/billing/create-checkout.service.ts`, billingCreateCheckoutContent(mode)),
     file(`${base}/billing/create-portal-session.service.ts`, portalServiceContent(mode)),
-    file(`${base}/billing/list-subscriptions.service.ts`, listSubscriptionsContent(mode)),
+    file(`${base}/billing/list-subscriptions.service.ts`, listSubscriptionsContent(mode, database)),
   ];
 }

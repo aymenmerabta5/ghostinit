@@ -58,6 +58,7 @@ export function filteredEnvLocal(
     framework: "nextjs",
     hasMobile: false,
   },
+  includeResend = true,
 ): TemplateFile {
   return unifiedFilteredEnvLocal(
     projectName,
@@ -67,6 +68,7 @@ export function filteredEnvLocal(
     "single",
     database,
     audience,
+    includeResend,
   );
 }
 

@@ -11,6 +11,6 @@ export {
   type RouterType as RecoveryRouterType,
 };
 
-export function recoveryFiles(router: RouterType = "next"): TemplateFile[] {
-  return [forgotPasswordPage(router), resetPasswordPage(router)];
+export function recoveryFiles(router: RouterType = "next", hasEmail = true): TemplateFile[] {
+  return hasEmail ? [forgotPasswordPage(router), resetPasswordPage(router)] : [];
 }

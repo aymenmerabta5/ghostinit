@@ -23,7 +23,7 @@ export function forgotPasswordPageSingle(): string {
     "    onSubmit: async ({ value }) => {",
     "      setError(null); setStatus(null);",
     "      if (!value.email.includes('@')) { setError('Enter a valid email that contains @'); return; }",
-    "      const result = await (authClient as unknown as string).requestPasswordReset?.({ email: value.email, redirectTo: '/reset-password' }) ?? await (authClient as unknown as string).forgetPassword({ email: value.email, redirectTo: '/reset-password' });",
+    "      const result = await authClient.requestPasswordReset({ email: value.email, redirectTo: '/reset-password' });",
     "      if (result.error) { setError(result.error.message ?? 'Failed to send reset link'); return; }",
     "      setStatus('If this email exists, check your inbox for the reset link.');",
     "    },",

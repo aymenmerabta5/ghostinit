@@ -9,6 +9,7 @@ function buildAgentsMdContent(
   hasEve: boolean,
   hasI18n: boolean,
   framework: FrameworkName = "nextjs",
+  hasEmail = true,
 ): string {
   const lines: string[] = [];
   lines.push(`# AGENTS.md — ${projectName}`);
@@ -67,7 +68,11 @@ function buildAgentsMdContent(
   lines.push(
     "- Billing keys conditional .env.example: RESEND always, billing keys only if chosen else placeholder comment.",
   );
-  lines.push("- Email default resend: @repo/email always emitted in monorepo.");
+  lines.push(
+    hasEmail
+      ? "- Email enabled: @repo/email exposes one typed React component sendEmail API and propagates delivery failures."
+      : "- Email disabled: no email package, recovery routes, auth callbacks, or Resend environment entries are emitted.",
+  );
   lines.push(
     "- Services default: packages/services/src/ business logic per generator oRPC contract-first webhooks via Next routes raw Buffer single port.",
   );
@@ -153,8 +158,16 @@ export function agentsComposerFiles(
   hasEve: boolean,
   hasI18n: boolean,
   framework: FrameworkName = "nextjs",
+  hasEmail = true,
 ): TemplateFile[] {
-  const content = buildAgentsMdContent(projectName, selectedBilling, hasEve, hasI18n, framework);
+  const content = buildAgentsMdContent(
+    projectName,
+    selectedBilling,
+    hasEve,
+    hasI18n,
+    framework,
+    hasEmail,
+  );
   const agents = file("AGENTS.md", content);
   const claude = file("CLAUDE.md", content);
   const cursor = file(

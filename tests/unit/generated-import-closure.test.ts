@@ -50,15 +50,6 @@ const packageName = (specifier: string): string =>
 
 const MAINTAINED_CODE = /\.(?:[cm]?[jt]sx?)$/;
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
-const TASK1_PACKAGE_OWNERS = new Set([
-  "@repo/api",
-  "@repo/auth",
-  "@repo/email",
-  "@repo/kernel",
-  "@repo/modules",
-  "@repo/services",
-]);
-
 function findUndeclaredImports(files: TemplateFile[]): string[] {
   const byPath = new Map(files.map((file) => [file.path, file.content]));
   const owners = files
@@ -132,14 +123,9 @@ describe("generated package ownership", () => {
     ).toContain('if (!isAdminRole(session?.user?.role)) redirect("/")');
   });
 
-  test("every Task 1-owned monorepo package import is declared by its nearest owner", () => {
-    // Task 4 extends this same root-aware scanner to apps, root, Convex, configs,
-    // scripts, and single mode after those owners' manifests are repaired.
-    const problems = CLOSURE_MATRIX.filter(({ config }) => config.mode === "monorepo").flatMap(
-      ({ key, config }) =>
-        findUndeclaredImports(generateProjectFiles(config))
-          .filter((problem) => TASK1_PACKAGE_OWNERS.has(problem.split(" :: ")[0] ?? ""))
-          .map((problem) => `${key}: ${problem}`),
+  test("every maintained import is declared by its nearest root or workspace owner", () => {
+    const problems = CLOSURE_MATRIX.flatMap(({ key, config }) =>
+      findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
     );
     expect(problems).toEqual([]);
   });
@@ -237,6 +223,45 @@ describe("generated package ownership", () => {
         dependencies?: Record<string, string>;
       };
       expect(manifest.dependencies?.["@repo/billing"]).toBeUndefined();
+    }
+  });
+
+  test("Convex subscription routes use the mode-correct adapter without Drizzle leakage", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        const files = generateProjectFiles(
+          projectConfigSchema.parse({
+            name: "demo",
+            mode,
+            framework,
+            database: "convex",
+            preset: "saas",
+            billing: ["stripe"],
+            apps: ["web"],
+          }),
+        );
+        const prefix = mode === "monorepo" ? "apps/web/" : "";
+        const routePath =
+          framework === "nextjs"
+            ? `${prefix}src/app/api/billing/subscriptions/route.ts`
+            : `${prefix}src/routes/api/billing/subscriptions.ts`;
+        const route = files.find(({ path }) => path === routePath)?.content ?? "";
+        expect(route, `${mode}/${framework}`).toContain("billingConvex.listSubscriptions(user.id)");
+        expect(route).not.toContain("drizzle-orm");
+        expect(route).not.toContain("db.select");
+        expect(route).not.toContain("schema/billing");
+
+        const webManifestPath = mode === "monorepo" ? "apps/web/package.json" : "package.json";
+        const manifest = JSON.parse(
+          files.find(({ path }) => path === webManifestPath)?.content ?? "{}",
+        ) as { dependencies?: Record<string, string> };
+        expect(manifest.dependencies?.["drizzle-orm"]).toBeUndefined();
+        if (mode === "single") {
+          expect(files.some(({ path }) => path.startsWith("src/server/db/schema/billing"))).toBe(
+            false,
+          );
+        }
+      }
     }
   });
 });

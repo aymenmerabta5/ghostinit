@@ -141,10 +141,11 @@ export function monorepoFiles(
       effectiveFramework,
       effectiveApps,
       deploy,
+      hasEmail,
     ),
     ...packagesComposerFiles(runtime, effectiveFramework, effectiveDatabase, hasAnalytics),
     ...databaseComposerFiles(config.name, runtime, addonMap, effectiveDatabase),
-    ...(hasAuth ? authComposerFiles(effectiveFramework, addonMap) : []),
+    ...(hasAuth ? authComposerFiles(effectiveFramework, addonMap, hasEmail) : []),
     ...(hasApi ? apiComposerFiles(effectiveBilling, hasMessaging, effectiveDatabase) : []),
     ...uiComposerFiles(),
     ...modulesComposerFiles(
@@ -152,7 +153,7 @@ export function monorepoFiles(
       effectiveBilling.length > 0,
       hasMessaging && effectiveDatabase === "postgres",
     ),
-    ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps),
+    ...appsComposerFiles(runtime, addonMap, effectiveFramework, effectiveApps, hasEmail),
     ...servicesComposerFiles(
       config.name,
       runtime,
@@ -189,6 +190,7 @@ export function monorepoFiles(
     hasEve,
     hasI18n,
     effectiveFramework,
+    hasEmail,
   );
   const withoutOldAgents = all.filter(
     (f: TemplateFile) =>
@@ -240,9 +242,6 @@ export function monorepoFiles(
         !f.path.includes("analytics"),
     );
   }
-  if (!hasEmail) {
-    filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/email/"));
-  }
   if (!hasApi) {
     filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/api/"));
   }
@@ -287,11 +286,6 @@ export function monorepoFiles(
         !f.content.includes("from '@repo/analytics'"),
     );
   }
-  if (!hasEmail) {
-    filteredFiles = filteredFiles.filter(
-      (f) => !f.content.includes('from "@repo/email"') && !f.content.includes("from '@repo/email'"),
-    );
-  }
   if (!hasPdf) {
     filteredFiles = filteredFiles.filter(
       (f) =>
@@ -334,7 +328,6 @@ export function monorepoFiles(
   if (!hasAuth) disabledPackages.add("@repo/auth");
   if (!hasApi) disabledPackages.add("@repo/api");
   if (!hasAnalytics) disabledPackages.add("@repo/analytics");
-  if (!hasEmail) disabledPackages.add("@repo/email");
   if (!hasCache) disabledPackages.add("@repo/cache");
   if (!hasPdf) disabledPackages.add("@repo/pdf");
   if (!hasMessaging) {

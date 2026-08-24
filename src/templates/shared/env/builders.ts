@@ -33,6 +33,7 @@ function analyticsPublicLines(audience: EnvAudience): string[] {
     ...publicVarLines(audience, "POSTHOG_SESSION_RECORDING", "false"),
     ...publicVarLines(audience, "POSTHOG_AUTOCAPTURE", "true"),
     ...publicVarLines(audience, "ANALYTICS_DISABLED", "false"),
+    "ANALYTICS_DISABLED=false",
   ];
 }
 
@@ -185,11 +186,12 @@ export function filteredEnvLocal(
   mode: EnvMode = "monorepo",
   database: "postgres" | "convex" | "none" | string = "postgres",
   audience: EnvAudience = { framework: "nextjs", hasMobile: false },
+  includeResend = true,
 ): TemplateFile {
   const lines: string[] = [];
   lines.push(...coreEnvLocalLines(projectName, secrets, database, audience));
   lines.push("");
-  lines.push(...resendLocalLines(projectName, secrets));
+  if (includeResend) lines.push(...resendLocalLines(projectName, secrets));
   lines.push(...billingEnvLocalLinesFiltered(secrets, selectedBilling, audience));
   lines.push(...analyticsPublicLines(audience));
   lines.push("");

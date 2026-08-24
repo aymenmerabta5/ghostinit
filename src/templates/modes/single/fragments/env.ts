@@ -51,6 +51,7 @@ ${clientPrefixLine}  server: {
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().url(),
     TRUSTED_PROXY: z.enum(["true", "false"]).default("false"),
+    ANALYTICS_DISABLED: z.enum(["true", "false"]).default("false"),
     RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
     EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
     EMAIL_FROM_NAME: z.string().min(1).optional(),
@@ -83,6 +84,7 @@ ${clientVars}
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
 ${clientRuntime}
     TRUSTED_PROXY: process.env.TRUSTED_PROXY,
+    ANALYTICS_DISABLED: process.env.ANALYTICS_DISABLED,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,
@@ -130,6 +132,7 @@ ${clientPrefixLine}  server: {
       .default("20")
       .transform((s) => Number.parseInt(s, 10)),
     TRUSTED_PROXY: z.enum(["true", "false"]).default("false"),
+    ANALYTICS_DISABLED: z.enum(["true", "false"]).default("false"),
     RESEND_API_KEY: z.string().min(1).default("REPLACE_WITH_RESEND_API_KEY"),
     EMAIL_FROM: z.string().min(1).default("noreply@example.com"),
     EMAIL_FROM_NAME: z.string().min(1).optional(),
@@ -167,6 +170,7 @@ ${clientRuntime}
     DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,
     DATABASE_POOL_SIZE: process.env.DATABASE_POOL_SIZE,
     TRUSTED_PROXY: process.env.TRUSTED_PROXY,
+    ANALYTICS_DISABLED: process.env.ANALYTICS_DISABLED,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_FROM: process.env.EMAIL_FROM,
     EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME,

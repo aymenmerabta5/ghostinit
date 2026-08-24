@@ -12,6 +12,7 @@ import { expoComponentFiles } from "./expo-components.js";
 import { expoPageFiles } from "./expo-pages.js";
 import type { TemplateFile } from "../shared.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon } from "../../lib/addons.js";
 
 type EveAndBillingInput =
   | boolean
@@ -23,10 +24,14 @@ export function appsFiles(
   runtime: "node" | "bun" = "bun",
   addonsOrHasEve: EveAndBillingInput = false,
 ): TemplateFile[] {
+  const hasApi =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "api")
+      : true;
   return [
     ...coreFiles(runtime, addonsOrHasEve),
     ...pageFiles(addonsOrHasEve),
-    ...apiFiles(addonsOrHasEve as AddonInstallerMap),
+    ...(hasApi ? apiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...componentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime),
   ];
@@ -36,10 +41,18 @@ export function tanstackStartFiles(
   runtime: "node" | "bun" = "bun",
   addonsOrHasEve: EveAndBillingInput = false,
 ): TemplateFile[] {
+  const hasEmail =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "email")
+      : true;
+  const hasApi =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "api")
+      : true;
   return [
     ...tanstackCoreFiles(runtime, addonsOrHasEve),
-    ...tanstackPageFiles(),
-    ...tanstackApiFiles(addonsOrHasEve as AddonInstallerMap),
+    ...tanstackPageFiles(hasEmail),
+    ...(hasApi ? tanstackApiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime),
   ];
