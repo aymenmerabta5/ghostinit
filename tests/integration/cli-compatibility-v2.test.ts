@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -22,13 +24,28 @@ const CLI_CAPTURE_LIMIT_BYTES = 16 * 1024 * 1024;
 
 function run(args: string[], cwd = root) {
   // Dry-run JSON intentionally contains the complete generation plan and file
-  // contents. Bun's implicit spawnSync capture limit differs across hosts, so
-  // make the bounded test-process contract explicit without changing CLI output.
-  return spawnSync("node", [CLI, ...args], {
-    cwd,
-    encoding: "utf8",
-    maxBuffer: CLI_CAPTURE_LIMIT_BYTES,
-  });
+  // contents. Bun's spawnSync compatibility layer truncates captured stdout on
+  // some hosts even when maxBuffer is supplied, so capture to a bounded file.
+  const captureRoot = mkdtempSync(join(tmpdir(), "ghostinit-cli-capture-"));
+  const stdoutPath = join(captureRoot, "stdout.json");
+  let stdoutFd: number | undefined = openSync(stdoutPath, "w");
+  try {
+    const result = spawnSync("node", [CLI, ...args], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", stdoutFd, "pipe"],
+    });
+    closeSync(stdoutFd);
+    stdoutFd = undefined;
+    const size = statSync(stdoutPath).size;
+    if (size > CLI_CAPTURE_LIMIT_BYTES) {
+      throw new Error(`CLI stdout exceeded ${CLI_CAPTURE_LIMIT_BYTES} bytes`);
+    }
+    return { ...result, stdout: readFileSync(stdoutPath, "utf8") };
+  } finally {
+    if (stdoutFd !== undefined) closeSync(stdoutFd);
+    rmSync(captureRoot, { force: true, recursive: true });
+  }
 }
 
 function hashTree(directory: string): string {

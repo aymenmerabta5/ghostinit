@@ -9,7 +9,7 @@ import {
   compiledAdminUserPermissions,
   compiledSessionPermissions,
   compiledSuperAdminUserPermissions,
-} from "../fixtures/compatibility/drizzle-betterauth-orpc/src/access-contract";
+} from "../fixtures/compatibility/drizzle-betterauth-orpc/src/access-permissions";
 
 describe("auth package template", () => {
   it("keeps compiled permission fixtures identical to the emitted access contract", () => {

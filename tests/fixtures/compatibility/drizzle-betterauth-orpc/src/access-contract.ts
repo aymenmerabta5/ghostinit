@@ -2,34 +2,19 @@ import { adminClient } from "better-auth/client/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { admin } from "better-auth/plugins/admin";
 import { defaultStatements } from "better-auth/plugins/admin/access";
+import {
+  compiledAdminUserPermissions,
+  compiledSessionPermissions,
+  compiledSuperAdminUserPermissions,
+} from "./access-permissions.js";
+
+export {
+  compiledAdminUserPermissions,
+  compiledSessionPermissions,
+  compiledSuperAdminUserPermissions,
+} from "./access-permissions.js";
 
 export const ac = createAccessControl(defaultStatements);
-export const compiledSuperAdminUserPermissions = [
-  "create",
-  "list",
-  "set-role",
-  "ban",
-  "impersonate",
-  "impersonate-admins",
-  "delete",
-  "set-password",
-  "set-email",
-  "get",
-  "update",
-] as const;
-export const compiledAdminUserPermissions = [
-  "create",
-  "list",
-  "set-role",
-  "ban",
-  "impersonate",
-  "delete",
-  "set-password",
-  "set-email",
-  "get",
-  "update",
-] as const;
-export const compiledSessionPermissions = ["list", "revoke", "delete"] as const;
 export const roles = {
   admin: ac.newRole({
     user: compiledAdminUserPermissions,
