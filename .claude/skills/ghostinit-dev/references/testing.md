@@ -34,7 +34,7 @@ the runner frozen-installs each fixture exactly once.
 
 - `tests/integration/` — actual generation:
   - `generateProjectFiles()` dryRun + `monorepoFiles()` composer output checks
-  - turbo.json globalEnv includes billing vars, exhaustive 50+ list present
+  - turbo.json globalEnv exactly matches the selected capability/app environment manifest
   - env files `.env.example` + `.env.local` existence + content billing filtered
   - composers dedup+sort + `__PROJECT_NAME__` replace
   - architecture checker `analyzeProject()` on generated output no BLOCKER/HIGH

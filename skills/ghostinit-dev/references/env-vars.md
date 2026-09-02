@@ -6,7 +6,7 @@ New env var → MUST update same PR in 5 places else broken generation or Turbo 
 
 1. `src/lib/constants.ts` `ENV_PLACEHOLDERS` — `"PLACEHOLDER = \"REPLACE_WITH_...\""` string.
 2. `src/templates/shared/env/` builders — `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe.
-3. `src/templates/root.ts` `turbo()` + `root/index.ts` + split — `globalEnv` exhaustive 50+ vars list.
+3. `src/templates/root.ts` `turbo()` + `root/index.ts` + split — manifest-derived `globalEnv`, filtered to selected capabilities/apps.
 4. Root `turbo.json` `globalEnv` host CI host-level.
 5. Docs: `AGENTS.md` environment contract + `skills/ghostinit-use/references/workflows.md` or `billing.md` or `frameworks.md` if user-visible + `CONTRIBUTING.md` if how-to affected.
 
@@ -52,7 +52,7 @@ Split from 449 LOC god file into:
 - `core.ts`: `coreEnvExampleLines`, `coreEnvLocalLines`, `resendExampleLines`, `resendLocalLines`
   - Core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, `NEXT_PUBLIC_APP_URL` + VITE duplicate, `TRUSTED_PROXY`, `MAINTENANCE_MODE` + `MAINTENANCE_BYPASS_TOKEN` (proxy maintenance gate), `POSTGRES_*`, `DATABASE_SSL`, etc.
   - Resend: `RESEND_API_KEY`, `EMAIL_FROM`.
-  - Cache (Upstash): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts` — always emitted (placeholder when cache off) + turbo globalEnv exhaustive.
+  - Cache (Upstash): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts`; emitted and included in Turbo inputs only when the cache capability is selected.
 
 - `builders.ts`: `envExampleContent(projectName,secrets,selectedBilling,hasEve,hasI18n,runtime)`, `envLocalContent(...)`, `envPlaceholderContent()`, `filteredEnvExample(projectName,secrets,selectedBilling,...)` which `root-composer.ts` uses to replace raw .env.example file, `filteredEnvLocal`.
 
@@ -171,7 +171,7 @@ Also `inputs: ["$TURBO_DEFAULT$", ".env* !.env.*local"]` includes .env.example b
 
 ## 4. Root `turbo.json` Host
 
-Host repo's own `turbo.json` globalEnv similar exhaustive? Actually host uses oxlint/oxfmt+tsc not turbo for build, but root turbo.json file should still list globalEnv for CI if turbo used. Compare generated vs host: generated must have 50+ vars exhaustive; host may subset but best keep sync.
+The host repository keeps its own exhaustive environment manifest because its checks are capability-independent. Generated projects derive an exact subset for the resolved capability and app audiences; do not compare them by raw key count.
 
 Location `turbo.json` root.
 

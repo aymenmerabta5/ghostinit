@@ -7,9 +7,11 @@ import { delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { runtime } from "../../packages/versions/src/index";
 import {
+  advanceWindowsJobControllerState,
   buildInstallEnv,
   discoverCanonicalBunExecutable,
   INSTALL_TIMEOUT_MS,
+  InstallerContainmentUnavailableError,
   InstallerInterruptedError,
   resolveCanonicalBunExecutable,
   runInstallerCommand,
@@ -139,8 +141,15 @@ async function assertNoWritesAfterCleanup(
       await waitForFile(pidFile);
       signalSource.emit(parentSignal);
       await expect(command).rejects.toThrow(`interrupted by ${parentSignal}`);
-    } else if (exitCode === undefined) await expect(command).rejects.toThrow("timed out");
-    else if (exitCode === 0) await expect(command).resolves.toBeUndefined();
+    } else if (exitCode === undefined) {
+      const failure = await command.then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).not.toBeInstanceOf(InstallerContainmentUnavailableError);
+      expect((failure as Error).message).toContain("installer safety probe timed out after 1s");
+    } else if (exitCode === 0) await expect(command).resolves.toBeUndefined();
     else await expect(command).rejects.toThrow(`exited with code ${exitCode}`);
 
     // A descendant may have written while termination was in progress. Removing
@@ -280,6 +289,81 @@ describe("installer process-tree and init isolation", () => {
     expect(source).toContain("$entry.Process.Kill()");
     expect(source).not.toContain("Stop-Process -Id");
   });
+
+  test("Windows Job Object admission uses the pinned Bun FFI controller over private IPC", () => {
+    const source = readFileSync(
+      resolve(import.meta.dir, "../../src/commands/create/installer.ts"),
+      "utf8",
+    );
+    expect(source).toContain('await import("bun:ffi")');
+    expect(source).toContain('CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" }');
+    expect(source).toContain('OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" }');
+    expect(source).toContain("AssignProcessToJobObject");
+    expect(source).toContain("JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE");
+    expect(source).toContain('["-e", windowsJobControllerSource(pid)]');
+    expect(source).toContain('stdio: ["ignore", "ignore", "pipe", "ipc"]');
+    expect(source).toContain('process.once("disconnect"');
+    expect(source).toContain('process.once("disconnect", () => process.exit(1))');
+    expect(source).not.toContain("Add-Type -TypeDefinition");
+  });
+
+  test("Windows Job Object controller IPC rejects malformed and out-of-order frames", () => {
+    expect(advanceWindowsJobControllerState("starting", { type: "ghostinit:job-ready" })).toBe(
+      "ready",
+    );
+    expect(advanceWindowsJobControllerState("terminating", { type: "ghostinit:job-stopped" })).toBe(
+      "stopped",
+    );
+    expect(() => advanceWindowsJobControllerState("starting", { type: "unknown" })).toThrow(
+      "invalid IPC data",
+    );
+    expect(() =>
+      advanceWindowsJobControllerState("starting", { type: "ghostinit:job-stopped" }),
+    ).toThrow("while starting");
+    expect(() =>
+      advanceWindowsJobControllerState("ready", { type: "ghostinit:job-ready" }),
+    ).toThrow("while ready");
+  });
+
+  test("a Node-hosted installer delegates Windows Job Object ownership to pinned Bun", async () => {
+    if (process.platform !== "win32") return;
+    const node = Bun.which("node");
+    if (node === null) throw new Error("node executable was not found");
+    const bundleRoot = mkdtempSync(
+      join(resolve(import.meta.dir, "../../node_modules"), ".ghostinit-installer-node-"),
+    );
+    roots.push(bundleRoot);
+    const build = await Bun.build({
+      entrypoints: [resolve(import.meta.dir, "../../src/commands/create/installer.ts")],
+      outdir: bundleRoot,
+      target: "node",
+      format: "esm",
+      external: ["oxc-parser", "oxfmt"],
+      naming: "[name].mjs",
+    });
+    expect(build.success).toBe(true);
+    const bundle = build.outputs.find(({ kind }) => kind === "entry-point");
+    if (!bundle) throw new Error("Installer Node-host test bundle was not emitted");
+    const harness = `
+import { runInstallerCommand } from ${JSON.stringify(pathToFileURL(bundle.path).href)};
+await runInstallerCommand({
+  command: process.execPath,
+  argv: ["-e", "process.exit(0)"],
+  cwd: ${JSON.stringify(bundleRoot)},
+  label: "Node-hosted installer controller probe",
+  timeoutMs: 15000,
+});`;
+    const outcome = spawnProcessSync(node, ["--input-type=module", "-e", harness], {
+      cwd: bundleRoot,
+      encoding: "utf8",
+      env: process.env,
+      timeout: 30_000,
+      windowsHide: true,
+    });
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.signal, outcome.stderr).toBeNull();
+    expect(outcome.status, outcome.stderr).toBe(0);
+  }, 60_000);
 
   test("timeout waits for the complete descendant tree before rejecting", async () => {
     await assertNoWritesAfterCleanup();

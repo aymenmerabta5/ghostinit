@@ -184,7 +184,7 @@ Important blocked combos:
 - `.vinxi/** .output/** dist/**` TanStack Vite/Nitro
 - `.vercel/**` Vercel
 - `.expo/**` Expo cache, `apps/mobile/dist/**` expo export
-- `globalEnv` 50+ vars exhaustive including `EXPO_PUBLIC_*`
+- `globalEnv` exactly follows the selected capability/app environment manifest, including `EXPO_PUBLIC_*` when mobile is selected
 
 If you add new client var manually, add to turbo globalEnv too to invalidate cache on change.
 

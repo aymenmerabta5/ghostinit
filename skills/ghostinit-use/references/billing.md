@@ -27,7 +27,7 @@ ghostinit create my-app --billing stripe --apps web,mobile --yes --no-install  #
 ghostinit create my-app --billing stripe --apps both --framework tanstack-start --yes --no-install
 ```
 
-Generated includes `packages/billing/` capabilities + providers server-only SDK wrappers + webhook routes + UI conditional panels + env vars for selected providers + turbo globalEnv exhaustive including `EXPO_PUBLIC_*`.
+Generated output includes `packages/billing/` capabilities, server-only provider SDK wrappers, webhook routes, conditional UI panels, selected-provider environment values, and the matching capability/app-scoped Turbo cache inputs.
 
 ## Env Variables Needed
 
@@ -71,7 +71,7 @@ For mobile: `apps/mobile/app/billing.tsx` uses same oRPC client via `EXPO_PUBLIC
 
 ## Turbo Cache & Billing
 
-Turbo `globalEnv` includes all billing vars including `EXPO_PUBLIC_*` when mobile present. Changing billing key invalidates cache because env listed in globalEnv. If you add new billing env var manually without listing in turbo globalEnv, cache poisoned → old key reused. Scaffolded `turbo.json` already exhaustive 50+ vars including `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN`, `EXPO_PUBLIC_PADDLE_ENVIRONMENT`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_APP_URL`. If adding custom var, also add to `turbo.json` globalEnv.
+Turbo `globalEnv` includes every selected billing key and the applicable public-prefix wildcard, including `EXPO_PUBLIC_*` when mobile is present. Changing a selected billing key therefore invalidates the cache. Add custom environment keys to the environment manifest and regenerate; a manually emitted key that is absent from Turbo inputs can reuse stale cached output.
 
 ## Troubleshooting Billing
 

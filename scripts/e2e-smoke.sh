@@ -163,12 +163,8 @@ for f in "package.json" "turbo.json" "bunfig.toml" ".env.example" ".env.local" "
 done
 echo "  minimal file tree OK"
 
-COUNT=$(bun -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf-8')).globalEnv.length)" "$PROJECT_ROOT/turbo.json")
-echo "[e2e-smoke] turbo.json globalEnv count: $COUNT"
-if [ "$COUNT" -lt 50 ]; then
-  echo "  FAIL: globalEnv < 50"
-  exit 1
-fi
+echo "[e2e-smoke] Verifying capability-scoped turbo.json globalEnv..."
+bun ./scripts/verify-generated-env.ts "$PROJECT_ROOT"
 
 echo "[e2e-smoke] Checking ghostinit check (analyzeProject) — no HIGH/BLOCKER..."
 bun -e "

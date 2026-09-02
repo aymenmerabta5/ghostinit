@@ -49,6 +49,7 @@ test("TypeScript 7.0.2 obligations are enumerated and point to real sources", ()
         "scripts/sync-turbo-env.ts",
         "scripts/test-fixtures.ts",
         "scripts/test-generated.ts",
+        "scripts/verify-generated-env.ts",
       ],
       phase: "1A",
       disposition: "proven",

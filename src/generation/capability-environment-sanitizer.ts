@@ -1,4 +1,5 @@
 import type { ResolvedProjectConfig } from "../domain/project/config.js";
+import { getGlobalEnvKeys } from "../lib/env-manifest.js";
 
 const CORE_ENVIRONMENT_KEYS = new Set([
   "NODE_ENV",
@@ -88,6 +89,11 @@ function environmentKeyIsEnabled(key: string, config: ResolvedProjectConfig): bo
   throw new Error(
     `[ghostinit] Generated environment key ${key} has no capability or target ownership rule`,
   );
+}
+
+/** Exact cache-input manifest for one resolved capability and app selection. */
+export function getCapabilityScopedGlobalEnvKeys(config: ResolvedProjectConfig): string[] {
+  return getGlobalEnvKeys(config.runtime).filter((key) => environmentKeyIsEnabled(key, config));
 }
 
 function filterLines(content: string, keep: (line: string) => boolean): string {

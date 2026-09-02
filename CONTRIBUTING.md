@@ -207,7 +207,7 @@ Architecture goal: each file <300 LOC guideline (<5 imports for composers), DRY 
    }
    ```
 
-6. **Env vars** Add placeholders to `src/lib/constants.ts` `ENV_PLACEHOLDERS`, and to `src/templates/shared/env.ts` `billingEnvLines()` and `billingEnvLocalLinesFiltered()`. Update `turbo.json` `globalEnv` and `src/templates/root.ts` `turbo()` — both exhaustive list of 50+ vars.
+6. **Env vars** Add keys and placeholders to the `src/lib/env-manifest.ts` SSOT, wire the relevant `src/templates/shared/env.ts` builders, and run `bun run scripts/sync-turbo-env.ts`. Generated `turbo.json` cache inputs are derived from that manifest and filtered to the selected capabilities and app audiences.
 
 7. **UI** Update `src/templates/billing/ui/billing-page.tsx` provider panel — conditional rendering via `selectedBilling`.
 
@@ -273,7 +273,7 @@ Same pattern as billing but simpler — feature flags.
   1. `Bun.build({ entrypoints: ["./src/cli.ts"], outdir: "dist", target: "node", external: ["oxc-parser"] })` → `dist/cli.js` keeps shebang, external sourcemap.
   2. `bunx tsc -p src/tsconfig.json` emits real `.d.ts` + `.d.ts.map` + `.tsbuildinfo`. **Not fake `export {}`**. Verifies `dist/cli.d.ts` size >10 bytes.
 
-- **`turbo.json`** (host) — used for GH CI locally? Actually host uses oxlint/oxfmt + tsc. Generated turbo.json has comprehensive `globalEnv` 50+ vars (DATABASE_URL, BETTER_AUTH_SECRET, STRIPE__, CHARGILY__, PADDLE__, POLAR__, RESEND__, POSTHOG__, Eve's `AI_GATEWAY_API_KEY`/`EVE_*`, NEXT_PUBLIC__, VITE__), `inputs: [$TURBO_DEFAULT$, .env*]`, `outputs: [dist/**, .next/**, .vinxi/**, .output/**]`.
+- **`turbo.json`** (host) — used for GH CI locally? Actually host uses oxlint/oxfmt + tsc. Generated turbo.json derives comprehensive cache inputs from the environment manifest, then filters them to selected capabilities and app audiences (for example DATABASE_URL, BETTER_AUTH_SECRET, provider keys, Eve's `AI_GATEWAY_API_KEY`/`EVE_*`, and the applicable public prefix), with `inputs: [$TURBO_DEFAULT$, .env*]` and `outputs: [dist/**, .next/**, .vinxi/**, .output/**]`.
 
 - **`bunfig.toml`**
   - Host: `linker = "isolated", hoist = false, frozenLockfile = true` — hermetic reproducibility.

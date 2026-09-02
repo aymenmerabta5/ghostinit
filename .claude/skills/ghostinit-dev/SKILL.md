@@ -54,7 +54,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 4. barrels explicit + `billing/index.ts` switch + `BILLING_PROVIDER_NAMES`
 5. webhook factory `billing/webhooks/factory.ts` + `webhooks/providers/<name>.ts`
 6. `shared/env/billing.ts` `billingEnvLines()` + `ENV_PLACEHOLDERS` `constants.ts`
-7. turbo `globalEnv` in `root.ts` + root `turbo.json` 50+ exhaustive
+7. environment-manifest ownership + exact capability-scoped generated `globalEnv`
 8. UI `billing/ui/billing-page.tsx` conditional panel
 
 ### New Framework
@@ -104,7 +104,7 @@ New var → MUST update same PR 5 places + skills:
 
 1. `src/lib/constants.ts` `ENV_PLACEHOLDERS` `"REPLACE_WITH_..."`
 2. `src/templates/shared/env/` builder: `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe
-3. `src/templates/root.ts` `turbo()` `globalEnv` exhaustive 50+
+3. `src/templates/root.ts` `turbo()` manifest-derived, capability-scoped `globalEnv`
 4. root `turbo.json` `globalEnv`
 5. docs `AGENTS.md` + `CONTRIBUTING.md` tooling quirk + **MUST also update** `skills/ghostinit-use/` (`references/billing.md` or `workflows.md` or `frameworks.md` if user-visible) + `references/env-vars.md` this skill
 

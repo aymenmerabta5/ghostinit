@@ -26,6 +26,10 @@ const reviewedInstalledDigests = [
 ] as const;
 const reviewedAdvisories = ["GHSA-5p2g-fcmc-qvqq", "GHSA-w3rx-r6r6-pgpr"] as const;
 
+function normalizeCheckoutLineEndings(value: string): string {
+  return value.replaceAll("\r\n", "\n");
+}
+
 function generated(mode: "monorepo" | "single", mobile: boolean) {
   return generateProjectFiles(
     projectConfigSchema.parse({
@@ -200,9 +204,13 @@ describe("reviewed image-size advisory containment", () => {
   });
 
   test("keeps the executable fixture audit and tamper harness synchronized", () => {
-    expect(readFileSync(resolve(fixtureRoot, "scripts/audit-dependencies.ts"), "utf8")).toBe(
-      dependencyAuditScriptContent(true),
-    );
+    // actions/checkout may materialize text as CRLF on Windows. The executable
+    // contract is the source content, not the checkout's platform EOL policy.
+    expect(
+      normalizeCheckoutLineEndings(
+        readFileSync(resolve(fixtureRoot, "scripts/audit-dependencies.ts"), "utf8"),
+      ),
+    ).toBe(normalizeCheckoutLineEndings(dependencyAuditScriptContent(true)));
     const harness = readFileSync(resolve(fixtureRoot, "check-image-size-patch.mjs"), "utf8");
     for (const scenario of [
       "Missing patch",

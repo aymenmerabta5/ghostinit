@@ -1,5 +1,6 @@
-// @allow-long 450: OS containment and verified cross-platform shutdown must stay atomic in the generated supervisor
+// @allow-long 624: OS containment and verified cross-platform shutdown must stay atomic in the generated supervisor
 import * as v from "../versions.js";
+import { posixProcessGroupHelpersContent } from "../shared/posix-process-groups.js";
 
 export interface ProductionProcessSupervisorOptions {
   readonly hostedEve?: {
@@ -132,6 +133,11 @@ function environmentForScript(script, additions = {}) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+${posixProcessGroupHelpersContent({
+  label: "Production",
+  inspectionTimeoutExpression: "FORCED_MS",
+})}
+
 function startupTimeoutMs() {
   const source = process.env.GHOSTINIT_STARTUP_TIMEOUT_MS?.trim();
   if (!source) return 30_000;
@@ -165,16 +171,6 @@ async function waitForTcpPort(port, label) {
     await sleep(100);
   }
   throw new Error(label + " did not listen on " + LOOPBACK_HOST + ":" + String(port));
-}
-
-function processGroupExists(pid) {
-  try {
-    process.kill(-pid, 0);
-    return true;
-  } catch (error) {
-    if (error?.code === "ESRCH") return false;
-    throw error;
-  }
 }
 
 async function waitForChildExit(child, timeoutMs) {
@@ -273,7 +269,7 @@ async function terminatePosixTree(managed) {
   const pid = managed.child.pid;
   if (pid === undefined) throw new Error(managed.script + ": child PID is unavailable");
 
-  if (processGroupExists(pid)) process.kill(-pid, "SIGTERM");
+  if (processGroupExists(pid)) signalProcessGroup(pid, "SIGTERM");
   signalScopedProcesses(managed.scope, "SIGTERM");
   const [childExited, groupExited, scopeExited] = await Promise.all([
     waitForChildExit(managed.child, GRACE_MS),
@@ -282,7 +278,7 @@ async function terminatePosixTree(managed) {
   ]);
   if (childExited && groupExited && scopeExited) return;
 
-  if (processGroupExists(pid)) process.kill(-pid, "SIGKILL");
+  if (processGroupExists(pid)) signalProcessGroup(pid, "SIGKILL");
   signalScopedProcesses(managed.scope, "SIGKILL");
   const [forcedChildExit, forcedGroupExit, forcedScopeExit] = await Promise.all([
     waitForChildExit(managed.child, FORCED_MS),
@@ -368,16 +364,16 @@ async function createWindowsJob() {
   if (process.arch === "ia32") throw new Error("Production supervision requires 64-bit Windows");
   const { dlopen, ptr } = await import("bun:ffi");
   const kernel = dlopen("kernel32.dll", {
-    CreateJobObjectW: { args: ["ptr", "ptr"], returns: "ptr" },
-    SetInformationJobObject: { args: ["ptr", "u32", "ptr", "u32"], returns: "bool" },
-    OpenProcess: { args: ["u32", "bool", "u32"], returns: "ptr" },
-    AssignProcessToJobObject: { args: ["ptr", "ptr"], returns: "bool" },
-    TerminateJobObject: { args: ["ptr", "u32"], returns: "bool" },
+    CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" },
+    SetInformationJobObject: { args: ["u64", "u32", "ptr", "u32"], returns: "i32" },
+    OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" },
+    AssignProcessToJobObject: { args: ["u64", "u64"], returns: "i32" },
+    TerminateJobObject: { args: ["u64", "u32"], returns: "i32" },
     QueryInformationJobObject: {
-      args: ["ptr", "u32", "ptr", "u32", "ptr"],
-      returns: "bool",
+      args: ["u64", "u32", "ptr", "u32", "ptr"],
+      returns: "i32",
     },
-    CloseHandle: { args: ["ptr"], returns: "bool" },
+    CloseHandle: { args: ["u64"], returns: "i32" },
     GetLastError: { args: [], returns: "u32" },
   });
   const handle = kernel.symbols.CreateJobObjectW(null, null);
@@ -388,7 +384,7 @@ async function createWindowsJob() {
   }
   const limits = new Uint8Array(144);
   new DataView(limits.buffer).setUint32(16, 0x00002000, true);
-  if (!kernel.symbols.SetInformationJobObject(handle, 9, ptr(limits), limits.byteLength)) {
+  if (kernel.symbols.SetInformationJobObject(handle, 9, ptr(limits), limits.byteLength) === 0) {
     const code = kernel.symbols.GetLastError();
     kernel.symbols.CloseHandle(handle);
     kernel.close();
@@ -399,13 +395,13 @@ async function createWindowsJob() {
   const activeProcesses = () => {
     const accounting = new Uint8Array(48);
     if (
-      !kernel.symbols.QueryInformationJobObject(
+      kernel.symbols.QueryInformationJobObject(
         handle,
         1,
         ptr(accounting),
         accounting.byteLength,
         null,
-      )
+      ) === 0
     ) {
       throw new Error(
         "Could not inspect the Windows production Job Object (error " +
@@ -419,7 +415,7 @@ async function createWindowsJob() {
     assign(child, script) {
       const pid = child.pid;
       if (pid === undefined) throw new Error(script + ": child PID is unavailable");
-      const processHandle = kernel.symbols.OpenProcess(0x00000101, false, pid);
+      const processHandle = kernel.symbols.OpenProcess(0x00000101, 0, pid);
       if (!processHandle) {
         throw new Error(
           script +
@@ -429,7 +425,7 @@ async function createWindowsJob() {
         );
       }
       try {
-        if (!kernel.symbols.AssignProcessToJobObject(handle, processHandle)) {
+        if (kernel.symbols.AssignProcessToJobObject(handle, processHandle) === 0) {
           throw new Error(
             script +
               ": could not enter the Windows production Job Object (error " +
@@ -442,7 +438,7 @@ async function createWindowsJob() {
       }
     },
     async terminate() {
-      if (!kernel.symbols.TerminateJobObject(handle, 1)) {
+      if (kernel.symbols.TerminateJobObject(handle, 1) === 0) {
         throw new Error(
           "Could not terminate the Windows production Job Object (error " +
             kernel.symbols.GetLastError() +
@@ -461,47 +457,129 @@ async function createWindowsJob() {
     close() {
       if (closed) return;
       closed = true;
-      kernel.symbols.CloseHandle(handle);
-      kernel.close();
+      let handleError;
+      try {
+        if (kernel.symbols.CloseHandle(handle) === 0) {
+          handleError = new Error(
+            "Could not close the Windows production Job Object (error " +
+              kernel.symbols.GetLastError() +
+              ")",
+          );
+        }
+      } catch (error) {
+        handleError = error;
+      }
+      let libraryError;
+      try {
+        kernel.close();
+      } catch (error) {
+        libraryError = error;
+      }
+      const failures = [handleError, libraryError].filter((error) => error !== undefined);
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) {
+        throw new AggregateError(
+          failures,
+          "Could not close the Windows production Job Object and FFI library",
+        );
+      }
     },
   };
 }
 
+async function assignWindowsLauncherOrReap(windowsJob, managed) {
+  if (!windowsJob) return;
+  try {
+    windowsJob.assign(managed.child, managed.script);
+  } catch (assignmentError) {
+    try {
+      if (managed.child.connected) managed.child.disconnect();
+    } catch {}
+    try {
+      if (managed.child.exitCode === null && managed.child.signalCode === null) {
+        managed.child.kill("SIGKILL");
+      }
+    } catch {}
+    const reaped = await waitForChildExit(managed.child, FORCED_MS);
+    if (!reaped) {
+      throw new AggregateError(
+        [assignmentError],
+        managed.script + ": unassigned Windows production launcher could not be reaped",
+      );
+    }
+    throw assignmentError;
+  }
+}
+
+async function cleanupStartedProcesses(windowsJob, children) {
+  const results = windowsJob
+    ? await (async () => {
+        const termination = await Promise.allSettled([windowsJob.terminate()]);
+        // Closing is also the KILL_ON_JOB_CLOSE fallback if explicit termination failed.
+        const closure = await Promise.allSettled([
+          Promise.resolve().then(() => windowsJob.close()),
+        ]);
+        const reaping = await Promise.allSettled(
+          children.map(async (managed) => {
+            if (!(await waitForChildExit(managed.child, FORCED_MS + 1_000))) {
+              throw new Error(managed.script + ": Windows production launcher could not be reaped");
+            }
+          }),
+        );
+        return [...termination, ...closure, ...reaping];
+      })()
+    : await Promise.allSettled(children.map((managed) => terminatePosixTree(managed)));
+  return results.filter((result) => result.status === "rejected").map((result) => result.reason);
+}
+
 const windowsJob = await createWindowsJob();
-const children = PROCESS_SCRIPTS.map((script) => {
-  const scope = "ghostinit-production-" + randomUUID();
-  const childEnv = windowsJob
-    ? { ...process.env, [SCOPE_ENV]: scope }
-    : environmentForScript(script, { [SCOPE_ENV]: scope });
-  const child = spawn(
-    process.execPath,
-    windowsJob ? [SUPERVISOR_PATH, WINDOWS_JOB_LAUNCHER_ARG, script] : ["run", script],
-    {
-      detached: process.platform !== "win32",
-      env: childEnv,
-      shell: false,
-      stdio: windowsJob ? ["inherit", "inherit", "inherit", "ipc"] : "inherit",
-      windowsHide: true,
-    },
-  );
-  const outcome = new Promise((resolve) => {
-    let settled = false;
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      resolve(result);
-    };
-    child.once("error", (error) => finish({ script, exitCode: 1, error }));
-    child.once("close", (code, signal) =>
-      finish({ script, exitCode: code ?? (signal ? 1 : 0), signal }),
+const children = [];
+try {
+  for (const script of PROCESS_SCRIPTS) {
+    const scope = "ghostinit-production-" + randomUUID();
+    const childEnv = windowsJob
+      ? { ...process.env, [SCOPE_ENV]: scope }
+      : environmentForScript(script, { [SCOPE_ENV]: scope });
+    const child = spawn(
+      process.execPath,
+      windowsJob ? [SUPERVISOR_PATH, WINDOWS_JOB_LAUNCHER_ARG, script] : ["run", script],
+      {
+        detached: process.platform !== "win32",
+        env: childEnv,
+        shell: false,
+        stdio: windowsJob ? ["inherit", "inherit", "inherit", "ipc"] : "inherit",
+        windowsHide: true,
+      },
     );
-  });
-  const managed = { script, scope, child, outcome };
-  // Admission happens only after every trusted launcher has entered the Job.
-  // If assignment throws, IPC closes with the parent and no application runs.
-  windowsJob?.assign(managed.child, managed.script);
-  return managed;
-});
+    const outcome = new Promise((resolve) => {
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+      child.once("error", (error) => finish({ script, exitCode: 1, error }));
+      child.once("close", (code, signal) =>
+        finish({ script, exitCode: code ?? (signal ? 1 : 0), signal }),
+      );
+    });
+    const managed = { script, scope, child, outcome };
+    children.push(managed);
+    // Admission happens only after every trusted launcher has entered the Job.
+    // A failed assignment reaps the still-blocked launcher before propagating.
+    await assignWindowsLauncherOrReap(windowsJob, managed);
+  }
+  if (windowsJob) await Promise.all(children.map(admitWindowsLauncher));
+} catch (startupError) {
+  const cleanupFailures = await cleanupStartedProcesses(windowsJob, children);
+  if (cleanupFailures.length > 0) {
+    throw new AggregateError(
+      [startupError, ...cleanupFailures],
+      "Production launcher setup and containment cleanup failed",
+    );
+  }
+  throw startupError;
+}
 
 function admitWindowsLauncher(managed) {
   return new Promise((resolve, reject) => {
@@ -517,23 +595,11 @@ function admitWindowsLauncher(managed) {
 }
 
 const outcomes = children.map(({ outcome }) => outcome);
-if (windowsJob) await Promise.all(children.map(admitWindowsLauncher));
 
 let shutdownPromise;
 async function shutdown(exitCode) {
   shutdownPromise ??= (async () => {
-    const results = windowsJob
-      ? [
-          await windowsJob.terminate().then(
-            () => ({ status: "fulfilled" }),
-            (reason) => ({ status: "rejected", reason }),
-          ),
-        ]
-      : await Promise.allSettled(children.map((managed) => terminatePosixTree(managed)));
-    windowsJob?.close();
-    const failures = results
-      .filter((result) => result.status === "rejected")
-      .map((result) => String(result.reason));
+    const failures = (await cleanupStartedProcesses(windowsJob, children)).map(String);
     if (failures.length > 0) {
       console.error("Production process cleanup failed:\\n- " + failures.join("\\n- "));
       process.exit(1);

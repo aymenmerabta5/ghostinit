@@ -406,39 +406,32 @@ export function startServer(target: BrowserTarget): RunningServer {
   return { kind: target.kind, child, ...output };
 }
 
-function hasReadinessAnnouncement(server: RunningServer): boolean {
-  const output = `${server.stdout()}\n${server.stderr()}`;
-  if (!/ready in/i.test(output)) return false;
-  return server.kind === "next-monorepo" || /Local:\s+http:\/\/127\.0\.0\.1/i.test(output);
-}
-
 export async function waitForHttp200(
   url: string,
   server: RunningServer,
   timeoutMs: number,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  let announced = false;
+  let lastProbe = "HTTP probe not attempted";
   while (Date.now() < deadline) {
     if (server.child.exitCode !== null || server.child.signalCode !== null) {
       throw new Error(
         `Generated server exited before readiness:\n${server.stdout().slice(-12_000)}\n${server.stderr().slice(-12_000)}`,
       );
     }
-    announced ||= hasReadinessAnnouncement(server);
-    if (!announced) {
-      await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
-      continue;
-    }
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      lastProbe = `HTTP ${response.status}`;
+      await response.body?.cancel();
       if (response.status === 200) return;
-    } catch {
-      // The readiness endpoint is not accepting connections yet.
+    } catch (error) {
+      lastProbe = error instanceof Error ? error.message : String(error);
     }
     await new Promise<void>((resolveWait) => setTimeout(resolveWait, 100));
   }
-  throw new Error(`Timed out waiting for ${url}:\n${server.stderr()}`);
+  throw new Error(
+    `Timed out waiting for ${url} (last probe: ${lastProbe}):\n${server.stdout().slice(-12_000)}\n${server.stderr().slice(-12_000)}`,
+  );
 }
 
 export async function runLocalPlaywright(
@@ -474,6 +467,34 @@ function verifyTempRoot(root: string): void {
 }
 
 describe("generated web primitive interactions", () => {
+  test("HTTP readiness does not depend on framework startup announcements", async () => {
+    const port = await reservePort();
+    const child = spawn(
+      BUN_EXECUTABLE,
+      [
+        "-e",
+        `Bun.serve({ hostname: "127.0.0.1", port: ${port}, fetch: () => new Response("ok") });`,
+      ],
+      {
+        windowsHide: true,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const output = capture(child);
+    const runningServer: RunningServer = {
+      kind: "single-tanstack",
+      child,
+      ...output,
+    };
+    try {
+      await waitForHttp200(`http://127.0.0.1:${port}`, runningServer, 5_000);
+      expect(`${runningServer.stdout()}${runningServer.stderr()}`).not.toMatch(/ready in|Local:/i);
+    } finally {
+      await terminateProcessTree(child);
+    }
+  });
+
   test("Next monorepo and single TanStack primitives share the interaction contract", async () => {
     expect(Bun.version).toBe(REQUIRED_BUN_VERSION);
     const roots = [

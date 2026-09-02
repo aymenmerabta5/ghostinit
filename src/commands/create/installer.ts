@@ -1,4 +1,4 @@
-// @allow-long 1727: candidate process sequencing, verified process-tree cleanup, and transactional state finalization form one protocol
+// @allow-long 1842: candidate process sequencing, verified process-tree cleanup, and transactional state finalization form one protocol
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -21,6 +21,10 @@ import { ConflictError } from "../../lib/errors.js";
 import { FsRollbackError, FsTransaction } from "../../lib/fs.js";
 import { checkGitStatus, assertCleanGit } from "../../lib/git.js";
 import { acquireLock } from "../../lib/lock.js";
+import {
+  listPosixProcessGroupMembers,
+  sendPosixProcessGroupSignal,
+} from "../../lib/posix-process-groups.js";
 import {
   createGenerationPlanState,
   createManagedFileStateFromPlan,
@@ -285,12 +289,21 @@ const wait = (ms: number): Promise<void> =>
 
 function processGroupExists(pid: number): boolean {
   try {
-    process.kill(-pid, 0);
-    return true;
+    return listPosixProcessGroupMembers(pid).length > 0;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
     throw new InstallerProcessTreeError(
       `Could not verify POSIX process group ${pid}: ${error instanceof Error ? error.message : String(error)}`,
+      error,
+    );
+  }
+}
+
+function signalInstallerProcessGroup(pid: number, signal: NodeJS.Signals): void {
+  try {
+    sendPosixProcessGroupSignal(pid, signal);
+  } catch (error) {
+    throw new InstallerProcessTreeError(
+      `Could not send ${signal} to POSIX process group ${pid}: ${error instanceof Error ? error.message : String(error)}`,
       error,
     );
   }
@@ -427,18 +440,7 @@ async function terminatePosixProcessGroup(
   scopeId: string,
 ): Promise<void> {
   const tracker = createPosixScopeTracker(scopeId, pid);
-  if (processGroupExists(pid)) {
-    try {
-      process.kill(-pid, "SIGTERM");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
-        throw new InstallerProcessTreeError(
-          `Could not terminate POSIX process group ${pid}: ${error instanceof Error ? error.message : String(error)}`,
-          error,
-        );
-      }
-    }
-  }
+  if (processGroupExists(pid)) signalInstallerProcessGroup(pid, "SIGTERM");
   signalPosixScope(tracker(), "SIGTERM");
   const [gracefulChildExited, scopeExited] = await Promise.all([
     waitForChildExit(child, 2_000),
@@ -446,16 +448,7 @@ async function terminatePosixProcessGroup(
   ]);
   if (gracefulChildExited && scopeExited) return;
 
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
-      throw new InstallerProcessTreeError(
-        `Could not force-kill POSIX process group ${pid}: ${error instanceof Error ? error.message : String(error)}`,
-        error,
-      );
-    }
-  }
+  if (processGroupExists(pid)) signalInstallerProcessGroup(pid, "SIGKILL");
   signalPosixScope(tracker(), "SIGKILL");
   const [forcedChildExited, groupExited] = await Promise.all([
     waitForChildExit(child, 5_000),
@@ -482,151 +475,195 @@ function windowsPowerShellExecutable(): string {
   );
 }
 
-function windowsJobControllerScript(pid: number): string {
-  return String.raw`$ErrorActionPreference = "Stop"
-$rootPid = ${pid}
-Add-Type -TypeDefinition @'
-using System;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
+function windowsJobControllerSource(pid: number): string {
+  return String.raw`
+const rootPid = ${pid};
+if (process.platform !== "win32") throw new Error("Installer Job Object controller requires Windows");
+if (process.arch === "ia32") throw new Error("Installer Job Object controller requires 64-bit Windows");
 
-public static class GhostinitInstallerJob {
-  public const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
-  public const uint PROCESS_TERMINATE = 0x0001;
-  public const uint PROCESS_SET_QUOTA = 0x0100;
+const READY = "ghostinit:job-ready";
+const STOPPED = "ghostinit:job-stopped";
+const TERMINATE = "ghostinit:job-terminate";
+const { dlopen, ptr } = await import("bun:ffi");
+const kernel = dlopen("kernel32.dll", {
+  CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" },
+  SetInformationJobObject: { args: ["u64", "u32", "ptr", "u32"], returns: "i32" },
+  OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" },
+  AssignProcessToJobObject: { args: ["u64", "u64"], returns: "i32" },
+  TerminateJobObject: { args: ["u64", "u32"], returns: "i32" },
+  QueryInformationJobObject: {
+    args: ["u64", "u32", "ptr", "u32", "ptr"],
+    returns: "i32",
+  },
+  CloseHandle: { args: ["u64"], returns: "i32" },
+  GetLastError: { args: [], returns: "u32" },
+});
+let jobHandle = null;
+let processHandle = null;
+let closed = false;
+let terminating = false;
 
-  [StructLayout(LayoutKind.Sequential)]
-  public struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
-    public long PerProcessUserTimeLimit;
-    public long PerJobUserTimeLimit;
-    public uint LimitFlags;
-    public UIntPtr MinimumWorkingSetSize;
-    public UIntPtr MaximumWorkingSetSize;
-    public uint ActiveProcessLimit;
-    public UIntPtr Affinity;
-    public uint PriorityClass;
-    public uint SchedulingClass;
+function lastError(operation) {
+  return new Error(operation + " failed with Windows error " + kernel.symbols.GetLastError());
+}
+
+function closeNativeHandles() {
+  if (closed) return;
+  closed = true;
+  if (processHandle) kernel.symbols.CloseHandle(processHandle);
+  if (jobHandle) kernel.symbols.CloseHandle(jobHandle);
+  kernel.close();
+}
+
+function report(message) {
+  return new Promise((resolve, reject) => {
+    if (typeof process.send !== "function" || !process.connected) {
+      reject(new Error("Installer Job Object controller lost its private IPC channel"));
+      return;
+    }
+    process.send(message, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function activeProcesses() {
+  const accounting = new Uint8Array(48);
+  if (
+    kernel.symbols.QueryInformationJobObject(
+      jobHandle,
+      1,
+      ptr(accounting),
+      accounting.byteLength,
+      null,
+    ) === 0
+  ) {
+    throw lastError("QueryInformationJobObject");
   }
+  return new DataView(accounting.buffer).getUint32(40, true);
+}
 
-  [StructLayout(LayoutKind.Sequential)]
-  public struct IO_COUNTERS {
-    public ulong ReadOperationCount;
-    public ulong WriteOperationCount;
-    public ulong OtherOperationCount;
-    public ulong ReadTransferCount;
-    public ulong WriteTransferCount;
-    public ulong OtherTransferCount;
-  }
+async function fail(error) {
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+  closeNativeHandles();
+  process.exit(1);
+}
 
-  [StructLayout(LayoutKind.Sequential)]
-  public struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
-    public JOBOBJECT_BASIC_LIMIT_INFORMATION BasicLimitInformation;
-    public IO_COUNTERS IoInfo;
-    public UIntPtr ProcessMemoryLimit;
-    public UIntPtr JobMemoryLimit;
-    public UIntPtr PeakProcessMemoryUsed;
-    public UIntPtr PeakJobMemoryUsed;
-  }
-
-  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-  public static extern IntPtr CreateJobObject(IntPtr attributes, string name);
-
-  [DllImport("kernel32.dll", SetLastError = true)]
-  [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool SetInformationJobObject(
-    IntPtr job,
-    int informationClass,
-    IntPtr information,
-    uint informationLength
-  );
-
-  [DllImport("kernel32.dll", SetLastError = true)]
-  public static extern IntPtr OpenProcess(uint access, bool inheritHandle, uint processId);
-
-  [DllImport("kernel32.dll", SetLastError = true)]
-  [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
-
-  [DllImport("kernel32.dll", SetLastError = true)]
-  [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool TerminateJobObject(IntPtr job, uint exitCode);
-
-  [DllImport("kernel32.dll", SetLastError = true)]
-  [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool CloseHandle(IntPtr handle);
-
-  public static void ThrowLastError(string operation) {
-    throw new Win32Exception(Marshal.GetLastWin32Error(), operation);
+async function terminate() {
+  if (terminating) return;
+  terminating = true;
+  try {
+    if (kernel.symbols.TerminateJobObject(jobHandle, 1) === 0) {
+      throw lastError("TerminateJobObject");
+    }
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && activeProcesses() !== 0) {
+      await Bun.sleep(10);
+    }
+    if (activeProcesses() !== 0) {
+      throw new Error("Installer Job Object still has live processes after termination");
+    }
+    await report({ type: STOPPED });
+    closeNativeHandles();
+    process.exit(0);
+  } catch (error) {
+    await fail(error);
   }
 }
-'@
 
-$job = [GhostinitInstallerJob]::CreateJobObject([IntPtr]::Zero, $null)
-if ($job -eq [IntPtr]::Zero) { [GhostinitInstallerJob]::ThrowLastError("CreateJobObject") }
-$processHandle = [IntPtr]::Zero
-$buffer = [IntPtr]::Zero
 try {
-  $info = New-Object GhostinitInstallerJob+JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-  $info.BasicLimitInformation.LimitFlags = [GhostinitInstallerJob]::JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-  $size = [Runtime.InteropServices.Marshal]::SizeOf($info)
-  $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($size)
-  [Runtime.InteropServices.Marshal]::StructureToPtr($info, $buffer, $false)
-  if (-not [GhostinitInstallerJob]::SetInformationJobObject($job, 9, $buffer, $size)) {
-    [GhostinitInstallerJob]::ThrowLastError("SetInformationJobObject")
+  jobHandle = kernel.symbols.CreateJobObjectW(null, null);
+  if (!jobHandle) throw lastError("CreateJobObjectW");
+  const limits = new Uint8Array(144);
+  // JOBOBJECT_EXTENDED_LIMIT_INFORMATION.BasicLimitInformation.LimitFlags
+  // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, with breakaway intentionally absent.
+  new DataView(limits.buffer).setUint32(16, 0x00002000, true);
+  if (kernel.symbols.SetInformationJobObject(jobHandle, 9, ptr(limits), limits.byteLength) === 0) {
+    throw lastError("SetInformationJobObject");
   }
+  processHandle = kernel.symbols.OpenProcess(0x00000101, 0, rootPid);
+  if (!processHandle) throw lastError("OpenProcess");
+  if (kernel.symbols.AssignProcessToJobObject(jobHandle, processHandle) === 0) {
+    throw lastError("AssignProcessToJobObject");
+  }
+  kernel.symbols.CloseHandle(processHandle);
+  processHandle = null;
 
-  $access = [GhostinitInstallerJob]::PROCESS_TERMINATE -bor [GhostinitInstallerJob]::PROCESS_SET_QUOTA
-  $processHandle = [GhostinitInstallerJob]::OpenProcess($access, $false, $rootPid)
-  if ($processHandle -eq [IntPtr]::Zero) { [GhostinitInstallerJob]::ThrowLastError("OpenProcess") }
-  if (-not [GhostinitInstallerJob]::AssignProcessToJobObject($job, $processHandle)) {
-    [GhostinitInstallerJob]::ThrowLastError("AssignProcessToJobObject")
-  }
-
-  [Console]::Out.WriteLine("ghostinit:job-ready")
-  [Console]::Out.Flush()
-  $command = [Console]::In.ReadLine()
-  if ($command -ne "terminate") {
-    throw "Installer job controller lost its parent before termination"
-  }
-  if (-not [GhostinitInstallerJob]::TerminateJobObject($job, 1)) {
-    [GhostinitInstallerJob]::ThrowLastError("TerminateJobObject")
-  }
-  [Console]::Out.WriteLine("ghostinit:job-stopped")
-  [Console]::Out.Flush()
-} catch {
-  [Console]::Error.WriteLine($_.Exception.ToString())
-  exit 1
-} finally {
-  if ($buffer -ne [IntPtr]::Zero) {
-    [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer)
-  }
-  if ($processHandle -ne [IntPtr]::Zero) {
-    [void][GhostinitInstallerJob]::CloseHandle($processHandle)
-  }
-  if ($job -ne [IntPtr]::Zero) {
-    [void][GhostinitInstallerJob]::CloseHandle($job)
-  }
+  process.on("message", (message) => {
+    if (message && message.type === TERMINATE) void terminate();
+    else void fail(new Error("Installer Job Object controller received invalid IPC data"));
+  });
+  process.once("disconnect", () => {
+    closeNativeHandles();
+    process.exit(1);
+  });
+  await report({ type: READY });
+  setInterval(() => {}, 1000);
+} catch (error) {
+  await fail(error);
 }`;
+}
+
+interface WindowsJobControllerMessage {
+  readonly type: "ghostinit:job-ready" | "ghostinit:job-stopped";
+}
+
+export type WindowsJobControllerState = "starting" | "ready" | "terminating" | "stopped";
+
+function isWindowsJobControllerMessage(value: unknown): value is WindowsJobControllerMessage {
+  if (typeof value !== "object" || value === null || !("type" in value)) return false;
+  const type = (value as { readonly type?: unknown }).type;
+  return type === "ghostinit:job-ready" || type === "ghostinit:job-stopped";
+}
+
+/** @internal Rejects malformed, duplicate, and out-of-order controller frames. */
+export function advanceWindowsJobControllerState(
+  state: WindowsJobControllerState,
+  message: unknown,
+): WindowsJobControllerState {
+  if (!isWindowsJobControllerMessage(message)) {
+    throw new Error("Windows installer Job Object controller returned invalid IPC data");
+  }
+  if (state === "starting" && message.type === "ghostinit:job-ready") return "ready";
+  if (state === "terminating" && message.type === "ghostinit:job-stopped") return "stopped";
+  throw new Error(
+    `Windows installer Job Object controller returned ${message.type} while ${state}`,
+  );
 }
 
 async function createWindowsInstallerJob(pid: number): Promise<WindowsInstallerJob> {
   const controller = spawn(
-    windowsPowerShellExecutable(),
-    ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", windowsJobControllerScript(pid)],
+    resolveCanonicalBunExecutable(),
+    ["-e", windowsJobControllerSource(pid)],
     {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "ignore", "pipe", "ipc"],
       windowsHide: true,
       env: buildInstallEnv(),
     },
   );
-  let stdout = "";
   let stderr = "";
-  let ready = false;
-  let stopped = false;
-  controller.stdout?.on("data", (chunk) => {
-    stdout = `${stdout}${String(chunk)}`.slice(-4_000);
-    ready ||= stdout.includes("ghostinit:job-ready");
-    stopped ||= stdout.includes("ghostinit:job-stopped");
+  let state: WindowsJobControllerState | "failed" = "starting";
+  let protocolError: InstallerProcessTreeError | undefined;
+  let finishReady: ((error?: Error) => void) | undefined;
+  const controllerState = (): WindowsJobControllerState | "failed" => state;
+  controller.on("message", (message) => {
+    if (state === "failed") return;
+    try {
+      state = advanceWindowsJobControllerState(state, message);
+      if (state === "ready") finishReady?.();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      protocolError =
+        state === "starting"
+          ? new InstallerContainmentUnavailableError(
+              `Windows installer lifecycle is fundamentally unsandboxable because ${detail}`,
+              error,
+            )
+          : new InstallerProcessTreeError(detail, error);
+      state = "failed";
+      try {
+        controller.kill("SIGKILL");
+      } catch {}
+      finishReady?.(protocolError);
+    }
   });
   controller.stderr?.on("data", (chunk) => {
     stderr = `${stderr}${String(chunk)}`.slice(-8_000);
@@ -636,24 +673,33 @@ async function createWindowsInstallerJob(pid: number): Promise<WindowsInstallerJ
       controller.once("close", (code, signal) => resolveClose({ code, signal }));
     },
   );
+  const waitForControllerClose = (
+    timeoutMs: number,
+  ): Promise<{ code: number | null; signal: NodeJS.Signals | null } | undefined> =>
+    new Promise((resolveOutcome) => {
+      const timeout = setTimeout(() => resolveOutcome(undefined), timeoutMs);
+      void closed.then((value) => {
+        clearTimeout(timeout);
+        resolveOutcome(value);
+      });
+    });
 
   await new Promise<void>((resolveReady, rejectReady) => {
     let settled = false;
-    let poll: ReturnType<typeof setInterval>;
-    let timeout: ReturnType<typeof setTimeout>;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const finish = (error?: Error): void => {
       if (settled) return;
       settled = true;
-      clearInterval(poll);
-      clearTimeout(timeout);
+      finishReady = undefined;
+      if (timeout !== undefined) clearTimeout(timeout);
       if (error) {
         try {
-          controller.stdin?.destroy();
           controller.kill("SIGKILL");
         } catch {}
         rejectReady(error);
       } else resolveReady();
     };
+    finishReady = finish;
     controller.once("error", (error) =>
       finish(
         new InstallerContainmentUnavailableError(
@@ -663,7 +709,7 @@ async function createWindowsInstallerJob(pid: number): Promise<WindowsInstallerJ
       ),
     );
     void closed.then(({ code, signal }) => {
-      if (!ready) {
+      if (state === "starting") {
         finish(
           new InstallerContainmentUnavailableError(
             `Windows installer lifecycle is fundamentally unsandboxable because the guard could not be assigned to a Job Object (controller code ${String(code)}${signal ? `, signal ${signal}` : ""}${stderr.trim() ? `: ${stderr.trim()}` : ""})`,
@@ -671,9 +717,6 @@ async function createWindowsInstallerJob(pid: number): Promise<WindowsInstallerJ
         );
       }
     });
-    poll = setInterval(() => {
-      if (ready) finish();
-    }, 10);
     timeout = setTimeout(
       () =>
         finish(
@@ -685,33 +728,67 @@ async function createWindowsInstallerJob(pid: number): Promise<WindowsInstallerJ
     );
   });
 
-  return {
-    async terminate(): Promise<void> {
-      if (controller.exitCode === null && controller.signalCode === null) {
-        controller.stdin?.end("terminate\n");
-      }
-      const outcome = await new Promise<
-        { code: number | null; signal: NodeJS.Signals | null } | undefined
-      >((resolveOutcome) => {
-        const timeout = setTimeout(() => resolveOutcome(undefined), 60_000);
-        void closed.then((value) => {
-          clearTimeout(timeout);
-          resolveOutcome(value);
+  let termination: Promise<void> | undefined;
+  const terminateController = async (): Promise<void> => {
+    if (state !== "ready") {
+      const outcome = await waitForControllerClose(5_000);
+      throw (
+        protocolError ??
+        new InstallerProcessTreeError(
+          `Windows installer Job Object controller for guard PID ${pid} was ${state}${outcome ? ` (code ${String(outcome.code)}${outcome.signal ? `, signal ${outcome.signal}` : ""})` : " and did not exit"}`,
+        )
+      );
+    }
+    state = "terminating";
+    let sendError: unknown;
+    if (controller.exitCode === null && controller.signalCode === null) {
+      try {
+        await new Promise<void>((resolveSend, rejectSend) => {
+          if (!controller.connected) {
+            rejectSend(new Error("private IPC channel was disconnected"));
+            return;
+          }
+          controller.send({ type: "ghostinit:job-terminate" }, (error) => {
+            if (error) rejectSend(error);
+            else resolveSend();
+          });
         });
-      });
-      if (!outcome) {
+      } catch (error) {
+        sendError = error;
         try {
           controller.kill("SIGKILL");
         } catch {}
-        throw new InstallerProcessTreeError(
-          `Windows installer Job Object controller for guard PID ${pid} timed out`,
-        );
       }
-      if (outcome.code !== 0 || outcome.signal !== null || !stopped) {
-        throw new InstallerProcessTreeError(
-          `Windows installer Job Object controller for guard PID ${pid} failed with code ${String(outcome.code)}${outcome.signal ? ` (${outcome.signal})` : ""}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
-        );
-      }
+    } else sendError = new Error("controller exited before termination");
+
+    const outcome = await waitForControllerClose(60_000);
+    if (!outcome) {
+      try {
+        controller.kill("SIGKILL");
+      } catch {}
+      await waitForControllerClose(5_000);
+      throw new InstallerProcessTreeError(
+        `Windows installer Job Object controller for guard PID ${pid} timed out`,
+      );
+    }
+    if (sendError) {
+      throw new InstallerProcessTreeError(
+        `Windows installer Job Object controller for guard PID ${pid} could not receive termination: ${sendError instanceof Error ? sendError.message : String(sendError)}`,
+        sendError,
+      );
+    }
+    if (protocolError) throw protocolError;
+    if (outcome.code !== 0 || outcome.signal !== null || controllerState() !== "stopped") {
+      throw new InstallerProcessTreeError(
+        `Windows installer Job Object controller for guard PID ${pid} failed with code ${String(outcome.code)}${outcome.signal ? ` (${outcome.signal})` : ""}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+      );
+    }
+  };
+
+  return {
+    async terminate(): Promise<void> {
+      termination ??= terminateController();
+      await termination;
     },
   };
 }
@@ -913,8 +990,15 @@ const { spawn } = require("node:child_process");
 const payload = JSON.parse(Buffer.from(process.argv[1], "base64url").toString("utf8"));
 let command;
 let completed = false;
+if (typeof process.send !== "function" || !process.connected) {
+  throw new Error("Installer guard requires a private IPC channel");
+}
+process.once("disconnect", () => process.exit(1));
 const report = (message) => {
-  if (typeof process.send === "function" && process.connected) process.send(message);
+  if (!process.connected) process.exit(1);
+  process.send(message, (error) => {
+    if (error) process.exit(1);
+  });
 };
 const complete = (message) => {
   if (completed) return;
@@ -1277,11 +1361,9 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
     });
     child.once("close", (code, signal) => {
       if (settled || finalizing) return;
-      settle(() =>
-        reject(
-          new InstallerProcessTreeError(
-            `${args.label} guard exited before verified cleanup with code ${String(code)}${signal ? ` (${signal})` : ""}`,
-          ),
+      void failAfterVerifiedCleanup(
+        new InstallerProcessTreeError(
+          `${args.label} guard exited before verified cleanup with code ${String(code)}${signal ? ` (${signal})` : ""}`,
         ),
       );
     });

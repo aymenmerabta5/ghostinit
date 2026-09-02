@@ -627,7 +627,7 @@ export const EN_MESSAGES = {
       webDescription: "L1 · Next.js / TanStack Start",
       ok: "ok",
       optional: "optional",
-      environmentSummary: "globalEnv — 50+ variables · hoist:true",
+      environmentSummary: "globalEnv — capability-scoped · hoist:true",
     },
     single: {
       description: "Welcome back. Manage your account, billing, and modules.",

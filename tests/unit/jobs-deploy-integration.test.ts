@@ -158,7 +158,8 @@ describe("jobs and messaging deployment integration", () => {
     expect(supervisor).toContain('const SCOPE_ENV = "GHOSTINIT_PROCESS_SCOPE_ID"');
     expect(supervisor).toContain('readdirSync("/proc"');
     expect(supervisor).toContain('"/bin/ps"');
-    expect(supervisor).toContain('process.kill(-pid, "SIGKILL")');
+    expect(supervisor).toContain('signalProcessGroup(pid, "SIGKILL")');
+    expect(supervisor).not.toMatch(/process\.kill\([^,]+,\s*0\)/);
     expect(supervisor).not.toContain("taskkill");
     expect(supervisor).not.toContain("bash");
 

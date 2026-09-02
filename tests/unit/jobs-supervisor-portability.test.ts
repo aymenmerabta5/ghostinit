@@ -1,3 +1,4 @@
+// @allow-long 332: cross-runtime supervisor containment and assignment-failure regressions share fixtures
 import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -154,22 +155,50 @@ describe("generated jobs supervisor portability", () => {
     expect(source).toContain(`const EXPECTED_BUN_VERSION = "${toolchainRuntime.bun}"`);
     expect(source).toContain("Bun.version !== EXPECTED_BUN_VERSION");
     expect(source).toContain('detached: process.platform !== "win32"');
-    expect(source).toContain("process.kill(-pid, signal)");
+    expect(source).toContain("process.kill(-groupPid, signal)");
+    expect(source).not.toMatch(/process\.kill\([^,]+,\s*0\)/);
     expect(source).toContain('signalProcessGroup(pid, "SIGKILL")');
     expect(source).toContain('const SCOPE_ENV = "GHOSTINIT_JOBS_PROCESS_SCOPE_ID"');
     expect(source).toContain('readdirSync("/proc"');
     expect(source).toContain('spawnSync("/bin/ps"');
     expect(source).toContain('await import("bun:ffi")');
+    expect(source).toContain('CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" }');
+    expect(source).toContain(
+      'SetInformationJobObject: { args: ["u64", "u32", "ptr", "u32"], returns: "i32" }',
+    );
+    expect(source).toContain('OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" }');
+    expect(source).toContain('AssignProcessToJobObject: { args: ["u64", "u64"], returns: "i32" }');
+    expect(source).toContain('TerminateJobObject: { args: ["u64", "u32"], returns: "i32" }');
+    expect(source).toMatch(
+      /QueryInformationJobObject:\s*{\s*args: \["u64", "u32", "ptr", "u32", "ptr"\],\s*returns: "i32"/,
+    );
+    expect(source).toContain('CloseHandle: { args: ["u64"], returns: "i32" }');
+    expect(source).toContain('GetLastError: { args: [], returns: "u32" }');
+    expect(source).toContain("OpenProcess(0x00000101, 0, pid)");
+    expect(source).toContain("AssignProcessToJobObject(handle, processHandle) === 0");
+    expect(source).toContain("TerminateJobObject(handle, 1) === 0");
+    expect(source).not.toContain('args: ["u32", "bool", "u32"]');
+    expect(source).not.toContain('returns: "bool"');
+    expect(source).toContain("kernel.symbols.CloseHandle(handle) === 0");
+    expect(source).toContain("const closure = await Promise.allSettled");
+    expect(source).toContain("return [...termination, ...closure, ...reaping]");
     expect(source).toContain("AssignProcessToJobObject");
     expect(source).toContain("TerminateJobObject");
     const admissionWait = source.indexOf("await waitForWindowsJobAdmission();");
     const workloadSpawn = source.indexOf("const child = spawn(command.executable", admissionWait);
-    const assignment = source.indexOf("windowsJob?.assign(child, name)");
+    const recorded = source.indexOf("children.push(managed);", workloadSpawn);
+    const assignment = source.indexOf(
+      "await assignWindowsLauncherOrReap(windowsJob, managed);",
+      recorded,
+    );
     const admission = source.indexOf("children.map(admitWindowsLauncher)");
     expect(admissionWait).toBeGreaterThan(-1);
     expect(workloadSpawn).toBeGreaterThan(admissionWait);
-    expect(assignment).toBeGreaterThan(workloadSpawn);
+    expect(recorded).toBeGreaterThan(workloadSpawn);
+    expect(assignment).toBeGreaterThan(recorded);
     expect(admission).toBeGreaterThan(assignment);
+    expect(source).toContain('managed.child.kill("SIGKILL")');
+    expect(source).toContain("await waitForChildExit(managed.child, forcedShutdownMs)");
     expect(
       numericConstant(source, "gracefulShutdownMs") + numericConstant(source, "forcedShutdownMs"),
     ).toBeLessThan(numericConstant(deploymentSource, "GRACE_MS"));
@@ -181,6 +210,90 @@ describe("generated jobs supervisor portability", () => {
     expect(source).toContain('"SIGBREAK"');
     expect(source).not.toMatch(/#!\/usr\/bin\/env bash|command -v|\$!/);
   });
+
+  test.skipIf(process.platform !== "win32")(
+    "reaps Windows jobs launchers before aggregating assignment and Job-close failures",
+    () => {
+      const fixture = writeRuntimeFixture("bun", "worker");
+      const launcherPidPath = join(fixture.root, "unassigned-launcher.pid");
+      const importNeedle = 'import { readdirSync, readFileSync } from "node:fs";';
+      const childrenNeedle = "const children = [];";
+      const assignmentNeedle = "    await assignWindowsLauncherOrReap(windowsJob, managed);";
+      const closeNeedle = "kernel.symbols.CloseHandle(handle) === 0";
+      const libraryCloseNeedle = `try {
+        kernel.close();
+      } catch (error) {`;
+      let source = startPostgresJobsSupervisorContent("single");
+      expect(source).toContain(importNeedle);
+      expect(source).toContain(childrenNeedle);
+      expect(source).toContain(assignmentNeedle);
+      expect(source).toContain(closeNeedle);
+      expect(source).toContain(libraryCloseNeedle);
+      source = source
+        .replace(
+          importNeedle,
+          'import { readdirSync, readFileSync, writeFileSync } from "node:fs";',
+        )
+        .replace(childrenNeedle, `${childrenNeedle}\nlet assignmentAttempt = 0;`)
+        .replace(closeNeedle, `(kernel.symbols.CloseHandle(handle), 0) === 0`)
+        .replace(
+          libraryCloseNeedle,
+          `try {
+        throw new Error("injected Windows jobs FFI library close failure");
+      } catch (error) {`,
+        )
+        .replace(
+          assignmentNeedle,
+          `    assignmentAttempt += 1;
+    writeFileSync(${JSON.stringify(launcherPidPath)}, String(managed.child.pid) + "\\n", { flag: "a" });
+    await assignWindowsLauncherOrReap(
+      assignmentAttempt === 2
+        ? { assign() { throw new Error("injected Windows jobs assignment failure"); } }
+        : windowsJob,
+      managed,
+    );`,
+        );
+      writeFileSync(fixture.supervisorPath, source);
+
+      const result = spawnSync(process.execPath, [fixture.supervisorPath, "--runtime=bun"], {
+        cwd: fixture.root,
+        encoding: "utf8",
+        timeout: 10_000,
+        windowsHide: true,
+      });
+      const launcherPids = existsSync(launcherPidPath)
+        ? readFileSync(launcherPidPath, "utf8")
+            .trim()
+            .split("\n")
+            .map((value) => Number.parseInt(value, 10))
+        : [];
+      for (const pid of launcherPids) {
+        if (Number.isSafeInteger(pid) && pid > 0) ownedPids.add(pid);
+      }
+      try {
+        expect(result.error, result.stderr).toBeUndefined();
+        expect(result.status, result.stderr).toBe(1);
+        expect(result.stderr).toContain("injected Windows jobs assignment failure");
+        expect(result.stderr).toContain("Could not close the Windows jobs Job Object");
+        expect(result.stderr).toContain("FFI library");
+        expect(launcherPids).toHaveLength(2);
+        for (const pid of launcherPids) {
+          expect(Number.isSafeInteger(pid)).toBe(true);
+          expect(processExists(pid)).toBe(false);
+        }
+        expect(existsSync(fixture.statePaths.worker)).toBe(false);
+        expect(existsSync(fixture.statePaths.scheduler)).toBe(false);
+      } finally {
+        for (const pid of launcherPids) {
+          if (Number.isSafeInteger(pid) && pid > 0) {
+            forceKillOwnedTree(pid);
+            ownedPids.delete(pid);
+          }
+        }
+      }
+    },
+    15_000,
+  );
 
   for (const runtime of ["bun", "node"] as const) {
     for (const exitingRole of ["worker", "scheduler"] as const) {

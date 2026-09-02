@@ -9,7 +9,7 @@ Production-grade CLI that scaffolds well-structured monorepos with architectural
 
 ## Overview
 
-Host (`ghostinit` CLI) generates GhostInit Layered Architecture (UI->Supporting, inspired by DDD, pragmatic linear chain — NOT canonical DDD — build-time enforced via oxc-parser, well-structured monorepo with architectural linting, not runtime isolation, single DB shared, separate deployables, not single binary): UI(1) → Transport(oRPC 2) → Domain(3) → Capabilities(4) → Vendors(5) → Supporting(6) enforced by `src/lib/architecture.ts` via `oxc-parser`. Host is single package with composers (<300 LOC/file host-only goal, no `export *`), generated is `apps/* + packages/* + tooling/*` with `turbo.json` globalEnv 50+ vars, `bunfig.toml` hoist policy split (host isolated, generated hoist=true for Next compat).
+Host (`ghostinit` CLI) generates GhostInit Layered Architecture (UI->Supporting, inspired by DDD, pragmatic linear chain — NOT canonical DDD — build-time enforced via oxc-parser, well-structured monorepo with architectural linting, not runtime isolation, single DB shared, separate deployables, not single binary): UI(1) → Transport(oRPC 2) → Domain(3) → Capabilities(4) → Vendors(5) → Supporting(6) enforced by `src/lib/architecture.ts` via `oxc-parser`. Host is single package with composers (<300 LOC/file host-only goal, no `export *`); generated monorepos use `apps/* + packages/* + tooling/*`, manifest-derived capability-scoped Turbo environment inputs, and the generated hoisted linker required by the supported Next.js toolchain.
 
 ## Quick Start
 

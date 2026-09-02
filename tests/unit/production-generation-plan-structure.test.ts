@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname as nodeDirname, join } from "node:path";
 import { parseSync } from "oxc-parser";
 import { resolveCreateConfig } from "../../src/commands/create/resolution";
+import { getCapabilityScopedGlobalEnvKeys } from "../../src/generation/capability-environment-sanitizer";
 import { parseFile } from "../../src/lib/architecture/parsers/imports";
 import { buildProjectGenerationPlan } from "../../src/templates/default";
 
@@ -143,6 +144,19 @@ describe("production GenerationPlan structure", () => {
         expect(parseSync(file.physicalPath, file.content).errors, file.physicalPath).toEqual([]);
       }
       expect(unresolvedRelativeImports(plan), corner.label).toEqual([]);
+      const turboFile = plan.files.find(({ physicalPath }) => physicalPath === "turbo.json");
+      if (resolved.mode === "monorepo") {
+        const globalEnv = (JSON.parse(turboFile?.content ?? "{}") as { globalEnv?: string[] })
+          .globalEnv;
+        expect(globalEnv, `${corner.label} globalEnv`).toEqual(
+          getCapabilityScopedGlobalEnvKeys(resolved),
+        );
+      } else {
+        expect(
+          turboFile,
+          `${corner.label} must not emit a monorepo Turbo manifest`,
+        ).toBeUndefined();
+      }
 
       const paths = plan.files.map(({ physicalPath }) => physicalPath);
       expect(paths, corner.label).not.toContain("src/lib/access.ts");
@@ -229,6 +243,7 @@ describe("production GenerationPlan structure", () => {
       expect(combined, key).toContain(key);
       expect(globalEnv, key).toContain(key);
     }
+    expect(globalEnv).toEqual(getCapabilityScopedGlobalEnvKeys(resolved));
   });
 
   test("agent instruction documents stay core when Eve is enabled", () => {

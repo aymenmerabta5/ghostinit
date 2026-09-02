@@ -1,6 +1,7 @@
-// @allow-long 560: generated cross-platform containment must remain reviewable as one lifecycle
+// @allow-long 590: generated cross-platform containment must remain reviewable as one lifecycle
 import type { ProjectMode } from "../../../lib/addons.js";
 import * as v from "../../versions.js";
+import { posixProcessGroupHelpersContent } from "../../shared/posix-process-groups.js";
 
 export function startPostgresJobsSupervisorContent(
   mode: ProjectMode,
@@ -93,23 +94,10 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function processGroupExists(pid) {
-  try {
-    process.kill(-pid, 0);
-    return true;
-  } catch (error) {
-    if (error?.code === "ESRCH") return false;
-    throw error;
-  }
-}
-
-function signalProcessGroup(pid, signal) {
-  try {
-    process.kill(-pid, signal);
-  } catch (error) {
-    if (error?.code !== "ESRCH") throw error;
-  }
-}
+${posixProcessGroupHelpersContent({
+  label: "Jobs",
+  inspectionTimeoutExpression: "forcedShutdownMs",
+})}
 
 async function waitForChildExit(child, timeoutMs) {
   if (child.exitCode !== null || child.signalCode !== null) return true;
@@ -301,16 +289,16 @@ async function createWindowsJob() {
   if (process.arch === "ia32") throw new Error("Jobs supervision requires 64-bit Windows");
   const { dlopen, ptr } = await import("bun:ffi");
   const kernel = dlopen("kernel32.dll", {
-    CreateJobObjectW: { args: ["ptr", "ptr"], returns: "ptr" },
-    SetInformationJobObject: { args: ["ptr", "u32", "ptr", "u32"], returns: "bool" },
-    OpenProcess: { args: ["u32", "bool", "u32"], returns: "ptr" },
-    AssignProcessToJobObject: { args: ["ptr", "ptr"], returns: "bool" },
-    TerminateJobObject: { args: ["ptr", "u32"], returns: "bool" },
+    CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" },
+    SetInformationJobObject: { args: ["u64", "u32", "ptr", "u32"], returns: "i32" },
+    OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" },
+    AssignProcessToJobObject: { args: ["u64", "u64"], returns: "i32" },
+    TerminateJobObject: { args: ["u64", "u32"], returns: "i32" },
     QueryInformationJobObject: {
-      args: ["ptr", "u32", "ptr", "u32", "ptr"],
-      returns: "bool",
+      args: ["u64", "u32", "ptr", "u32", "ptr"],
+      returns: "i32",
     },
-    CloseHandle: { args: ["ptr"], returns: "bool" },
+    CloseHandle: { args: ["u64"], returns: "i32" },
     GetLastError: { args: [], returns: "u32" },
   });
   const handle = kernel.symbols.CreateJobObjectW(null, null);
@@ -323,7 +311,7 @@ async function createWindowsJob() {
   // JOBOBJECT_EXTENDED_LIMIT_INFORMATION.BasicLimitInformation.LimitFlags
   // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, with breakaway intentionally absent.
   new DataView(limits.buffer).setUint32(16, 0x00002000, true);
-  if (!kernel.symbols.SetInformationJobObject(handle, 9, ptr(limits), limits.byteLength)) {
+  if (kernel.symbols.SetInformationJobObject(handle, 9, ptr(limits), limits.byteLength) === 0) {
     const code = kernel.symbols.GetLastError();
     kernel.symbols.CloseHandle(handle);
     kernel.close();
@@ -334,13 +322,13 @@ async function createWindowsJob() {
   const activeProcesses = () => {
     const accounting = new Uint8Array(48);
     if (
-      !kernel.symbols.QueryInformationJobObject(
+      kernel.symbols.QueryInformationJobObject(
         handle,
         1,
         ptr(accounting),
         accounting.byteLength,
         null,
-      )
+      ) === 0
     ) {
       throw new Error(
         "Could not inspect the Windows jobs Job Object (error " +
@@ -354,7 +342,7 @@ async function createWindowsJob() {
     assign(child, name) {
       const pid = child.pid;
       if (pid === undefined) throw new Error(name + ": child PID is unavailable");
-      const processHandle = kernel.symbols.OpenProcess(0x00000101, false, pid);
+      const processHandle = kernel.symbols.OpenProcess(0x00000101, 0, pid);
       if (!processHandle) {
         throw new Error(
           name + ": could not open the Windows jobs launcher (error " +
@@ -362,7 +350,7 @@ async function createWindowsJob() {
         );
       }
       try {
-        if (!kernel.symbols.AssignProcessToJobObject(handle, processHandle)) {
+        if (kernel.symbols.AssignProcessToJobObject(handle, processHandle) === 0) {
           throw new Error(
             name + ": could not enter the Windows jobs Job Object (error " +
               kernel.symbols.GetLastError() + ")",
@@ -374,7 +362,7 @@ async function createWindowsJob() {
     },
     async terminate() {
       if (activeProcesses() === 0) return;
-      if (!kernel.symbols.TerminateJobObject(handle, 1)) {
+      if (kernel.symbols.TerminateJobObject(handle, 1) === 0) {
         throw new Error(
           "Could not terminate the Windows jobs Job Object (error " +
             kernel.symbols.GetLastError() + ")",
@@ -392,8 +380,29 @@ async function createWindowsJob() {
     close() {
       if (closed) return;
       closed = true;
-      kernel.symbols.CloseHandle(handle);
-      kernel.close();
+      let handleError;
+      try {
+        if (kernel.symbols.CloseHandle(handle) === 0) {
+          handleError = new Error(
+            "Could not close the Windows jobs Job Object (error " +
+              kernel.symbols.GetLastError() +
+              ")",
+          );
+        }
+      } catch (error) {
+        handleError = error;
+      }
+      let libraryError;
+      try {
+        kernel.close();
+      } catch (error) {
+        libraryError = error;
+      }
+      const failures = [handleError, libraryError].filter((error) => error !== undefined);
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) {
+        throw new AggregateError(failures, "Could not close the Windows jobs Job Object and FFI library");
+      }
     },
   };
 }
@@ -426,8 +435,31 @@ function launch(name, runtime, entrypoint, windowsJob) {
     child.once("close", (code, signal) => finish({ name, child, code, signal, error: null }));
   });
   const managed = { name, scope, child, outcome };
-  windowsJob?.assign(child, name);
   return managed;
+}
+
+async function assignWindowsLauncherOrReap(windowsJob, managed) {
+  if (!windowsJob) return;
+  try {
+    windowsJob.assign(managed.child, managed.name);
+  } catch (assignmentError) {
+    try {
+      if (managed.child.connected) managed.child.disconnect();
+    } catch {}
+    try {
+      if (managed.child.exitCode === null && managed.child.signalCode === null) {
+        managed.child.kill("SIGKILL");
+      }
+    } catch {}
+    const reaped = await waitForChildExit(managed.child, forcedShutdownMs);
+    if (!reaped) {
+      throw new AggregateError(
+        [assignmentError],
+        managed.name + ": unassigned Windows jobs launcher could not be reaped",
+      );
+    }
+    throw assignmentError;
+  }
 }
 
 function admitWindowsLauncher(managed) {
@@ -472,12 +504,21 @@ let cleanupPromise;
 function terminateAll(signal) {
   cleanupPromise ??= (async () => {
     const results = windowsJob
-      ? [
-          await windowsJob.terminate().then(
-            () => ({ status: "fulfilled" }),
-            (reason) => ({ status: "rejected", reason }),
-          ),
-        ]
+      ? await (async () => {
+          const termination = await Promise.allSettled([windowsJob.terminate()]);
+          // Closing is also the KILL_ON_JOB_CLOSE fallback if explicit termination failed.
+          const closure = await Promise.allSettled([
+            Promise.resolve().then(() => windowsJob.close()),
+          ]);
+          const reaping = await Promise.allSettled(
+            children.map(async (managed) => {
+              if (!(await waitForChildExit(managed.child, forcedShutdownMs + 1_000))) {
+                throw new Error(managed.name + ": Windows jobs launcher could not be reaped");
+              }
+            }),
+          );
+          return [...termination, ...closure, ...reaping];
+        })()
       : await Promise.allSettled(children.map((managed) => terminatePosixTree(managed, signal)));
     const failures = results
       .filter((result) => result.status === "rejected")
@@ -490,7 +531,9 @@ function terminateAll(signal) {
 let exitCode = 0;
 try {
   for (const candidate of jobProcesses) {
-    children.push(launch(candidate.name, runtime, candidate.entrypoint, windowsJob));
+    const managed = launch(candidate.name, runtime, candidate.entrypoint, windowsJob);
+    children.push(managed);
+    await assignWindowsLauncherOrReap(windowsJob, managed);
   }
   if (windowsJob) await Promise.all(children.map(admitWindowsLauncher));
 

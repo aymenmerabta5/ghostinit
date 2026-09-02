@@ -146,7 +146,7 @@ export function billingEnvLines(selected: BillingProviderName[]) {
 export function billingEnvLocalLinesFiltered(...) similar.
 ```
 
-7. Turbo globalEnv `root.ts` `turbo()` + root `turbo.json` + `shared/env` exhaustive 50+ list — add `MYPROVIDER_*` vars.
+7. Add `MYPROVIDER_*` ownership to the environment manifest and builders so generated Turbo inputs include it exactly when the provider is selected.
 
 8. UI `billing/ui/billing-page.tsx` conditional panel per provider + `ui/components/providers/myprovider.ts` panel.
 

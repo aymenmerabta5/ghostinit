@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,8 +44,66 @@ function generatedWorker() {
   return { source, command: manifest.scripts?.["storage:cleanup-worker"] ?? "" };
 }
 
+function waitForOutput(
+  child: ChildProcessWithoutNullStreams,
+  expected: string,
+  timeoutMs: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let output = "";
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      child.stdout.off("data", onData);
+      child.stderr.off("data", onData);
+      child.off("error", onError);
+      child.off("exit", onExit);
+      if (error) reject(error);
+      else resolve(output);
+    };
+    const onData = (chunk: Buffer | string) => {
+      output += chunk.toString();
+      if (output.includes(expected)) finish();
+    };
+    const onError = (error: Error) => finish(error);
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) =>
+      finish(
+        new Error(`Worker exited before startup (code=${code}, signal=${signal}):\n${output}`),
+      );
+    const timer = setTimeout(
+      () => finish(new Error(`Timed out waiting for worker startup:\n${output}`)),
+      timeoutMs,
+    );
+    child.stdout.on("data", onData);
+    child.stderr.on("data", onData);
+    child.once("error", onError);
+    child.once("exit", onExit);
+  });
+}
+
+function stopWorker(child: ChildProcessWithoutNullStreams, timeoutMs: number): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      child.off("error", onError);
+      child.off("exit", onExit);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onError = (error: Error) => finish(error);
+    const onExit = () => finish();
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error("Storage cleanup worker did not stop after SIGTERM"));
+    }, timeoutMs);
+    child.once("error", onError);
+    child.once("exit", onExit);
+    child.kill("SIGTERM");
+  });
+}
+
 describe("storage cleanup worker entrypoint", () => {
-  test("requires the explicit script marker even when bundled URL and argv collapse", () => {
+  test("requires the explicit script marker even when bundled URL and argv collapse", async () => {
     const { source, command } = generatedWorker();
     expect(source).toContain(`STORAGE_CLEANUP_WORKER_ENTRY = "${entryMarker}"`);
     expect(source).toContain("process.argv.includes(STORAGE_CLEANUP_WORKER_ENTRY)");
@@ -62,28 +120,36 @@ describe("storage cleanup worker entrypoint", () => {
     writeFileSync(worker, selfContained);
 
     // Executing the module as the process entrypoint reproduces the URL/argv
-    // collapse caused by bundlers. Without the explicit marker it must exit.
-    const bundledImport = spawnSync(process.execPath, [worker], {
-      cwd: root,
-      encoding: "utf8",
-      shell: false,
-      timeout: 5_000,
-      windowsHide: true,
-    });
-    expect(bundledImport.status, `${bundledImport.stdout}\n${bundledImport.stderr}`).toBe(0);
+    // collapse caused by bundlers. Missing and lookalike markers must both exit.
+    for (const args of [[worker], [worker, `${entryMarker}-lookalike`]]) {
+      const bundledImport = spawnSync(process.execPath, args, {
+        cwd: root,
+        encoding: "utf8",
+        shell: false,
+        timeout: 5_000,
+        windowsHide: true,
+      });
+      expect(bundledImport.status, `${bundledImport.stdout}\n${bundledImport.stderr}`).toBe(0);
+    }
 
     // The generated package script appends the marker, which intentionally
-    // starts the durable loop; the harness timeout proves it stayed running.
-    const directWorker = spawnSync(process.execPath, [worker, entryMarker], {
+    // starts the durable loop. Observe startup before explicitly terminating it;
+    // spawnSync timeouts send a graceful SIGTERM on POSIX and therefore report
+    // status 0, while Windows reports ETIMEDOUT.
+    const directWorker = spawn(process.execPath, [worker, entryMarker], {
       cwd: root,
-      encoding: "utf8",
       shell: false,
-      timeout: 1_000,
+      stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
-    expect(directWorker.status).toBeNull();
-    expect(directWorker.error?.code).toBe("ETIMEDOUT");
-    expect(`${directWorker.stdout}\n${directWorker.stderr}`).toContain("batch-failed");
+    try {
+      const output = await waitForOutput(directWorker, "batch-failed", 5_000);
+      expect(directWorker.exitCode).toBeNull();
+      expect(directWorker.signalCode).toBeNull();
+      expect(output).toContain("batch-failed");
+    } finally {
+      await stopWorker(directWorker, 5_000);
+    }
   });
 
   test("single Node storage source resolves its @/ env entry through the worker loader", () => {

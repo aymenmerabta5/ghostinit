@@ -53,6 +53,7 @@ jobs:
           tests/unit/deployment-lockfile-guard.test.ts
           tests/unit/jobs-supervisor-portability.test.ts
           tests/unit/next-runtime-deployment.test.ts
+          tests/unit/posix-process-groups.test.ts
           tests/unit/process-tree.test.ts
           tests/unit/fs.test.ts
           tests/unit/bun-version-ssot.test.ts

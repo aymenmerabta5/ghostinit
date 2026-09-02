@@ -20,7 +20,7 @@ bun test tests/integration/<file>.test.ts --timeout 100000
 bun run test:fixtures  # runner installs and fully checks all compatibility fixtures once
 bun run test:generated # generate + install + format/check + architecture + typecheck + lint:all + root tests
 bun run check:versions # every pinned + generated dependency version exists on npm
-bun run test:ci        # static + host/fixtures + 15 generated corners + oRPC WS runtime + six audited production builds
+bun run test:ci        # static + host/fixtures + 20 generated corners + oRPC WS runtime + six audited production builds
 ```
 
 Manual generation smoke:
@@ -36,7 +36,7 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint:all
 **Host vs Generated:**
 
 - Host = this CLI repo. Single publishable package (`bin: dist/cli.js`, `private:false` intentional). Internal layering: `cli.ts` → `commands/` (Application) → `lib/` (Supporting) → `templates/`+`generators/` (Vendors/composers).
-- Generated = output monorepo `apps/* + packages/* + tooling/*` with `turbo.json` 50+ globalEnv, `bunfig.toml` hoist=true.
+- Generated = output monorepo `apps/* + packages/* + tooling/*` with manifest-derived, capability-scoped `turbo.json` cache inputs and `bunfig.toml` hoist=true.
 
 **GhostInit Layered Architecture (pragmatic UI->Supporting)** inspired by DDD enforced by `src/lib/architecture/index.ts` via `oxc-parser` (not TS compiler):
 1 UI (`apps/web`, `src/routes`) → 2 Transport (`packages/api`, `apps/web/src/app/api`, `src/routes/api`, oRPC) → 3 Domain (`**/domain/*`, `packages/core`) → 4 Capabilities (`packages/services/*`, `packages/billing` non-provider, `**/application/*`) → 5 Vendors (`billing/providers/*`, SDKs) → 6 Supporting (`database`, `config`, `kernel`, `observability`, `tooling/*`). No upward imports.
@@ -49,7 +49,7 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint:all
   default project-local `tsc` CLI. Shared monorepo tooling, TanStack Start, and
   Expo use the `typescript` TS6 pin while they still require JavaScript compiler
   APIs. Never set `experimental.useTypeScriptCli` to `false` in Next config.
-- `turbo.json` generated: exhaustive `globalEnv` (50+ vars) — see table below.
+- Generated `turbo.json`: manifest-derived `globalEnv`, filtered to selected capabilities and app audiences — see the table below.
 
 **Env vars — 5 places (keep in sync):**
 

@@ -1,4 +1,4 @@
-// @allow-long 380: cross-platform containment and deterministic orphan regressions share lifecycle fixtures
+// @allow-long 492: cross-platform containment and deterministic orphan regressions share lifecycle fixtures
 import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,6 +26,16 @@ function forceKill(pid: number): void {
     } catch {
       // The detached fixture is already gone.
     }
+  }
+}
+
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+    throw error;
   }
 }
 
@@ -167,7 +177,11 @@ test("Windows application launch is gated behind Job Object assignment", () => {
   const launcherSpawn = source.indexOf(
     "windowsJob ? [SUPERVISOR_PATH, WINDOWS_JOB_LAUNCHER_ARG, script]",
   );
-  const assignment = source.indexOf("windowsJob?.assign(managed.child, managed.script)");
+  const recorded = source.indexOf("children.push(managed);", launcherSpawn);
+  const assignment = source.indexOf(
+    "await assignWindowsLauncherOrReap(windowsJob, managed);",
+    recorded,
+  );
   const admission = source.indexOf("children.map(admitWindowsLauncher)");
 
   expect(launcherSpawn).toBeGreaterThan(-1);
@@ -176,9 +190,149 @@ test("Windows application launch is gated behind Job Object assignment", () => {
   expect(source.slice(source.indexOf("const windowsJob = await createWindowsJob()"))).not.toContain(
     'spawn(process.execPath, ["run", script]',
   );
-  expect(assignment).toBeGreaterThan(launcherSpawn);
+  expect(recorded).toBeGreaterThan(launcherSpawn);
+  expect(assignment).toBeGreaterThan(recorded);
   expect(admission).toBeGreaterThan(assignment);
+  expect(source).toContain('CreateJobObjectW: { args: ["ptr", "ptr"], returns: "u64" }');
+  expect(source).toContain(
+    'SetInformationJobObject: { args: ["u64", "u32", "ptr", "u32"], returns: "i32" }',
+  );
+  expect(source).toContain('OpenProcess: { args: ["u32", "i32", "u32"], returns: "u64" }');
+  expect(source).toContain('AssignProcessToJobObject: { args: ["u64", "u64"], returns: "i32" }');
+  expect(source).toContain('TerminateJobObject: { args: ["u64", "u32"], returns: "i32" }');
+  expect(source).toMatch(
+    /QueryInformationJobObject:\s*{\s*args: \["u64", "u32", "ptr", "u32", "ptr"\],\s*returns: "i32"/,
+  );
+  expect(source).toContain('CloseHandle: { args: ["u64"], returns: "i32" }');
+  expect(source).toContain('GetLastError: { args: [], returns: "u32" }');
+  expect(source).toContain("OpenProcess(0x00000101, 0, pid)");
+  expect(source).toContain("AssignProcessToJobObject(handle, processHandle) === 0");
+  expect(source).toContain("TerminateJobObject(handle, 1) === 0");
+  expect(source).not.toContain('args: ["u32", "bool", "u32"]');
+  expect(source).not.toContain('returns: "bool"');
+  expect(source).toContain("kernel.symbols.CloseHandle(handle) === 0");
+  expect(source).toContain("const closure = await Promise.allSettled");
+  expect(source).toContain("return [...termination, ...closure, ...reaping]");
+  expect(source).toContain('managed.child.kill("SIGKILL")');
+  expect(source).toContain("await waitForChildExit(managed.child, FORCED_MS)");
 });
+
+test.skipIf(process.platform !== "win32")(
+  "Windows cleanup reaps launchers before aggregating assignment and Job-close failures",
+  async () => {
+    const root = mkdtempSync(join(tmpdir(), "ghostinit-deploy-supervisor-assign-failure-"));
+    roots.push(root);
+    const launcherPidPath = join(root, "launchers.pid");
+    const appStartedMarker = join(root, "app-started.txt");
+    const propagatedErrorMarker = join(root, "propagated-error.txt");
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({
+        private: true,
+        type: "module",
+        scripts: { owner: "bun owner.mjs", peer: "bun owner.mjs" },
+      }),
+    );
+    writeFileSync(
+      join(root, "owner.mjs"),
+      `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(appStartedMarker)}, "started");
+setInterval(() => {}, 1000);
+`,
+    );
+    const importNeedle = 'import { readdirSync, readFileSync } from "node:fs";';
+    const childrenNeedle = "const children = [];";
+    const assignmentNeedle = "  await assignWindowsLauncherOrReap(windowsJob, managed);";
+    const closeNeedle = "kernel.symbols.CloseHandle(handle) === 0";
+    const libraryCloseNeedle = `try {
+        kernel.close();
+      } catch (error) {`;
+    let supervisor = productionProcessSupervisorContent(["owner", "peer"]);
+    expect(supervisor).toContain(importNeedle);
+    expect(supervisor).toContain(childrenNeedle);
+    expect(supervisor).toContain(assignmentNeedle);
+    expect(supervisor).toContain(closeNeedle);
+    expect(supervisor).toContain(libraryCloseNeedle);
+    supervisor = supervisor
+      .replace(importNeedle, 'import { readdirSync, readFileSync, writeFileSync } from "node:fs";')
+      .replace(childrenNeedle, `${childrenNeedle}\nlet assignmentAttempt = 0;`)
+      .replace(closeNeedle, `(kernel.symbols.CloseHandle(handle), 0) === 0`)
+      .replace(
+        libraryCloseNeedle,
+        `try {
+        throw new Error("injected Windows production FFI library close failure");
+      } catch (error) {`,
+      )
+      .replace(
+        assignmentNeedle,
+        `  assignmentAttempt += 1;
+  writeFileSync(${JSON.stringify(launcherPidPath)}, String(managed.child.pid) + "\\n", { flag: "a" });
+  await assignWindowsLauncherOrReap(
+    assignmentAttempt === 2
+      ? { assign() { throw new Error("injected Windows production assignment failure"); } }
+      : windowsJob,
+    managed,
+  );`,
+      );
+    writeFileSync(join(root, "supervisor.mjs"), supervisor);
+    writeFileSync(
+      join(root, "assignment-harness.mjs"),
+      `import { writeFileSync } from "node:fs";
+try {
+  await import("./supervisor.mjs");
+  process.exit(2);
+} catch (error) {
+  const details = error instanceof AggregateError
+    ? [error.message, ...error.errors.map((entry) => entry instanceof Error ? entry.message : String(entry))].join("\\n")
+    : error instanceof Error ? error.message : String(error);
+  writeFileSync(${JSON.stringify(propagatedErrorMarker)}, details);
+  await Bun.sleep(1_500);
+  process.exit(37);
+}
+`,
+    );
+
+    let stderr = "";
+    const child = spawn(process.execPath, ["assignment-harness.mjs"], {
+      cwd: root,
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: true,
+    });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    const launcherPids: number[] = [];
+    try {
+      await waitForFile(propagatedErrorMarker, 5_000);
+      if (existsSync(launcherPidPath)) {
+        launcherPids.push(
+          ...readFileSync(launcherPidPath, "utf8")
+            .trim()
+            .split("\n")
+            .map((value) => Number.parseInt(value, 10)),
+        );
+      }
+      expect(child.pid).toBeDefined();
+      expect(processExists(child.pid!)).toBe(true);
+      const propagatedError = readFileSync(propagatedErrorMarker, "utf8");
+      expect(propagatedError).toContain("injected Windows production assignment failure");
+      expect(propagatedError).toContain("Could not close the Windows production Job Object");
+      expect(propagatedError).toContain("FFI library");
+      expect(launcherPids).toHaveLength(2);
+      for (const pid of launcherPids) {
+        expect(Number.isSafeInteger(pid)).toBe(true);
+        expect(processExists(pid)).toBe(false);
+      }
+      expect(existsSync(appStartedMarker)).toBe(false);
+      expect(await waitForExit(child, 5_000), stderr).toBe(37);
+    } finally {
+      if (child.pid !== undefined && processExists(child.pid)) forceKill(child.pid);
+      for (const pid of launcherPids) if (processExists(pid)) forceKill(pid);
+    }
+  },
+  15_000,
+);
 
 test.skipIf(process.platform !== "win32")(
   "Windows Job assignment delay cannot expose application code or a detached orphan",
@@ -228,7 +382,7 @@ await Bun.sleep(100);
     );
 
     const importNeedle = 'import { readdirSync, readFileSync } from "node:fs";';
-    const assignmentNeedle = "  windowsJob?.assign(managed.child, managed.script);";
+    const assignmentNeedle = "  await assignWindowsLauncherOrReap(windowsJob, managed);";
     let supervisor = productionProcessSupervisorContent(["owner"]);
     expect(supervisor).toContain(importNeedle);
     expect(supervisor).toContain(assignmentNeedle);

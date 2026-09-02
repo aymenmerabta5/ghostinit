@@ -2,6 +2,10 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { ghostinitVersion, runtime } from "../../packages/versions/src/index.js";
+import {
+  assertEmittedEnvironmentKeysTracked,
+  assertExactGlobalEnv,
+} from "../../scripts/verify-generated-env.js";
 import { generatedProjectName } from "../../scripts/test-generated.js";
 import { githubWorkflow } from "../../src/templates/root/config.js";
 import { huskyFiles } from "../../src/templates/root/husky.js";
@@ -142,6 +146,7 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
     "tests/unit/deployment-lockfile-guard.test.ts",
     "tests/unit/jobs-supervisor-portability.test.ts",
     "tests/unit/next-runtime-deployment.test.ts",
+    "tests/unit/posix-process-groups.test.ts",
     "tests/unit/process-tree.test.ts",
     "tests/unit/fs.test.ts",
     "tests/unit/bun-version-ssot.test.ts",
@@ -252,9 +257,19 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
 
 test("E2E smoke uses Bun and owns safe process and workspace cleanup", () => {
   const source = readFileSync(resolve(root, "scripts/e2e-smoke.sh"), "utf8");
+  const environmentVerifier = readFileSync(
+    resolve(root, "scripts/verify-generated-env.ts"),
+    "utf8",
+  );
 
   expect(source).toContain('bun "$CLI" create "$PROJECT_NAME"');
   expect(source).toContain('bun "$CLI" check --cwd "$PROJECT_ROOT" --json');
+  expect(source).toContain('bun ./scripts/verify-generated-env.ts "$PROJECT_ROOT"');
+  expect(source).not.toContain("globalEnv < 50");
+  expect(source).not.toMatch(/\$COUNT"\s+-lt\s+\d+/);
+  expect(environmentVerifier).toContain("getCapabilityScopedGlobalEnvKeys(config)");
+  expect(environmentVerifier).toContain("loadDesiredProjectConfig(root)");
+  expect(environmentVerifier).toContain('[".env.example", ".env.local"]');
   expect(source).not.toContain('node "$CLI"');
   expect(source).not.toMatch(/^"\$CLI"\s+(?:create|check)\b/m);
 
@@ -275,6 +290,24 @@ test("E2E smoke uses Bun and owns safe process and workspace cleanup", () => {
   expect(source).toContain('rm -rf -- "$ROOT_TMP"');
   expect(source).toContain('CLEANUP="${E2E_CLEANUP:-0}"');
   expect(source).toContain('if [ "$CLEANUP" = "1" ] && [ "$KEEP" != "1" ]; then');
+});
+
+test("E2E env contract rejects missing, duplicate, unexpected, and reordered cache inputs", () => {
+  expect(() => assertExactGlobalEnv(["A", "B"], ["A", "B"])).not.toThrow();
+  expect(() => assertExactGlobalEnv(["A"], ["A", "B"])).toThrow("missing: B");
+  expect(() => assertExactGlobalEnv(["A", "A", "B"], ["A", "B"])).toThrow("duplicates: A");
+  expect(() => assertExactGlobalEnv(["A", "B", "C"], ["A", "B"])).toThrow("unexpected: C");
+  expect(() => assertExactGlobalEnv(["B", "A"], ["A", "B"])).toThrow("manifest order: different");
+  expect(() =>
+    assertEmittedEnvironmentKeysTracked(
+      ["DATABASE_URL", "NEXT_PUBLIC_NEW_VALUE"],
+      ["DATABASE_URL", "NEXT_PUBLIC_*"],
+      [],
+    ),
+  ).not.toThrow();
+  expect(() =>
+    assertEmittedEnvironmentKeysTracked(["UNTRACKED_SECRET"], ["NODE_ENV"], ["PORT"]),
+  ).toThrow("does not track emitted environment keys: UNTRACKED_SECRET");
 });
 
 test("package CI and release scripts run each expensive gate once with Bun", () => {

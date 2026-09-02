@@ -18,9 +18,17 @@ import Ajv2020 from "ajv/dist/2020.js";
 
 const root = resolve(import.meta.dir, "../..");
 const CLI = join(root, "dist", "cli.js");
+const CLI_CAPTURE_LIMIT_BYTES = 16 * 1024 * 1024;
 
 function run(args: string[], cwd = root) {
-  return spawnSync("node", [CLI, ...args], { cwd, encoding: "utf8" });
+  // Dry-run JSON intentionally contains the complete generation plan and file
+  // contents. Bun's implicit spawnSync capture limit differs across hosts, so
+  // make the bounded test-process contract explicit without changing CLI output.
+  return spawnSync("node", [CLI, ...args], {
+    cwd,
+    encoding: "utf8",
+    maxBuffer: CLI_CAPTURE_LIMIT_BYTES,
+  });
 }
 
 function hashTree(directory: string): string {

@@ -629,7 +629,7 @@ export const AR_MESSAGES = {
       webDescription: "L1 · Next.js / TanStack Start",
       ok: "سليم",
       optional: "اختياري",
-      environmentSummary: "globalEnv — أكثر من 50 متغيراً · hoist:true",
+      environmentSummary: "globalEnv — مخصص حسب القدرات · hoist:true",
     },
     single: {
       description: "مرحباً بعودتك. أدر حسابك والفوترة والوحدات.",
