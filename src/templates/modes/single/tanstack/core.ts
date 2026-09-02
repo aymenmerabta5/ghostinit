@@ -1,8 +1,5 @@
 import { singleGlobalsCss } from "../core/css.js";
-import {
-  eveNitroWindowsResolverHooks,
-  eveNitroWindowsResolverPreamble,
-} from "../../../eve/config.js";
+import { eveNitroResolverHooks, eveNitroResolverPreamble } from "../../../eve/config.js";
 import {
   tanstackSecurityPolicyDeclaration,
   viteSecurityHeaders as sharedViteSecurityHeaders,
@@ -16,13 +13,13 @@ export function singleNitroConfigTanstackContent(
 ): string {
   return [
     "import { defineNitroConfig } from 'nitro/config'",
-    ...(hasEve ? eveNitroWindowsResolverPreamble(true).trimEnd().split("\n") : []),
+    ...(hasEve ? eveNitroResolverPreamble(true).trimEnd().split("\n") : []),
     "",
     tanstackSecurityPolicyDeclaration(),
     "",
     "export default defineNitroConfig({",
     `  preset: '${preset}',`,
-    ...(hasEve ? eveNitroWindowsResolverHooks().split("\n") : []),
+    ...(hasEve ? eveNitroResolverHooks().split("\n") : []),
     ...(hasWebSocketMessaging ? ["  serverDir: 'server',"] : []),
     ...(hasWebSocketMessaging ? ["  experimental: { websocket: true },"] : []),
     ...(hasWebSocketMessaging

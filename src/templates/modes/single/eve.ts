@@ -49,7 +49,7 @@ function toSingleEvePath(path: string, framework: FrameworkName): string | undef
   const relativePath = path.slice(EVE_APPLICATION_PREFIX.length);
   if (SINGLE_EVE_ROOT_FILES.has(relativePath)) {
     // TanStack Start already owns nitro.config.ts. Its composer injects the
-    // same Windows resolver hook into that canonical config instead.
+    // same cross-platform resolver hook into that canonical config instead.
     return framework === "tanstack-start" ? undefined : relativePath;
   }
   return SINGLE_EVE_ROOT_PREFIXES.some((prefix) => relativePath.startsWith(prefix))

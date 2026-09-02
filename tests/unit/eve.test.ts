@@ -36,18 +36,19 @@ describe("eve durable agent app template", () => {
     expect(pkg.scripts?.["format:check"]).toBe("oxfmt --check .");
   });
 
-  it("emits the Windows Nitro import resolver required by Eve production builds", () => {
-    const files = eveFiles("windows-build");
+  it("emits the cross-platform Nitro import resolver required by Eve production builds", () => {
+    const files = eveFiles("cross-platform-build");
     const config = files.find((file) => file.path === "apps/eve/nitro.config.mjs")?.content ?? "";
     const manifest = JSON.parse(
       files.find((file) => file.path === "apps/eve/package.json")?.content ?? "{}",
     ) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
 
     expect(parseSync("nitro.config.mjs", config).errors).toEqual([]);
-    expect(config).toContain('process.platform !== "win32"');
+    expect(config).not.toContain("process.platform");
     expect(config).toContain("statSync(candidate).isFile()");
     expect(config).not.toContain("existsSync");
     expect(config).toContain("fileURLToPath(source)");
+    expect(config).toContain("isAbsolute(source)");
     expect(config).toContain("/^[A-Za-z]:[\\\\/]/.test(source)");
     for (const extension of [
       ".mjs",
@@ -65,20 +66,19 @@ describe("eve durable agent app template", () => {
       expect(config).toContain(JSON.stringify(extension));
     }
     expect(config).toContain('source === "eve" || source.startsWith("eve/")');
-    expect(config).toContain("eveWindowsRequire.resolve(source)");
+    expect(config).toContain("eveRequire.resolve(source)");
     expect(config).toContain("plugins.some(");
-    expect(config).toContain("name: EVE_WINDOWS_RESOLVER_PLUGIN_NAME");
+    expect(config).toContain("name: EVE_RESOLVER_PLUGIN_NAME");
     expect(manifest.dependencies?.rollup).toBeUndefined();
     expect(manifest.dependencies?.vite).toBeUndefined();
     expect(manifest.devDependencies?.rollup).toBeUndefined();
     expect(manifest.devDependencies?.vite).toBeUndefined();
   });
 
-  it("resolves only real Windows files and public Eve packages, idempotently", async () => {
-    if (process.platform !== "win32") return;
+  it("resolves only real absolute files and public Eve packages, idempotently", async () => {
     const root = mkdtempSync(join(tmpdir(), "ghostinit-eve-nitro-resolver-"));
     try {
-      const files = eveFiles("windows-resolver-behavior");
+      const files = eveFiles("cross-platform-resolver-behavior");
       const source = files.find((file) => file.path === "apps/eve/nitro.config.mjs")?.content ?? "";
       const configPath = join(root, "nitro.config.mjs");
       const extensionlessPath = join(root, "entry");
@@ -118,8 +118,12 @@ describe("eve durable agent app template", () => {
       const resolveId = bundler.plugins?.[0]?.resolveId;
       expect(resolveId).toBeFunction();
       if (!resolveId) throw new Error("Missing generated resolver");
+      expect(resolveId(extensionlessPath)).toBe(entryPath);
       expect(resolveId(pathToFileURL(extensionlessPath).href)).toBe(entryPath);
+      expect(resolveId(entryPath)).toBe(entryPath);
+      expect(resolveId(directoryPath)).toBeNull();
       expect(resolveId(pathToFileURL(directoryPath).href)).toBeNull();
+      expect(resolveId(join(root, "missing"))).toBeNull();
       expect(resolveId("file://%invalid")).toBeNull();
       expect(resolveId("eve")).toBe(join(evePackage, "index.js"));
       expect(resolveId("react")).toBeNull();

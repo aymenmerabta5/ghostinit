@@ -1,16 +1,17 @@
 import { file, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 
-export function eveNitroWindowsResolverPreamble(typescript = false): string {
+export function eveNitroResolverPreamble(typescript = false): string {
   const sourceType = typescript ? ": string" : "";
   const returnType = typescript ? ": string | null" : "";
   const candidateType = typescript ? ": string" : "";
   const booleanType = typescript ? ": boolean" : "";
   return `import { statSync } from "node:fs";
 import { createRequire } from "node:module";
+import { isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const EVE_WINDOWS_RESOLVER_EXTENSIONS = [
+const EVE_RESOLVER_EXTENSIONS = [
   "",
   ".mjs",
   ".js",
@@ -24,10 +25,10 @@ const EVE_WINDOWS_RESOLVER_EXTENSIONS = [
   ".node",
   ".wasm",
 ];
-const EVE_WINDOWS_RESOLVER_PLUGIN_NAME = "ghostinit:windows-eve-import-resolver";
-const eveWindowsRequire = createRequire(import.meta.url);
+const EVE_RESOLVER_PLUGIN_NAME = "ghostinit:eve-import-resolver";
+const eveRequire = createRequire(import.meta.url);
 
-function isEveWindowsImportFile(candidate${candidateType})${booleanType} {
+function isEveImportFile(candidate${candidateType})${booleanType} {
   try {
     return statSync(candidate).isFile();
   } catch {
@@ -35,7 +36,7 @@ function isEveWindowsImportFile(candidate${candidateType})${booleanType} {
   }
 }
 
-function resolveEveWindowsAbsoluteImport(source${sourceType})${returnType} {
+function resolveEveAbsoluteImport(source${sourceType})${returnType} {
   let path;
   if (source.startsWith("file://")) {
     try {
@@ -43,43 +44,42 @@ function resolveEveWindowsAbsoluteImport(source${sourceType})${returnType} {
     } catch {
       return null;
     }
-  } else if (/^[A-Za-z]:[\\\\/]/.test(source)) {
+  } else if (isAbsolute(source) || /^[A-Za-z]:[\\\\/]/.test(source)) {
     path = source;
   } else {
     return null;
   }
-  for (const extension of EVE_WINDOWS_RESOLVER_EXTENSIONS) {
+  for (const extension of EVE_RESOLVER_EXTENSIONS) {
     const candidate = path + extension;
-    if (isEveWindowsImportFile(candidate)) return candidate;
+    if (isEveImportFile(candidate)) return candidate;
   }
   return null;
 }
 `;
 }
 
-export function eveNitroWindowsResolverHooks(): string {
+export function eveNitroResolverHooks(): string {
   return `  hooks: {
     "rollup:before"(_nitro, config) {
-      if (process.platform !== "win32") return;
       const plugins = Array.isArray(config.plugins) ? config.plugins : [];
       if (
         plugins.some(
           (plugin) =>
             typeof plugin === "object" &&
             plugin !== null &&
-            Reflect.get(plugin, "name") === EVE_WINDOWS_RESOLVER_PLUGIN_NAME,
+            Reflect.get(plugin, "name") === EVE_RESOLVER_PLUGIN_NAME,
         )
       ) {
         return;
       }
       plugins.unshift({
-        name: EVE_WINDOWS_RESOLVER_PLUGIN_NAME,
+        name: EVE_RESOLVER_PLUGIN_NAME,
         resolveId(source) {
-          const absolute = resolveEveWindowsAbsoluteImport(source);
+          const absolute = resolveEveAbsoluteImport(source);
           if (absolute) return absolute;
           if (source === "eve" || source.startsWith("eve/")) {
             try {
-              return eveWindowsRequire.resolve(source);
+              return eveRequire.resolve(source);
             } catch {
               return null;
             }
@@ -93,9 +93,9 @@ export function eveNitroWindowsResolverHooks(): string {
 }
 
 export function eveNitroConfigContent(): string {
-  return `${eveNitroWindowsResolverPreamble()}
+  return `${eveNitroResolverPreamble()}
 export default {
-${eveNitroWindowsResolverHooks()}
+${eveNitroResolverHooks()}
 };
 `;
 }

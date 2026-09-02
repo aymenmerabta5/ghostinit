@@ -105,7 +105,7 @@ describe("single-mode Eve application root", () => {
         const nitroConfig = files.find((file) => file.path === "nitro.config.mjs")?.content ?? "";
         expect(nextConfig).toContain("withEve(config)");
         expect(nextConfig).not.toContain("eveRoot");
-        expect(nitroConfig).toContain("ghostinit:windows-eve-import-resolver");
+        expect(nitroConfig).toContain("ghostinit:eve-import-resolver");
       } else {
         const viteConfig = files.find((file) => file.path === "vite.config.ts")?.content ?? "";
         const nitroConfig = files.find((file) => file.path === "nitro.config.ts")?.content ?? "";
@@ -119,7 +119,7 @@ describe("single-mode Eve application root", () => {
         );
         expect(viteConfig).toContain("import('@tanstack/react-start/plugin/vite')");
         expect(paths).not.toContain("nitro.config.mjs");
-        expect(nitroConfig).toContain("ghostinit:windows-eve-import-resolver");
+        expect(nitroConfig).toContain("ghostinit:eve-import-resolver");
         expect(eveCommand).toContain('GHOSTINIT_EVE_RUNTIME: "1"');
         expect(eveCommand).toContain('resolve(ROOT, ".eve", "runtime-output")');
         expect(eveCommand).toContain('resolve(ROOT, "vite.config.ts")');
