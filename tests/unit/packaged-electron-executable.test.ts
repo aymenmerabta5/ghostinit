@@ -4,6 +4,7 @@ import {
   packagedDesktopExecutableCandidates,
   packagedDesktopLaunchCommand,
 } from "../integration/e2e-build-process.js";
+import { desktopElectronBuilderYmlContent } from "../../src/templates/apps/desktop/tooling.js";
 
 describe("packaged Electron executable resolution", () => {
   const desktopRoot = join("D:", "generated", "apps", "desktop");
@@ -17,6 +18,12 @@ describe("packaged Electron executable resolution", () => {
     );
     expect(packagedDesktopExecutableCandidates(desktopRoot, "demo-app", "darwin")).toContain(
       join(desktopRoot, "out", "mac", "demo-app.app", "Contents", "MacOS", "demo-app"),
+    );
+  });
+
+  test("pins the Linux executable name to the portable project name", () => {
+    expect(desktopElectronBuilderYmlContent("demo-app")).toContain(
+      "linux:\n  target: AppImage\n  executableName: demo-app",
     );
   });
 

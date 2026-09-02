@@ -129,6 +129,7 @@ mac:
   target: dmg
 linux:
   target: AppImage
+  executableName: ${projectName}
 publish:
   # TODO: Replace with your update server URL or remove publish section until configured
   # url: REPLACE_WITH_UPDATE_URL

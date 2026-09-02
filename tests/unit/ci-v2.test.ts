@@ -85,7 +85,7 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
   const pinnedActions = allSteps
     .map(({ uses }) => uses)
     .filter((uses): uses is string =>
-      /^(?:actions\/checkout|oven-sh\/setup-bun)@/.test(uses ?? ""),
+      /^(?:actions\/(?:checkout|setup-node)|oven-sh\/setup-bun)@/.test(uses ?? ""),
     );
   expect(pinnedActions.length).toBeGreaterThan(0);
   for (const action of pinnedActions) expect(action).toMatch(/^[^@]+@[a-f0-9]{40}$/);
@@ -97,6 +97,17 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
     .map(({ with: input }) => input?.["bun-version"]);
   expect(bunPins.length).toBeGreaterThan(0);
   expect(new Set(bunPins)).toEqual(new Set([runtime.bun]));
+  const nodePins = allSteps
+    .filter(({ uses }) => uses?.startsWith("actions/setup-node@"))
+    .map(({ with: input }) => input?.["node-version"]);
+  expect(nodePins.length).toBeGreaterThan(0);
+  expect(new Set(nodePins)).toEqual(new Set([runtime.node]));
+  for (const jobName of ["e2e-scheduled", "e2e-manual", "e2e-build-gated"] as const) {
+    const nodeSetup = e2e.jobs[jobName].steps.find(({ uses }) =>
+      uses?.startsWith("actions/setup-node@"),
+    );
+    expect(nodeSetup?.with?.["node-version"], jobName).toBe(runtime.node);
+  }
 
   const normalizedRuns = (job: keyof typeof ci.jobs): string[] => {
     expect(ci.jobs[job].if).toBeUndefined();
