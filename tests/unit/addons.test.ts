@@ -4,6 +4,7 @@ import {
   parseBillingInput,
   parseFeaturesInput,
   parseDatabaseInput,
+  parseFeatureFlagsInput,
   isValidAddonCombo,
   buildAddonInstallerMap,
   billingProviders,
@@ -11,6 +12,7 @@ import {
   availableFeatures,
   availableDatabases,
   defaultAddons,
+  optionalAddons,
 } from "../../src/lib/addons";
 
 describe("addon registry - billing parsing", () => {
@@ -62,6 +64,19 @@ describe("addon registry - billing parsing", () => {
   });
 });
 
+describe("remote feature flag parsing", () => {
+  it("accepts posthog and explicit none", () => {
+    expect(parseFeatureFlagsInput("PostHog")).toBe("posthog");
+    expect(parseFeatureFlagsInput("none")).toBe("none");
+    expect(parseFeatureFlagsInput()).toBe("none");
+  });
+
+  it("rejects unknown or static pseudo-providers", () => {
+    expect(() => parseFeatureFlagsInput("launchdarkly")).toThrow();
+    expect(() => parseFeatureFlagsInput("static")).toThrow();
+  });
+});
+
 describe("addon registry - constants", () => {
   it("has expected billing providers", () => {
     expect(billingProviders).toContain("stripe");
@@ -105,6 +120,10 @@ describe("addon registry - constants", () => {
   it("has expected features", () => {
     expect(availableFeatures).toContain("eve");
     expect(availableFeatures).toContain("i18n");
+  });
+
+  it("exposes storage as an explicit optional addon", () => {
+    expect(optionalAddons).toContain("storage");
   });
 
   it("has expected databases", () => {
@@ -170,6 +189,25 @@ describe("addon registry - isValidAddonCombo", () => {
   it("valid when billing present and database postgres", () => {
     const result = isValidAddonCombo({ billing: ["polar"], database: "postgres", mode: "single" });
     expect(result.valid).toBe(true);
+  });
+
+  it("requires auth, typed API, persistence, and web for storage", () => {
+    const base = {
+      billing: [],
+      database: "postgres" as const,
+      mode: "monorepo" as const,
+      apps: ["web" as const],
+      preset: "custom" as const,
+      hasAuth: true,
+      hasApi: true,
+      hasStorage: true,
+    };
+
+    expect(isValidAddonCombo(base).valid).toBe(true);
+    expect(isValidAddonCombo({ ...base, database: "none" }).valid).toBe(false);
+    expect(isValidAddonCombo({ ...base, hasAuth: false }).message).toContain("auth");
+    expect(isValidAddonCombo({ ...base, hasApi: false }).message).toContain("API transport");
+    expect(isValidAddonCombo({ ...base, apps: ["mobile"] }).message).toContain("web app");
   });
 });
 
@@ -251,6 +289,25 @@ describe("addon registry - buildAddonInstallerMap", () => {
     });
     expect(map["stripe"]?.inUse).toBe(true);
     expect(map["chargily"]?.inUse).toBe(true);
+  });
+
+  it("marks explicit storage and messaging-implied storage as inUse", () => {
+    const explicit = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "postgres",
+      mode: "monorepo",
+      storage: true,
+    });
+    const implied = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "postgres",
+      mode: "monorepo",
+      messaging: true,
+    });
+    expect(explicit["storage"]?.inUse).toBe(true);
+    expect(implied["storage"]?.inUse).toBe(true);
   });
 });
 

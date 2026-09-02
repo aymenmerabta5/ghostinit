@@ -26,16 +26,12 @@ export const authClient = createAuthClient({
 
 export function authServerConvexNextContent(): string {
   return `import { ConvexHttpClient } from "convex/browser";
-import { env } from "@repo/config";
+import { env } from "@repo/config/server";
 
 function resolveConvexUrl(): string {
-  const url =
-    process.env.CONVEX_URL ??
-    process.env.NEXT_PUBLIC_CONVEX_URL ??
-    env.CONVEX_URL ??
-    env.NEXT_PUBLIC_CONVEX_URL;
+  const url = env.CONVEX_URL;
   if (!url || url.startsWith("REPLACE_WITH")) {
-    throw new Error("CONVEX_URL / NEXT_PUBLIC_CONVEX_URL must be set for convex auth mode");
+    throw new Error("CONVEX_URL must be set for convex auth mode");
   }
   return url;
 }
@@ -51,7 +47,6 @@ if (!env.BETTER_AUTH_SECRET || env.BETTER_AUTH_SECRET.length < 32 || env.BETTER_
 const siteUrl =
   env.SITE_URL ??
   env.CONVEX_SITE_URL ??
-  env.NEXT_PUBLIC_APP_URL ??
   env.BETTER_AUTH_URL;
 
 if (!siteUrl || siteUrl.includes("example.com")) {
@@ -80,16 +75,12 @@ export type Auth = typeof auth;
 
 export function authServerConvexTanstackContent(): string {
   return `import { ConvexHttpClient } from "convex/browser";
-import { env } from "@repo/config";
+import { env } from "@repo/config/server";
 
 function resolveConvexUrl(): string {
-  const url =
-    (process.env.VITE_CONVEX_URL as string | undefined) ??
-    (typeof process !== "undefined" && (process as unknown as { env?: Record<string, string | undefined> }).env?.VITE_CONVEX_URL) ??
-    process.env.CONVEX_URL ??
-    process.env.NEXT_PUBLIC_CONVEX_URL;
+  const url = env.CONVEX_URL;
   if (!url || (typeof url === "string" && url.startsWith("REPLACE_WITH"))) {
-    throw new Error("VITE_CONVEX_URL / CONVEX_URL must be set for convex tanstack mode");
+    throw new Error("CONVEX_URL must be set for convex tanstack mode");
   }
   return url as string;
 }

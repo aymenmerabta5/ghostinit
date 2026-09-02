@@ -73,23 +73,23 @@ describe("billing provider — polar (MoR 4% metering license keys) — Context7
     expect(content.toLowerCase()).toContain("idempotency");
   });
 
-  it("nextjs helper @polar-sh/nextjs + license keys seats", () => {
+  it("uses the framework-neutral Polar SDK for webhooks, license keys, and seats", () => {
     const files = billingFiles("monorepo");
-    // also check webhook routes mention nextjs helpers
     const all = files.map((f: any) => f.content).join("\n") + aggProvider(files, "polar");
-    expect(all).toContain("@polar-sh/nextjs");
+    expect(all).toContain("@polar-sh/sdk");
+    expect(all).not.toContain("@polar-sh/nextjs");
     expect(all).toContain("license");
     expect(all.toLowerCase()).toContain("seats");
   });
 
-  it("versions pinned 0.48.1 + 0.9.6 + stripe 19.x + chargily 2.1.0 + paddle 3.8.0 + paddle-js 1.6.4", async () => {
+  it("uses the audited age-eligible billing provider versions", async () => {
     const { billing } = await import("../../packages/versions");
-    expect(billing["@polar-sh/sdk"]).toBe("0.48.1");
+    expect(billing["@polar-sh/sdk"]).toBe("0.49.0");
     expect(billing["@polar-sh/nextjs"]).toBe("0.9.6");
-    expect(billing.stripe).toBe("19.1.0");
+    expect(billing.stripe).toBe("22.5.0");
     expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
-    expect(billing["@paddle/paddle-node-sdk"]).toBe("3.8.0");
-    expect(billing["@paddle/paddle-js"]).toBe("1.6.4");
+    expect(billing["@paddle/paddle-node-sdk"]).toBe("3.10.0");
+    expect(billing["@paddle/paddle-js"]).toBe("1.6.5");
   });
 
   it("env: .env.example REPLACE_WITH_POLAR placeholders + .env.local secret() gitignored + t3env server-only", async () => {
@@ -125,21 +125,23 @@ describe("billing provider — polar (MoR 4% metering license keys) — Context7
     const gitignore =
       rootFiles("demo", secrets as never, { dryRun: false }).find((f) => f.path === ".gitignore")
         ?.content ?? "";
-    expect(gitignore).toContain(".env.local");
+    expect(gitignore).toContain(".env\n");
+    expect(gitignore).toContain(".env.*\n");
+    expect(gitignore).toContain("!.env.example\n");
+    expect(gitignore).toContain("!.env.*.example\n");
   });
 
   it("t3env validation server-only for polar + paddle + chargily + stripe NEVER client except NEXT_PUBLIC_", async () => {
     const { packageFiles } = await import("../../src/templates/packages");
-    const envTs =
-      packageFiles("bun").find((f) => f.path === "packages/config/src/env.ts")?.content ?? "";
-    expect(envTs).toContain("POLAR_ACCESS_TOKEN");
-    expect(envTs).toContain("POLAR_WEBHOOK_SECRET");
-    expect(envTs).toContain("POLAR_ORG_ID");
-    const serverIdx = envTs.indexOf("server:");
-    const clientIdx = envTs.indexOf("client:");
-    const polarIdx = envTs.indexOf("POLAR_ACCESS_TOKEN");
-    expect(polarIdx > serverIdx && polarIdx < clientIdx).toBe(true);
-    expect(envTs).toContain("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-    expect(envTs).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
+    const files = packageFiles("bun");
+    const server =
+      files.find((f) => f.path === "packages/config/src/server-schema.ts")?.content ?? "";
+    const next = files.find((f) => f.path === "packages/config/src/next.ts")?.content ?? "";
+    expect(server).toContain("POLAR_ACCESS_TOKEN");
+    expect(server).toContain("POLAR_WEBHOOK_SECRET");
+    expect(server).toContain("POLAR_ORG_ID");
+    expect(next).not.toContain("POLAR_ACCESS_TOKEN");
+    expect(next).toContain("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+    expect(next).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
   });
 });

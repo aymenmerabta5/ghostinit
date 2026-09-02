@@ -1,5 +1,5 @@
 # Host (ghostinit CLI itself) uses isolated installs for hermetic reproducibility
-# Generated projects use hoist=true (default) because Next.js 16.2.10 TS resolution breaks with isolated linker
+# Generated projects use hoist=true (default) because the supported Next.js 16 line's TS resolution breaks with isolated linker
 # See src/templates/root.ts bunfig() comment
 
 [install]
@@ -11,6 +11,10 @@ linker = "isolated"
 hoist = false
 # Keep lockfile stable and deterministic - allow updates during development
 frozenLockfile = true
+# Reject newly published dependency versions for seven days by default. The
+# empty exclusion list is intentional: no package bypasses the age gate.
+minimumReleaseAge = 604800
+minimumReleaseAgeExcludes = []
 
 [install.scopes]
 # Default public registry

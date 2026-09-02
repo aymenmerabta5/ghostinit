@@ -1,7 +1,83 @@
-export function authClientSingle(): string {
+import { identityClientAdapterContent } from "../../../apps/fragments/auth/client-adapter.js";
+import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../../auth-security.js";
+
+function authNetworkSecurityLines(): string[] {
+  return [
+    ...authNetworkSecurityHelpers.split("\n"),
+    "",
+    "const authNetworkSecurity = resolveAuthNetworkSecurity(",
+    "  env.BETTER_AUTH_URL,",
+    "  env.TRUSTED_PROXY,",
+    ");",
+    "",
+  ];
+}
+
+function durableAuthRateLimitLines(): string[] {
+  return [
+    ...durableAuthRateLimitConfig.split("\n"),
+    "  advanced: {",
+    "    trustedProxyHeaders: authNetworkSecurity.trustedProxyHeaders,",
+    "    ipAddress: authNetworkSecurity.ipAddress,",
+    "  },",
+  ];
+}
+
+function socialProviderLines(): string[] {
+  return [
+    "  socialProviders: {",
+    '    ...(env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_ID.startsWith("REPLACE_WITH") && env.GOOGLE_CLIENT_SECRET && !env.GOOGLE_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),',
+    '    ...(env.GITHUB_CLIENT_ID && !env.GITHUB_CLIENT_ID.startsWith("REPLACE_WITH") && env.GITHUB_CLIENT_SECRET && !env.GITHUB_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),',
+    "  },",
+  ];
+}
+
+function secureAccountLinkingLines(hasEmail: boolean): string[] {
+  return [
+    "  account: {",
+    "    encryptOAuthTokens: true,",
+    "    accountLinking: {",
+    `      enabled: ${hasEmail ? "true" : "false"},`,
+    "      requireLocalEmailVerified: true,",
+    hasEmail
+      ? '      trustedProviders: ["google", "github"],'
+      : "      disableImplicitLinking: true,",
+    "    },",
+    "  },",
+  ];
+}
+
+function secureSessionLines(): string[] {
+  return [
+    "  session: {",
+    "    // Sensitive passkey enrollment and OAuth-only deletion require a recent, persisted session.",
+    "    freshAge: 60 * 5,",
+    "    cookieCache: { enabled: false },",
+    "  },",
+  ];
+}
+
+const secureOrganizationPlugin =
+  "    organization({ allowUserToCreateOrganization: false, disableOrganizationDeletion: true, teams: { enabled: true }, dynamicAccessControl: { enabled: true } }),";
+
+export interface SingleServerAuthOptions {
+  expoScheme?: string;
+}
+
+function normalizedExpoScheme(options: SingleServerAuthOptions): string | null {
+  if (options.expoScheme === undefined) return null;
+  return options.expoScheme.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
+}
+
+export function authClientSingle(
+  hasEmail = true,
+  target: "nextjs" | "tanstack-start" = "nextjs",
+): string {
   return [
     "import { createAuthClient } from 'better-auth/react';",
-    "import { adminClient, twoFactorClient } from 'better-auth/client/plugins';",
+    "import { passkeyClient } from '@better-auth/passkey/client';",
+    `import { adminClient, organizationClient, twoFactorClient${hasEmail ? ", magicLinkClient" : ""} } from 'better-auth/client/plugins';`,
+    "import { z } from 'zod';",
     "",
     "export const authClient = createAuthClient({",
     "  plugins: [",
@@ -13,17 +89,29 @@ export function authClientSingle(): string {
     "      },",
     "    }),",
     "    adminClient(),",
+    "    passkeyClient(),",
+    "    organizationClient(),",
+    ...(hasEmail ? ["    magicLinkClient(),"] : []),
     "  ],",
     "});",
     "",
+    identityClientAdapterContent({
+      database: "postgres",
+      emailPassword: hasEmail,
+      target,
+    }),
   ].join("\n");
 }
 
-export function authClientSingleConvex(): string {
+export function authClientSingleConvex(
+  hasEmail = true,
+  target: "nextjs" | "tanstack-start" = "nextjs",
+): string {
   return [
     "import { createAuthClient } from 'better-auth/react';",
     "import { convexClient } from '@convex-dev/better-auth/client/plugins';",
-    "import { adminClient, twoFactorClient } from 'better-auth/client/plugins';",
+    `import { twoFactorClient${hasEmail ? ", magicLinkClient" : ""} } from 'better-auth/client/plugins';`,
+    "import { z } from 'zod';",
     "",
     "export const authClient = createAuthClient({",
     "  plugins: [",
@@ -35,50 +123,98 @@ export function authClientSingleConvex(): string {
     "        }",
     "      },",
     "    }),",
-    "    adminClient(),",
+    ...(hasEmail ? ["    magicLinkClient(),"] : []),
     "  ],",
     "});",
     "",
+    identityClientAdapterContent({
+      database: "convex",
+      emailPassword: hasEmail,
+      target,
+    }),
   ].join("\n");
 }
 
-export function serverAuthSingle(hasEmail = true): string {
+export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptions = {}): string {
+  const expoScheme = normalizedExpoScheme(options);
   return [
-    "import { betterAuth } from 'better-auth';",
+    "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { nextCookies } from 'better-auth/next-js';",
-    "import { admin } from 'better-auth/plugins/admin';",
-    "import { twoFactor } from 'better-auth/plugins';",
+    ...(expoScheme ? ["import { expo } from '@better-auth/expo';"] : []),
+    "import { passkey } from '@better-auth/passkey';",
+    "import { admin, type AdminOptions } from 'better-auth/plugins/admin';",
+    "import { organization } from 'better-auth/plugins/organization';",
+    "import { twoFactor } from 'better-auth/plugins/two-factor';",
+    ...(hasEmail ? ["import { magicLink } from 'better-auth/plugins/magic-link';"] : []),
     "import { db } from '@/server/db';",
     "import * as schema from '@/server/db/schema/auth';",
+    "import { env } from '@/lib/env/server';",
     ...(hasEmail
       ? [
-          'import { sendEmail } from "@/server/email";',
+          'import { resolveEmailLocale, sendEmail, transactionalEmailSubject } from "@/server/email";',
           'import ResetPasswordEmail from "@/server/email/templates/ResetPassword";',
           'import VerifyEmail from "@/server/email/templates/VerifyEmail";',
+          'import MagicLinkEmail from "@/server/email/templates/MagicLink";',
         ]
       : []),
     "",
-    "const _authSecret = process.env.BETTER_AUTH_SECRET!;",
+    "const _authSecret = env.BETTER_AUTH_SECRET;",
     'if (!_authSecret || _authSecret.length < 32 || _authSecret.startsWith("REPLACE_WITH") || _authSecret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {',
     '  throw new Error("BETTER_AUTH_SECRET must be set to a strong random value, not placeholder, at least 32 chars");',
     "}",
     "",
-    "export const auth = betterAuth({",
-    "  appName: process.env.APP_NAME ?? 'GhostInit',",
+    "export const selectedIdentityPlugins = ['admin', 'two-factor', 'passkey', 'organization'] as const;",
+    "type AdminPlugin = ReturnType<typeof admin<AdminOptions>>;",
+    "type PortableAuthOptions = BetterAuthOptions & { plugins: [AdminPlugin] };",
+    "interface AdminCreationAuthContext {",
+    '  generateId(options: { model: "user" | "account"; size?: number }): string | false;',
+    "  password: {",
+    "    hash(password: string): Promise<string>;",
+    "    config: { minPasswordLength: number; maxPasswordLength: number };",
+    "  };",
+    "}",
+    'export type Auth = Pick<BetterAuthServer<PortableAuthOptions>, "handler" | "api"> & {',
+    "  readonly $context: Promise<AdminCreationAuthContext>;",
+    "};",
+    "",
+    ...authNetworkSecurityLines(),
+    "const configuredAuth = betterAuth({",
+    "  appName: env.APP_NAME ?? 'GhostInit',",
     "  secret: _authSecret,",
-    "  baseURL: process.env.BETTER_AUTH_URL!,",
-    "  database: drizzleAdapter(db, { provider: 'pg', schema }),",
+    "  baseURL: env.BETTER_AUTH_URL,",
+    ...(expoScheme ? [`  trustedOrigins: [env.BETTER_AUTH_URL, '${expoScheme}://'],`] : []),
+    "  database: drizzleAdapter(db, {",
+    "    provider: 'pg',",
+    "    schema: {",
+    "      user: schema.users,",
+    "      account: schema.accounts,",
+    "      session: schema.sessions,",
+    "      verification: schema.verifications,",
+    "      rateLimit: schema.rateLimits,",
+    "      twoFactor: schema.twoFactors,",
+    "      passkey: schema.passkeys,",
+    "      organization: schema.organizations,",
+    "      member: schema.members,",
+    "      invitation: schema.invitations,",
+    "      team: schema.teams,",
+    "      teamMember: schema.teamMembers,",
+    "      organizationRole: schema.organizationRoles,",
+    "    },",
+    "  }),",
     "  emailAndPassword: {",
-    "    enabled: true,",
+    `    enabled: ${hasEmail ? "true" : "false"},`,
     "    autoSignInAfterRegistration: false,",
+    "    revokeSessionsOnPasswordReset: true,",
+    ...(hasEmail ? ["    requireEmailVerification: true,"] : []),
     ...(hasEmail
       ? [
-          "    sendResetPassword: async ({ user, url }) => {",
-          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
-          "      const subject = `Reset your password - ${appName}`;",
+          "    sendResetPassword: async ({ user, url }, request) => {",
+          "      const appName = env.APP_NAME ?? 'GhostInit';",
+          "      const locale = resolveEmailLocale(request?.headers);",
+          '      const subject = transactionalEmailSubject("password-reset", locale, appName);',
           "      await sendEmail(user.email, subject, ResetPasswordEmail,",
-          "        { link: url, appName },",
+          "        { link: url, appName, locale },",
           "      );",
           "    },",
         ]
@@ -89,15 +225,41 @@ export function serverAuthSingle(hasEmail = true): string {
           "  emailVerification: {",
           "    sendOnSignUp: true,",
           "    autoSignInAfterVerification: true,",
-          "    sendVerificationEmail: async ({ user, url }) => {",
-          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
-          "      await sendEmail(user.email, `Verify your email - ${appName}`, VerifyEmail, { link: url, appName });",
+          "    sendVerificationEmail: async ({ user, url }, request) => {",
+          "      const appName = env.APP_NAME ?? 'GhostInit';",
+          "      const locale = resolveEmailLocale(request?.headers);",
+          '      await sendEmail(user.email, transactionalEmailSubject("verification", locale, appName), VerifyEmail, { link: url, appName, locale });',
           "    },",
           "  },",
         ]
       : []),
-    "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), nextCookies()],",
+    ...socialProviderLines(),
+    ...secureAccountLinkingLines(hasEmail),
+    ...secureSessionLines(),
+    ...durableAuthRateLimitLines(),
+    "  plugins: [",
+    ...(expoScheme ? ["    expo(),"] : []),
+    "    admin(),",
+    "    twoFactor({ issuer: env.BETTER_AUTH_URL, twoFactorCookieMaxAge: 600, accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 } }),",
+    "    passkey(),",
+    secureOrganizationPlugin,
+    ...(hasEmail
+      ? [
+          "    magicLink({",
+          '      storeToken: "hashed",',
+          "      sendMagicLink: async ({ email, url }, context) => {",
+          "        const appName = env.APP_NAME ?? 'GhostInit';",
+          "        const locale = resolveEmailLocale(context?.request?.headers);",
+          '        await sendEmail(email, transactionalEmailSubject("magic-link", locale, appName), MagicLinkEmail, { link: url, appName, locale });',
+          "      },",
+          "    }),",
+        ]
+      : []),
+    "    nextCookies(),",
+    "  ],",
     "});",
+    "",
+    "export const auth: Auth = configuredAuth;",
     "",
     "export async function getRequestUser(headers: Headers) {",
     "  const session = await auth.api.getSession({ headers });",
@@ -107,43 +269,89 @@ export function serverAuthSingle(hasEmail = true): string {
   ].join("\n");
 }
 
-export function serverAuthTanstackSingle(hasEmail = true): string {
+export function serverAuthTanstackSingle(
+  hasEmail = true,
+  options: SingleServerAuthOptions = {},
+): string {
+  const expoScheme = normalizedExpoScheme(options);
   return [
-    "import { betterAuth } from 'better-auth';",
+    "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { tanstackStartCookies } from 'better-auth/tanstack-start';",
-    "import { admin } from 'better-auth/plugins/admin';",
-    "import { twoFactor } from 'better-auth/plugins';",
+    ...(expoScheme ? ["import { expo } from '@better-auth/expo';"] : []),
+    "import { passkey } from '@better-auth/passkey';",
+    "import { admin, type AdminOptions } from 'better-auth/plugins/admin';",
+    "import { organization } from 'better-auth/plugins/organization';",
+    "import { twoFactor } from 'better-auth/plugins/two-factor';",
+    ...(hasEmail ? ["import { magicLink } from 'better-auth/plugins/magic-link';"] : []),
     "import { db } from '@/server/db';",
     "import * as schema from '@/server/db/schema/auth';",
+    "import { env } from '@/lib/env/server';",
     ...(hasEmail
       ? [
-          'import { sendEmail } from "@/server/email";',
+          'import { resolveEmailLocale, sendEmail, transactionalEmailSubject } from "@/server/email";',
           'import ResetPasswordEmail from "@/server/email/templates/ResetPassword";',
           'import VerifyEmail from "@/server/email/templates/VerifyEmail";',
+          'import MagicLinkEmail from "@/server/email/templates/MagicLink";',
         ]
       : []),
     "",
-    "const _authSecret = process.env.BETTER_AUTH_SECRET!;",
+    "const _authSecret = env.BETTER_AUTH_SECRET;",
     'if (!_authSecret || _authSecret.length < 32 || _authSecret.startsWith("REPLACE_WITH") || _authSecret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {',
     '  throw new Error("BETTER_AUTH_SECRET must be set to a strong random value, not placeholder, at least 32 chars");',
     "}",
     "",
-    "export const auth = betterAuth({",
-    "  appName: process.env.APP_NAME ?? 'GhostInit',",
+    "export const selectedIdentityPlugins = ['admin', 'two-factor', 'passkey', 'organization'] as const;",
+    "type AdminPlugin = ReturnType<typeof admin<AdminOptions>>;",
+    "type PortableAuthOptions = BetterAuthOptions & { plugins: [AdminPlugin] };",
+    "interface AdminCreationAuthContext {",
+    '  generateId(options: { model: "user" | "account"; size?: number }): string | false;',
+    "  password: {",
+    "    hash(password: string): Promise<string>;",
+    "    config: { minPasswordLength: number; maxPasswordLength: number };",
+    "  };",
+    "}",
+    'export type Auth = Pick<BetterAuthServer<PortableAuthOptions>, "handler" | "api"> & {',
+    "  readonly $context: Promise<AdminCreationAuthContext>;",
+    "};",
+    "",
+    ...authNetworkSecurityLines(),
+    "const configuredAuth = betterAuth({",
+    "  appName: env.APP_NAME ?? 'GhostInit',",
     "  secret: _authSecret,",
-    "  baseURL: process.env.BETTER_AUTH_URL!,",
-    "  database: drizzleAdapter(db, { provider: 'pg', schema }),",
+    "  baseURL: env.BETTER_AUTH_URL,",
+    ...(expoScheme ? [`  trustedOrigins: [env.BETTER_AUTH_URL, '${expoScheme}://'],`] : []),
+    "  database: drizzleAdapter(db, {",
+    "    provider: 'pg',",
+    "    schema: {",
+    "      user: schema.users,",
+    "      account: schema.accounts,",
+    "      session: schema.sessions,",
+    "      verification: schema.verifications,",
+    "      rateLimit: schema.rateLimits,",
+    "      twoFactor: schema.twoFactors,",
+    "      passkey: schema.passkeys,",
+    "      organization: schema.organizations,",
+    "      member: schema.members,",
+    "      invitation: schema.invitations,",
+    "      team: schema.teams,",
+    "      teamMember: schema.teamMembers,",
+    "      organizationRole: schema.organizationRoles,",
+    "    },",
+    "  }),",
     "  emailAndPassword: {",
-    "    enabled: true,",
+    `    enabled: ${hasEmail ? "true" : "false"},`,
     "    autoSignInAfterRegistration: false,",
+    "    revokeSessionsOnPasswordReset: true,",
+    ...(hasEmail ? ["    requireEmailVerification: true,"] : []),
     ...(hasEmail
       ? [
-          "    sendResetPassword: async ({ user, url }) => {",
-          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
-          "      const subject = `Reset your password - ${appName}`;",
+          "    sendResetPassword: async ({ user, url }, request) => {",
+          "      const appName = env.APP_NAME ?? 'GhostInit';",
+          "      const locale = resolveEmailLocale(request?.headers);",
+          '      const subject = transactionalEmailSubject("password-reset", locale, appName);',
           "      await sendEmail(user.email, subject, ResetPasswordEmail,",
-          "        { link: url, appName },",
+          "        { link: url, appName, locale },",
           "      );",
           "    },",
         ]
@@ -154,15 +362,41 @@ export function serverAuthTanstackSingle(hasEmail = true): string {
           "  emailVerification: {",
           "    sendOnSignUp: true,",
           "    autoSignInAfterVerification: true,",
-          "    sendVerificationEmail: async ({ user, url }) => {",
-          "      const appName = process.env.APP_NAME ?? 'GhostInit';",
-          "      await sendEmail(user.email, `Verify your email - ${appName}`, VerifyEmail, { link: url, appName });",
+          "    sendVerificationEmail: async ({ user, url }, request) => {",
+          "      const appName = env.APP_NAME ?? 'GhostInit';",
+          "      const locale = resolveEmailLocale(request?.headers);",
+          '      await sendEmail(user.email, transactionalEmailSubject("verification", locale, appName), VerifyEmail, { link: url, appName, locale });',
           "    },",
           "  },",
         ]
       : []),
-    "  plugins: [admin(), twoFactor({ issuer: process.env.BETTER_AUTH_URL! }), tanstackStartCookies()],",
+    ...socialProviderLines(),
+    ...secureAccountLinkingLines(hasEmail),
+    ...secureSessionLines(),
+    ...durableAuthRateLimitLines(),
+    "  plugins: [",
+    ...(expoScheme ? ["    expo(),"] : []),
+    "    admin(),",
+    "    twoFactor({ issuer: env.BETTER_AUTH_URL, twoFactorCookieMaxAge: 600, accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 } }),",
+    "    passkey(),",
+    secureOrganizationPlugin,
+    ...(hasEmail
+      ? [
+          "    magicLink({",
+          '      storeToken: "hashed",',
+          "      sendMagicLink: async ({ email, url }, context) => {",
+          "        const appName = env.APP_NAME ?? 'GhostInit';",
+          "        const locale = resolveEmailLocale(context?.request?.headers);",
+          '        await sendEmail(email, transactionalEmailSubject("magic-link", locale, appName), MagicLinkEmail, { link: url, appName, locale });',
+          "      },",
+          "    }),",
+        ]
+      : []),
+    "    tanstackStartCookies(),",
+    "  ],",
     "});",
+    "",
+    "export const auth: Auth = configuredAuth;",
     "",
     "export async function getRequestUser(headers: Headers) {",
     "  const session = await auth.api.getSession({ headers });",
@@ -180,50 +414,91 @@ function serverAuthSingleConvexContent(framework: SingleConvexAuthFramework): st
   const wrapperModule = isNext
     ? "@convex-dev/better-auth/nextjs"
     : "@convex-dev/better-auth/react-start";
-  const publicConvexUrl = isNext ? "NEXT_PUBLIC_CONVEX_URL" : "VITE_CONVEX_URL";
-  const publicConvexSiteUrl = isNext ? "NEXT_PUBLIC_CONVEX_SITE_URL" : "VITE_CONVEX_SITE_URL";
 
   return [
     `import { ${wrapper} } from "${wrapperModule}";`,
+    ...(isNext
+      ? [
+          'import type { Preloaded } from "convex/react";',
+          'import type { FunctionReference, FunctionReturnType, OptionalRestArgs } from "convex/server";',
+        ]
+      : []),
     'import { api } from "../../../convex/_generated/api";',
+    'import { env } from "@/lib/env/server";',
     "",
     "function requireEnv(name: string, ...candidates: (string | undefined)[]): string {",
     '  const found = candidates.find((value) => !!value && value.trim() !== "");',
     "  if (!found) {",
-    '    throw new Error(name + " must be set for Convex Better Auth. Run npx convex dev");',
+    '    throw new Error(name + " must be set for Convex Better Auth. Run bunx convex dev");',
     "  }",
     "  return found;",
     "}",
     "",
     "const convexUrl = requireEnv(",
     '  "CONVEX_URL",',
-    `  process.env.${publicConvexUrl},`,
-    "  process.env.CONVEX_URL,",
+    "  env.CONVEX_URL,",
     ");",
     "",
     "const convexSiteUrl = requireEnv(",
     '  "CONVEX_SITE_URL / SITE_URL",',
-    `  process.env.${publicConvexSiteUrl},`,
-    "  process.env.CONVEX_SITE_URL,",
-    "  process.env.SITE_URL,",
+    "  env.CONVEX_SITE_URL,",
+    "  env.SITE_URL,",
     ");",
     "",
-    "const authSecret = process.env.BETTER_AUTH_SECRET;",
+    "const authSecret = env.BETTER_AUTH_SECRET;",
     'if (!authSecret || authSecret.length < 32 || authSecret.startsWith("REPLACE_WITH") || authSecret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {',
     '  throw new Error("BETTER_AUTH_SECRET must be set to a strong random value, not placeholder, at least 32 chars");',
     "}",
     "",
-    "export const {",
-    "  handler,",
-    ...(isNext ? ["  preloadAuthQuery,", "  isAuthenticated,"] : []),
-    "  getToken,",
-    "  fetchAuthQuery,",
-    "  fetchAuthMutation,",
-    "  fetchAuthAction,",
-    `} = ${wrapper}({`,
+    ...(isNext ? ["const convexAuth = convexBetterAuthNextJs({"] : ["export const {"]),
+    ...(isNext
+      ? []
+      : [
+          "  handler,",
+          "  getToken,",
+          "  fetchAuthQuery,",
+          "  fetchAuthMutation,",
+          "  fetchAuthAction,",
+          `} = ${wrapper}({`,
+        ]),
     "  convexUrl,",
     "  convexSiteUrl,",
     "});",
+    ...(isNext
+      ? [
+          "",
+          "type AuthHandler = {",
+          "  GET: (request: Request) => Promise<Response>;",
+          "  POST: (request: Request) => Promise<Response>;",
+          "};",
+          'type PreloadAuthQuery = <Query extends FunctionReference<"query">>(',
+          "  query: Query,",
+          "  ...args: OptionalRestArgs<Query>",
+          ") => Promise<Preloaded<Query>>;",
+          'type FetchAuthQuery = <Query extends FunctionReference<"query">>(',
+          "  query: Query,",
+          "  ...args: OptionalRestArgs<Query>",
+          ") => Promise<FunctionReturnType<Query>>;",
+          'type FetchAuthMutation = <Mutation extends FunctionReference<"mutation">>(',
+          "  mutation: Mutation,",
+          "  ...args: OptionalRestArgs<Mutation>",
+          ") => Promise<FunctionReturnType<Mutation>>;",
+          'type FetchAuthAction = <Action extends FunctionReference<"action">>(',
+          "  action: Action,",
+          "  ...args: OptionalRestArgs<Action>",
+          ") => Promise<FunctionReturnType<Action>>;",
+          "",
+          "// Explicit public signatures prevent @convex-dev/better-auth's private",
+          "// convex-helpers EmptyObject alias from leaking into this app's declarations.",
+          "export const handler: AuthHandler = convexAuth.handler;",
+          "export const preloadAuthQuery: PreloadAuthQuery = convexAuth.preloadAuthQuery;",
+          "export const isAuthenticated: () => Promise<boolean> = convexAuth.isAuthenticated;",
+          "export const getToken: () => Promise<string | undefined> = convexAuth.getToken;",
+          "export const fetchAuthQuery: FetchAuthQuery = convexAuth.fetchAuthQuery;",
+          "export const fetchAuthMutation: FetchAuthMutation = convexAuth.fetchAuthMutation;",
+          "export const fetchAuthAction: FetchAuthAction = convexAuth.fetchAuthAction;",
+        ]
+      : []),
     "",
     "export async function getRequestUser() {",
     "  return await fetchAuthQuery(api.users.me, {});",

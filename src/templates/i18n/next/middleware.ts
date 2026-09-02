@@ -1,16 +1,14 @@
 import { file, type TemplateFile } from "../../shared.js";
 
-export function nextMiddlewareFile(filePath: string, routingImport: string): TemplateFile {
+/** @deprecated Locale selection is request-scoped and does not require middleware. */
+export function nextMiddlewareFile(filePath: string, _routingImport: string): TemplateFile {
   return file(
     filePath,
-    `import createMiddleware from "next-intl/middleware";
-import { routing } from "${routingImport}";
-
-export default createMiddleware(routing);
-
-export const config = {
-  matcher: "/((?!api|trpc|_next|_vercel|eve|.*\\\\..*).*)",
-};
+    `/**
+ * Locale selection is handled by i18n/request.ts from NEXT_LOCALE and Accept-Language.
+ * This compatibility module is intentionally not a Next.js middleware entry point.
+ */
+export const localeMiddlewareRequired = false as const;
 `,
   );
 }

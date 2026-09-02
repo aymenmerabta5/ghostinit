@@ -19,51 +19,102 @@ import {
   unauthorizedFileContent,
   forbiddenFileContent,
 } from "./fragments/layout.js";
-import { buildMarketingPageContent } from "./fragments/marketing.js";
-import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
-import { dashboardPageContent } from "./fragments/dashboard.js";
+import {
+  buildMarketingPageContent,
+  marketingFeaturesComponentContent,
+  marketingFooterComponentContent,
+  marketingHeroComponentContent,
+  marketingQuickStartComponentContent,
+} from "./fragments/marketing.js";
+import {
+  authOAuthButtonsContent,
+  signInFormContent,
+  signInMethodsContent,
+  signInPageContent,
+  signUpFormContent,
+  signUpPageContent,
+  twoFactorPageContent,
+} from "./fragments/auth.js";
+import {
+  tanstackDashboardFeatureFiles,
+  tanstackDashboardRouteContent,
+} from "./fragments/dashboard-tanstack.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { settingsFiles } from "./fragments/settings/index.js";
+import { webIdentityWorkspaceFiles } from "./fragments/identity-workspace/index.js";
 import { billingFiles } from "./fragments/billing/index.js";
 import { tanstackAdminFiles } from "./fragments/admin/index.js";
-import {
-  manifestFileContent,
-  robotsFileContent,
-  sitemapFileContent,
-  viewportFileContent,
-} from "./fragments/seo.js";
+import { manifestFileContent, robotsFileContent, sitemapFileContent } from "./fragments/seo.js";
 import { tanstackInstrumentationContent } from "./fragments/instrumentation.js";
 
-export function tanstackPageFiles(hasEmail = true, isConvex = false): TemplateFile[] {
+export function tanstackPageFiles(
+  hasEmail = true,
+  isConvex = false,
+  hasAuth = true,
+  hasApi = true,
+  isPostgres = true,
+  hasI18n = false,
+  hasBilling = true,
+): TemplateFile[] {
+  const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
-    rootRoute(),
-    marketingRoute(),
-    signInRoute(hasEmail),
-    signUpRoute(),
-    twoFactorRoute(),
-    ...recoveryFiles("tanstack", hasEmail),
-    dashboardRoute(),
-    ...settingsFiles("tanstack", isConvex),
-    ...billingFiles("tanstack"),
-    ...tanstackAdminFiles(isConvex),
+    rootRoute(hasI18n),
+    ...marketingFiles(hasBilling),
+    ...(hasAuth
+      ? [
+          signInRoute(hasEmail),
+          signUpRoute(),
+          ...authFormComponents(hasEmail, isPostgres),
+          ...(hasEmail ? [twoFactorRoute()] : []),
+          ...recoveryFiles("tanstack", hasEmail),
+          dashboardRoute(isConvex),
+          ...tanstackDashboardFeatureFiles(hasBilling),
+          ...settingsFiles(
+            "tanstack",
+            isConvex,
+            hasApi && (isPostgres || isConvex),
+            hasBilling,
+            hasEmail,
+            isPostgres,
+          ),
+          ...(hasApi && (isPostgres || isConvex)
+            ? webIdentityWorkspaceFiles("tanstack", "monorepo", hasI18n)
+            : []),
+        ]
+      : []),
+    ...(hasBilling ? billingFiles("tanstack", isConvex) : []),
+    ...(hasAdminUi ? tanstackAdminFiles(isConvex, hasI18n) : []),
     unauthorizedRoute(),
     forbiddenRoute(),
     notFoundRoute(),
-    sitemap(),
+    sitemap(hasBilling),
     robots(),
     manifest(),
-    viewport(),
     instrumentation(),
-    dashboardLoading(),
   ];
 }
 
-function rootRoute(): TemplateFile {
-  return file("apps/web/src/routes/__root.tsx", tanstackRootDocumentContent());
+function rootRoute(hasI18n = false): TemplateFile {
+  return file("apps/web/src/routes/__root.tsx", tanstackRootDocumentContent(hasI18n));
 }
 
-function marketingRoute(): TemplateFile {
-  return file("apps/web/src/routes/index.tsx", buildMarketingPageContent("tanstack"));
+function marketingFiles(hasBilling = true): TemplateFile[] {
+  return [
+    file("apps/web/src/routes/index.tsx", buildMarketingPageContent("tanstack")),
+    file("apps/web/src/components/marketing/hero.tsx", marketingHeroComponentContent("tanstack")),
+    file(
+      "apps/web/src/components/marketing/features.tsx",
+      marketingFeaturesComponentContent("tanstack"),
+    ),
+    file(
+      "apps/web/src/components/marketing/quick-start.tsx",
+      marketingQuickStartComponentContent("tanstack"),
+    ),
+    file(
+      "apps/web/src/components/marketing/footer.tsx",
+      marketingFooterComponentContent("tanstack", hasBilling),
+    ),
+  ];
 }
 
 function signInRoute(hasEmail = true): TemplateFile {
@@ -74,12 +125,27 @@ function signUpRoute(): TemplateFile {
   return file("apps/web/src/routes/sign-up.tsx", signUpPageContent("tanstack"));
 }
 
+function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] {
+  return [
+    file("apps/web/src/components/auth/oauth-buttons.tsx", authOAuthButtonsContent()),
+    file(
+      "apps/web/src/components/auth/sign-in-methods.tsx",
+      signInMethodsContent("tanstack", hasPasskey),
+    ),
+    file(
+      "apps/web/src/components/auth/sign-in-form.tsx",
+      signInFormContent("tanstack", hasEmail, hasPasskey),
+    ),
+    file("apps/web/src/components/auth/sign-up-form.tsx", signUpFormContent("tanstack", hasEmail)),
+  ];
+}
+
 function twoFactorRoute(): TemplateFile {
   return file("apps/web/src/routes/2fa.tsx", twoFactorPageContent("tanstack"));
 }
 
-function dashboardRoute(): TemplateFile {
-  return file("apps/web/src/routes/dashboard.tsx", dashboardPageContent("tanstack"));
+function dashboardRoute(isConvex = false): TemplateFile {
+  return file("apps/web/src/routes/dashboard.tsx", tanstackDashboardRouteContent(isConvex));
 }
 
 function unauthorizedRoute(): TemplateFile {
@@ -93,24 +159,15 @@ function forbiddenRoute(): TemplateFile {
 function notFoundRoute(): TemplateFile {
   return file("apps/web/src/routes/$notFound.tsx", notFoundFileContent("tanstack"));
 }
-function sitemap(): TemplateFile {
-  return file("apps/web/src/routes/sitemap.ts", sitemapFileContent("tanstack"));
+function sitemap(hasBilling = true): TemplateFile {
+  return file("apps/web/public/sitemap.xml", sitemapFileContent("tanstack", hasBilling));
 }
 function robots(): TemplateFile {
-  return file("apps/web/src/routes/robots.ts", robotsFileContent("tanstack"));
+  return file("apps/web/public/robots.txt", robotsFileContent("tanstack"));
 }
 function manifest(): TemplateFile {
-  return file("apps/web/src/routes/manifest.ts", manifestFileContent("tanstack"));
-}
-function viewport(): TemplateFile {
-  return file("apps/web/src/routes/viewport.ts", viewportFileContent("tanstack"));
+  return file("apps/web/public/manifest.webmanifest", manifestFileContent("tanstack"));
 }
 function instrumentation(): TemplateFile {
   return file("apps/web/src/instrumentation.ts", tanstackInstrumentationContent());
-}
-function dashboardLoading(): TemplateFile {
-  return file(
-    "apps/web/src/routes/dashboard/loading.tsx",
-    `import { Skeleton } from "@/components/ui/skeleton";\nexport default function DashboardLoading(): React.JSX.Element { return (<div className="p-6"><Skeleton className="h-32 w-full" /></div>); }\n`,
-  );
 }

@@ -1,211 +1,67 @@
-export function settingsLayoutSingle(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import Link from 'next/link';",
-    "import { usePathname } from 'next/navigation';",
-    "import { cn } from '@/lib/utils';",
-    "import { Separator } from '@/components/ui/separator';",
-    "",
-    "const nav = [",
-    "  { label: 'Settings', href: '/settings' },",
-    "  { label: 'Billing', href: '/billing' },",
-    "  { label: 'Admin', href: '/admin' },",
-    "];",
-    "",
-    "export default function SettingsLayout({ children }: { children: React.ReactNode }): React.JSX.Element {",
-    "  const pathname = usePathname();",
-    "  return (",
-    "    <main className='min-h-screen bg-background p-6 md:p-8'>",
-    "      <div className='mx-auto max-w-5xl flex flex-col gap-8'>",
-    "        <div className='flex flex-col gap-2'>",
-    "          <h1 className='text-2xl font-semibold tracking-tight'>Settings</h1>",
-    "          <p className='text-sm text-muted-foreground max-w-[65ch]'>Manage account and workspace preferences.</p>",
-    "        </div>",
-    "        <Separator />",
-    "        <div className='flex flex-col gap-8 md:flex-row'>",
-    "          <aside className='w-full md:w-48 flex flex-col gap-1'>",
-    "            {nav.map((item) => (",
-    "              <Link key={item.href} href={item.href} className={cn('block rounded-md px-3 py-2 text-sm font-medium transition-colors', pathname === item.href ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground')}>",
-    "                {item.label}",
-    "              </Link>",
-    "            ))}",
-    "          </aside>",
-    "          <section className='flex-1 min-w-0'>{children}</section>",
-    "        </div>",
-    "      </div>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-  ].join("\n");
+import {
+  settingsDangerZoneCardContent,
+  settingsHookContent,
+  settingsLayoutContent,
+  settingsPageContent,
+  settingsPasskeyCardContent,
+  settingsPasskeyListContent,
+  settingsPasswordCardContent,
+  settingsProfileCardContent,
+  settingsSessionsCardContent,
+  settingsSessionsListContent,
+  settingsTwoFactorCardContent,
+  settingsTwoFactorHookContent,
+} from "../../../apps/fragments/settings/index.js";
+
+export function settingsLayoutSingle(hasBilling = true, hasIdentityTransport = true): string {
+  return settingsLayoutContent(hasBilling, hasIdentityTransport);
 }
 
 export function useSettingsHookSingle(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import { useEffect, useState } from 'react';",
-    "import { useRouter } from 'next/navigation';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { useForm } from '@/components/ui/form';",
-    "",
-    "interface ProfileForm { name: string; }",
-    "",
-    "export function useSettings() {",
-    "  const router = useRouter();",
-    "  const { data: session, isPending } = authClient.useSession();",
-    "  const user = session?.user;",
-    "  const [currentPassword, setCurrentPassword] = useState('');",
-    "  const [newPassword, setNewPassword] = useState('');",
-    "  const [passwordError, setPasswordError] = useState<string | null>(null);",
-    "  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);",
-    "  const [twoFactorPassword, setTwoFactorPassword] = useState('');",
-    "  const [totpUri, setTotpUri] = useState<string | null>(null);",
-    "  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);",
-    "  const [verifyCode, setVerifyCode] = useState('');",
-    "  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);",
-    "  const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);",
-    "  const twoFactorEnabled = optimisticEnabled ?? user?.twoFactorEnabled ?? false;",
-    "  const [deletePassword, setDeletePassword] = useState('');",
-    "  const [deleteError, setDeleteError] = useState<string | null>(null);",
-    "  const profileForm = useForm({ defaultValues: { name: user?.name ?? '' } as ProfileForm, onSubmit: async ({ value }) => {",
-    "    setPasswordError(null);",
-    "    const result = await authClient.updateUser({ name: value.name });",
-    "    if (result.error) { setPasswordError(result.error.message ?? 'Failed'); return; }",
-    "    setPasswordSuccess('Profile updated');",
-    "  }});",
-    "  useEffect(() => { if (user?.name) profileForm.setFieldValue('name', user.name); }, [user?.name, profileForm]);",
-    "  async function handleChangePassword(e: React.FormEvent) { e.preventDefault(); setPasswordError(null); const r = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }); if (r.error) { setPasswordError(r.error.message ?? 'Failed'); return; } setPasswordSuccess('Updated'); setCurrentPassword(''); setNewPassword(''); }",
-    "  async function handleEnableTwoFactor(e: React.FormEvent) { e.preventDefault(); setTwoFactorError(null); const result = await authClient.twoFactor.enable({ password: twoFactorPassword }); if (result.error) { setTwoFactorError(result.error.message ?? 'Failed to enable two-factor authentication'); return; } setTotpUri(result.data.totpURI); setBackupCodes(result.data.backupCodes); }",
-    "  async function handleVerifyTwoFactor(e: React.FormEvent) { e.preventDefault(); setTwoFactorError(null); const result = await authClient.twoFactor.verifyTotp({ code: verifyCode, trustDevice: true }); if (result.error) { setTwoFactorError(result.error.message ?? 'Invalid code'); return; } setOptimisticEnabled(true); setTotpUri(null); setBackupCodes(null); }",
-    "  async function handleDisableTwoFactor(e: React.FormEvent) { e.preventDefault(); setTwoFactorError(null); const result = await authClient.twoFactor.disable({ password: twoFactorPassword }); if (result.error) { setTwoFactorError(result.error.message ?? 'Failed to disable two-factor authentication'); return; } setOptimisticEnabled(false); }",
-    "  async function handleDeleteAccount() { setDeleteError(null); const r = await authClient.deleteUser({ password: deletePassword }); if (r.error) { setDeleteError(r.error.message ?? 'Failed'); return; } router.push('/'); }",
-    "  return { session, isPending, user, profileForm, currentPassword, setCurrentPassword, newPassword, setNewPassword, passwordError, passwordSuccess, twoFactorPassword, setTwoFactorPassword, totpUri, backupCodes, verifyCode, setVerifyCode, twoFactorError, twoFactorEnabled, deletePassword, setDeletePassword, deleteError, handleChangePassword, handleEnableTwoFactor, handleVerifyTwoFactor, handleDisableTwoFactor, handleDeleteAccount };",
-    "}",
-    "",
-  ].join("\n");
+  return settingsHookContent();
 }
 
-export function settingsProfileCardSingle(): string {
-  return [
-    '"use client";',
-    "import * as React from 'react';",
-    "import { useEffect, useState } from 'react';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "import { Form, Field as TanStackField, SubmitButton, useForm } from '@/components/ui/form';",
-    "import { Spinner } from '@/components/ui/spinner';",
-    "interface ProfileForm { name: string; }",
-    "export function ProfileCard(): React.JSX.Element {",
-    "  const { data: session } = authClient.useSession();",
-    "  const user = session?.user;",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const [success, setSuccess] = useState<string | null>(null);",
-    "  const form = useForm({ defaultValues: { name: user?.name ?? '' } as ProfileForm, onSubmit: async ({ value }) => { setError(null); const result = await authClient.updateUser({ name: value.name }); if (result.error) { setError(result.error.message ?? 'Failed to update profile'); return; } setSuccess('Profile updated'); }});",
-    "  useEffect(() => { if (user?.name) form.setFieldValue('name', user.name); }, [user?.name, form]);",
-    "  return (<Card><CardHeader><CardTitle className='text-base'>Profile</CardTitle><CardDescription className='max-w-[60ch]'>Email {user?.email} Role {user?.role ?? 'user'}</CardDescription></CardHeader><CardContent className='flex flex-col gap-4'>{error ? <Alert variant='destructive'><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}{success ? <Alert><AlertTitle>Success</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}<Form form={form} className='flex flex-col gap-5'><FieldGroup><TanStackField form={form} name='name'>{(field) => (<Field><FieldLabel htmlFor='profile-name'>Name</FieldLabel><Input id='profile-name' name={field.name} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} placeholder='Ada Lovelace' /><FieldDescription>Your display name.</FieldDescription></Field>)}</TanStackField></FieldGroup><form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>{([canSubmit, isSubmitting]) => (<SubmitButton disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon='inline-start' /> : null}{isSubmitting ? 'Updating profile…' : 'Update profile'}</SubmitButton>)}</form.Subscribe></Form></CardContent></Card>);",
-    "}",
-    "",
-  ].join("\n");
+export function settingsProfileCardSingle(useServerActions = false): string {
+  return settingsProfileCardContent(useServerActions);
 }
 
-export function settingsPasswordCardSingle(): string {
-  return [
-    '"use client";',
-    "import * as React from 'react';",
-    "import { useState } from 'react';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "export function PasswordCard(): React.JSX.Element {",
-    "  const [currentPassword, setCurrentPassword] = useState('');",
-    "  const [newPassword, setNewPassword] = useState('');",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const [success, setSuccess] = useState<string | null>(null);",
-    "  async function handleSubmit(e: React.FormEvent) { e.preventDefault(); setError(null); const r = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true }); if (r.error) { setError(r.error.message ?? 'Failed'); return; } setSuccess('Password updated'); setCurrentPassword(''); setNewPassword(''); }",
-    "  return (<Card><CardHeader><CardTitle className='text-base'>Change password</CardTitle><CardDescription className='max-w-[60ch]'>Use strong password &ge;8 chars. Other sessions revoked.</CardDescription></CardHeader><CardContent className='flex flex-col gap-4'>{error ? <Alert variant='destructive'><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}{success ? <Alert><AlertTitle>Updated</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}<form onSubmit={handleSubmit} className='flex flex-col gap-4'><FieldGroup><Field><FieldLabel htmlFor='current-password'>Current password</FieldLabel><Input id='current-password' type='password' required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} /></Field><Field><FieldLabel htmlFor='new-password'>New password</FieldLabel><Input id='new-password' type='password' required minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /><FieldDescription>Must be at least 8 characters.</FieldDescription></Field></FieldGroup><Button type='submit'>Update password</Button></form></CardContent></Card>);",
-    "}",
-    "",
-  ].join("\n");
+export function settingsPasswordCardSingle(useServerActions = false): string {
+  return settingsPasswordCardContent(useServerActions);
+}
+
+export function settingsPasskeyCardSingle(): string {
+  return settingsPasskeyCardContent();
+}
+
+export function settingsPasskeyListSingle(): string {
+  return settingsPasskeyListContent();
 }
 
 export function settingsTwoFactorCardSingle(): string {
-  return [
-    '"use client";',
-    "import * as React from 'react';",
-    "import { useState } from 'react';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Badge } from '@/components/ui/badge';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "export function TwoFactorCard(): React.JSX.Element {",
-    "  const { data: session } = authClient.useSession();",
-    "  const user = session?.user;",
-    "  const [password, setPassword] = useState('');",
-    "  const [totpUri, setTotpUri] = useState<string | null>(null);",
-    "  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);",
-    "  const [verifyCode, setVerifyCode] = useState('');",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);",
-    "  const enabled = optimisticEnabled ?? user?.twoFactorEnabled ?? false;",
-    "  async function handleEnable(e: React.FormEvent) { e.preventDefault(); setError(null); const result = await authClient.twoFactor.enable({ password }); if (result.error) { setError(result.error.message ?? 'Failed to enable two-factor authentication'); return; } setTotpUri(result.data.totpURI); setBackupCodes(result.data.backupCodes); }",
-    "  async function handleVerify(e: React.FormEvent) { e.preventDefault(); setError(null); const result = await authClient.twoFactor.verifyTotp({ code: verifyCode, trustDevice: true }); if (result.error) { setError(result.error.message ?? 'Invalid code'); return; } setOptimisticEnabled(true); setTotpUri(null); setBackupCodes(null); }",
-    "  async function handleDisable(e: React.FormEvent) { e.preventDefault(); setError(null); const result = await authClient.twoFactor.disable({ password }); if (result.error) { setError(result.error.message ?? 'Failed to disable two-factor authentication'); return; } setOptimisticEnabled(false); }",
-    "  return (<Card><CardHeader><div className='flex items-center justify-between gap-3'><CardTitle className='text-base'>Two-factor authentication</CardTitle><Badge variant={enabled ? 'secondary' : 'outline'}>{enabled ? 'enabled' : 'disabled'}</Badge></div><CardDescription className='max-w-[65ch]'>TOTP trust 30d backup single-use.</CardDescription></CardHeader><CardContent className='flex flex-col gap-4'>{error ? <Alert variant='destructive'><AlertTitle>2FA error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}{enabled ? <form onSubmit={handleDisable} className='flex flex-col gap-4'><p className='text-sm text-muted-foreground'>2FA enabled.</p><FieldGroup><Field><FieldLabel htmlFor='disable-2fa-password'>Password</FieldLabel><Input id='disable-2fa-password' type='password' required value={password} onChange={(e) => setPassword(e.target.value)} /></Field></FieldGroup><Button type='submit' variant='outline'>Disable 2FA</Button></form> : <div className='flex flex-col gap-4'>{!totpUri ? <form onSubmit={handleEnable} className='flex flex-col gap-4'><p className='text-sm text-muted-foreground'>Enable TOTP.</p><FieldGroup><Field><FieldLabel htmlFor='enable-2fa-password'>Password</FieldLabel><Input id='enable-2fa-password' type='password' required value={password} onChange={(e) => setPassword(e.target.value)} /></Field></FieldGroup><Button type='submit'>Enable 2FA</Button></form> : <form onSubmit={handleVerify} className='flex flex-col gap-4'><div className='break-all rounded bg-muted/40 border p-3 text-xs font-mono'>{totpUri}</div>{backupCodes ? <pre className='break-all rounded bg-muted/40 border p-3 text-xs font-mono whitespace-pre-wrap'>{backupCodes.join('\\n')}</pre> : null}<FieldGroup><Field><FieldLabel htmlFor='verify-2fa-code'>Verification code</FieldLabel><Input id='verify-2fa-code' inputMode='numeric' maxLength={6} required value={verifyCode} onChange={(e) => setVerifyCode(e.target.value)} placeholder='000000' className='font-mono tracking-widest text-center' /><FieldDescription>6-digit code.</FieldDescription></Field></FieldGroup><Button type='submit'>Verify and enable</Button></form>}</div>}</CardContent></Card>);",
-    "}",
-    "",
-  ].join("\n");
+  return settingsTwoFactorCardContent();
 }
 
-export function settingsDangerZoneCardSingle(): string {
-  return [
-    '"use client";',
-    "import * as React from 'react';",
-    "import { useState } from 'react';",
-    "import { useRouter } from 'next/navigation';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { Separator } from '@/components/ui/separator';",
-    "import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "export function DangerZoneCard(): React.JSX.Element {",
-    "  const router = useRouter();",
-    "  const [deletePassword, setDeletePassword] = useState('');",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const [open, setOpen] = useState(false);",
-    "  async function handleDelete() { setError(null); const r = await authClient.deleteUser({ password: deletePassword }); if (r.error) { setError(r.error.message ?? 'Failed'); return; } setOpen(false); router.push('/'); }",
-    "  return (<Card className='border-destructive/30'><CardHeader><CardTitle className='text-base text-destructive'>Danger zone</CardTitle><CardDescription>Permanently delete account. Cannot be undone.</CardDescription></CardHeader><CardContent className='flex flex-col gap-4'><Separator />{error ? <Alert variant='destructive'><AlertTitle>Unable to delete</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}<FieldGroup><Field><FieldLabel htmlFor='delete-password'>Confirm with password</FieldLabel><Input id='delete-password' type='password' value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} placeholder='Your password' /><FieldDescription>Irreversible via Dialog.</FieldDescription></Field></FieldGroup></CardContent><CardFooter><Dialog open={open} onOpenChange={setOpen}><DialogTrigger render={<Button variant='destructive' />}>Delete account</DialogTrigger><DialogContent><DialogHeader><DialogTitle>Delete account?</DialogTitle><DialogDescription>Perma delete.</DialogDescription></DialogHeader><DialogFooter><Button variant='outline' onClick={() => setOpen(false)}>Cancel</Button><Button variant='destructive' onClick={() => void handleDelete()}>Confirm delete</Button></DialogFooter></DialogContent></Dialog></CardFooter></Card>);",
-    "}",
-    "",
-  ].join("\n");
+export function settingsTwoFactorHookSingle(): string {
+  return settingsTwoFactorHookContent();
 }
 
-export function settingsPageSingleContent(): string {
-  return [
-    '"use client";',
-    "import * as React from 'react';",
-    "import { ProfileCard } from './components/profile-card';",
-    "import { PasswordCard } from './components/password-card';",
-    "import { TwoFactorCard } from './components/two-factor-card';",
-    "import { DangerZoneCard } from './components/danger-zone-card';",
-    "export default function SettingsPage(): React.JSX.Element {",
-    "  return (<div className='flex flex-col gap-6 max-w-2xl'><ProfileCard /><PasswordCard /><TwoFactorCard /><DangerZoneCard /></div>);",
-    "}",
-    "",
-  ].join("\n");
+export function settingsSessionsCardSingle(useServerActions = false): string {
+  return settingsSessionsCardContent(useServerActions);
+}
+
+export function settingsSessionsListSingle(): string {
+  return settingsSessionsListContent();
+}
+
+export function settingsDangerZoneCardSingle(hasEmail = true, useServerActions = false): string {
+  return settingsDangerZoneCardContent(hasEmail, useServerActions);
+}
+
+export function settingsPageSingleContent(
+  hasIdentityTransport = true,
+  hasEmail = true,
+  hasPasskey = true,
+  useRsc = false,
+): string {
+  return settingsPageContent(hasIdentityTransport, hasEmail, hasPasskey, useRsc, "single");
 }

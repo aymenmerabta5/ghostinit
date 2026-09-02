@@ -17,10 +17,10 @@ Tests (pretest auto-builds):
 bun test --timeout 100000 tests/integration tests/unit          # official `bun run test`
 bun test tests/unit/<file>.test.ts --timeout 100000              # single file
 bun test tests/integration/<file>.test.ts --timeout 100000
-bun run pretest:fixtures && bun run test:fixtures                # compatibility matrices
-bun run test:generated # generate + bun install + typecheck + lint real projects
+bun run test:fixtures  # runner installs and fully checks all compatibility fixtures once
+bun run test:generated # generate + install + format/check + architecture + typecheck + lint:all + root tests
 bun run check:versions # every pinned + generated dependency version exists on npm
-bun run test:ci        # test + fixtures + generated
+bun run test:ci        # static + host/fixtures + 15 generated corners + oRPC WS runtime + six audited production builds
 ```
 
 Manual generation smoke:
@@ -28,7 +28,7 @@ Manual generation smoke:
 ```bash
 rm -rf /tmp/gi-test && mkdir /tmp/gi-test
 bunx ghostinit create demo --yes --no-install --cwd /tmp/gi-test --billing stripe,chargily --with-eve --with-i18n --apps web,desktop --preset saas
-cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
+cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint:all
 ```
 
 ## Architecture
@@ -43,8 +43,12 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
 
 **Tooling:**
 
-- Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for Next.js 16.2.10 TS resolution.
-- TS SSOT `packages/versions/src/index.ts`: `6.0.3` stable (not 7) — see `docs/ARCHITECTURE.md`.
+- Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for the supported Next.js 16 TS resolution path. Both enforce the typed seven-day `supplyChain.minimumReleaseAgeSeconds` policy with an empty exclusion list; fixtures and temporary install probes must do the same.
+- Generated dependency SSOT is `packages/versions/src/index.ts`; host and generated compiler policies are verified independently.
+- Generated Next apps use `typescriptNext` (TypeScript 7) through Next 16.3's
+  default project-local `tsc` CLI. Shared monorepo tooling, TanStack Start, and
+  Expo use the `typescript` TS6 pin while they still require JavaScript compiler
+  APIs. Never set `experimental.useTypeScriptCli` to `false` in Next config.
 - `turbo.json` generated: exhaustive `globalEnv` (50+ vars) — see table below.
 
 **Env vars — 5 places (keep in sync):**
@@ -55,16 +59,28 @@ cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
 | 2   | `src/templates/shared/env.ts`                | `.env.example` / `.env.local` line emitters |
 | 3   | `src/templates/root/turbo.ts` `turbo()`      | Generated `turbo.json` `globalEnv` list     |
 | 4   | `turbo.json` (host) + generated `turbo.json` | Actual cache keys for host vs output        |
-| 5   | `docs/ARCHITECTURE.md` + `AGENTS.md`         | Docs / onboarding                           |
+| 5   | `CONTRIBUTING.md` + `AGENTS.md`              | Docs / onboarding                           |
 
-Add a var? Update all five. Wildcards `NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*` cover framework-specific public prefixes — prefer explicit entries for server secrets.
+`src/lib/env-manifest.ts` is the key/placeholder SSOT; run
+`bun run scripts/sync-turbo-env.ts` after changing it, then update generated
+schema/runtime emitters and this documentation. Adapter-owned server variables
+include `NOTIFICATION_TOKEN_ENCRYPTION_KEY`, `FEATURE_FLAG_TIMEOUT_MS`, and the
+bounded `JOB_*` worker timings. Eve-enabled projects additionally declare
+`AI_GATEWAY_API_KEY`, the self-issued server-only `EVE_INTERNAL_AUTH_SECRET`,
+and `EVE_NEXT_PRODUCTION_ORIGIN`/`EVE_NEXT_PRODUCTION_PORT`; the latter two are
+Next build cache inputs. Wildcards `NEXT_PUBLIC_*`, `VITE_*`,
+`EXPO_PUBLIC_*` cover app-specific public prefixes; `DESKTOP_*` remains a
+main-process/server family and is never exposed through Vite. Generated
+env files and Turbo cache keys include only the selected app audiences; prefer
+explicit entries for server secrets.
 
-**Public env prefix is framework-specific.** `@repo/config` uses
-`@t3-oss/env-nextjs` (implicit `NEXT_PUBLIC_` prefix) for Next.js and
-`@t3-oss/env-core` with `clientPrefix: "VITE_"` for TanStack Start, and emits only
-that framework's public vars — see `src/templates/packages/config.ts`. t3-env
-type-errors on any `client` key lacking the prefix, so listing both families
-together does not compile.
+**Public env entrypoints are audience-specific.** Generated `@repo/config`
+exports `/server`, `/next`, `/vite`, and `/expo`; its root is a value-safe
+type/metadata barrel. Next clients import `/next` (`NEXT_PUBLIC_`), TanStack and
+desktop renderers import `/vite` (`VITE_`), and Expo imports `/expo`
+(`EXPO_PUBLIC_`). Single mode mirrors these under `src/lib/env/`. Server secrets
+exist only in the private server schema and `/server` runtime. Never re-export a
+server env value from a client entry or expose `DESKTOP_*` via Vite.
 
 **Generated packages need explicit `exports` and `types`.** `@repo/*` resolves to
 each package's SOURCE via tsconfig `paths`, so a consumer typechecks its
@@ -74,10 +90,10 @@ which broke the generated typecheck:
 - A package with no `exports` (and no `main`) has no entry point —
   `import { ok } from "@repo/kernel"` fails with TS2307. Every generated package
   needs `exports: { ".": "./src/index.ts" }`.
-- Anything that (transitively) pulls in `@repo/config` compiles its `env.ts`,
-  which uses `process`, so it needs `types: ["node"]`. Only declare `@types`
-  the package actually depends on — listing `react` on the tokens-only `@repo/ui`
-  fails with TS2688.
+- Config subpaths need exact tsconfig mappings (`@repo/config/server|next|vite|expo`);
+  a generic `@repo/*` substitution resolves subpaths incorrectly and must not
+  expose the private `server-schema.ts`. Only declare ambient `@types` a package
+  actually consumes.
 
 **Never mint third-party credentials.** `buildSecrets()` mints only self-issued
 secrets (`authSecret`, `postgresPassword`). Vendor keys (Stripe/Chargily/Paddle/
@@ -107,7 +123,8 @@ key with no `sk_` prefix).
 - **Typed errors + JSON envelope** — use `ValidationError`, `ExitCode`, `envelope()`.
 - **Package versions** — never hardcode `^x.y.z` in templates; import `* as v` from `./versions.js` (re-export of `@repo/versions`). Internal deps use `workspace:*`.
 - **Billing flexibility** — any combo allowed: `none`, `stripe`, `chargily`, `chargily,stripe` (Algeria+Global), `all`. Parsing via `parseBillingInput()` case-insensitive deduped. Validation only blocks `billing + database=none`. Each provider needs 7 files (<300 LOC guideline each, `// @allow-long` escape if needed): `client.ts`, `checkout.ts`, `customer.ts`, `portal.ts`, `webhook.ts`, `subscriptions.ts`, `mappers.ts` + barrel `index.ts` + wiring in `billing/webhooks/factory.ts` + `shared/env.ts` + UI panel.
-- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`, `availableDeployTargets=[vercel,fly,docker,none]` (`--deploy` emits Dockerfile+`.dockerignore` / `fly.toml` / `vercel.json`). Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
+- **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`, `availableDeployTargets=[vercel,fly,docker,none]`. Docker emits `Dockerfile`, `.dockerignore`, `compose.production.yml`, and lifecycle guidance; Fly adds `fly.toml`; Vercel adds `vercel.json`. Vercel manages patches within valid `bunVersion: "1.4.x"`, while generated install/build commands invoke exact Bun `1.4.0`; Docker/Fly use the exact image tag. All three deployment targets require a regular root `bun.lock` and reuse `scripts/require-bun-lock.mjs`: Vercel runs it before install and build, while Docker/Fly run it before `bun install --frozen-lockfile`. After `--no-install`, run `bun install` with Bun `1.4.0` first. Container builds receive `.env.local` only through an ephemeral BuildKit secret, never `COPY`. Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
+- **Single native support boundary** — single Expo/Electron is frontend-only and permits client-local analytics/i18n. It has no generated backend or external host-selection contract; use monorepo `web,mobile` or `web,desktop` for server-backed capabilities.
 
 ## Version Sync Gotcha
 
@@ -136,13 +153,24 @@ it pins for the output.
 ## Testing Quirks
 
 - Timeout required: `--timeout 100000` (integration does heavy generation + `bun install`).
-- Fixtures in `tests/fixtures/compatibility/` need separate `bun install` per fixture — slow, skip on iteration unless touching oRPC/Drizzle/Next compat.
-- Architecture checker: `bun run build && node dist/cli.js check` or `ghostinit check` in generated project. Run after template changes.
+- Fixtures in `tests/fixtures/compatibility/` use frozen locks and run a blocking `bun audit --audit-level=high` after each install — slow, skip on iteration unless touching oRPC/Drizzle, Next/Tailwind, Expo/Uniwind, or release policy.
+- Prepublication architecture checker: `bun run build && bun ./dist/cli.js check --cwd <generated-project> --json`. Always use this exact local artifact in release gates; never use a registry fallback for an unpublished CLI.
 
 ### The generated-project gate (`bun run test:generated`)
 
-`scripts/test-generated.ts` generates real projects, runs `bun install` in each,
-then runs that project's own `typecheck` and `lint`. It is part of `test:ci`.
+`scripts/test-generated.ts` generates real projects, runs `bun install`, blocks
+on `bun audit --audit-level=high` for that corner, runs
+`format` followed by `format:check`, applies the exact local `dist/cli.js`
+architecture check to the normalized tree, then runs the project's own
+`typecheck`, fail-closed `lint:all`, and the generated root `test` script. It does
+not run a production build.
+`test:ci` runs this gate with `--all`, proves the real typed oRPC WebSocket
+runtime, then runs six representative production-build/start lifecycles through
+`test:e2e-build`. Each lifecycle audits its installed graph at high severity,
+then explicitly runs `typecheck` before fail-closed `lint:all` and the production build. Generated
+projects deliberately do not add an unpublished `ghostinit` dependency:
+prepublication gates own the local CLI path, while consumers use the released
+CLI they explicitly installed.
 
 This exists because the host suite structurally cannot see the output: templates
 are string arrays, so `bun run check` stayed green while generated projects
@@ -151,13 +179,23 @@ on TS6, packages with no `exports`, UI components never emitted) and failed to
 lint (`.oxlintrc.json` extended a file that was never written). Every one of
 those was invisible to 399 passing unit tests.
 
-- Default corners are `next-monorepo` and `single-next` — CI blocks on these.
-- `--all` runs every corner (slow: each is a full `bun install`).
+- Default local corners are `next-monorepo` and `single-next`; CI passes `--all`.
+- `--all` runs all 15 configured corners, including installed Node, TanStack + Convex,
+  TanStack messaging, Redis, web+mobile+desktop, notifications, remote feature
+  flags, jobs, and standalone-storage slices (slow: each is a full `bun install`).
+  This is representative, not an exhaustive Cartesian product.
 - `--only a,b` selects corners; `--keep` leaves the projects on disk to inspect.
-- A corner may declare `expectedFailures` for a documented known gap; those report
-  as KNOWN and do not fail the run. When you fix the gap, delete the entry so it
-  starts blocking. (No known gaps currently — the last one, `tanstack`
-  typecheck, was fixed.)
+- Every selected corner is release-blocking. Do not add expected-failure or
+  allow-failure exceptions; keep a failing configuration out of release claims
+  until its generate/install/format/architecture/typecheck/lint:all/test path is fixed.
+
+`bun run release` never publishes. Its final `release:artifact` step uses Bun
+1.4.0 to build and pack once, binds the packed-CLI test to that exact tarball,
+and writes a SHA-256 sidecar under `.ghostinit-release/`. The checksum is an
+integrity identifier, not registry provenance; Bun 1.4.0 has no provenance
+attestation flag, so do not add a false `publishConfig.provenance` claim. If a
+release is approved, publish the already-tested tarball path rather than
+repacking the tree.
 
 Use it whenever you touch dependency versions, tsconfig emission, package
 manifests, or anything under `apps/`.
@@ -167,9 +205,9 @@ manifests, or anything under `apps/`.
 `tests/unit/generation-matrix.test.ts` is the guard against variant drift. Every
 other billing/app test drives only the DEFAULT config (monorepo + Next.js +
 Drizzle), so bugs used to ship freely in the TanStack and Convex variants while
-the suite stayed green. The matrix test generates all eight corners
-(monorepo/single × nextjs/tanstack-start × postgres/convex/none × billing on/off)
-in memory and asserts structural invariants:
+the suite stayed green. The matrix test generates 12 representative corners
+across mode, framework, database, app, and billing choices in memory and asserts
+structural invariants:
 
 - **every emitted `.ts`/`.tsx` parses** (via oxc-parser). Templates are assembled
   as string arrays, so nothing else typechecks the OUTPUT — this catches
@@ -184,13 +222,14 @@ in memory and asserts structural invariants:
 - **`.env.local` never invents third-party credentials** — vendor keys stay
   `REPLACE_WITH_*` placeholders; only self-issued secrets are minted.
 
-If you add a template, it must satisfy these for all eight corners. Prefer fixing
-the generator over relaxing an assertion.
+If you add a template, it must satisfy all configured corners. Prefer fixing the
+generator over relaxing an assertion.
 
-## TanStack Start — now fully green
+## TanStack Start gate expectations
 
-`--framework tanstack-start` generates, installs, typechecks, and lints cleanly.
-`typecheck` runs `tsr generate` first so `src/routeTree.gen.ts` exists.
+A TanStack corner is verified only after its generated project installs,
+typechecks, and lints successfully on the final tree. `typecheck` runs
+`tsr generate` first so `src/routeTree.gen.ts` exists.
 
 - Server route handlers for TanStack now correctly destructure `{ request }: { request: Request }`
   (Next.js handlers keep `request: Request`), matching `RouteMethodHandlerFn`.
@@ -202,12 +241,14 @@ the generator over relaxing an assertion.
 - `database=none` now emits a stub `packages/database` so `import { db } from "@repo/database"`
   resolves and `packages/auth` typechecks (stub `db: any` proxy).
 
-All corners (monorepo/single × nextjs/tanstack-start × postgres/convex/none × billing) are
-green end to end: `bun install`, `turbo run typecheck`, and `turbo run lint` pass.
+Do not promote a past green subset to a release claim. Record the exact
+configurations, final-tree status, commands, and exit codes for each run.
 
 ## References
 
-- `CONTRIBUTING.md` — onboarding, structure, how-to-add guides, build/code style/testing/release
-- `docs/ARCHITECTURE.md` — deep GhostInit Layered Architecture (6-layer pragmatic inspired by DDD, well-structured monorepo with architectural linting build-time only) graph, host vs generated, billing model, oRPC contract-first, security, DRY strategy
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — onboarding, structure, how-to-add guides, build/code style/testing/release
+- [Architecture](#architecture) — generated architecture graph, host/output boundary, billing model, oRPC, and security invariants
+- [V1-to-V2 compatibility ledger](./evidence/compatibility/v1-to-v2.json) + [schema](./evidence/compatibility/v1-to-v2.schema.json) — machine-readable V1 surface and V2 migration decisions
+- [Design evidence and policy gates](./DESIGN.md#evidence-and-policy-gates) + [frontend engineering records](./docs/engineering/frontend-task-records/) — design-system policy and versioned frontend engineering evidence
 - `.opencode/` — currently empty; no `opencode.json`
 - `.claude/AGENTS.md` — subagent role manifest (not OpenCode instructions)

@@ -5,7 +5,8 @@ export function clientHooksContent(mode: ProjectMode): string {
   const contextImport = mode === "monorepo" ? "./provider.js" : "./posthog-provider.js";
   return `"use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { JsonType } from "posthog-js";
 import { usePostHogContext } from "${contextImport}";
 import { captureClientEvent } from "${clientImport}";
 import type { AnalyticsEventName, EventProperties, ExperimentKey, FeatureFlagKey } from "${mode === "monorepo" ? "../types.js" : "../server/analytics/types.js"}";
@@ -36,7 +37,7 @@ export function useAnalytics() {
   const alias = useCallback(
     (aliasId: string) => {
       try {
-        (ctx.client as unknown as { alias?: (id: string) => void })?.alias?.(aliasId);
+        ctx.client?.alias(aliasId);
       } catch {}
     },
     [ctx.client],
@@ -66,10 +67,10 @@ export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefine
   useEffect(() => {
     if (!client) return;
     try {
-      const v = (client as unknown as { getFeatureFlag?: (k: string) => string | boolean | undefined }).getFeatureFlag?.(key);
+      const v = client.getFeatureFlag(key);
       setValue(v);
-      const unsub = (client as unknown as { onFeatureFlags?: (cb: (flags: Record<string, string | boolean>) => void) => () => void }).onFeatureFlags?.((flags: Record<string, string | boolean>) => {
-        setValue(flags[key]);
+      const unsub = client.onFeatureFlags((_flagKeys, variants) => {
+        setValue(variants[key]);
       });
       return () => {
         try {
@@ -90,52 +91,41 @@ export function useFeatureFlagEnabled(key: FeatureFlagKey): boolean {
   return flag !== undefined;
 }
 
-export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | undefined {
+export function useFeatureFlagPayload(key: FeatureFlagKey): JsonType | undefined {
   const client = usePostHog();
-  const [payload, setPayload] = useState<T | undefined>(undefined);
+  const [payload, setPayload] = useState<JsonType | undefined>(undefined);
 
   useEffect(() => {
     if (!client) return;
     try {
-      const p = (client as unknown as { getFeatureFlagPayload?: (k: string) => T | undefined }).getFeatureFlagPayload?.(key) as T | undefined;
-      setPayload(p);
+      setPayload(client.getFeatureFlagPayload(key));
     } catch {}
   }, [client, key]);
 
   return payload;
 }
 
-function subscribeToFlags(cb: () => void) {
-  if (typeof window === "undefined") return () => {};
-  try {
-    const ph = (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog;
-    if (!ph?.onFeatureFlags) return () => {};
-    const unsub = ph.onFeatureFlags(cb);
-    return () => {
-      try {
-        unsub?.();
-      } catch {}
-    };
-  } catch {
-    return () => {};
-  }
-}
-
-function getFlagsSnapshot(): Record<string, string | boolean> {
-  try {
-    const ph = typeof window !== "undefined" ? (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog : null;
-    return ph?.getFeatureFlags?.() ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function getFlagsServerSnapshot(): Record<string, string | boolean> {
-  return {};
-}
-
 export function useActiveFeatureFlags(): Record<string, string | boolean> {
-  return useSyncExternalStore(subscribeToFlags, getFlagsSnapshot, getFlagsServerSnapshot);
+  const client = usePostHog();
+  const [flags, setFlags] = useState<Record<string, string | boolean>>({});
+
+  useEffect(() => {
+    if (!client) return;
+    try {
+      const unsubscribe = client.onFeatureFlags((_flagKeys, variants) => {
+        setFlags(variants);
+      });
+      return () => {
+        try {
+          unsubscribe();
+        } catch {}
+      };
+    } catch {
+      return;
+    }
+  }, [client]);
+
+  return flags;
 }
 
 export function useFeatureFlags(): Record<string, string | boolean> {
@@ -144,7 +134,7 @@ export function useFeatureFlags(): Record<string, string | boolean> {
 
 export interface UseExperimentResult {
   variant: string | undefined;
-  payload: unknown;
+  payload: JsonType | undefined;
   isEnrolled: boolean;
   isLoading: boolean;
 }

@@ -1,4 +1,4 @@
-export { configContent } from "./config.js";
+export { clientConfigContent, configContent } from "./config.js";
 export { typesContent } from "./types.js";
 export { sharedEventsContent } from "./events.js";
 export { sharedPropertiesContent } from "./properties.js";
@@ -6,7 +6,12 @@ export { sharedConsentContent } from "./consent.js";
 export { testingMocksContent } from "./mocks.js";
 export { clientPosthogClientContent } from "./client.js";
 export { singleLibAnalyticsContent } from "./lib.js";
-export { clientProviderContent, singleComponentsProviderContent } from "./provider.js";
+export {
+  clientProviderContent,
+  postHogContextContent,
+  singleComponentsHooksContent,
+  singleComponentsProviderContent,
+} from "./provider.js";
 export { clientPageViewContent, singlePageViewContent } from "./pageview.js";
 export { clientHooksContent, singleHooksContent } from "./hooks.js";
 export { clientComponentsContent } from "./experiments.js";

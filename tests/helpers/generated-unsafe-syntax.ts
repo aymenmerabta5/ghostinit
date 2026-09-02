@@ -1,9 +1,10 @@
-// @allow-long 555: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
+// @allow-long 611: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseSync } from "oxc-parser";
+import { billingProviders } from "../../src/lib/addons.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { FsTransaction, type StagedFile } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -90,6 +91,51 @@ const TS_IGNORE_DIRECTIVE = /^\s*\/?\s*@ts-ignore(?:\s|$)/;
 const normalized = (source: string): string => source.replace(/\s+/g, " ").trim();
 const fingerprint = (source: string): string =>
   createHash("sha256").update(normalized(source)).digest("hex").slice(0, 16);
+
+const ALL_CAPABILITIES_ENABLED = {
+  cache: "redis",
+  auth: true,
+  api: true,
+  email: true,
+  analytics: true,
+  eve: true,
+  i18n: true,
+  pdf: true,
+  messaging: true,
+  storage: true,
+  notifications: true,
+  featureFlags: "posthog",
+  jobs: true,
+} as const;
+
+const ALL_CAPABILITIES_DISABLED = {
+  cache: "none",
+  auth: false,
+  api: false,
+  email: false,
+  analytics: false,
+  eve: false,
+  i18n: false,
+  pdf: false,
+  messaging: false,
+  storage: false,
+  notifications: false,
+  featureFlags: "none",
+  jobs: false,
+} as const;
+
+// Exercise capabilities that are meaningful without a project database while
+// retaining the database=none boundary for stateful families.
+const STATELESS_CAPABILITIES_ENABLED = {
+  ...ALL_CAPABILITIES_DISABLED,
+  api: true,
+  email: true,
+  analytics: true,
+  eve: true,
+  i18n: true,
+  pdf: true,
+  featureFlags: "posthog",
+} as const;
 
 function unsafeKind(node: OxcNode, parent: OxcNode | undefined): UnsafeKind | undefined {
   if (node.type === "TSAnyKeyword") {
@@ -287,23 +333,70 @@ function catalogConfig(
   capabilities: "off" | "on",
 ): CatalogConfiguration {
   const enabled = capabilities === "on";
+  const allApps = enabled && mode === "monorepo";
+  const profile = allApps ? "capabilities-on-all-apps" : `capabilities-${capabilities}`;
   return {
-    configKey: `${mode}/${framework}/${database}/capabilities-${capabilities}`,
+    configKey: `${mode}/${framework}/${database}/${profile}`,
     config: projectConfigSchema.parse({
       name: "unsafe-syntax-catalog",
       runtime: "bun",
       version: "0.1.0",
       mode,
       preset: "custom",
-      billing: enabled ? ["stripe"] : [],
+      billing: enabled ? [...billingProviders] : [],
       features: [],
       database,
       framework,
+      apps: allApps ? ["web", "mobile", "desktop"] : ["web"],
+      ...(enabled ? ALL_CAPABILITIES_ENABLED : ALL_CAPABILITIES_DISABLED),
+    }),
+  };
+}
+
+function singleNonWebCatalogConfig(
+  framework: "nextjs" | "tanstack-start",
+  database: "postgres" | "convex" | "none",
+  app: "mobile" | "desktop",
+): CatalogConfiguration {
+  const enabled = database !== "none";
+  return {
+    configKey: `single/${framework}/${database}/capabilities-${enabled ? "on" : "off"}-${app}`,
+    config: projectConfigSchema.parse({
+      name: "unsafe-syntax-catalog",
+      runtime: "bun",
+      version: "0.1.0",
+      mode: "single",
+      preset: "custom",
+      billing: enabled ? [...billingProviders] : [],
+      features: [],
+      database,
+      framework,
+      apps: [app],
+      ...(enabled ? ALL_CAPABILITIES_ENABLED : ALL_CAPABILITIES_DISABLED),
+    }),
+  };
+}
+
+function statelessCatalogConfig(
+  mode: "monorepo" | "single",
+  framework: "nextjs" | "tanstack-start",
+  capabilities: "off" | "stateless",
+): CatalogConfiguration {
+  const enabled = capabilities === "stateless";
+  return {
+    configKey: `${mode}/${framework}/none/capabilities-${capabilities}`,
+    config: projectConfigSchema.parse({
+      name: "unsafe-syntax-catalog",
+      runtime: "bun",
+      version: "0.1.0",
+      mode,
+      preset: "custom",
+      billing: [],
+      features: [],
+      database: "none",
+      framework,
       apps: ["web"],
-      auth: enabled,
-      api: enabled,
-      email: enabled,
-      analytics: enabled,
+      ...(enabled ? STATELESS_CAPABILITIES_ENABLED : ALL_CAPABILITIES_DISABLED),
     }),
   };
 }
@@ -313,15 +406,34 @@ const frameworks = ["nextjs", "tanstack-start"] as const;
 const databases = ["postgres", "convex"] as const;
 const capabilitySettings = ["off", "on"] as const;
 
-export const PROJECTION_CONFIGURATIONS: CatalogConfiguration[] = modes.flatMap((mode) =>
-  frameworks.flatMap((framework) =>
-    databases.flatMap((database) =>
-      capabilitySettings.map((capabilities) =>
-        catalogConfig(mode, framework, database, capabilities),
+export const PROJECTION_CONFIGURATIONS: CatalogConfiguration[] = modes
+  .flatMap((mode) =>
+    frameworks.flatMap((framework) =>
+      databases.flatMap((database) =>
+        capabilitySettings.map((capabilities) =>
+          catalogConfig(mode, framework, database, capabilities),
+        ),
       ),
     ),
-  ),
-);
+  )
+  .concat(
+    modes.flatMap((mode) =>
+      frameworks.flatMap((framework) =>
+        (["off", "stateless"] as const).map((capabilities) =>
+          statelessCatalogConfig(mode, framework, capabilities),
+        ),
+      ),
+    ),
+  )
+  .concat(
+    frameworks.flatMap((framework) =>
+      ([...databases, "none"] as const).flatMap((database) =>
+        (["mobile", "desktop"] as const).map((app) =>
+          singleNonWebCatalogConfig(framework, database, app),
+        ),
+      ),
+    ),
+  );
 
 export const GATE_CONFIGURATIONS: CatalogConfiguration[] = [
   {
@@ -332,11 +444,12 @@ export const GATE_CONFIGURATIONS: CatalogConfiguration[] = [
       version: "0.1.0",
       mode: "monorepo",
       preset: "saas",
-      billing: ["stripe", "chargily"],
+      billing: [...billingProviders],
       features: [],
       database: "postgres",
       framework: "nextjs",
       apps: ["web"],
+      ...ALL_CAPABILITIES_ENABLED,
     }),
   },
   {
@@ -347,11 +460,12 @@ export const GATE_CONFIGURATIONS: CatalogConfiguration[] = [
       version: "0.1.0",
       mode: "single",
       preset: "saas",
-      billing: ["stripe"],
+      billing: [...billingProviders],
       features: [],
       database: "postgres",
       framework: "nextjs",
       apps: ["web"],
+      ...ALL_CAPABILITIES_ENABLED,
     }),
   },
 ];
@@ -391,75 +505,17 @@ function argumentValue(args: string[], name: string): string {
   return value;
 }
 
-function ruleIdentity(rule: UnsafeProvenanceRule): string {
-  return [rule.sourceOwner, rule.emittedPathPattern, ...rule.applicableConfigKeys].join("::");
-}
-
-function requireCount(label: string, actual: number, expected: number): void {
-  if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`);
-}
-
-function assertFactualCeiling(
+function assertZeroCatalog(
   projection: UnsafeOccurrence[],
   gates: UnsafeOccurrence[],
   policy: UnsafeDispositionPolicy,
 ): void {
-  requireCount("Projection occurrence rows", projection.length, 839);
-  requireCount("Gate occurrence rows", gates.length, 172);
-  const projectionRules = new Set(
-    projection.map((occurrence) =>
-      ruleIdentity(findProvenanceRule(occurrence.configKey, occurrence.path, policy)),
-    ),
-  );
-  requireCount("Projection provenance rules", projectionRules.size, 96);
-
-  const comparableKeys = new Set([
-    "monorepo/nextjs/postgres/capabilities-on",
-    "single/nextjs/postgres/capabilities-on",
-  ]);
-  const comparableRules = projection
-    .filter(({ configKey }) => comparableKeys.has(configKey))
-    .map((occurrence) => findProvenanceRule(occurrence.configKey, occurrence.path, policy));
-  requireCount(
-    "Comparable remove-in-stabilization rows",
-    comparableRules.filter(({ disposition }) => disposition === "remove-in-stabilization").length,
-    72,
-  );
-  requireCount(
-    "Comparable deferred-v1 rows",
-    comparableRules.filter(({ disposition }) => disposition === "deferred-v1").length,
-    85,
-  );
-
-  const gateRules = gates.map((occurrence) =>
-    findProvenanceRule(occurrence.configKey, occurrence.path, policy),
-  );
-  requireCount(
-    "Gate remove-in-stabilization rows",
-    gateRules.filter(({ disposition }) => disposition === "remove-in-stabilization").length,
-    72,
-  );
-  requireCount(
-    "Gate deferred-v1 rows",
-    gateRules.filter(({ disposition }) => disposition === "deferred-v1").length,
-    100,
-  );
-
-  const catalog = [...gates, ...projection];
-  requireCount("Catalog occurrence rows", catalog.length, 1011);
-  const perRule = new Map<string, number>();
-  for (const occurrence of catalog) {
-    const identity = ruleIdentity(
-      findProvenanceRule(occurrence.configKey, occurrence.path, policy),
-    );
-    perRule.set(identity, (perRule.get(identity) ?? 0) + 1);
+  if (policy.rules.length !== 0) {
+    throw new Error(`Zero-gate policy must not retain provenance rules: ${policy.rules.length}`);
   }
-  requireCount("Catalog provenance rules", perRule.size, 101);
-  for (const rule of policy.rules) {
-    requireCount(
-      `Occurrences for ${ruleIdentity(rule)}`,
-      perRule.get(ruleIdentity(rule)) ?? 0,
-      rule.expectedOccurrences,
+  if (projection.length !== 0 || gates.length !== 0) {
+    throw new Error(
+      `Unsafe syntax returned after zero gate: projection=${projection.length}, gates=${gates.length}`,
     );
   }
 }
@@ -467,7 +523,7 @@ function assertFactualCeiling(
 function buildBaseline(policy: UnsafeDispositionPolicy): UnsafeBaseline {
   const projection = generateCatalogOccurrences(PROJECTION_CONFIGURATIONS, policy);
   const gates = generateCatalogOccurrences(GATE_CONFIGURATIONS, policy);
-  assertFactualCeiling(projection, gates, policy);
+  assertZeroCatalog(projection, gates, policy);
   const occurrences = [...gates, ...projection].sort((left, right) =>
     compareText(left.id, right.id),
   );

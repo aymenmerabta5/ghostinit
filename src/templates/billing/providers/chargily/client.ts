@@ -1,8 +1,8 @@
 /**
  * Chargily client init — server-only guard + env + config.
  */
-// @ts-ignore - optional dep
 import { ChargilyClient } from "@chargily/chargily-pay";
+import { randomUUID } from "node:crypto";
 import type { SubscriptionStatus } from "../interface.js";
 
 export type ChargilyMode = "test" | "live";
@@ -19,42 +19,44 @@ export interface ChargilyProviderConfig {
 }
 
 export function ensureServerOnly(): void {
-  const g = globalThis as unknown as { window?: unknown; document?: unknown };
-  if (typeof g.window !== "undefined" || typeof g.document !== "undefined") {
+  if (
+    Reflect.get(globalThis, "window") !== undefined ||
+    Reflect.get(globalThis, "document") !== undefined
+  ) {
     throw new Error("CHARGILY_SERVER_ONLY: @chargily/chargily-pay must ONLY be used server-side.");
   }
 }
 
 function getEnvValue(key: string, fallback?: string): string | undefined {
   try {
-    if (typeof process !== "undefined" && process.env?.[key]) return process.env[key] as string;
-  } catch {}
-  try {
-    const g = globalThis as unknown as { process?: { env?: Record<string, string> } };
-    const v = g.process?.env?.[key];
-    if (v) return v;
-  } catch {}
-  return fallback;
+    return typeof process === "undefined" ? fallback : (process.env[key] ?? fallback);
+  } catch {
+    return fallback;
+  }
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 export function resolveChargilyConfig(config?: ChargilyProviderConfig | Record<string, unknown>) {
-  const cfg = (config ?? {}) as ChargilyProviderConfig & Record<string, unknown>;
+  const cfg = config ?? {};
   const apiKey =
-    (cfg.apiKey as string | undefined) ??
-    (cfg.CHARGILY_API_KEY as string | undefined) ??
-    (cfg.chargilyApiKey as string | undefined) ??
+    optionalString(cfg.apiKey) ??
+    optionalString(cfg.CHARGILY_API_KEY) ??
+    optionalString(cfg.chargilyApiKey) ??
     getEnvValue("CHARGILY_API_KEY") ??
     "";
   const secretKey =
-    (cfg.secretKey as string | undefined) ??
-    (cfg.webhookSecret as string | undefined) ??
-    (cfg.CHARGILY_SECRET_KEY as string | undefined) ??
+    optionalString(cfg.secretKey) ??
+    optionalString(cfg.webhookSecret) ??
+    optionalString(cfg.CHARGILY_SECRET_KEY) ??
     getEnvValue("CHARGILY_SECRET_KEY") ??
     getEnvValue("CHARGILY_WEBHOOK_SECRET") ??
     "";
   const modeRaw =
-    (cfg.mode as string | undefined) ??
-    (cfg.CHARGILY_MODE as string | undefined) ??
+    optionalString(cfg.mode) ??
+    optionalString(cfg.CHARGILY_MODE) ??
     getEnvValue("CHARGILY_MODE") ??
     "test";
   const mode: ChargilyMode = modeRaw === "live" ? "live" : "test";
@@ -75,11 +77,7 @@ export function getChargilyClient(
 }
 
 export function genId(prefix: string): string {
-  try {
-    const cryptoObj = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
-    if (cryptoObj?.randomUUID) return `${prefix}_${cryptoObj.randomUUID().slice(0, 8)}`;
-  } catch {}
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  return `${prefix}_${randomUUID().slice(0, 8)}`;
 }
 
 export function mapChargilyStatusToDomain(status?: string): SubscriptionStatus {
@@ -99,7 +97,7 @@ export function mapChargilyStatusToDomain(status?: string): SubscriptionStatus {
     case "expired":
       return "expired";
     default:
-      return "active";
+      return "incomplete";
   }
 }
 

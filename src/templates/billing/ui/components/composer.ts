@@ -6,7 +6,11 @@ import { billingIconsContent } from "./icons.js";
 import { billingHeaderContent } from "./header.js";
 import { billingEmptyContent } from "./empty.js";
 import { billingHookContent } from "./hook.js";
+import { billingActionsContent } from "./actions.js";
 import { providerPanelContent } from "./providers.js";
+import { polarBenefitsContent, polarSubscriptionsContent } from "./providers/polar.js";
+import { stripeInvoicesContent } from "./providers/stripe-invoices.js";
+import { stripeSubscriptionsContent } from "./providers/stripe-subscriptions.js";
 import { billingTabsContent } from "./tabs.js";
 import { mainPageContent } from "./main.js";
 
@@ -38,18 +42,43 @@ export function billingUiFiles(
     file(`${base}/components/billing-header.tsx`, billingHeaderContent()),
     file(`${base}/components/billing-empty.tsx`, billingEmptyContent()),
     file(`${base}/hooks/use-billing-page.ts`, billingHookContent()),
+    file(`${base}/actions.ts`, billingActionsContent(mode)),
   ];
 
   for (const p of effective) {
+    if (p === "stripe") {
+      files.push(
+        file(
+          `${base}/components/providers/stripe-subscriptions.tsx`,
+          stripeSubscriptionsContent("../../hooks/use-billing-page"),
+        ),
+        file(
+          `${base}/components/providers/stripe-invoices.tsx`,
+          stripeInvoicesContent("../../hooks/use-billing-page"),
+        ),
+      );
+    }
     files.push(
       file(
         `${base}/components/providers/${p}-panel.tsx`,
         providerPanelContent(p, "../../hooks/use-billing-page"),
       ),
     );
+    if (p === "polar") {
+      files.push(
+        file(
+          `${base}/components/providers/polar-benefits.tsx`,
+          polarBenefitsContent("../../hooks/use-billing-page"),
+        ),
+        file(
+          `${base}/components/providers/polar-subscriptions.tsx`,
+          polarSubscriptionsContent("../../hooks/use-billing-page"),
+        ),
+      );
+    }
   }
 
   files.push(file(`${base}/components/billing-tabs.tsx`, billingTabsContent(effective)));
-  files.push(file(`${base}/page.tsx`, mainPageContent(effective)));
+  files.push(file(`${base}/page.tsx`, mainPageContent(effective, mode)));
   return files;
 }

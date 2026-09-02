@@ -74,21 +74,21 @@ describe("architecture checker — billing webhooks client-boundary HIGH for Cha
     expect(violation).toBeUndefined();
   });
 
-  it("all 4 webhook routes contain arrayBuffer — server-only files should not be flagged as client-boundary", async () => {
+  it("bounded webhook stream APIs in server routes are not flagged as client-boundary", async () => {
     webPkg({
-      stripe: "19.1.0",
+      stripe: "22.5.0",
       "@chargily/chargily-pay": "2.1.0",
-      "@paddle/paddle-node-sdk": "3.8.0",
-      "@polar-sh/sdk": "0.48.1",
+      "@paddle/paddle-node-sdk": "3.10.0",
+      "@polar-sh/sdk": "0.49.0",
     });
 
     fixture(
       "apps/web/src/app/api/webhooks/stripe/route.ts",
-      `import Stripe from "stripe";\nconst buf = Buffer.from(await ({} as Request).arrayBuffer());\nexport async function POST() { return new Response("ok"); }`,
+      `import Stripe from "stripe";\nconst reader = ({} as Request).body?.getReader();\nvoid reader;\nexport async function POST() { return new Response("ok"); }`,
     );
     fixture(
       "apps/web/src/app/api/webhooks/chargily/route.ts",
-      `import { verifySignature } from "@chargily/chargily-pay";\nconst buf = Buffer.from(await ({} as Request).arrayBuffer());\nexport async function POST() { return new Response("ok"); }`,
+      `import { verifySignature } from "@chargily/chargily-pay";\nconst reader = ({} as Request).body?.getReader();\nvoid reader;\nexport async function POST() { return new Response("ok"); }`,
     );
 
     const findings = await analyzeProject(root);

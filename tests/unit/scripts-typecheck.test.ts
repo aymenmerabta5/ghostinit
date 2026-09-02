@@ -34,5 +34,5 @@ test("automation scripts are checked without an invalid project reference", () =
   const buildScript = readFileSync(resolve(root, "scripts/build.ts"), "utf8");
   expect(buildScript).not.toContain("as any");
   expect(buildScript).not.toContain('["bunx", "tsc"');
-  expect(buildScript).toContain("./node_modules/typescript/bin/tsc");
+  expect(buildScript).toContain('join(REPO_ROOT, "node_modules/typescript/bin/tsc")');
 });

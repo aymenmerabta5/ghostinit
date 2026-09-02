@@ -1,4 +1,4 @@
-// @allow-long 334: Expo app config, babel/metro and package manifest emitted as one unit
+// @allow-long 437: Expo app config, capability-aware package manifest, and toolchain files form one unit
 /**
  * Expo core template — Expo Router + Metro + Babel
  * Minimal mobile app scaffold with oRPC client, better-auth, TanStack Query/Form, shared @repo/* workspaces.
@@ -7,28 +7,134 @@
 
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import {
+  billingProviders,
+  hasAddon,
+  isAddonInstallerMap,
+  type AddonInstallerMap,
+  type BillingProviderName,
+} from "../../lib/addons.js";
 import { mobileGlobalCssContent } from "./fragments/css.js";
 
-type FeatureInput =
+export type ExpoFeatureInput =
   | boolean
   | AddonInstallerMap
   | Record<string, { inUse: boolean }>
   | BillingProviderName[];
 
-function resolveHasFeature(input: FeatureInput = false, feature: string): boolean {
+export interface ExpoCapabilities {
+  hasApi: boolean;
+  hasAuth: boolean;
+  hasBilling: boolean;
+  hasAnalytics: boolean;
+  hasEmail: boolean;
+  hasEve: boolean;
+  hasI18n: boolean;
+  hasNotifications: boolean;
+  hasMessaging: boolean;
+  hasStorage: boolean;
+  hasFeatureFlags: boolean;
+  hasJobs: boolean;
+  hasPdf: boolean;
+  isConvex: boolean;
+}
+
+function resolveHasFeature(input: ExpoFeatureInput = false, feature: string): boolean {
   if (typeof input === "boolean") return input;
   if (Array.isArray(input)) return false;
   const rec = input as Record<string, { inUse?: boolean }>;
   return Boolean(rec[feature]?.inUse);
 }
 
-function resolveHasEve(input: FeatureInput = false): boolean {
+function resolveHasEve(input: ExpoFeatureInput = false): boolean {
   return resolveHasFeature(input, "eve");
 }
 
-function resolveHasI18n(input: FeatureInput = false): boolean {
+function resolveHasI18n(input: ExpoFeatureInput = false): boolean {
   return resolveHasFeature(input, "i18n");
+}
+
+export function resolveExpoBillingProviders(
+  input: ExpoFeatureInput = false,
+): BillingProviderName[] {
+  if (Array.isArray(input)) return [...new Set(input)];
+  if (!isAddonInstallerMap(input)) return [...billingProviders];
+  const selected = billingProviders.filter((provider) => hasAddon(input, provider));
+  return selected.length > 0 || !hasAddon(input, "billing") ? selected : [...billingProviders];
+}
+
+/**
+ * Resolve the mobile capability closure once. Transport can be selected without
+ * identity, while billing requires both API and identity. Legacy boolean callers
+ * retain the historical full-stack output while normalized addon maps are gated.
+ */
+export function resolveExpoCapabilities(
+  input: ExpoFeatureInput = false,
+  allowTanstackEve = false,
+): ExpoCapabilities {
+  if (Array.isArray(input)) {
+    return {
+      hasApi: true,
+      hasAuth: true,
+      hasBilling: resolveExpoBillingProviders(input).length > 0,
+      hasAnalytics: true,
+      hasEmail: true,
+      hasEve: false,
+      hasI18n: false,
+      hasNotifications: false,
+      hasMessaging: false,
+      hasStorage: false,
+      hasFeatureFlags: false,
+      hasJobs: false,
+      hasPdf: false,
+      isConvex: false,
+    };
+  }
+  if (!isAddonInstallerMap(input)) {
+    return {
+      hasApi: true,
+      hasAuth: true,
+      hasBilling: true,
+      hasAnalytics: true,
+      hasEmail: true,
+      hasEve: resolveHasEve(input),
+      hasI18n: resolveHasI18n(input),
+      hasNotifications: resolveHasFeature(input, "notifications"),
+      hasMessaging: resolveHasFeature(input, "messaging"),
+      hasStorage: resolveHasFeature(input, "storage"),
+      hasFeatureFlags: resolveHasFeature(input, "featureFlags"),
+      hasJobs: resolveHasFeature(input, "jobs"),
+      hasPdf: false,
+      isConvex: false,
+    };
+  }
+
+  const hasBilling = resolveExpoBillingProviders(input).length > 0;
+  const hasApi = hasAddon(input, "api") || hasBilling;
+  const hasAuth = hasAddon(input, "auth") || hasBilling;
+  const hasEve =
+    hasAddon(input, "eve") &&
+    hasApi &&
+    hasAuth &&
+    (allowTanstackEve || !hasAddon(input, "tanstack-start")) &&
+    !hasAddon(input, "database:none");
+
+  return {
+    hasApi,
+    hasAuth,
+    hasBilling,
+    hasAnalytics: hasAddon(input, "analytics"),
+    hasEmail: hasAddon(input, "email"),
+    hasEve,
+    hasI18n: hasAddon(input, "i18n"),
+    hasNotifications: hasAddon(input, "notifications"),
+    hasMessaging: hasAddon(input, "messaging"),
+    hasStorage: hasAddon(input, "storage"),
+    hasFeatureFlags: hasAddon(input, "featureFlags") || hasAddon(input, "posthog"),
+    hasJobs: hasApi && hasAuth && hasAddon(input, "jobsApi"),
+    hasPdf: hasAddon(input, "pdf"),
+    isConvex: hasAddon(input, "convex"),
+  };
 }
 
 export function uniwindTypesDtsContent(): string {
@@ -53,15 +159,19 @@ export function uniwindTypesDtsSingle(): TemplateFile {
 
 export function expoCoreFiles(
   runtime: "node" | "bun" = "bun",
-  hasEveInput: FeatureInput = false,
-  hasI18nInput: FeatureInput = false,
+  hasEveInput: ExpoFeatureInput = false,
+  hasI18nInput: ExpoFeatureInput = false,
 ): TemplateFile[] {
   const hasEve = resolveHasEve(hasEveInput);
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
+  const capabilities = {
+    ...resolveExpoCapabilities(hasEveInput, true),
+    hasI18n: effectiveHasI18n,
+  };
   return [
-    webPackageMobile(runtime, hasEve, effectiveHasI18n),
-    appJson(),
+    webPackageMobile(runtime, hasEve, effectiveHasI18n, capabilities),
+    appJson(capabilities),
     babelConfig(),
     metroConfig(),
     file("apps/mobile/global.css", mobileGlobalCssContent()),
@@ -98,6 +208,22 @@ export function webPackageMobile(
   runtime: "node" | "bun" = "bun",
   _hasEve = false,
   _hasI18n = false,
+  capabilities: ExpoCapabilities = {
+    hasApi: true,
+    hasAuth: true,
+    hasBilling: true,
+    hasAnalytics: true,
+    hasEmail: true,
+    hasEve: false,
+    hasI18n: false,
+    hasNotifications: false,
+    hasMessaging: false,
+    hasStorage: false,
+    hasFeatureFlags: false,
+    hasJobs: false,
+    hasPdf: false,
+    isConvex: false,
+  },
 ): TemplateFile {
   return file(
     "apps/mobile/package.json",
@@ -105,7 +231,7 @@ export function webPackageMobile(
       name: "mobile",
       main: "expo-router/entry",
       version: v.ghostinitVersion,
-      packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
+      packageManager: `bun@${v.runtime.bun}`,
       scripts: {
         dev: "expo start --port 19000",
         android: "expo start --android",
@@ -115,60 +241,79 @@ export function webPackageMobile(
         ...codeScripts({
           // `bun test tests` targeted a directory that was never generated, so the
           // task always exited 1. A tests/ dir with a real smoke test is emitted below.
-          test: runtime === "bun" ? "bun test tests" : "npm run test:unit",
+          // Package management and tests stay on Bun for both execution runtimes.
+          test: "bun test tests",
         }),
       },
       dependencies: {
-        "@expo/metro-runtime": `^${v.expo["@expo/metro-runtime"]}`,
-        "@orpc/client": `^${v.orpc["@orpc/client"]}`,
-        "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
-        "@repo/analytics": "workspace:*",
-        "@repo/api": "workspace:*",
-        "@repo/auth": "workspace:*",
-        "@repo/billing": "workspace:*",
-        "@repo/config": "workspace:*",
-        "@repo/contracts": "workspace:*",
-        "@repo/database": "workspace:*",
-        "@repo/email": "workspace:*",
+        "@expo/metro-runtime": `~${v.expo["@expo/metro-runtime"]}`,
+        ...(capabilities.hasApi
+          ? {
+              "@orpc/client": `^${v.orpc["@orpc/client"]}`,
+              "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
+              "@orpc/server": `^${v.orpc["@orpc/server"]}`,
+              "@repo/api": "workspace:*",
+            }
+          : {}),
         "@repo/kernel": "workspace:*",
-        "@repo/modules": "workspace:*",
-        "@repo/observability": "workspace:*",
-        "@repo/services": "workspace:*",
+        "@repo/config": "workspace:*",
         "@repo/ui": "workspace:*",
-        "@repo/workflows": "workspace:*",
-        "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
-        "better-auth": `^${v.auth["better-auth"]}`,
-        // src/lib/auth-client.ts imports @better-auth/expo; expo-network is its
-        // peer. expo-router's require.context pulls every route, so a missing
-        // import here fails the entire bundle, not just one screen.
-        "@better-auth/expo": `^${v.auth["@better-auth/expo"]}`,
-        "expo-network": `^${v.expo["expo-network"]}`,
-        expo: `^${v.expo.expo}`,
-        "expo-constants": `^${v.expo["expo-constants"]}`,
-        "expo-linking": `^${v.expo["expo-linking"]}`,
-        "expo-router": `^${v.expo["expo-router"]}`,
-        "expo-secure-store": `^${v.expo["expo-secure-store"]}`,
-        "expo-status-bar": `^${v.expo["expo-status-bar"]}`,
-        "expo-web-browser": `^${v.expo["expo-web-browser"]}`,
-        "expo-clipboard": `^${v.expo["expo-clipboard"]}`,
-        "expo-notifications": `^${v.expo["expo-notifications"] ?? "0.32.11"}`,
-        "expo-updates": `^${v.expo["expo-updates"] ?? "0.29.13"}`,
-        "expo-localization": `^${v.expo["expo-localization"] ?? "16.0.1"}`,
-        "@react-native-community/netinfo": `^${v.expo["@react-native-community/netinfo"] ?? "11.3.1"}`,
-        "@tanstack/query-async-storage-persister": `^${v.tanstack["@tanstack/query-async-storage-persister"] ?? "5.90.1"}`,
-        "@tanstack/query-persist-client-core": `^${v.tanstack["@tanstack/query-persist-client-core"] ?? "5.90.1"}`,
-        "posthog-react-native": `^${v.analytics["posthog-react-native"] ?? "4.6.0"}`,
-        react: `^${v.nextStack.react}`,
+        ...(capabilities.hasAuth
+          ? {
+              "@better-auth/expo": `^${v.auth["@better-auth/expo"]}`,
+              "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
+              "better-auth": `^${v.auth["better-auth"]}`,
+              "expo-network": `~${v.expo["expo-network"]}`,
+            }
+          : {}),
+        ...(capabilities.isConvex
+          ? {
+              ...(capabilities.hasAuth
+                ? { "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}` }
+                : {}),
+              convex: `^${v.convex.convex}`,
+            }
+          : {}),
+        expo: `~${v.expo.expo}`,
+        "expo-constants": `~${v.expo["expo-constants"]}`,
+        ...(capabilities.hasNotifications ? { "expo-device": `~${v.expo["expo-device"]}` } : {}),
+        ...(capabilities.hasPdf || capabilities.hasMessaging
+          ? {
+              "expo-file-system": `~${v.expo["expo-file-system"]}`,
+              "expo-sharing": `~${v.expo["expo-sharing"]}`,
+            }
+          : {}),
+        "expo-linking": `~${v.expo["expo-linking"]}`,
+        "expo-router": `~${v.expo["expo-router"]}`,
+        "expo-secure-store": `~${v.expo["expo-secure-store"]}`,
+        "expo-status-bar": `~${v.expo["expo-status-bar"]}`,
+        "expo-web-browser": `~${v.expo["expo-web-browser"]}`,
+        "expo-clipboard": `~${v.expo["expo-clipboard"]}`,
+        ...(capabilities.hasNotifications
+          ? { "expo-notifications": `~${v.expo["expo-notifications"]}` }
+          : {}),
+        ...(capabilities.hasI18n ? { "expo-localization": `~${v.expo["expo-localization"]}` } : {}),
+        "@react-native-community/netinfo": v.expo["@react-native-community/netinfo"],
+        "@react-native-async-storage/async-storage":
+          v.expo["@react-native-async-storage/async-storage"],
+        "@tanstack/query-async-storage-persister": `^${v.tanstack["@tanstack/query-async-storage-persister"]}`,
+        "@tanstack/query-persist-client-core": `^${v.tanstack["@tanstack/query-persist-client-core"]}`,
+        ...(capabilities.hasAnalytics
+          ? { "posthog-react-native": `^${v.analytics["posthog-react-native"]}` }
+          : {}),
+        react: v.expoReact.react,
         // app.json declares platforms [ios, android, web]; react-native-web lists
         // react-dom as a non-optional peer, and `expo export` (the build script)
         // refuses to start without it.
-        "react-dom": `^${v.nextStack["react-dom"]}`,
-        "react-native": `^${(v.expo["react-native"] as string) ?? "0.81.4"}`,
-        "react-native-safe-area-context": `^${v.expo["react-native-safe-area-context"]}`,
-        "react-native-web": `^${v.expo["react-native-web"]}`,
-        "react-native-reanimated": `^${v.reanimated["react-native-reanimated"]}`,
-        "react-native-worklets": `^${v.worklets["react-native-worklets"]}`,
+        "react-dom": v.expoReact["react-dom"],
+        "react-native": v.expo["react-native"],
+        "react-native-safe-area-context": `~${v.expo["react-native-safe-area-context"]}`,
+        "react-native-screens": `~${v.expo["react-native-screens"]}`,
+        "react-native-gesture-handler": `~${v.expo["react-native-gesture-handler"]}`,
+        "react-native-web": `~${v.expo["react-native-web"]}`,
+        "react-native-reanimated": v.reanimated["react-native-reanimated"],
+        "react-native-worklets": v.worklets["react-native-worklets"],
         clsx: `^${v.ui.clsx}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
         // global.css line 1 is `@import "tailwindcss"` and uniwind declares
@@ -183,11 +328,11 @@ export function webPackageMobile(
       devDependencies: {
         "@repo/typescript-config": "workspace:*",
         "@types/node": `^${v.runtime["@types/node"]}`,
-        "@types/react": `^${v.nextStack["@types/react"]}`,
-        "babel-preset-expo": `^${v.expo["babel-preset-expo"]}`,
+        "@types/react": `~${v.expoReact["@types/react"]}`,
+        "babel-preset-expo": `~${v.expo["babel-preset-expo"]}`,
         oxfmt: `^${v.tooling.oxfmt}`,
         oxlint: `^${v.tooling.oxlint}`,
-        typescript: `^${v.typescript.typescript}`,
+        typescript: `~${v.typescript.typescript}`,
       },
     }),
   );
@@ -206,7 +351,10 @@ function sanitizeScheme(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "") || "app";
 }
 
-export function expoAppJsonContent(projectName = "__PROJECT_NAME__"): string {
+export function expoAppJsonContent(
+  projectName = "__PROJECT_NAME__",
+  capabilities: Pick<ExpoCapabilities, "hasNotifications"> = { hasNotifications: true },
+): string {
   const isPlaceholder = projectName === "__PROJECT_NAME__";
   const scheme = isPlaceholder ? "myapp" : sanitizeScheme(projectName);
   return (
@@ -241,10 +389,12 @@ export function expoAppJsonContent(projectName = "__PROJECT_NAME__"): string {
                 category: ["BROWSABLE", "DEFAULT"],
               },
             ],
-            useNextNotificationsApi: true,
           },
-          plugins: ["expo-router", "expo-secure-store", "expo-notifications"],
-          updates: { url: `https://${scheme}.example.com/api/manifest` },
+          plugins: [
+            "expo-router",
+            "expo-secure-store",
+            ...(capabilities.hasNotifications ? ["expo-notifications"] : []),
+          ],
           experiments: {
             typedRoutes: true,
           },
@@ -259,13 +409,15 @@ export function expoAppJsonContent(projectName = "__PROJECT_NAME__"): string {
 
 export const appJsonContent = expoAppJsonContent;
 
-export function appJson(): TemplateFile {
-  return file("apps/mobile/app.json", expoAppJsonContent());
+export function appJson(capabilities?: Pick<ExpoCapabilities, "hasNotifications">): TemplateFile {
+  return file("apps/mobile/app.json", expoAppJsonContent("__PROJECT_NAME__", capabilities));
 }
 
 /** Single-mode reuse: file path differs but content identical — caller can wrap with file(). */
-export function expoAppJsonContentSingle(): string {
-  return expoAppJsonContent();
+export function expoAppJsonContentSingle(
+  capabilities?: Pick<ExpoCapabilities, "hasNotifications">,
+): string {
+  return expoAppJsonContent("__PROJECT_NAME__", capabilities);
 }
 
 export function expoAppJsonSingle(): TemplateFile {
@@ -357,9 +509,11 @@ export function mobileTsconfigContent(): string {
       {
         extends: "@repo/typescript-config/expo.json",
         compilerOptions: {
+          // Keep workspace packages on one resolver path. Mixing direct paths
+          // with Bun workspace links duplicates files under D:/Temp vs D:/temp
+          // during direct Windows app typechecks.
           paths: {
             "@/*": ["./src/*"],
-            "@repo/*": ["../../packages/*/src"],
           },
         },
         include: [

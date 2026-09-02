@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../../shared.js";
+import * as v from "../../versions.js";
 
 export function eveAgentFile(): TemplateFile {
   return file(
@@ -13,7 +14,7 @@ export function eveInstructionsFile(projectName: string): TemplateFile {
   return file(
     "apps/eve/agent/instructions.md",
     `# Identity
-You are ${projectName}'s durable backend agent, built with eve@0.24.6 filesystem-first durable agents.
+You are ${projectName}'s durable backend agent, built with eve@${v.eve.eve} filesystem-first durable agents.
 
 ## Purpose
 Help developers working on ${projectName} scaffold DDD modules, run architecture checks, sync deterministic registries, manage workflows, and answer questions about the monorepo structure.

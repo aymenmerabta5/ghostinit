@@ -2,20 +2,13 @@
  * Paddle listSubscriptions — paginated collection.
  */
 import type { ListSubscriptionsInput, Subscription } from "../interface.js";
-import { getPaddleClient, type PaddleConfig } from "./client.js";
+import {
+  getPaddleClient,
+  type PaddleConfig,
+  type PaddleSubscription,
+  type PaddleSubscriptionStatus,
+} from "./client.js";
 import { mapSubscriptionStatus } from "./mappers.js";
-
-type PaddleRaw = {
-  id: string;
-  customData?: Record<string, unknown> | null;
-  status?: string;
-  currentBillingPeriod?: { endsAt?: string };
-  nextBilledAt?: string;
-  items?: Array<{ price?: { id?: string; productId?: string } }>;
-  customerId?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
 
 function extractUserId(customData: Record<string, unknown> | null | undefined): string {
   if (!customData) return "";
@@ -28,12 +21,16 @@ export async function listPaddleSubscriptions(
   input: ListSubscriptionsInput,
 ): Promise<Subscription[]> {
   const paddle = await getPaddleClient(paddleConfig);
-  const query: Record<string, unknown> = {};
-  if (input.customerId) query.customerId = input.customerId;
+  const query: {
+    customerId?: string[];
+    status?: PaddleSubscriptionStatus[];
+    perPage?: number;
+  } = {};
+  if (input.customerId) query.customerId = [input.customerId];
   if (input.status && input.status !== "all") {
     const arr = Array.isArray(input.status) ? input.status : [input.status];
     const normalized = arr
-      .map((s): string | null => {
+      .map((s): PaddleSubscriptionStatus | null => {
         if (
           s === "active" ||
           s === "trialing" ||
@@ -45,80 +42,27 @@ export async function listPaddleSubscriptions(
         if (s === "on_trial") return "trialing";
         return null;
       })
-      .filter(Boolean) as string[];
-    if (normalized.length === 1) query.status = normalized[0];
-    else if (normalized.length > 1) query.status = normalized;
+      .filter((status): status is PaddleSubscriptionStatus => status !== null);
+    if (normalized.length > 0) query.status = normalized;
   }
   const limit = input.limit && input.limit > 0 ? Math.min(input.limit, 200) : 50;
   query.perPage = limit;
 
   const result: Subscription[] = [];
   try {
-    const collection = paddle.subscriptions.list(query as never);
-    const hasAsyncIterator =
-      typeof (collection as unknown as { [Symbol.asyncIterator]?: unknown })[
-        Symbol.asyncIterator
-      ] === "function";
-
-    if (hasAsyncIterator) {
-      let count = 0;
-      for await (const raw of collection as AsyncIterable<PaddleRaw>) {
-        const s = raw as PaddleRaw;
-        result.push({
-          id: s.id,
-          provider: "paddle",
-          providerSubscriptionId: s.id,
-          userId: extractUserId(s.customData),
-          status: mapSubscriptionStatus(s.status ?? "active"),
-          currentPeriodEnd: s.currentBillingPeriod?.endsAt
-            ? new Date(s.currentBillingPeriod.endsAt)
-            : s.nextBilledAt
-              ? new Date(s.nextBilledAt)
-              : null,
-          trialEnd: null,
-          priceId: s.items?.[0]?.price?.id ?? null,
-          productId: s.items?.[0]?.price?.productId ?? null,
-          customerId: s.customerId,
-          metadata: s.customData ?? null,
-          createdAt: s.createdAt ? new Date(s.createdAt) : undefined,
-          updatedAt: s.updatedAt ? new Date(s.updatedAt) : undefined,
-        });
-        count++;
-        if (count >= limit) break;
+    const collection = paddle.subscriptions.list(query);
+    let fetched = 0;
+    let safety = 0;
+    while (fetched < limit && safety < 20) {
+      const page = await collection.next();
+      if (page.length === 0) break;
+      for (const subscription of page) {
+        result.push(toSubscription(subscription));
+        fetched++;
+        if (fetched >= limit) break;
       }
-    } else {
-      const col = collection as unknown as { next: () => Promise<PaddleRaw[]>; hasMore: boolean };
-      let fetched = 0;
-      let safety = 0;
-      while (fetched < limit && safety < 20) {
-        const page = await col.next();
-        if (!page || page.length === 0) break;
-        for (const s of page) {
-          result.push({
-            id: s.id,
-            provider: "paddle",
-            providerSubscriptionId: s.id,
-            userId: extractUserId(s.customData),
-            status: mapSubscriptionStatus(s.status ?? "active"),
-            currentPeriodEnd: s.currentBillingPeriod?.endsAt
-              ? new Date(s.currentBillingPeriod.endsAt)
-              : s.nextBilledAt
-                ? new Date(s.nextBilledAt)
-                : null,
-            trialEnd: null,
-            priceId: s.items?.[0]?.price?.id ?? null,
-            productId: s.items?.[0]?.price?.productId ?? null,
-            customerId: s.customerId,
-            metadata: s.customData ?? null,
-            createdAt: s.createdAt ? new Date(s.createdAt) : undefined,
-            updatedAt: s.updatedAt ? new Date(s.updatedAt) : undefined,
-          });
-          fetched++;
-          if (fetched >= limit) break;
-        }
-        if (!col.hasMore) break;
-        safety++;
-      }
+      if (!collection.hasMore) break;
+      safety++;
     }
   } catch (err) {
     throw new Error(
@@ -126,4 +70,26 @@ export async function listPaddleSubscriptions(
     );
   }
   return result;
+}
+
+function toSubscription(subscription: PaddleSubscription): Subscription {
+  return {
+    id: subscription.id,
+    provider: "paddle",
+    providerSubscriptionId: subscription.id,
+    userId: extractUserId(subscription.customData),
+    status: mapSubscriptionStatus(subscription.status),
+    currentPeriodEnd: subscription.currentBillingPeriod?.endsAt
+      ? new Date(subscription.currentBillingPeriod.endsAt)
+      : subscription.nextBilledAt
+        ? new Date(subscription.nextBilledAt)
+        : null,
+    trialEnd: null,
+    priceId: subscription.items?.[0]?.price?.id ?? null,
+    productId: subscription.items?.[0]?.price?.productId ?? null,
+    customerId: subscription.customerId,
+    metadata: subscription.customData ?? null,
+    createdAt: subscription.createdAt ? new Date(subscription.createdAt) : undefined,
+    updatedAt: subscription.updatedAt ? new Date(subscription.updatedAt) : undefined,
+  };
 }

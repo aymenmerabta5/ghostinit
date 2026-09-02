@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { runtime, typescript as typescriptVersions } from "../../packages/versions/src/index.js";
 
 const root = resolve(import.meta.dir, "../..");
 
@@ -12,10 +13,10 @@ describe("exact V2 host toolchain", () => {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
     };
-    expect(pkg.packageManager).toBe("bun@1.4.0");
-    expect(pkg.engines.bun).toBe("1.4.0");
-    expect(pkg.devDependencies.typescript).toBe("7.0.2");
-    expect(pkg.devDependencies["@types/bun"]).toBe("1.4.0");
+    expect(pkg.packageManager).toBe(`bun@${runtime.bun}`);
+    expect(pkg.engines.bun).toBe(runtime.bun);
+    expect(pkg.devDependencies.typescript).toBe(typescriptVersions.typescriptNext);
+    expect(pkg.devDependencies["@types/bun"]).toBe(runtime.bun);
     for (const spec of [
       ...Object.values(pkg.dependencies),
       ...Object.values(pkg.devDependencies),
@@ -43,8 +44,8 @@ describe("exact V2 host toolchain", () => {
     expect(tsconfig.compilerOptions.types).toEqual(["bun"]);
   });
 
-  test("corrects the nonexistent Expo updates pin", async () => {
+  test("pins the Expo SDK 57 updates module", async () => {
     const versions = await import("../../packages/versions/src/index.js");
-    expect(versions.expo["expo-updates"]).toBe("29.0.13");
+    expect(versions.expo["expo-updates"]).toBe("57.0.17");
   });
 });

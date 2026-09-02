@@ -19,6 +19,7 @@
 
 import { describe, it, expect } from "bun:test";
 import { parseSync } from "oxc-parser";
+import { parseFile } from "../../src/lib/architecture/parsers/imports";
 import { generateProjectFiles } from "../../src/templates/default";
 import type { ProjectConfig } from "../../src/lib/config";
 import type { TemplateFile } from "../../src/templates/shared";
@@ -63,6 +64,14 @@ const CORNERS: Corner[] = [
     config: cfg({ mode: "single", database: "convex", billing: ["polar"] }),
   },
   {
+    label: "monorepo/mobile/convex/billing",
+    config: cfg({
+      database: "convex",
+      apps: ["web", "mobile"],
+      billing: ["stripe", "chargily", "paddle", "polar"],
+    }),
+  },
+  {
     label: "monorepo/next/postgres/no-billing+features",
     config: cfg({ features: ["eve", "i18n"] }),
   },
@@ -89,11 +98,16 @@ const CORNERS: Corner[] = [
     }),
   },
   {
-    label: "single/desktop/postgres/no-billing",
+    label: "single/desktop/frontend",
     config: cfg({
       mode: "single",
       apps: ["desktop"],
-      database: "postgres",
+      preset: "frontend",
+      database: "none",
+      auth: false,
+      api: false,
+      email: false,
+      analytics: false,
     } as Partial<ProjectConfig>),
   },
 ];
@@ -106,8 +120,10 @@ function posixNormalize(p: string): string {
   const parts: string[] = [];
   for (const seg of p.split("/")) {
     if (seg === "." || seg === "") continue;
-    if (seg === "..") parts.pop();
-    else parts.push(seg);
+    if (seg === "..") {
+      if (parts.length > 0 && parts.at(-1) !== "..") parts.pop();
+      else parts.push("..");
+    } else parts.push(seg);
   }
   return parts.join("/");
 }
@@ -128,6 +144,67 @@ function importsOf(content: string): string[] {
 }
 
 const CODE_EXT = /\.(ts|tsx)$/;
+
+function parserExtension(path: string): string {
+  if (path.endsWith(".d.ts")) return ".d.ts";
+  const basename = path.slice(path.lastIndexOf("/") + 1);
+  const dot = basename.lastIndexOf(".");
+  return dot === -1 ? ".ts" : basename.slice(dot);
+}
+
+function emittedModuleCandidates(target: string, typeOnly: boolean): string[] {
+  const candidates = [target];
+  if (target.endsWith(".js")) {
+    const sourceTarget = target.slice(0, -3);
+    candidates.push(`${sourceTarget}.ts`, `${sourceTarget}.tsx`);
+    if (typeOnly) candidates.push(`${sourceTarget}.d.ts`);
+    return candidates;
+  }
+
+  if (!/\.(?:d\.ts|[cm]?[jt]sx?|css|json)$/.test(target)) {
+    const extensions = typeOnly ? [".ts", ".tsx", ".d.ts", ".js"] : [".ts", ".tsx", ".js"];
+    for (const extension of extensions) candidates.push(`${target}${extension}`);
+    for (const extension of extensions) candidates.push(`${target}/index${extension}`);
+  }
+  return candidates;
+}
+
+function unresolvedRelativeImports(files: TemplateFile[]): string[] {
+  const byPath = new Map(files.map((file) => [file.path, file.content]));
+  const toolGenerated = (specifier: string) => specifier.endsWith("routeTree.gen");
+  const unresolved: string[] = [];
+
+  for (const file of files) {
+    if (!CODE_EXT.test(file.path)) continue;
+    const references = parseFile(file.content, parserExtension(file.path)).importReferences;
+    for (const reference of references) {
+      const rawSpecifier = reference.specifier;
+      if (!rawSpecifier.startsWith(".")) continue;
+      const specifier = rawSpecifier.split("?")[0];
+      const resolved = posixNormalize(`${dirOf(file.path)}/${specifier}`);
+      if (toolGenerated(resolved)) continue;
+      const typeOnly = reference.typeOnly || file.path.endsWith(".d.ts");
+      const candidates = emittedModuleCandidates(resolved, typeOnly);
+      if (!candidates.some((candidate) => byPath.has(candidate))) {
+        unresolved.push(`${file.path} -> ${rawSpecifier}`);
+      }
+    }
+  }
+  return unresolved;
+}
+
+function aliasRootForFile(path: string, config: ProjectConfig): string | undefined {
+  if (config.mode === "monorepo") {
+    if (path.startsWith("apps/web/")) return "apps/web/src";
+    if (path.startsWith("apps/mobile/")) return "apps/mobile/src";
+    if (path.startsWith("apps/desktop/src/renderer/")) return "apps/desktop/src/renderer";
+    return undefined;
+  }
+  if (config.apps.includes("mobile")) {
+    return path.startsWith("src/") || path.startsWith("app/") ? "src" : undefined;
+  }
+  return path.startsWith("src/") ? "src" : undefined;
+}
 
 describe("generation matrix — structural invariants across every mode/framework/database corner", () => {
   for (const { label, config } of CORNERS) {
@@ -156,46 +233,7 @@ describe("generation matrix — structural invariants across every mode/framewor
       });
 
       it("every relative import resolves to an emitted file", () => {
-        // Convex generates `convex/_generated/**` at `convex dev` time, so it is a
-        // legitimate target that does not exist at generation time.
-        const generatedAtRuntime = (spec: string) => spec.includes("convex/_generated");
-        // TanStack's router plugin writes routeTree.gen.ts during dev/build.
-        const toolGenerated = (spec: string) => spec.endsWith("routeTree.gen");
-        const unresolved: string[] = [];
-
-        for (const f of files) {
-          if (!CODE_EXT.test(f.path)) continue;
-          for (const rawSpec of importsOf(f.content)) {
-            if (!rawSpec.startsWith(".")) continue;
-            // Vite asset imports carry a query suffix (`../styles/app.css?url`).
-            const spec = rawSpec.split("?")[0];
-            const resolved = posixNormalize(`${dirOf(f.path)}/${spec}`);
-            if (toolGenerated(resolved)) continue;
-            if (generatedAtRuntime(resolved)) {
-              // `convex codegen` writes api/dataModel/server under the ROOT convex
-              // dir. The invariant that matters is the depth: the specifier must
-              // land on `convex/_generated/*` at the project root and not resolve
-              // into the app tree (e.g. apps/web/src/app/api/convex/_generated).
-              expect(resolved, `${f.path} -> ${spec}`).toMatch(/^convex\/_generated\/[A-Za-z]+$/);
-              continue;
-            }
-            const candidates = [
-              resolved,
-              `${resolved}.ts`,
-              `${resolved}.tsx`,
-              `${resolved}.css`,
-              `${resolved}/index.ts`,
-              `${resolved}/index.tsx`,
-              resolved.replace(/\.js$/, ".ts"),
-              resolved.replace(/\.js$/, ".tsx"),
-              resolved.replace(/\.js$/, "") + "/index.ts",
-            ];
-            if (!candidates.some((c) => byPath.has(c))) {
-              unresolved.push(`${f.path} -> ${rawSpec}`);
-            }
-          }
-        }
-        expect(unresolved).toEqual([]);
+        expect(unresolvedRelativeImports(files)).toEqual([]);
       });
 
       it("every @/ alias import resolves to an emitted file", () => {
@@ -203,12 +241,11 @@ describe("generation matrix — structural invariants across every mode/framewor
         // @/components/ui/* and @/lib/utils that were never generated (webUiFiles()
         // was only wired into the Next.js composer), so the whole app failed with
         // TS2307 — invisible until a real install + typecheck.
-        const appRoots = config.mode === "monorepo" ? ["apps/web/src", "apps/expo/src"] : ["src"];
         const unresolved: string[] = [];
 
         for (const f of files) {
           if (!CODE_EXT.test(f.path)) continue;
-          const root = appRoots.find((r) => f.path.startsWith(`${r}/`));
+          const root = aliasRootForFile(f.path, config);
           if (!root) continue;
           for (const spec of importsOf(f.content)) {
             if (!spec.startsWith("@/")) continue;
@@ -304,6 +341,35 @@ describe("generation matrix — structural invariants across every mode/framewor
       });
     });
   }
+
+  it("keeps hosted desktop Convex imports behind the application-owned client adapter", () => {
+    const files = filesFor(cfg({ database: "convex", apps: ["web", "desktop"], messaging: true }));
+    const route = files.find(
+      ({ path }) => path === "apps/desktop/src/renderer/routes/messages.tsx",
+    );
+    const adapter = files.find(
+      ({ path }) => path === "apps/desktop/src/renderer/adapters/messaging/convex.ts",
+    );
+
+    expect(route, "desktop messages route").toBeDefined();
+    expect(adapter, "desktop messaging adapter").toBeDefined();
+    expect(route?.content).not.toContain("convex/react");
+    expect(route?.content).not.toContain("convex/_generated/api");
+    expect(route?.content).not.toMatch(/from ["']\.\.\/\.\.\/\.\.\//);
+    expect(route?.content).toContain('from "@/adapters/messaging/convex"');
+    expect(adapter?.content).toContain('from "convex/react"');
+    expect(adapter?.content).toContain("convex/_generated/api");
+    expect(adapter?.content).not.toContain("convex/server");
+  });
+
+  it("fails closed when an imported Convex runtime bootstrap is missing", () => {
+    const files = filesFor(cfg({ database: "convex", billing: ["stripe"], apps: ["web"] })).filter(
+      ({ path }) => path !== "convex/_generated/api.js",
+    );
+    const unresolved = unresolvedRelativeImports(files);
+
+    expect(unresolved.some((entry) => entry.endsWith(" -> ./_generated/api"))).toBe(true);
+  });
 
   it(".env.local never invents third-party credentials", () => {
     // A generated value would satisfy every webhook's

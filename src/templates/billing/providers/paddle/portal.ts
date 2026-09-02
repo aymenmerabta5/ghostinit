@@ -3,6 +3,7 @@
  */
 import type { CreatePortalSessionInput, CreatePortalSessionOutput } from "../interface.js";
 import { getPaddleClient, type PaddleConfig } from "./client.js";
+import { requirePaddleResponseString } from "./mappers.js";
 
 export async function createPaddlePortalSession(
   paddleConfig: PaddleConfig,
@@ -15,31 +16,18 @@ export async function createPaddlePortalSession(
   let subscriptionIds: string[] = [];
   try {
     const collection = paddle.subscriptions.list({
-      customerId: input.customerId,
+      customerId: [input.customerId],
       perPage: 10,
-    } as never);
-    const hasAsyncIterator =
-      typeof (collection as unknown as { [Symbol.asyncIterator]?: unknown })[
-        Symbol.asyncIterator
-      ] === "function";
-    if (hasAsyncIterator) {
-      for await (const sub of collection as AsyncIterable<{ id: string }>) {
-        const sid = (sub as { id: string }).id;
-        if (sid) subscriptionIds.push(sid);
+    });
+    let pages = 0;
+    while (pages < 5 && subscriptionIds.length < 20) {
+      const page = await collection.next();
+      for (const subscription of page) {
+        if (subscription.id) subscriptionIds.push(subscription.id);
         if (subscriptionIds.length >= 20) break;
       }
-    } else {
-      const col = collection as unknown as {
-        next: () => Promise<{ id: string }[]>;
-        hasMore: boolean;
-      };
-      let pages = 0;
-      while (pages < 5) {
-        const page = await col.next();
-        for (const s of page) if (s.id) subscriptionIds.push(s.id);
-        if (!col.hasMore) break;
-        pages++;
-      }
+      if (!collection.hasMore) break;
+      pages++;
     }
   } catch (e) {
     throw new Error(
@@ -48,13 +36,10 @@ export async function createPaddlePortalSession(
   }
 
   const session = await paddle.customerPortalSessions.create(input.customerId, subscriptionIds);
-  const url =
-    (session as { url?: string }).url ??
-    (session as { urls?: { overview?: string } }).urls?.overview ??
-    input.returnUrl;
-  if (!url)
-    throw new Error(
-      `Paddle portal session for ${input.customerId} returned no url. Subs: ${subscriptionIds.length}`,
-    );
+  const url = requirePaddleResponseString(
+    session.urls?.general?.overview,
+    "create portal session",
+    "urls.general.overview",
+  );
   return { url };
 }

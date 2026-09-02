@@ -1,15 +1,42 @@
 import { file, type TemplateFile } from "../../../shared.js";
 
+export function notificationNavigationContent(): string {
+  return `export const INTERNAL_NOTIFICATION_DESTINATIONS = [
+  "/",
+  "/dashboard",
+  "/notifications",
+  "/settings",
+] as const;
+
+export type NotificationDestination = (typeof INTERNAL_NOTIFICATION_DESTINATIONS)[number];
+
+export function resolveNotificationDestination(value: unknown): NotificationDestination | null {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\\\")) return null;
+  let parsed: URL;
+  try { parsed = new URL(value, "https://ghostinit.internal"); } catch { return null; }
+  if (parsed.origin !== "https://ghostinit.internal" || parsed.search || parsed.hash) return null;
+  const normalized = parsed.pathname.length > 1 && parsed.pathname.endsWith("/")
+    ? parsed.pathname.slice(0, -1)
+    : parsed.pathname;
+  for (const destination of INTERNAL_NOTIFICATION_DESTINATIONS) {
+    if (destination === normalized) return destination;
+  }
+  return null;
+}
+`;
+}
+
 // Generic notification formatting — no domain copy. Starter is app-agnostic: titles are
 // derived from type via humanize, with an empty extensible map for your domain.
 export function notificationsLibFiles(base = "apps/web/src"): TemplateFile[] {
-  const libContent = `export interface FormattedNotification {
+  const libContent = `${notificationNavigationContent()}
+export interface FormattedNotification {
   title: string;
   message: string | null;
 }
 
-export interface NotificationDestination {
-  href: string;
+export interface NotificationLink {
+  href: NotificationDestination;
 }
 
 // Extend for your domain. Example:
@@ -34,10 +61,10 @@ export function formatNotification(type: string, payload: unknown): FormattedNot
   return { title, message };
 }
 
-export function getNotificationHref(_type: string, payload: unknown): NotificationDestination {
+export function getNotificationHref(_type: string, payload: unknown): NotificationLink | null {
   const rec = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
-  if (typeof rec.href === "string") return { href: rec.href };
-  return { href: "/dashboard/notifications" };
+  const href = resolveNotificationDestination(rec.href ?? "/notifications");
+  return href ? { href } : null;
 }
 `;
 
@@ -58,7 +85,8 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatNotification } from "@/lib/notifications";
+import { formatNotification, getNotificationHref, type NotificationDestination } from "@/lib/notifications";
+import { useSurfaceTranslations } from "@/lib/translations";
 
 export interface NotificationItem {
   id: string;
@@ -68,12 +96,13 @@ export interface NotificationItem {
   createdAt: string | Date;
 }
 
-export function NotificationBell({ notifications, onMarkRead }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void }) {
+export function NotificationBell({ notifications, onMarkRead, onNavigate }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void | Promise<void>; onNavigate?: (destination: NotificationDestination) => void }) {
+  const t = useSurfaceTranslations("notifications");
   const unread = notifications.filter((notification) => notification.readAt === null).length;
   return (
     <Popover>
       <PopoverTrigger
-        render={<Button type="button" variant="ghost" size="icon" className="relative" aria-label="Notifications" />}
+        render={<Button type="button" variant="ghost" size="icon" className="relative" aria-label={t("title")} />}
       >
         <Bell data-icon="inline-start" aria-hidden />
         {unread > 0 ? (
@@ -84,27 +113,30 @@ export function NotificationBell({ notifications, onMarkRead }: { notifications:
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80">
         <div className="flex flex-col gap-1">
-          <PopoverTitle>Notifications</PopoverTitle>
-          <PopoverDescription>Review recent account activity.</PopoverDescription>
+          <PopoverTitle>{t("title")}</PopoverTitle>
+          <PopoverDescription>{t("description")}</PopoverDescription>
         </div>
         {notifications.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No notifications</EmptyTitle>
-              <EmptyDescription>New account activity will appear here.</EmptyDescription>
+              <EmptyTitle>{t("empty")}</EmptyTitle>
+              <EmptyDescription>{t("description")}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <div className="flex max-h-80 flex-col gap-1 overflow-y-auto pt-3">
             {notifications.map((notification) => {
               const formatted = formatNotification(notification.type, notification.payload);
+              const destination = getNotificationHref(notification.type, notification.payload);
               return (
                 <Button
                   key={notification.id}
                   type="button"
                   variant="ghost"
-                  disabled={notification.readAt !== null}
-                  onClick={() => onMarkRead?.(notification.id)}
+                  onClick={async () => {
+                    if (notification.readAt === null) await onMarkRead?.(notification.id);
+                    if (destination) onNavigate?.(destination.href);
+                  }}
                 >
                   <span className="flex min-w-0 flex-col items-start gap-1">
                     <span className="truncate font-medium">{formatted.title}</span>

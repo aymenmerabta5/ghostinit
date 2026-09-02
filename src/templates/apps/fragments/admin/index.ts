@@ -1,283 +1,89 @@
-import { file, type TemplateFile } from "../../../shared.js";
-import { adminLayout } from "./layout.js";
-import { adminDashboardPage } from "./dashboard.js";
-import { useAdminUsersHook } from "./hooks.js";
-import { adminUserRow } from "./user-row.js";
-import { adminUsersPage } from "./users-page.js";
-import { adminCreateUserPage } from "./create-user-page.js";
+import type { TemplateFile } from "../../../shared.js";
+import {
+  adminCreateUserFormFile,
+  adminCreateUserPage,
+  nextAdminCreateUserPage,
+} from "./create-user-page.js";
+import { adminDashboardFile, adminDashboardPage } from "./dashboard.js";
+import { adminDataFiles } from "./feature-data.js";
+import { adminSchemaFiles } from "./feature-schema.js";
+import { adminFiltersFile } from "./filters.js";
+import { adminUsersHook, useAdminUsersHook } from "./hooks.js";
+import { adminLayout, adminLayoutFile } from "./layout.js";
+import type { AdminTemplateOptions } from "./model.js";
+import {
+  tanstackAdminCreateUserContent,
+  tanstackAdminDashboardContent,
+  tanstackAdminRouteFiles,
+  tanstackAdminUsersContent,
+} from "./tanstack-routes.js";
+import { adminUserRow, adminUserRowConfirmationFile, adminUserRowFile } from "./user-row.js";
+import { adminUserTableFile } from "./user-table.js";
+import { adminTranslationsFile } from "./translations.js";
+import {
+  adminFeatureIndexFile,
+  adminUserResultsFile,
+  adminUsersPage,
+  nextAdminUsersPage,
+} from "./users-page.js";
+
+export type { AdminDatabase, AdminFramework, AdminMode, AdminTemplateOptions } from "./model.js";
+
+export function adminFeatureFiles(options: AdminTemplateOptions): TemplateFile[] {
+  return [
+    adminTranslationsFile(options),
+    ...adminSchemaFiles(options),
+    ...adminDataFiles(options),
+    adminUsersHook(options),
+    adminFiltersFile(options),
+    adminUserTableFile(options),
+    adminUserRowFile(options),
+    adminUserRowConfirmationFile(options),
+    adminCreateUserFormFile(options),
+    adminUserResultsFile(options),
+    adminFeatureIndexFile(options),
+  ];
+}
+
+export function nextAdminFiles(options: AdminTemplateOptions): TemplateFile[] {
+  return [
+    ...adminFeatureFiles(options),
+    adminLayoutFile(options),
+    adminDashboardFile(options),
+    nextAdminUsersPage(options),
+    nextAdminCreateUserPage(options),
+  ];
+}
+
+export function adminFiles(isConvex = false, i18n = false): TemplateFile[] {
+  return nextAdminFiles({
+    database: isConvex ? "convex" : "postgres",
+    framework: "next",
+    i18n,
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  });
+}
+
+export function tanstackAdminFiles(isConvex = false, i18n = false): TemplateFile[] {
+  const options: AdminTemplateOptions = {
+    database: isConvex ? "convex" : "postgres",
+    framework: "tanstack",
+    i18n,
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  };
+  return [...adminFeatureFiles(options), ...tanstackAdminRouteFiles(options)];
+}
 
 export {
-  adminLayout,
+  adminCreateUserPage,
   adminDashboardPage,
-  useAdminUsersHook,
+  adminLayout,
   adminUserRow,
   adminUsersPage,
-  adminCreateUserPage,
+  tanstackAdminCreateUserContent,
+  tanstackAdminDashboardContent,
+  tanstackAdminUsersContent,
+  useAdminUsersHook,
 };
-
-export function adminFiles(): TemplateFile[] {
-  return [
-    adminLayout(),
-    adminDashboardPage(),
-    useAdminUsersHook(),
-    adminUserRow(),
-    adminUsersPage(),
-    adminCreateUserPage(),
-  ];
-}
-
-function tanstackRequestUserImports(isConvex: boolean): string {
-  return isConvex
-    ? `import { getRequestUser } from '@repo/auth'`
-    : `import { getRequestHeaders } from '@tanstack/react-start/server'
-import { getRequestUser } from '@repo/auth'`;
-}
-
-function tanstackRequestUserFn(isConvex: boolean): string {
-  return isConvex
-    ? `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
-  return await getRequestUser()
-})`
-    : `const getRequestUserFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders()
-  return await getRequestUser(headers)
-})`;
-}
-
-export function tanstackAdminDashboardContent(isConvex = false): string {
-  return `import * as React from 'react'
-import { createFileRoute, redirect, Link } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-${tanstackRequestUserImports(isConvex)}
-
-${tanstackRequestUserFn(isConvex)}
-
-export const Route = createFileRoute('/admin')({
-  beforeLoad: async () => {
-    const user = await getRequestUserFn()
-    if (!user || user.role !== 'admin') throw redirect({ to: '/' })
-    return { user }
-  },
-  component: AdminPage,
-})
-
-function AdminPage(): React.JSX.Element {
-  return (
-    <main className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-5xl flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-          <Link to="/admin/users" className="text-sm underline">Manage users</Link>
-        </div>
-        <p className="text-sm text-muted-foreground max-w-[65ch]">Admin dashboard — manage users and roles.</p>
-      </div>
-    </main>
-  )
-}
-`;
-}
-
-export function tanstackAdminUsersContent(isConvex = false): string {
-  return `import * as React from 'react'
-import { createFileRoute, redirect, Link } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-${tanstackRequestUserImports(isConvex)}
-import { authClient } from '../lib/auth-client.js'
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
-import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { isUserRole } from "@repo/kernel";
-import type { AdminUser } from "@repo/kernel";
-
-${tanstackRequestUserFn(isConvex)}
-
-export const Route = createFileRoute('/admin/users')({
-  beforeLoad: async () => {
-    const user = await getRequestUserFn()
-    if (!user || user.role !== 'admin') throw redirect({ to: '/' })
-    return { user }
-  },
-  component: AdminUsersPage,
-})
-
-function AdminUsersPage(): React.JSX.Element {
-  const [data, setData] = React.useState<{ users: AdminUser[]; total: number } | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
-  const [search, setSearch] = React.useState("")
-  const [page, setPage] = React.useState(1)
-  const limit = 20
-  const refresh = React.useCallback(async () => {
-    setError(null)
-    try {
-      const offset = (page - 1) * limit
-      const result = await authClient.admin.listUsers({ query: { limit, offset, searchValue: search || undefined, searchField: "email", searchOperator: "contains" } })
-      if (result.error) { setError(result.error.message ?? "Failed to load users"); return }
-      if (result.data) setData({ users: result.data.users.map((user) => ({ id: user.id, name: user.name, email: user.email, role: isUserRole(user.role) ? user.role : "user", banned: user.banned ?? false })), total: result.data.total })
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-  }, [page, search])
-  React.useEffect(() => { void refresh() }, [refresh])
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / limit))
-  const searchDescriptionId = "admin-user-search-description"
-  const searchErrorId = "admin-user-search-error"
-  return (
-    <main className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-5xl flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
-            <Button render={<Link to="/admin/users/create" />} nativeButton={false}>Create user</Button>
-          </div>
-          <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <Field className="max-w-sm">
-              <FieldLabel htmlFor="admin-user-search">Search users</FieldLabel>
-              <Input id="admin-user-search" placeholder="Search email…" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} aria-describedby={error ? [searchDescriptionId, searchErrorId].join(" ") : searchDescriptionId} aria-errormessage={error ? searchErrorId : undefined} aria-invalid={error ? true : undefined} />
-              <FieldDescription id={searchDescriptionId}>Filter accounts by email address.</FieldDescription>
-            </Field>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Page {page}/{totalPages}</span>
-              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</Button>
-              <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
-            </div>
-          </div>
-        </div>
-        <Separator />
-        {error ? <Alert variant="destructive"><AlertTitle>Failed to load</AlertTitle><AlertDescription id={searchErrorId}>{error}</AlertDescription></Alert> : null}
-    {!data && !error ? (
-      <Card>
-        <CardHeader><CardTitle className="text-base">All users</CardTitle></CardHeader>
-        <CardContent className="divide-y divide-border" aria-busy="true" aria-label="Loading users">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-col gap-2 min-w-0"><Skeleton className="h-4 w-32" /><Skeleton className="h-3 w-48" /></div>
-              <div className="flex items-center gap-2"><Skeleton className="h-8 w-24" /><Skeleton className="h-8 w-16" /></div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    ) : data && data.users.length === 0 ? (
-      <Empty className="rounded-lg border bg-card">
-        <EmptyHeader>
-          <EmptyTitle>{search ? "No matching users" : "No users yet"}</EmptyTitle>
-          <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email address.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent className="flex justify-center">{search ? <Button variant="outline" onClick={() => { setSearch(""); setPage(1); }}>Clear search</Button> : <Button render={<Link to="/admin/users/create" />} nativeButton={false}>Create user</Button>}</EmptyContent>
-      </Empty>
-    ) : data ? (
-      <Card>
-        <CardHeader><CardTitle className="text-base">All users</CardTitle><CardDescription>{data.users.length} users</CardDescription></CardHeader>
-        <CardContent className="divide-y divide-border">
-          {data.users.map((user) => (
-            <div key={user.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center gap-2"><p className="font-medium truncate">{user.name ?? user.email}</p><Badge variant="secondary" className="capitalize">{user.role}</Badge>{user.banned ? <Badge variant="destructive">banned</Badge> : null}</div>
-                <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-              </div>
-              <div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={async () => { const role = user.role === "admin" ? "user" : "admin"; await authClient.admin.setRole({ userId: user.id, role }); await refresh() }}>{user.role === "admin" ? "Demote" : "Make admin"}</Button><Button size="sm" variant={user.banned ? "default" : "destructive"} onClick={async () => { if (user.banned) await authClient.admin.unbanUser({ userId: user.id }); else await authClient.admin.banUser({ userId: user.id }); await refresh() }}>{user.banned ? "Unban" : "Ban"}</Button></div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-    ) : null}
-    <p className="text-xs text-muted-foreground">Audit log: every ban/role change is persisted via better-auth and can be extended to @repo/observability.</p>
-      </div>
-    </main>
-  )
-}
-`;
-}
-
-export function tanstackAdminCreateUserContent(isConvex = false): string {
-  return `import * as React from 'react'
-import { createFileRoute, redirect, Link, useRouter } from '@tanstack/react-router'
-import { createServerFn } from '@tanstack/react-start'
-${tanstackRequestUserImports(isConvex)}
-import { z } from 'zod'
-import { authClient } from '../lib/auth-client.js'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
-import { isUserRole } from "@repo/kernel";
-import type { UserRole } from "@repo/kernel";
-
-${tanstackRequestUserFn(isConvex)}
-
-export const Route = createFileRoute('/admin/users/create')({
-  beforeLoad: async () => {
-    const user = await getRequestUserFn()
-    if (!user || user.role !== 'admin') throw redirect({ to: '/' })
-    return { user }
-  },
-  component: AdminCreateUserPage,
-})
-
-interface CreateUserForm { name: string; email: string; password: string; role: UserRole; }
-const ROLE_OPTIONS = [
-  { label: "User", value: "user" },
-  { label: "Admin", value: "admin" },
-] satisfies readonly { label: string; value: UserRole }[]
-const createUserSchema = z.object({ name: z.string().min(1, 'Name required'), email: z.string().email('Enter a valid email'), password: z.string().min(8, 'Password must be at least 8 characters'), role: z.enum(['admin','user']) })
-
-function AdminCreateUserPage(): React.JSX.Element {
-  const router = useRouter()
-  const [error, setError] = React.useState<string | null>(null)
-  const form = useForm({
-    defaultValues: { name: '', email: '', password: '', role: 'user' } as CreateUserForm,
-    validators: { onSubmit: ({ value }) => { const p = createUserSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message } },
-    onSubmit: async ({ value }) => {
-      setError(null)
-      const parsed = createUserSchema.safeParse(value)
-      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? 'Invalid input'); return }
-      const result = await authClient.admin.createUser({ name: parsed.data.name, email: parsed.data.email, password: parsed.data.password, role: parsed.data.role })
-      if (result.error) { setError(result.error.message ?? 'Failed to create user'); return }
-      router.navigate({ to: '/admin/users' })
-    },
-  })
-  return (
-    <main className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-xl flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4"><h1 className="text-2xl font-semibold tracking-tight">Create user</h1><Button variant="ghost" size="sm" render={<Link to="/admin/users" />} nativeButton={false}>Back to users</Button></div>
-        <p className="text-sm text-muted-foreground max-w-[65ch]">Add a new account. Admins can manage all users.</p>
-        <Separator />
-        <Card><CardHeader><CardTitle className="text-base">User details</CardTitle><CardDescription>Password must be at least 8 characters.</CardDescription></CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {error ? <Alert variant="destructive"><AlertTitle>Failed to create</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-            <Form form={form} className="flex flex-col gap-6">
-              <FieldGroup>
-                <TanStackField form={form} name="name" validators={{ onChange: ({ value }) => (value.trim().length ? undefined : 'Name required') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-name">Name</FieldLabel><Input id="create-user-name" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} placeholder="Ada Lovelace" aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-name-error" : "create-user-name-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-name-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-name-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-name-description">Display name for the account.</FieldDescription>}</Field>)}</TanStackField>
-                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email'), onSubmit: ({ value }) => (z.string().email().safeParse(value).success ? undefined : 'Enter a valid email') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-email">Email</FieldLabel><Input id="create-user-email" type="email" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} placeholder="you@example.com" aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-email-error" : "create-user-email-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-email-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-email-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-email-description">Account email address.</FieldDescription>}</Field>)}</TanStackField>
-                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters'), onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="create-user-password">Password</FieldLabel><Input id="create-user-password" type="password" value={field.state.value} onChange={(event) => field.handleChange(event.target.value)} onBlur={field.handleBlur} aria-invalid={field.state.meta.errors.length > 0} aria-describedby={field.state.meta.errors.length ? "create-user-password-error" : "create-user-password-description"} aria-errormessage={field.state.meta.errors.length ? "create-user-password-error" : undefined} />{field.state.meta.errors.length ? <FieldDescription id="create-user-password-error" className="text-destructive">{String(field.state.meta.errors[0])}</FieldDescription> : <FieldDescription id="create-user-password-description">At least 8 characters.</FieldDescription>}</Field>)}</TanStackField>
-                <TanStackField form={form} name="role">{(field) => (<Field><FieldLabel id="role-label" htmlFor="role">Role</FieldLabel><Select items={ROLE_OPTIONS} value={field.state.value} onValueChange={(role) => { if (isUserRole(role)) field.handleChange(role); }}><SelectTrigger id="role" aria-labelledby="role-label" onBlur={field.handleBlur}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="user">User</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectGroup></SelectContent></Select><FieldDescription>Admins can manage all users.</FieldDescription></Field>)}</TanStackField>
-              </FieldGroup>
-              <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => <SubmitButton disabled={!canSubmit || isSubmitting}>{isSubmitting ? <Spinner data-icon="inline-start" /> : null}{isSubmitting ? "Creating user…" : "Create user"}</SubmitButton>}
-              </form.Subscribe>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
-  )
-}
-`;
-}
-
-export function tanstackAdminFiles(isConvex = false): TemplateFile[] {
-  return [
-    file("apps/web/src/routes/admin.tsx", tanstackAdminDashboardContent(isConvex)),
-    file("apps/web/src/routes/admin.users.tsx", tanstackAdminUsersContent(isConvex)),
-    file("apps/web/src/routes/admin.users.create.tsx", tanstackAdminCreateUserContent(isConvex)),
-  ];
-}

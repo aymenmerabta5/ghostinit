@@ -14,13 +14,20 @@ import {
   authFileContent,
   orpcFileContent,
   healthFileContent,
+  nextOpenApiOperationsRouteContent,
   openapiFileContent,
 } from "./fragments/api.js";
 
 export function apiFiles(
   _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
-  return [authApiRoute(), orpcApiRoute(), healthApiRoute(), openapiApiRoute()];
+  return [
+    authApiRoute(),
+    orpcApiRoute(),
+    openapiOperationsRoute(),
+    healthApiRoute(),
+    openapiApiRoute(),
+  ];
 }
 
 function authApiRoute(): TemplateFile {
@@ -28,7 +35,14 @@ function authApiRoute(): TemplateFile {
 }
 
 function orpcApiRoute(): TemplateFile {
-  return file("apps/web/src/app/api/[...path]/route.ts", orpcFileContent("next"));
+  return file("apps/web/src/app/api/rpc/[...path]/route.ts", orpcFileContent("next"));
+}
+
+function openapiOperationsRoute(): TemplateFile {
+  return file(
+    "apps/web/src/app/api/[...path]/route.ts",
+    nextOpenApiOperationsRouteContent("@repo/api"),
+  );
 }
 
 function healthApiRoute(): TemplateFile {

@@ -49,10 +49,12 @@ describe("ghostinit init", () => {
     mkdirSync(dir, { recursive: true });
     const result = run(["init", "--yes", "--no-install", "--json"], dir);
     expect(result.status).toBe(0);
-    const state = JSON.parse(readFileSync(join(dir, ".ghostinit", "state.json"), "utf-8")) as {
-      project: { name: string };
+    const config = JSON.parse(readFileSync(join(dir, "ghostinit.config.json"), "utf-8")) as {
+      name: string;
+      schemaVersion: number;
     };
-    expect(state.project.name).toBe("derived-name");
+    expect(config.name).toBe("derived-name");
+    expect(config.schemaVersion).toBe(2);
   });
 
   it("refuses to init into a non-empty directory without --force", () => {
@@ -82,12 +84,11 @@ describe("ghostinit upgrade", () => {
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout) as {
       success: boolean;
-      data: { upgraded: boolean; currentVersion: string; templateRerender: boolean };
+      data: { upgraded: boolean; currentVersion: string; targetStateVersion: number };
     };
     expect(parsed.success).toBe(true);
     expect(parsed.data.upgraded).toBe(true);
-    // Honest contract: upgrade never re-renders templates.
-    expect(parsed.data.templateRerender).toBe(false);
+    expect(parsed.data.targetStateVersion).toBe(2);
   });
 
   it("fails with INVALID_STATE outside a project", () => {

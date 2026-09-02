@@ -4,14 +4,16 @@
 
 Reference files: `src/templates/billing/providers/stripe/`
 
-- client.ts — `getStripeClient()` validates key not placeholder, pinned apiVersion basil.
-- checkout.ts — `createStripeCheckoutSession(userId, priceId)` via `stripe.checkout.sessions.create`.
-- customer.ts — getOrCreate by metadata userId.
+- api-version.ts — `STRIPE_API_VERSION = "2026-07-29.dahlia"`, kept in lockstep with exact `stripe@22.5.0`.
+- client.ts — `getStripeClient()` validates the server-only key and passes the pinned Dahlia API version.
+- checkout.ts — `createStripeCheckout(stripe, input)` uses `stripe.checkout.sessions.create` with request-key idempotency and ownership metadata.
+- customer.ts — `createStripeCustomer(stripe, input)` uses hashed idempotency keys and actor metadata.
 - portal.ts — `stripe.billingPortal.sessions.create`.
-- webhook.ts — `Buffer.from(await request.arrayBuffer())` + `stripe.webhooks.constructEvent(raw, signature, secret)`.
-- subscriptions.ts — list/cancel mapped.
+- webhook.ts — bounded raw `Buffer` + `await stripe.webhooks.constructEventAsync(raw, signature, secret)` (required by Bun/worker SubtleCrypto).
+- subscriptions.ts — `listStripeSubscriptions(stripe, input)` with typed status filtering.
 - mappers.ts — Stripe → BillingSubscription internal.
-- index.ts explicit named re-exports only.
+- host-only.d.ts — host typecheck shim only; the billing generator does not emit it.
+- `src/templates/billing/providers/stripe.ts` — explicit named provider barrel and factory.
 
 ## Chargily (Algeria) Differences
 
@@ -31,11 +33,11 @@ Reference files: `src/templates/billing/providers/stripe/`
 
 ```ts
 export const billing = {
-  stripe: "19.1.0",
+  stripe: "22.5.0",
   "@chargily/chargily-pay": "2.1.0",
-  "@paddle/paddle-node-sdk": "3.8.0",
-  "@paddle/paddle-js": "1.6.4",
-  "@polar-sh/sdk": "0.48.1",
+  "@paddle/paddle-node-sdk": "3.10.0",
+  "@paddle/paddle-js": "1.6.5",
+  "@polar-sh/sdk": "0.49.0",
   "@polar-sh/nextjs": "0.9.6",
   "myprovider-sdk": "1.0.0",
 } as const;
@@ -52,17 +54,16 @@ export const ENV_PLACEHOLDERS = {
 } as const;
 ```
 
-3. Folder `src/templates/billing/providers/myprovider/` 7 files `<300 LOC` each use `// @allow-long <LOC>: <reason>` if legit:
+3. Folder `src/templates/billing/providers/myprovider/` with small capability modules `<300 LOC` each; use `// @allow-long <LOC>: <reason>` only when justified. Start from `client.ts`, `checkout.ts`, `customer.ts`, `webhook.ts`, and `subscriptions.ts`; add portal, mapper, licensing, usage, product, or payment-link modules only when the provider supports them.
 
 client.ts pattern:
 
 ```ts
-import * as v from "../../../versions.js";
 export function getMyProviderClient() {
   const key = process.env.MYPROVIDER_API_KEY;
   if (!key || key.startsWith("REPLACE_WITH_"))
     throw new Error("MYPROVIDER_API_KEY placeholder not set");
-  // init SDK via v.billing["myprovider-sdk"]
+  // The exact SDK version belongs in the generated package manifest via v.billing.
   return new MyProvider(key);
 }
 ```
@@ -107,16 +108,22 @@ export function billingWebhookFilesByProvider(p: BillingProviderName) {
 
 Create `webhooks/providers/myprovider.ts` webhook route files (Next + optional TanStack variants `myprovider-next.ts` `myprovider-tanstack.ts`):
 
+- Next monorepo: `apps/web/src/app/api/webhooks/myprovider/route.ts`
+- Next single: `src/app/api/webhooks/myprovider/route.ts`
+- TanStack monorepo: `apps/web/src/routes/api/webhooks/myprovider.ts`
+- TanStack single: `src/routes/api/webhooks/myprovider.ts`
+
 ```ts
 import { file } from "../../shared.js";
 export function myProviderWebhookFiles() {
   return [
     file(
-      "apps/web/src/app/api/billing/webhooks/myprovider/route.ts",
+      "apps/web/src/app/api/webhooks/myprovider/route.ts",
       `
 import { verifyMyProviderWebhook } from "@repo/billing/providers/myprovider";
 export async function POST(req: Request) {
-  const raw = Buffer.from(await req.arrayBuffer());
+  const raw = await readBoundedWebhookBody(req);
+  if (raw instanceof Response) return raw;
   // verify + idempotent webhook_events unique
 }
 `,
@@ -153,7 +160,7 @@ cat /tmp/gi-test/demo/turbo.json | grep MYPROVIDER
 cat /tmp/gi-test/demo/packages/billing/src/providers/myprovider/ - list
 ```
 
-10. Docs sync same PR: AGENTS.md + ARCHITECTURE.md + CONTRIBUTING.md + skills/ghostinit-use/references/billing.md + skills/ghostinit-dev/references/billing-provider.md.
+10. Docs sync same PR: `AGENTS.md#architecture` + CONTRIBUTING.md + skills/ghostinit-use/references/billing.md + skills/ghostinit-dev/references/billing-provider.md. Update `evidence/compatibility/v1-to-v2.json` and its schema when the public provider/CLI migration mapping changes.
 
 ## Patterns to Follow
 

@@ -15,6 +15,11 @@ export interface ConsentState {
   version: number;
 }
 
+interface ConsentAwareAnalyticsClient {
+  opt_in_capturing?: () => void;
+  opt_out_capturing?: () => void;
+}
+
 const STORAGE_KEY = "ghostinit:consent";
 const COOKIE_KEY = "ghostinit_consent";
 const CONSENT_VERSION = 1;
@@ -144,15 +149,24 @@ export function resetConsent(): void {
 function trySyncPostHogConsent(state: ConsentState): void {
   if (typeof window === "undefined") return;
   try {
-    const w = window as unknown as { posthog?: { opt_in_capturing?: () => void; opt_out_capturing?: () => void } };
-    const ph = w.posthog;
-    if (!ph) return;
+    const candidate: unknown = Reflect.get(window, "posthog");
+    if (!isConsentAwareAnalyticsClient(candidate)) return;
     if (state.categories.analytics) {
-      ph.opt_in_capturing?.();
+      candidate.opt_in_capturing?.();
     } else {
-      ph.opt_out_capturing?.();
+      candidate.opt_out_capturing?.();
     }
   } catch {}
+}
+
+function isConsentAwareAnalyticsClient(value: unknown): value is ConsentAwareAnalyticsClient {
+  if (typeof value !== "object" || value === null) return false;
+  const optIn: unknown = Reflect.get(value, "opt_in_capturing");
+  const optOut: unknown = Reflect.get(value, "opt_out_capturing");
+  return (
+    (optIn === undefined || typeof optIn === "function") &&
+    (optOut === undefined || typeof optOut === "function")
+  );
 }
 
 export function onConsentChange(cb: (state: ConsentState) => void): () => void {

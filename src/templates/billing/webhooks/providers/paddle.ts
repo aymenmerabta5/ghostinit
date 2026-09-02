@@ -1,115 +1,232 @@
-import { convexApiFor, type DbImports, type ConvexImports } from "./shared.js";
+import {
+  convexApiFor,
+  convexBillingServerHelpers,
+  postgresWebhookClaimHelpers,
+  webhookBodyLimitHelpers,
+  webhookBodyReadLines,
+  webhookEventOrderHelpers,
+  type DbImports,
+  type ConvexImports,
+} from "./shared.js";
+import { convexWebhookPayloadHelpers } from "./convex-payload.js";
 
 type ConvexImp = ConvexImports;
 
+function eventHelpers(): string[] {
+  return [
+    'function nonEmptyString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value : null; }',
+    'function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }',
+    "function paddleDeliveryId(eventId: unknown, rawBody: Buffer): string {",
+    '  return nonEmptyString(eventId) ?? `body_sha256:${createHash("sha256").update(rawBody).digest("hex")}`;',
+    "}",
+    'type PaddleEventKind = "transaction_completed" | "transaction_paid" | "subscription_created" | "subscription_updated" | "subscription_canceled";',
+    "function paddleEventKind(eventType: string): PaddleEventKind | null {",
+    "  switch (eventType) {",
+    '    case "transaction_completed": case "TransactionCompleted": case "transaction.completed": return "transaction_completed";',
+    '    case "transaction_paid": case "TransactionPaid": case "transaction.paid": return "transaction_paid";',
+    '    case "subscription_created": case "SubscriptionCreated": case "subscription.created": return "subscription_created";',
+    '    case "subscription_updated": case "SubscriptionUpdated": case "subscription.updated": case "subscription_activated": case "subscription.activated": case "subscription_trialing": case "subscription.trialing": case "subscription_past_due": case "subscription.past_due": case "subscription_paused": case "subscription.paused": case "subscription_resumed": case "subscription.resumed": return "subscription_updated";',
+    '    case "subscription_canceled": case "SubscriptionCanceled": case "subscription.canceled": return "subscription_canceled";',
+    "    default: return null;",
+    "  }",
+    "}",
+    "function requirePaddleEventResourceId(data: Record<string, unknown>, eventType: string): string {",
+    "  const id = nonEmptyString(data.id); if (!id) throw new Error(`Paddle ${eventType} event did not include data.id`); return id;",
+    "}",
+    'function mapPaddleSubscriptionStatus(value: unknown): "active" | "trialing" | "past_due" | "canceled" | "paused" | "incomplete" {',
+    '  const status = nonEmptyString(value); if (status === "active" || status === "trialing" || status === "past_due" || status === "canceled" || status === "paused") return status; return "incomplete";',
+    "}",
+  ];
+}
+
 function baseNext(imp: DbImports): string {
   return [
-    'import { eq } from "drizzle-orm";',
+    'import { createHash, randomUUID } from "node:crypto";',
+    'import { and, eq, isNull, sql } from "drizzle-orm";',
     `import { db } from "${imp.db}";`,
-    `import { webhook_events, checkouts, subscriptions, invoices } from "${imp.billingSchema}";`,
+    `import { webhook_events, checkouts, subscriptions, invoices, customers } from "${imp.billingSchema}";`,
     `import { logger } from "${imp.observability}";`,
     "",
+    ...webhookBodyLimitHelpers(),
+    "",
+    ...eventHelpers(),
+    ...webhookEventOrderHelpers(),
+    "",
+    ...postgresWebhookClaimHelpers("paddle"),
+    "",
     "export async function POST(req: Request): Promise<Response> {",
+    ...webhookBodyReadLines("req"),
     '  const sig = req.headers.get("paddle-signature");',
-    '  if (!sig) { logger.warn("[paddle webhook] missing paddle-signature header"); return new Response("Missing paddle-signature header", { status: 400 }); }',
-    "  const buf = Buffer.from(await req.arrayBuffer());",
-    '  const rawBody = buf.toString("utf-8");',
+    '  if (!sig) return new Response("Missing paddle-signature header", { status: 400 });',
+    '  const rawBodyString = buf.toString("utf-8");',
     '  const secret = process.env.PADDLE_WEBHOOK_SECRET ?? "";',
-    '  if (!secret || secret.startsWith("REPLACE_WITH")) { logger.error("[paddle webhook] PADDLE_WEBHOOK_SECRET not configured"); return new Response("PADDLE_WEBHOOK_SECRET not configured", { status: 400 }); }',
-    "  let event: { eventType: string; eventId: string; data: Record<string, unknown>; occurredAt?: string };",
-    '  try { const { Paddle, Environment } = await import("@paddle/paddle-node-sdk"); const paddle = new Paddle(process.env.PADDLE_API_KEY ?? "", { environment: (process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox) as unknown as string, }); const ev = (await paddle.webhooks.unmarshal(rawBody, secret, sig)) as unknown as { eventType: string; eventId: string; data: Record<string, unknown> }; event = { eventType: ev.eventType, eventId: ev.eventId ?? ev.id ?? `evt_${Date.now()}`, data: ev.data as Record<string, unknown>, occurredAt: ev.occurredAt, }; } catch (err: unknown) { const msg = err?.message ?? String(err); const isInvalid = msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("verification"); logger.error(`[paddle webhook] ${isInvalid ? "signature verification failed 403" : "webhook error 400"}: ${msg}`); return new Response(isInvalid ? "Invalid paddle signature" : "Webhook Error", { status: isInvalid ? 403 : 400 }); }',
-    '  try { if (!db.query.webhook_events.findFirst) { throw new Error("webhook_events query not available — ensure billing schema is migrated"); } const existing = await db.query.webhook_events.findFirst({ where: eq(webhook_events.providerEventId, event.eventId), }); if (existing?.processed) { logger.info(`[paddle webhook] already processed ${event.eventId}`); return new Response("already processed", { status: 200 }); } } catch (error) { const message = error instanceof Error ? error.message : String(error); logger.error(`[paddle webhook] idempotency check failed: ${message}`); return new Response(`Idempotency store unavailable: ${message}`, { status: 500, headers: { "Retry-After": "60" } }); }',
-    '  try { const data = event.data as Record<string, unknown>; const txnId = (data.id as string | undefined) ?? (event.eventId as string); const customData = data.customData as Record<string, unknown> | undefined; const customerId = (data.customerId as string | undefined) ?? (data as unknown as Record<string, unknown>).customer_id; switch (event.eventType) { case "transaction_completed": case "TransactionCompleted": case "transaction.completed": { try { if (txnId) { await db.update(checkouts).set({ status: "completed" }).where(eq(checkouts.providerCheckoutId, txnId)); } const userId = (customData?.userId as string | undefined) ?? (customData?.user_id as string | undefined); const subId = (data.subscriptionId as string | undefined) ?? (data as unknown as Record<string, unknown>).subscription_id ?? txnId; if (userId && subId) { await db.insert(subscriptions).values({ userId, provider: "paddle", providerSubscriptionId: subId, status: "active", customerId: customerId as unknown as string, metadata: customData as unknown as Record<string, unknown>, }).onConflictDoNothing(); } } catch (error) { logger.error(`[paddle webhook] transaction_completed handler failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "transaction_paid": case "TransactionPaid": case "transaction.paid": { try { await db.insert(invoices).values({ provider: "paddle", providerInvoiceId: txnId, paid: true, amount: (data as unknown as Record<string, unknown>).details?.totals?.total ? Number.parseInt((data as unknown as Record<string, unknown>).details.totals.total, 10) : 0, status: "paid", }).onConflictDoNothing(); } catch (error) { logger.error(`[paddle webhook] transaction_paid handler failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription_created": case "SubscriptionCreated": case "subscription.created": { try { const userId = (customData?.userId as string | undefined) ?? ""; if (userId && txnId) { await db.insert(subscriptions).values({ userId, provider: "paddle", providerSubscriptionId: txnId, status: "active", customerId: customerId as unknown as string, metadata: customData as unknown as Record<string, unknown>, }).onConflictDoNothing(); } } catch (error) { logger.error(`[paddle webhook] subscription_created failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription_canceled": case "SubscriptionCanceled": case "subscription.canceled": { try { await db.update(subscriptions).set({ status: "canceled" as unknown as string }).where(eq(subscriptions.providerSubscriptionId, txnId)); } catch (error) { logger.error(`[paddle webhook] subscription_canceled failed: ${error instanceof Error ? error.message : String(error)}`); } break; } default: break; } } catch (error) { logger.error(`[paddle webhook] handler error: ${error instanceof Error ? error.message : String(error)}`); }',
-    '  try { await db.insert(webhook_events).values({ provider: "paddle", providerEventId: event.eventId, type: event.eventType, payload: event.data as unknown as string, processed: true, }).onConflictDoNothing(); } catch (error) { logger.error(`[paddle webhook] failed to record event: ${error instanceof Error ? error.message : String(error)}`); }',
-    '  logger.info(`[paddle webhook] processed ${event.eventType} ${event.eventId}`); return new Response("ok", { status: 200 });',
+    '  if (!secret || secret.startsWith("REPLACE_WITH")) return new Response("PADDLE_WEBHOOK_SECRET not configured", { status: 400 });',
+    "  let eventType: string; let eventId: string; let eventData: Record<string, unknown>; let eventOccurredAtMs: number | null;",
+    "  try {",
+    '    const { Paddle, Environment } = await import("@paddle/paddle-node-sdk");',
+    '    const paddle = new Paddle(process.env.PADDLE_API_KEY ?? "", { environment: process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox });',
+    "    const event = await paddle.webhooks.unmarshal(rawBodyString, secret, sig);",
+    '    eventType = nonEmptyString(event.eventType) ?? "unknown";',
+    "    eventId = paddleDeliveryId(event.eventId, buf);",
+    "    eventData = isRecord(event.data) ? event.data : {};",
+    "    eventOccurredAtMs = providerEventMillis(event.occurredAt, eventData.updatedAt, eventData.createdAt);",
+    "  } catch (error) {",
+    "    const message = error instanceof Error ? error.message : String(error);",
+    "    const invalid = /signature|verification|invalid/i.test(message);",
+    "    logger.error(`[paddle webhook] verification failed: ${message}`);",
+    '    return new Response(invalid ? "Invalid paddle signature" : "Webhook Error", { status: invalid ? 403 : 400 });',
+    "  }",
+    "  let claim: ClaimResult;",
+    "  try { claim = await claimWebhookDelivery(eventId, eventType, eventData); }",
+    '  catch { return new Response("Idempotency store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  if (claim.status === "completed") return new Response("already processed", { status: 200 });',
+    '  if (claim.status === "in_flight") return new Response("delivery in progress", { status: 503, headers: { "Retry-After": "5" } });',
+    "  try {",
+    "    const customData = isRecord(eventData.customData) ? eventData.customData : undefined;",
+    "    const userId = nonEmptyString(customData?.userId) ?? nonEmptyString(customData?.user_id);",
+    "    const requestKey = nonEmptyString(customData?.requestKey);",
+    "    const customerId = nonEmptyString(eventData.customerId) ?? nonEmptyString(eventData.customer_id);",
+    "    switch (paddleEventKind(eventType)) {",
+    '      case "transaction_completed": {',
+    "        const transactionId = requirePaddleEventResourceId(eventData, eventType);",
+    "        const providerEventAt = new Date(requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs));",
+    '        const existingCheckout = await db.query.checkouts.findFirst({ where: and(eq(checkouts.provider, "paddle"), eq(checkouts.providerCheckoutId, transactionId)) });',
+    "        const checkoutUserId = userId ?? existingCheckout?.userId ?? null;",
+    "        if (!checkoutUserId) throw new Error(`Paddle ${eventType} event did not include actor ownership`);",
+    '        if (requestKey) await db.update(checkouts).set({ providerCheckoutId: transactionId, status: "completed", metadata: customData, providerEventAt, creationState: "ready", creationStartedAt: null, creationLeaseToken: null, updatedAt: new Date() }).where(and(eq(checkouts.userId, checkoutUserId), eq(checkouts.provider, "paddle"), eq(checkouts.requestKey, requestKey), eq(checkouts.creationState, "creating")));',
+    '        const [storedCheckout] = await db.insert(checkouts).values({ userId: checkoutUserId, provider: "paddle", providerCheckoutId: transactionId, requestKey, status: "completed", metadata: customData, providerEventAt }).onConflictDoUpdate({ target: [checkouts.provider, checkouts.providerCheckoutId], set: { requestKey, status: "completed", metadata: customData, providerEventAt, creationState: "ready", creationStartedAt: null, creationLeaseToken: null, updatedAt: new Date() }, setWhere: and(eq(checkouts.userId, checkoutUserId), sql`${checkouts.providerEventAt} IS NULL OR ${checkouts.providerEventAt} <= ${providerEventAt}`) }).returning({ id: checkouts.id });',
+    "        if (!storedCheckout && existingCheckout?.userId !== checkoutUserId) throw new Error(`Paddle checkout ${transactionId} belongs to another actor`);",
+    '        if (customerId) await db.insert(customers).values({ userId: checkoutUserId, provider: "paddle", providerCustomerId: customerId, metadata: customData }).onConflictDoUpdate({ target: [customers.userId, customers.provider], set: { metadata: customData, updatedAt: new Date() } });',
+    "        break;",
+    "      }",
+    '      case "transaction_paid": {',
+    "        const transactionId = requirePaddleEventResourceId(eventData, eventType);",
+    "        const providerEventAt = new Date(requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs));",
+    "        const details = isRecord(eventData.details) ? eventData.details : {}; const totals = isRecord(details.totals) ? details.totals : {};",
+    '        const amount = Number.parseInt(nonEmptyString(totals.total) ?? "0", 10);',
+    "        const currency = nonEmptyString(eventData.currencyCode) ?? nonEmptyString(eventData.currency_code) ?? undefined;",
+    "        const providerSubscriptionId = nonEmptyString(eventData.subscriptionId) ?? nonEmptyString(eventData.subscription_id);",
+    '        const localSubscription = providerSubscriptionId ? await db.query.subscriptions.findFirst({ where: and(eq(subscriptions.provider, "paddle"), eq(subscriptions.providerSubscriptionId, providerSubscriptionId)) }) : null;',
+    '        const localCustomer = customerId ? await db.query.customers.findFirst({ where: and(eq(customers.provider, "paddle"), eq(customers.providerCustomerId, customerId)) }) : null;',
+    "        const invoiceUserId = userId ?? localSubscription?.userId ?? localCustomer?.userId ?? null;",
+    "        if (!invoiceUserId) throw new Error(`Paddle ${eventType} event did not include actor ownership`);",
+    "        if (localSubscription && localSubscription.userId !== invoiceUserId) throw new Error(`Paddle subscription ${providerSubscriptionId} belongs to another actor`);",
+    "        if (localCustomer && localCustomer.userId !== invoiceUserId) throw new Error(`Paddle customer ${customerId} belongs to another actor`);",
+    '        const [storedInvoice] = await db.insert(invoices).values({ userId: invoiceUserId, provider: "paddle", providerInvoiceId: transactionId, subscriptionId: localSubscription?.id, customerId: localCustomer?.id, paid: true, amount, currency, status: "paid", metadata: customData, providerEventAt }).onConflictDoUpdate({ target: [invoices.provider, invoices.providerInvoiceId], set: { subscriptionId: localSubscription?.id, customerId: localCustomer?.id, paid: true, amount, currency, status: "paid", metadata: customData, providerEventAt, updatedAt: new Date() }, setWhere: and(eq(invoices.userId, invoiceUserId), sql`${invoices.providerEventAt} IS NULL OR ${invoices.providerEventAt} <= ${providerEventAt}`) }).returning({ id: invoices.id });',
+    '        if (!storedInvoice) { const existingInvoice = await db.query.invoices.findFirst({ where: and(eq(invoices.provider, "paddle"), eq(invoices.providerInvoiceId, transactionId)) }); if (!existingInvoice || existingInvoice.userId !== invoiceUserId) throw new Error(`Paddle invoice ${transactionId} belongs to another actor`); }',
+    "        break;",
+    "      }",
+    '      case "subscription_created":',
+    '      case "subscription_updated":',
+    '      case "subscription_canceled": {',
+    "        const subscriptionId = requirePaddleEventResourceId(eventData, eventType);",
+    '        const subscriptionStatus = paddleEventKind(eventType) === "subscription_canceled" ? "canceled" as const : mapPaddleSubscriptionStatus(eventData.status);',
+    "        const providerEventAt = new Date(requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs));",
+    "        const ordering = sql`${subscriptions.providerEventAt} IS NULL OR ${subscriptions.providerEventAt} < ${providerEventAt} OR (${subscriptions.providerEventAt} = ${providerEventAt} AND (${subscriptionStatus} = 'canceled' OR ${subscriptions.status} NOT IN ('canceled', 'expired')))`;",
+    "        if (userId) {",
+    '          const [stored] = await db.insert(subscriptions).values({ userId, provider: "paddle", providerSubscriptionId: subscriptionId, status: subscriptionStatus, metadata: customData, providerEventAt }).onConflictDoUpdate({ target: [subscriptions.provider, subscriptions.providerSubscriptionId], set: { status: subscriptionStatus, metadata: customData, providerEventAt, updatedAt: new Date() }, setWhere: and(eq(subscriptions.userId, userId), ordering) }).returning({ id: subscriptions.id });',
+    '          if (!stored) { const existing = await db.query.subscriptions.findFirst({ where: and(eq(subscriptions.provider, "paddle"), eq(subscriptions.providerSubscriptionId, subscriptionId)) }); if (!existing || existing.userId !== userId) throw new Error(`Paddle subscription ${subscriptionId} belongs to another actor`); }',
+    "        } else {",
+    '          const [updated] = await db.update(subscriptions).set({ status: subscriptionStatus, providerEventAt, metadata: customData, updatedAt: new Date() }).where(and(eq(subscriptions.provider, "paddle"), eq(subscriptions.providerSubscriptionId, subscriptionId), ordering)).returning({ id: subscriptions.id });',
+    '          if (!updated) { const existing = await db.query.subscriptions.findFirst({ where: and(eq(subscriptions.provider, "paddle"), eq(subscriptions.providerSubscriptionId, subscriptionId)) }); if (!existing) throw new Error(`Paddle ${eventType} event did not include actor ownership for an unknown subscription`); }',
+    "        }",
+    "        break;",
+    "      }",
+    "      default: break;",
+    "    }",
+    "  } catch (error) {",
+    "    const message = error instanceof Error ? error.message : String(error);",
+    "    try { await failWebhookDelivery(eventId, claim.leaseToken, message); } catch (releaseError) { logger.error(`[paddle webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); }",
+    '    return new Response("Webhook handler failed", { status: 500, headers: { "Retry-After": "60" } });',
+    "  }",
+    "  try { await completeWebhookDelivery(eventId, claim.leaseToken); } catch (error) {",
+    "    const message = error instanceof Error ? error.message : String(error);",
+    "    try { await failWebhookDelivery(eventId, claim.leaseToken, message); } catch (releaseError) { logger.error(`[paddle webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); }",
+    '    return new Response("Webhook event store unavailable", { status: 500, headers: { "Retry-After": "60" } });',
+    "  }",
+    "  logger.info(`[paddle webhook] processed ${eventType} ${eventId}`);",
+    '  return new Response("ok", { status: 200 });',
     "}",
   ].join("\n");
 }
 
 function convexNext(imp: DbImports): string {
-  const convexImport = `import { convexClient } from "${imp.db}";`;
-  const apiImport = `import { api } from "${convexApiFor(imp, "paddle", "next")}";`;
+  const apiSpecifier = convexApiFor(imp, "paddle", "next");
+  const dataModelSpecifier = apiSpecifier.replace(/\/api$/, "/dataModel");
   return [
-    convexImport,
-    apiImport,
+    'import { createHash } from "node:crypto";',
+    `import { convexClient } from "${imp.db}";`,
+    `import { api } from "${apiSpecifier}";`,
+    `import type { Id } from "${dataModelSpecifier}";`,
     `import { logger } from "${imp.observability}";`,
+    "",
+    ...convexBillingServerHelpers(),
+    "",
+    ...convexWebhookPayloadHelpers(),
+    "",
+    ...webhookBodyLimitHelpers(),
+    "",
+    ...eventHelpers(),
+    ...webhookEventOrderHelpers(),
+    'function scalarMetadata(value: unknown): Record<string, string | number | boolean | null> | undefined { if (!isRecord(value)) return undefined; const output: Record<string, string | number | boolean | null> = {}; for (const [key, item] of Object.entries(value)) if (item === null || typeof item === "string" || typeof item === "number" || typeof item === "boolean") output[key] = item; return output; }',
+    "",
     "export async function POST(req: Request): Promise<Response> {",
+    ...webhookBodyReadLines("req"),
     '  const sig = req.headers.get("paddle-signature");',
-    '  if (!sig) return new Response("Missing signature", { status: 400 });',
-    '  const buf = Buffer.from(await req.arrayBuffer()); const rawBody = buf.toString("utf-8");',
+    '  if (!sig) return new Response("Missing paddle-signature header", { status: 400 });',
+    '  const rawBodyString = buf.toString("utf-8");',
     '  const secret = process.env.PADDLE_WEBHOOK_SECRET ?? "";',
     '  if (!secret || secret.startsWith("REPLACE_WITH")) return new Response("PADDLE_WEBHOOK_SECRET not configured", { status: 400 });',
-    "  let eventType: string; let eventId: string; let eventData: Record<string, unknown>;",
-    '  try { const { Paddle, Environment } = await import("@paddle/paddle-node-sdk"); const paddle = new Paddle(process.env.PADDLE_API_KEY ?? "", { environment: (process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox) as unknown as string }); const ev = (await paddle.webhooks.unmarshal(rawBody, secret, sig)) as unknown as string; eventType = ev.eventType; eventId = ev.eventId ?? ev.id ?? `evt_${Date.now()}`; eventData = ev.data ?? ev; } catch (err: unknown) { const msg = err?.message ?? String(err); const isInvalid = msg.toLowerCase().includes("signature"); logger.error(`[paddle] ${msg}`); return new Response("Webhook Error", { status: isInvalid ? 403 : 400 }); }',
-    '  try { const existing = await convexClient.query(api.billing.checkWebhookEvent, { provider: "paddle", providerEventId: eventId }); if ((existing as unknown as { processed?: boolean })?.processed) { logger.info(`[paddle] already processed ${eventId}`); return new Response("already processed", { status: 200 }); } } catch (e) { logger.error(`[paddle] idempotency fail ${e instanceof Error ? e.message : String(e)}`); }',
-    '  try { const customData = (eventData as unknown as Record<string, unknown>).customData; const txnId = (eventData as unknown as Record<string, unknown>).id ?? eventId; if (eventType.includes("transaction_completed") || eventType.includes("completed")) { await convexClient.mutation(api.billing.upsertCheckout, { provider: "paddle", providerCheckoutId: txnId as string, status: "completed" as unknown as string, customerId: (eventData as unknown as Record<string, unknown>).customerId as unknown as string ?? (eventData as unknown as Record<string, unknown>).customer_id, metadata: customData as unknown as Record<string, unknown> }); const userId = (customData as unknown as Record<string, unknown>)?.userId ?? (customData as unknown as Record<string, unknown>)?.user_id; const subId = (eventData as unknown as Record<string, unknown>).subscriptionId ?? txnId; if (userId && subId) await convexClient.mutation(api.billing.upsertSubscription, { userId, provider: "paddle", providerSubscriptionId: subId as string, status: "active" as unknown as string, customerId: (eventData as unknown as Record<string, unknown>).customerId as unknown as string, metadata: customData as unknown as Record<string, unknown> }); } } catch (e) { logger.error(`[paddle] handler error ${e instanceof Error ? e.message : String(e)}`); }',
-    '  try { await convexClient.mutation(api.billing.upsertWebhookEvent, { provider: "paddle", providerEventId: eventId, type: eventType, payload: eventData as unknown as string, processed: true }); } catch (e) { logger.error(`[paddle] record fail ${e instanceof Error ? e.message : String(e)}`); }',
-    '  logger.info(`[paddle] processed ${eventType} ${eventId}`); return new Response("ok", { status: 200 });',
+    "  let eventType: string; let eventId: string; let eventData: Record<string, unknown>; let eventOccurredAtMs: number | null;",
+    '  try { const { Paddle, Environment } = await import("@paddle/paddle-node-sdk"); const paddle = new Paddle(process.env.PADDLE_API_KEY ?? "", { environment: process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox }); const event = await paddle.webhooks.unmarshal(rawBodyString, secret, sig); eventType = nonEmptyString(event.eventType) ?? "unknown"; eventId = paddleDeliveryId(event.eventId, buf); eventData = isRecord(event.data) ? event.data : {}; eventOccurredAtMs = providerEventMillis(event.occurredAt, eventData.updatedAt, eventData.createdAt); }',
+    '  catch (error) { const message = error instanceof Error ? error.message : String(error); return new Response("Webhook Error", { status: /signature|verification|invalid/i.test(message) ? 403 : 400 }); }',
+    '  let claim: { status: "claimed"; leaseToken: string } | { status: "completed" } | { status: "in_flight" }; try { claim = await runBillingMutation("claimWebhookEvent", { provider: "paddle", providerEventId: eventId, type: eventType, payload: normalizeConvexWebhookPayload(eventData) }); }',
+    '  catch { return new Response("Idempotency store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  if (claim.status === "completed") return new Response("already processed", { status: 200 });',
+    '  if (claim.status === "in_flight") return new Response("delivery in progress", { status: 503, headers: { "Retry-After": "5" } });',
+    "  try {",
+    "    const customData = scalarMetadata(eventData.customData); const userId = nonEmptyString(customData?.userId) ?? nonEmptyString(customData?.user_id); const requestKey = nonEmptyString(customData?.requestKey); const customerId = nonEmptyString(eventData.customerId) ?? nonEmptyString(eventData.customer_id);",
+    "    switch (paddleEventKind(eventType)) {",
+    '      case "transaction_completed": { const providerEventAt = requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs); const transactionId = requirePaddleEventResourceId(eventData, eventType); if (!userId) throw new Error(`Paddle ${eventType} event did not include actor ownership`); await runBillingMutation("upsertCheckout", { userId: userId as Id<"users">, provider: "paddle", providerCheckoutId: transactionId, requestKey, status: "completed", customerId, metadata: customData, providerEventAt }); if (customerId) await runBillingMutation("upsertCustomer", { userId: userId as Id<"users">, provider: "paddle", providerCustomerId: customerId, metadata: customData }); break; }',
+    '      case "transaction_paid": { const providerEventAt = requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs); const transactionId = requirePaddleEventResourceId(eventData, eventType); if (!userId) throw new Error(`Paddle ${eventType} event did not include actor ownership`); const details = isRecord(eventData.details) ? eventData.details : {}; const totals = isRecord(details.totals) ? details.totals : {}; const amount = Number.parseInt(nonEmptyString(totals.total) ?? "0", 10); const currency = nonEmptyString(eventData.currencyCode) ?? nonEmptyString(eventData.currency_code) ?? undefined; const subscriptionId = nonEmptyString(eventData.subscriptionId) ?? nonEmptyString(eventData.subscription_id) ?? undefined; await runBillingMutation("upsertInvoice", { userId: userId as Id<"users">, provider: "paddle", providerInvoiceId: transactionId, status: "paid", amount, currency, customerId: customerId ?? undefined, subscriptionId, metadata: customData, providerEventAt }); break; }',
+    '      case "subscription_created": case "subscription_updated": case "subscription_canceled": { const providerEventAt = requireProviderEventMillis(`Paddle ${eventType}`, eventOccurredAtMs); const subscriptionId = requirePaddleEventResourceId(eventData, eventType); const status = paddleEventKind(eventType) === "subscription_canceled" ? "canceled" as const : mapPaddleSubscriptionStatus(eventData.status); if (userId) await runBillingMutation("upsertSubscription", { userId: userId as Id<"users">, provider: "paddle", providerSubscriptionId: subscriptionId, status, metadata: customData, providerEventAt }); else await runBillingMutation("updateSubscriptionStatus", { provider: "paddle", providerSubscriptionId: subscriptionId, status, metadata: customData, providerEventAt }); break; }',
+    "      default: break;",
+    "    }",
+    '  } catch (error) { const message = error instanceof Error ? error.message : String(error); try { await runBillingMutation("failWebhookEvent", { provider: "paddle", providerEventId: eventId, leaseToken: claim.leaseToken, error: message }); } catch (releaseError) { logger.error(`[paddle webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook handler failed", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  try { await runBillingMutation("completeWebhookEvent", { provider: "paddle", providerEventId: eventId, leaseToken: claim.leaseToken }); } catch (error) { const message = error instanceof Error ? error.message : String(error); try { await runBillingMutation("failWebhookEvent", { provider: "paddle", providerEventId: eventId, leaseToken: claim.leaseToken, error: message }); } catch (releaseError) { logger.error(`[paddle webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook event store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  return new Response("ok", { status: 200 });',
     "}",
   ].join("\n");
 }
 
-function tanstackBase(imp: DbImports): string {
-  return [
-    "import { createFileRoute } from '@tanstack/react-router'",
-    "import { eq } from 'drizzle-orm'",
-    `import { db } from '${imp.db}'`,
-    `import { webhook_events, checkouts, subscriptions, invoices } from '${imp.billingSchema}'`,
-    `import { logger } from '${imp.observability}'`,
-    "async function POST({ request }: { request: Request }): Promise<Response> {",
-    "  const sig = request.headers.get('paddle-signature')",
-    "  if (!sig) return Response.json({ ok: false, error: 'Missing signature' }, { status: 400 })",
-    "  const buf = Buffer.from(await request.arrayBuffer())",
-    "  const rawBody = buf.toString('utf-8')",
-    "  const secret = process.env.PADDLE_WEBHOOK_SECRET ?? ''",
-    "  if (!secret || secret.startsWith('REPLACE_WITH')) return Response.json({ ok: false, error: 'secret not configured' }, { status: 400 })",
-    "  let eventType: string; let eventId: string; let eventData: Record<string, unknown>;",
-    "  try { const { Paddle, Environment } = await import('@paddle/paddle-node-sdk'); const paddle = new Paddle(process.env.PADDLE_API_KEY ?? '', { environment: (process.env.PADDLE_ENVIRONMENT === 'production' ? Environment.production : Environment.sandbox) as unknown as string }); const ev = (await paddle.webhooks.unmarshal(rawBody, secret, sig)) as unknown as string; eventType = ev.eventType; eventId = ev.eventId ?? ev.id ?? `evt_${Date.now()}`; eventData = ev.data ?? ev; } catch (err: unknown) { const msg = err?.message ?? String(err); const isInvalid = msg.toLowerCase().includes('signature'); logger.error(`[paddle] ${msg}`); return Response.json({ ok: false, error: 'Webhook Error' }, { status: isInvalid ? 403 : 400 }) }",
-    "  try { const existing = await db.query.webhook_events.findFirst({ where: eq(webhook_events.providerEventId, eventId) }); if (existing?.processed) return Response.json({ ok: true, alreadyProcessed: true }) } catch (e) { logger.error(`[paddle] idempotency fail ${e instanceof Error ? e.message : String(e)}`) }",
-    "  try { const customData = (eventData as unknown as Record<string, unknown>).customData; const txnId = (eventData as unknown as Record<string, unknown>).id ?? eventId; if (eventType.includes('completed')) { await db.update(checkouts).set({ status: \"completed\" as unknown as string }).where(eq(checkouts.providerCheckoutId, txnId)); const userId = (customData as unknown as Record<string, unknown>)?.userId ?? (customData as unknown as Record<string, unknown>)?.user_id; const subId = (eventData as unknown as Record<string, unknown>).subscriptionId ?? txnId; if (userId && subId) await db.insert(subscriptions).values({ userId, provider: 'paddle', providerSubscriptionId: subId, status: 'active', customerId: (eventData as unknown as Record<string, unknown>).customerId as unknown as string as unknown as string, metadata: customData as unknown as Record<string, unknown> }).onConflictDoNothing() } } catch (e) { logger.error(`[paddle] handler error ${e instanceof Error ? e.message : String(e)}`) }",
-    "  try { await db.insert(webhook_events).values({ provider: 'paddle', providerEventId: eventId, type: eventType, payload: eventData as unknown as string, processed: true }).onConflictDoNothing() } catch (e) { logger.error(`[paddle] record fail`) }",
-    "  logger.info(`[paddle] ${eventType} ${eventId} ok`); return Response.json({ ok: true, provider: 'paddle', type: eventType, id: eventId })",
-    "}",
-    "export const Route = createFileRoute('/api/webhooks/paddle')({ server: { handlers: { POST } } })",
-  ].join("\n");
-}
-
-function tanstackConvex(imp: DbImports): string {
-  const convexImport = `import { convexClient } from '${imp.db}'`;
-  const apiImport = `import { api } from '${convexApiFor(imp, "paddle", "tanstack")}'`;
-  return [
-    "import { createFileRoute } from '@tanstack/react-router'",
-    convexImport,
-    apiImport,
-    `import { logger } from '${imp.observability}'`,
-    "async function POST({ request }: { request: Request }): Promise<Response> {",
-    "  const sig = request.headers.get('paddle-signature')",
-    "  if (!sig) return Response.json({ ok: false, error: 'Missing signature' }, { status: 400 })",
-    "  const buf = Buffer.from(await request.arrayBuffer()); const rawBody = buf.toString('utf-8');",
-    "  const secret = process.env.PADDLE_WEBHOOK_SECRET ?? ''",
-    "  if (!secret || secret.startsWith('REPLACE_WITH')) return Response.json({ ok: false, error: 'secret not configured' }, { status: 400 })",
-    "  let eventType: string; let eventId: string; let eventData: Record<string, unknown>;",
-    "  try { const { Paddle, Environment } = await import('@paddle/paddle-node-sdk'); const paddle = new Paddle(process.env.PADDLE_API_KEY ?? '', { environment: (process.env.PADDLE_ENVIRONMENT === 'production' ? Environment.production : Environment.sandbox) as unknown as string }); const ev = (await paddle.webhooks.unmarshal(rawBody, secret, sig)) as unknown as string; eventType = ev.eventType; eventId = ev.eventId ?? ev.id ?? `evt_${Date.now()}`; eventData = ev.data ?? ev; } catch (err: unknown) { const msg = err instanceof Error ? err.message : String(err); const isInvalid = msg.toLowerCase().includes('signature') || msg.toLowerCase().includes('verification'); logger.error(`[paddle] ${isInvalid ? 'signature verification failed 403' : 'webhook error 400'}: ${msg}`); return Response.json({ ok: false, error: isInvalid ? 'Invalid signature' : 'Webhook Error' }, { status: isInvalid ? 403 : 400 }) }",
-    "  try { const existing = await convexClient.query(api.billing.checkWebhookEvent, { provider: 'paddle', providerEventId: eventId }); if ((existing as unknown as { processed?: boolean })?.processed) return Response.json({ ok: true, alreadyProcessed: true }) } catch (e) { logger.error(`[paddle] idempotency fail`) }",
-    "  try { const customData = (eventData as unknown as Record<string, unknown>).customData; const txnId = (eventData as unknown as Record<string, unknown>).id ?? eventId; if (eventType.includes('completed')) { await convexClient.mutation(api.billing.upsertCheckout, { provider: 'paddle', providerCheckoutId: txnId as string, status: 'completed' as unknown as string, customerId: (eventData as unknown as Record<string, unknown>).customerId as unknown as string, metadata: customData }); const userId = (customData as unknown as Record<string, unknown>)?.userId; const subId = (eventData as unknown as Record<string, unknown>).subscriptionId ?? txnId; if (userId && subId) await convexClient.mutation(api.billing.upsertSubscription, { userId, provider: 'paddle', providerSubscriptionId: subId as string, status: 'active' as unknown as string, customerId: (eventData as unknown as Record<string, unknown>).customerId as unknown as string, metadata: customData }) } } catch (e) { logger.error(`[paddle] handler error`) }",
-    "  try { await convexClient.mutation(api.billing.upsertWebhookEvent, { provider: 'paddle', providerEventId: eventId, type: eventType, payload: eventData as unknown as string, processed: true }) } catch (e) { logger.error(`[paddle] record fail`) }",
-    "  return Response.json({ ok: true, provider: 'paddle', type: eventType, id: eventId })",
-    "}",
-    "export const Route = createFileRoute('/api/webhooks/paddle')({ server: { handlers: { POST } } })",
-  ].join("\n");
+function asTanstack(source: string): string {
+  const handler = source
+    .replace(
+      'import { createHash, randomUUID } from "node:crypto";',
+      'import { createFileRoute } from "@tanstack/react-router";\nimport { createHash, randomUUID } from "node:crypto";',
+    )
+    .replace(
+      'import { createHash } from "node:crypto";',
+      'import { createFileRoute } from "@tanstack/react-router";\nimport { createHash } from "node:crypto";',
+    )
+    .replace(
+      "export async function POST(req: Request): Promise<Response> {",
+      "async function POST({ request }: { request: Request }): Promise<Response> {",
+    )
+    .replaceAll("req.headers", "request.headers")
+    .replaceAll("rejectDeclaredBodySize(req)", "rejectDeclaredBodySize(request)");
+  return `${handler}\nexport const Route = createFileRoute("/api/webhooks/paddle")({ server: { handlers: { POST } } });\n`;
 }
 
 export function paddleNextContent(imp: DbImports): string {
-  if ((imp as ConvexImp).isConvex) return paddleNextConvexContent(imp);
-  return baseNext(imp);
+  return (imp as ConvexImp).isConvex ? convexNext(imp) : baseNext(imp);
 }
 export function paddleNextConvexContent(imp: DbImports): string {
   return convexNext(imp);
 }
 export function paddleTanstackContent(imp: DbImports): string {
-  if ((imp as ConvexImp).isConvex) return paddleTanstackConvexContent(imp);
-  return tanstackBase(imp);
+  return asTanstack((imp as ConvexImp).isConvex ? convexNext(imp) : baseNext(imp));
 }
 export function paddleTanstackConvexContent(imp: DbImports): string {
-  return tanstackConvex(imp);
+  return asTanstack(convexNext(imp));
 }

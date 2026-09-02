@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { spawn, spawnSync } from "node:child_process";
 import {
+  assertTaskkillCompletedForCapturedProcesses,
   assertSuccessfulTaskkill,
+  captureWindowsProcessIdentity,
+  isCapturedWindowsProcessLive,
   parseWindowsProcessQuery,
   terminateProcessTree,
   type CapturedCommandOutcome,
   type TaskkillOutcome,
+  type WindowsProcessRecord,
 } from "../helpers/process-tree.js";
 
 const outcome = (partial: Partial<TaskkillOutcome> = {}): TaskkillOutcome => ({
@@ -70,8 +74,13 @@ describe("process-tree cleanup", () => {
 
   test("fails closed when Windows descendant discovery is unconfirmed", () => {
     expect(
-      parseWindowsProcessQuery([1234], queryOutcome({ stdout: '[{"pid":5678,"parentPid":1234}]' })),
-    ).toEqual([{ pid: 5678, parentPid: 1234 }]);
+      parseWindowsProcessQuery(
+        [1234],
+        queryOutcome({
+          stdout: '[{"pid":5678,"parentPid":1234,"createdAt":"2026-01-01T00:00:00Z"}]',
+        }),
+      ),
+    ).toEqual([{ pid: 5678, parentPid: 1234, createdAt: "2026-01-01T00:00:00Z" }]);
     expect(() => parseWindowsProcessQuery([1234], queryOutcome({ timedOut: true }))).toThrow(
       "CIM process discovery timed out for root PID 1234",
     );
@@ -87,6 +96,36 @@ describe("process-tree cleanup", () => {
     expect(() => parseWindowsProcessQuery([1234], queryOutcome({ stdout: "{}" }))).toThrow(
       "CIM process discovery returned an invalid process list for root PID 1234",
     );
+  });
+
+  test("accepts a taskkill disappearance race only when captured identities are gone or reused", () => {
+    const captured: WindowsProcessRecord[] = [
+      { pid: 1234, parentPid: 1, createdAt: "2026-01-01T00:00:00Z" },
+      { pid: 5678, parentPid: 1234, createdAt: "2026-01-01T00:00:01Z" },
+    ];
+    const notFound = outcome({ status: 128, stderr: 'ERROR: The process "1234" not found.' });
+
+    expect(() =>
+      assertTaskkillCompletedForCapturedProcesses(1234, notFound, captured, []),
+    ).not.toThrow();
+    expect(() =>
+      assertTaskkillCompletedForCapturedProcesses(1234, notFound, captured, [
+        { pid: 1234, parentPid: 1, createdAt: "2026-01-02T00:00:00Z" },
+        { pid: 5678, parentPid: 1234, createdAt: "2026-01-02T00:00:01Z" },
+      ]),
+    ).not.toThrow();
+  });
+
+  test("rejects a taskkill disappearance race while a captured descendant is live", () => {
+    const captured: WindowsProcessRecord[] = [
+      { pid: 1234, parentPid: 1, createdAt: "2026-01-01T00:00:00Z" },
+      { pid: 5678, parentPid: 1234, createdAt: "2026-01-01T00:00:01Z" },
+    ];
+    const notFound = outcome({ status: 128, stderr: 'ERROR: The process "1234" not found.' });
+
+    expect(() =>
+      assertTaskkillCompletedForCapturedProcesses(1234, notFound, captured, [captured[1]]),
+    ).toThrow(/captured processes still live: 5678@2026-01-01T00:00:01Z/);
   });
 
   test("does not return until a live root process has exited", async () => {
@@ -139,11 +178,14 @@ process.stdout.write(String(child.pid));`,
     });
     const descendantPid = Number.parseInt(descendantText, 10);
     if (!Number.isInteger(descendantPid)) throw new Error("descendant PID was not emitted");
+    const captured = await captureWindowsProcessIdentity(descendantPid);
+    if (process.platform === "win32") expect(captured).toBeDefined();
 
     try {
       expect(isAlive(descendantPid)).toBe(true);
-      await terminateProcessTree(root);
-      expect(isAlive(descendantPid)).toBe(false);
+      await terminateProcessTree(root, captured ? [captured] : []);
+      if (captured) expect(await isCapturedWindowsProcessLive(captured)).toBe(false);
+      else expect(isAlive(descendantPid)).toBe(false);
     } finally {
       forceKill(root.pid);
       forceKill(descendantPid);

@@ -7,62 +7,82 @@ export function nextLocaleSwitcherComponent(filePath: string): TemplateFile {
 
 import * as React from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { usePathname, useRouter } from "../i18n/navigation.js";
-import { locales, localeNames, type Locale } from "../i18n/config.js";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  defaultLocale,
+  isValidLocale,
+  localeCookieMaxAge,
+  localeCookieName,
+  localeLabels,
+  locales,
+  type Locale,
+} from "../i18n/config.js";
+import { useRouter } from "../i18n/navigation.js";
 
-export interface LocaleSwitcherProps { className?: string; }
+export interface LocaleSwitcherProps {
+  className?: string;
+}
+
+function writeLocaleCookie(locale: Locale): void {
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie =
+    localeCookieName +
+    "=" +
+    encodeURIComponent(locale) +
+    "; Path=/; Max-Age=" +
+    localeCookieMaxAge +
+    "; SameSite=Lax" +
+    secure;
+}
 
 export function LocaleSwitcher({ className }: LocaleSwitcherProps): React.JSX.Element {
   const t = useTranslations("localeSwitcher");
-  const locale = useLocale() as Locale;
+  const currentLocale = useLocale();
+  const locale = isValidLocale(currentLocale) ? currentLocale : defaultLocale;
   const router = useRouter();
-  const pathname = usePathname();
   const [isPending, startTransition] = React.useTransition();
+  const items = locales.map((availableLocale) => ({
+    label: localeLabels[availableLocale],
+    value: availableLocale,
+  }));
 
-  function handleChange(nextLocale: Locale): void {
-    if (nextLocale === locale) return;
+  function handleChange(value: string): void {
+    if (!isValidLocale(value) || value === locale) return;
+    writeLocaleCookie(value);
     startTransition(() => {
-      // @ts-expect-error typed pathname with locale
-      router.replace(pathname, { locale: nextLocale });
+      router.refresh();
     });
   }
 
   return (
-    <label className={className} aria-label={t("label")}>
-      <span className="sr-only">{t("label")}</span>
-      <select value={locale} onChange={(e) => handleChange(e.target.value as Locale)} disabled={isPending} className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground disabled:opacity-50" aria-busy={isPending}>
-        {locales.map((cur) => (
-          <option key={cur} value={cur}>{localeNames[cur]} — {t(cur as "en" | "fr" | "ar")}</option>
-        ))}
-      </select>
-    </label>
+    <div className={className} data-slot="locale-switcher">
+      <Select items={items} value={locale} onValueChange={handleChange} disabled={isPending}>
+        <SelectTrigger aria-label={t("label")} aria-busy={isPending}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {locales.map((availableLocale) => (
+              <SelectItem key={availableLocale} value={availableLocale}>
+                {t(availableLocale)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
 export function LocaleSwitcherInline({ className }: LocaleSwitcherProps): React.JSX.Element {
-  const t = useTranslations("localeSwitcher");
-  const locale = useLocale() as Locale;
-  const router = useRouter();
-  const pathname = usePathname();
-  const [isPending, startTransition] = React.useTransition();
-
-  function handleChange(nextLocale: Locale): void {
-    if (nextLocale === locale) return;
-    startTransition(() => {
-      // @ts-expect-error typed pathname with locale
-      router.replace(pathname, { locale: nextLocale });
-    });
-  }
-
-  return (
-    <div className={className} role="group" aria-label={t("label")}>
-      {locales.map((cur) => (
-        <button key={cur} type="button" onClick={() => handleChange(cur)} disabled={isPending || cur === locale} aria-current={cur === locale ? "true" : undefined} aria-label={localeNames[cur]} className={cur === locale ? "h-8 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground" : "h-8 rounded-md border border-input bg-background px-3 text-xs font-medium text-foreground hover:bg-accent"}>
-          {cur.toUpperCase()}
-        </button>
-      ))}
-    </div>
-  );
+  return <LocaleSwitcher className={className} />;
 }
 `,
   );

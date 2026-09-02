@@ -9,12 +9,11 @@ ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --framework nextjs --apps web --database postgres --billing stripe,chargily --features eve,i18n
 cd /tmp/my-app
 
-# Install deps
-bun install   # or npm/pnpm if you change package manager but bun recommended
+# Install deps with the generated project's pinned Bun toolchain
+bun install
 
-# Env setup: copy example to local and fill
-cp .env.example .env.local
-# Edit .env.local:
+# Env setup: .env.local is already generated; edit it in place.
+# Replace required REPLACE_WITH_* vendor placeholders in .env.local:
 # BETTER_AUTH_SECRET=<32+ random, e.g. openssl rand -base64 32>
 # DATABASE_URL or POSTGRES_USER/PASSWORD/HOST/PORT/DB individual
 # BETTER_AUTH_URL=http://localhost:3000, NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -23,8 +22,10 @@ cp .env.example .env.local
 # RESEND_API_KEY if email needed
 # POSTHOG_KEY if analytics (optional) — triple prefix NEXT_PUBLIC_ + VITE_ + EXPO_PUBLIC_
 
-# DB start quick path
-./start-database.sh   # creates *_postgres container, random password via openssl if placeholder, volume *_postgres_data
+# Portable DB start path (Windows, Linux, macOS)
+docker compose --env-file .env.local up -d
+# Optional Docker/Podman helper; Windows requires Git Bash, WSL, or another Bash:
+# bash ./start-database.sh
 
 # If you set DATABASE_URL to remote (Neon/Supabase) skip start-database.sh and just set var
 
@@ -42,24 +43,21 @@ Open http://localhost:3000 → scaffolded marketing + dashboard + billing page +
 When `--apps mobile` or `both` selected, generated `.env.example` includes:
 
 - `EXPO_PUBLIC_APP_URL=http://localhost:3000` — app origin for deep links / OAuth redirect scheme `__PROJECT_NAME__://`
-- `EXPO_PUBLIC_API_URL=http://localhost:3000` — API base for Expo oRPC client `RPCLink` (`${base}/api/rpc`), shares backend single port 3000 same contract/router as web.
+- `EXPO_PUBLIC_API_URL=http://localhost:3000` — API base for Expo oRPC when a monorepo web app is selected as the backend host.
 
 For local dev both vars point to localhost:3000. For production set to deployed backend URL (e.g. `https://api.my-app.com`). Expo client uses `EXPO_PUBLIC_API_URL` preferred, fallback `EXPO_PUBLIC_APP_URL`, final fallback `http://localhost:3000`. Cookie forwarding via `authClient.getCookie()` → `headers: { cookie }` to oRPC.
 
 ## 2. Mobile & Both Apps Workflows
 
-### 2a. Monorepo Mobile-Only (`apps/mobile`)
+### 2a. Monorepo Mobile-Only Frontend (`apps/mobile`)
 
 ```bash
 ghostinit create my-app --dry-run --yes --no-install  # preview without writing
 ghostinit create my-app --dry-run --json --yes | jq .data.files
-ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --apps mobile --database postgres --billing stripe
+ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --apps mobile --preset frontend --database none
 cd /tmp/my-app
 bun install
-cp .env.example .env.local
-# Fill BETTER_AUTH_SECRET 32+, DATABASE_URL, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL, EXPO_PUBLIC_APP_URL=http://localhost:3000, EXPO_PUBLIC_API_URL=http://localhost:3000, billing keys
-./start-database.sh
-bun run db:push
+# .env.local is already generated; replace required REPLACE_WITH_* vendor placeholders in place
 # Dev web intentionally absent — only mobile app exists in apps/mobile
 bun run dev   # if defined, or:
 cd apps/mobile && bun run dev   # expo start --port 19000
@@ -67,8 +65,8 @@ cd apps/mobile && bun run dev   # expo start --port 19000
 
 Generated structure:
 
-- `apps/mobile/` — Expo SDK 54, Router `app/_layout.tsx`, `app/index.tsx`, `app/(auth)/`, `app/+not-found.tsx`, `app.json` scheme, `metro.config.js` auto monorepo, `babel.config.js` babel-preset-expo, SecureStore + expo-linking + auth expo() plugin
-- `packages/*` shared backend same as web: `api`, `auth`, `database`, `billing`, etc.
+- `apps/mobile/` — Expo SDK 57, Router `app/_layout.tsx`, `app/index.tsx`, `app/(auth)/`, `app/+not-found.tsx`, `app.json` scheme, `metro.config.js` auto monorepo, `babel.config.js` babel-preset-expo, SecureStore + expo-linking + auth expo() plugin
+- No backend host, database, auth server, provider adapter, or webhook is generated. Select `apps web,mobile` for those capabilities.
 - `tooling/typescript-config/expo.json` extends base, `apps/mobile/tsconfig.json` `@/*` + `@repo/*` paths
 
 ### 2b. Monorepo Both Web+Mobile (`apps/web + apps/mobile`)
@@ -78,14 +76,14 @@ ghostinit create my-app --dry-run --yes --no-install  # preview without writing
 ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --yes --no-install --cwd /tmp --mode monorepo --apps both --framework nextjs --database postgres
 # or --apps web,mobile or --apps all (alias)
-# web framework chooser still applies to web target; mobile always Expo SDK 54 regardless
+# web framework chooser still applies to web target; mobile always uses the catalog-pinned Expo SDK regardless
 ghostinit create my-app --apps both --framework tanstack-start --database postgres --billing stripe,chargily --yes --no-install --cwd /tmp
 
 cd /tmp/my-app
 bun install
-cp .env.example .env.local
+# .env.local is already generated; replace required REPLACE_WITH_* vendor placeholders in place
 # Fill: BETTER_AUTH_SECRET, DATABASE_URL, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL, EXPO_PUBLIC_APP_URL, EXPO_PUBLIC_API_URL (all same origin http://localhost:3000 local), billing keys triple prefix
-./start-database.sh
+docker compose --env-file .env.local up -d
 bun run db:push
 bun run dev   # turbo dev → apps/web :3000
 # In another terminal:
@@ -103,23 +101,19 @@ Tri-environment client tokens: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `VITE_STRIP
 ### 2c. Single Mode Mobile (`single + apps mobile`)
 
 ```bash
-ghostinit create my-expo --yes --no-install --cwd /tmp --mode single --apps mobile --database postgres --billing none
+ghostinit create my-expo --yes --no-install --cwd /tmp --mode single --apps mobile --preset frontend --database none
 cd /tmp/my-expo
 bun install
-cp .env.example .env.local
-# Fill BETTER_AUTH_SECRET, DATABASE_URL, BETTER_AUTH_URL, EXPO_PUBLIC_APP_URL, EXPO_PUBLIC_API_URL
-bun run db:push
-bun run dev   # expo start (single expo mode) — flat app/ + src/server/ structure
+# .env.local is already generated; replace required REPLACE_WITH_* vendor placeholders in place
+bun run dev   # expo start (single frontend mode)
 ```
 
 Single mobile flat structure:
 
-- `app/` — Expo Router file-based: `app/_layout.tsx`, `app/index.tsx`, `app/(auth)/*`, `app/dashboard.tsx`, `app/billing.tsx`, `app/settings.tsx`, `app/+not-found.tsx`, `app/api/` routes `+api.ts` (`auth/[...auth]+api.ts`, `rpc/[...path]+api.ts`, `health+api.ts`, `openapi+api.ts`, `webhooks/*+api.ts`)
-- `src/server/` — auth, db, api (context, contract, router, procedures), observability, billing server-only
-- `src/lib/` — `auth-client.ts` expoClient + SecureStore, `orpc.ts` RPCLink via EXPO_PUBLIC_API_URL + getCookie, utils
-- `src/components/`, `src/hooks/` — header, sign-out, use-auth, use-billing
+- `app/` — Expo Router frontend routes and local navigation.
+- `src/` — client components, optional analytics/i18n, and platform-local adapters; no `src/server/` backend is emitted.
 - `app.json`, `babel.config.js`, `metro.config.js`, `expo-env.d.ts`, `tsconfig.json`, `.env.example/.env.local`
-- `agent/` if eve selected (mapped from `apps/eve/` → `agent/` flat)
+- Auth, API, billing, messaging, storage, PDF, Eve, notifications, remote flags, jobs, cache, database, and deploy selections are rejected. External backend-host selection is not implemented.
 
 Note: single mode supports only one target. `single + apps both` invalid → use monorepo for dual. Error: `Single mode supports only one app target --apps web or --apps mobile, not both. Use monorepo for web+mobile`.
 
@@ -140,7 +134,7 @@ bun run dev             # expo start (package.json dev = expo start)
 
 Metro config: SDK 52+ auto monorepo detection via `getDefaultConfig(__dirname)` — no manual `watchFolders`. If you add new package in `packages/*`, Metro auto watches via workspace root.
 
-Backend sharing: ensure web backend running on :3000 if mobile needs API, or point `EXPO_PUBLIC_API_URL` to remote deployed backend.
+Backend sharing applies only to monorepo `web,mobile`; the generated web app owns port 3000. Single mobile has no generated remote-backend host contract.
 
 Auth flow mobile: `expo-secure-store` stores session, `expo-linking` handles `__PROJECT_NAME__://` scheme OAuth callbacks, `expoClient` Better Auth client.
 
@@ -220,7 +214,7 @@ Exit codes stable for CI gates: check `jq .exitCode` + `echo $?`. Drift failure 
 
 ## 6. Remote DB (Neon, Supabase)
 
-- Do NOT run start-database.sh
+- Do not start the local Compose service or `bash ./start-database.sh`
 - Set `DATABASE_URL=postgresql://...` in `.env.local`
 - If SSL required: `DATABASE_SSL=true` + optionally `DATABASE_SSL_CA=<ca pem>`
 - `drizzle.config.ts` and `packages/database/src/index.ts` builder prefers DATABASE_URL if present.

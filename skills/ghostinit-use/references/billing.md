@@ -14,7 +14,7 @@ No host internals — only what a consumer needs to use billing in scaffolded or
 
 Any combo allowed: `stripe,chargily`, `paddle,polar`, `chargily,paddle,polar,stripe`, etc. No validation blocks chargily+global combo intentionally.
 
-Only invalid: `billing` set + `--database none` → requires postgres or convex for subscriptions table. Use default postgres. `single + both apps` also invalid (unrelated to billing, but validation checks apps too).
+Billing requires postgres or Convex plus a selected server-capable web host. Single native and native-only backend configurations are invalid; use monorepo `web,mobile` or `web,desktop` for native billing clients.
 
 ## Scaffolding
 
@@ -51,7 +51,7 @@ Summary triple mapping:
 
 ## How Webhooks Work in Generated Project
 
-- Webhook route: `apps/web/src/app/api/billing/webhooks/[provider]/route.ts` (Next) or `src/routes/api/billing/webhooks` (TanStack) or `app/api/webhooks/[provider]+api.ts` (Expo flat single mobile via `+api.ts` file-based) or `apps/mobile/src/`? Actually Expo handles via `app/api/webhooks/...` when mobile includes backend — raw body verification via `Buffer.from(await request.arrayBuffer())`, not `req.json()`. Standard Fetch API all frameworks identical.
+- Webhook routes are hosted only by the selected Next.js or TanStack Start web app. Native billing clients require monorepo `web,mobile` or `web,desktop`; single native billing is rejected because it has no backend host.
 - Signature verified against secret from env. Idempotent via `webhook_events` table unique `(provider, providerEventId)` — duplicate events `onConflictDoNothing`.
 - After verification emits domain event + subscription status update.
 - Shared backend when `apps both`: single webhook endpoint (web `:3000`) handles all providers regardless of client origin (web or mobile). Mobile checkout calls backend via `EXPO_PUBLIC_API_URL` so webhooks still hit same backend.

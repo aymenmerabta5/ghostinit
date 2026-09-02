@@ -11,7 +11,13 @@ import {
   providersFileContent,
 } from "./fragments/theme.js";
 import { convexClientProviderContent } from "./fragments/convex-providers.js";
-import { headerFileContent, signOutButtonContent, adminGuardContent } from "./fragments/header.js";
+import {
+  headerActionsContent,
+  headerFileContent,
+  headerUserMenuContent,
+  signOutButtonContent,
+  type HeaderNavigationCapabilities,
+} from "./fragments/header.js";
 import {
   orpcClientContent,
   useCopyHookContent,
@@ -21,6 +27,7 @@ import {
 } from "./fragments/core.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
+import { surfaceTranslationFiles } from "../i18n/surface.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
 
@@ -39,22 +46,63 @@ function isConvex(input?: AddonMapInput): boolean {
 export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
   const convex = isConvex(addonMap);
   const analytics = addonMap ? hasAddon(addonMap as AddonInstallerMap, "analytics") : true;
+  const auth = addonMap ? hasAddon(addonMap as AddonInstallerMap, "auth") : true;
+  const email = addonMap ? hasAddon(addonMap as AddonInstallerMap, "email") : true;
+  const api = addonMap ? hasAddon(addonMap as AddonInstallerMap, "api") : true;
+  const i18n = addonMap ? hasAddon(addonMap as AddonInstallerMap, "i18n") : false;
+  const pdf = addonMap ? hasAddon(addonMap as AddonInstallerMap, "pdf") : false;
+  const messaging = addonMap ? hasAddon(addonMap as AddonInstallerMap, "messaging") : false;
+  const navigation: HeaderNavigationCapabilities = addonMap
+    ? {
+        eve: hasAddon(addonMap as AddonInstallerMap, "eve"),
+        notifications: hasAddon(addonMap as AddonInstallerMap, "notifications"),
+        storage: hasAddon(addonMap as AddonInstallerMap, "storage"),
+        featureFlags:
+          hasAddon(addonMap as AddonInstallerMap, "featureFlags") ||
+          hasAddon(addonMap as AddonInstallerMap, "posthog"),
+        jobs: hasAddon(addonMap as AddonInstallerMap, "jobsApi"),
+      }
+    : {};
+  const billing = addonMap
+    ? hasAddon(addonMap as AddonInstallerMap, "billing") ||
+      ["stripe", "chargily", "paddle", "polar"].some((provider) =>
+        hasAddon(addonMap as AddonInstallerMap, provider),
+      )
+    : true;
+  const hasTypedAdminNavigation =
+    auth && api && !(addonMap && hasAddon(addonMap as AddonInstallerMap, "database:none"));
   const base: TemplateFile[] = [
-    providersComponent(convex, analytics),
+    ...surfaceTranslationFiles({
+      enabled: i18n,
+      framework: "next",
+      sourceRoot: "apps/web/src",
+    }),
+    providersComponent(convex, analytics, i18n),
     themeProviderComponent(),
     themeToggleComponent(),
-    headerComponent(),
+    headerComponent(
+      i18n,
+      auth,
+      billing,
+      hasTypedAdminNavigation,
+      convex && hasTypedAdminNavigation ? "../../../../convex/_generated/api" : undefined,
+      pdf,
+      messaging,
+      navigation,
+    ),
+    ...(auth
+      ? headerSupportComponents(i18n, billing, hasTypedAdminNavigation, messaging, pdf, navigation)
+      : []),
     signOutButton(),
-    authClient(),
-    adminGuard(),
-    orpcClient(),
+    authClient(convex ? "convex" : "postgres", email),
     useCopyHook(),
-    useBillingHook(),
     useAuthHook(),
   ];
   if (convex) {
-    base.push(convexClientProviderComponent());
+    base.push(convexClientProviderComponent(auth));
   }
+  if (api) base.push(orpcClient());
+  if (api && billing) base.push(useBillingHook());
   return base;
 }
 
@@ -66,22 +114,71 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(isConvex = false, hasAnalytics = true): TemplateFile {
+function providersComponent(isConvex = false, hasAnalytics = true, hasI18n = false): TemplateFile {
   return file(
     "apps/web/src/components/providers.tsx",
-    providersFileContent("next", isConvex, hasAnalytics),
+    providersFileContent("next", isConvex, hasAnalytics, hasI18n),
   );
 }
 
-function convexClientProviderComponent(): TemplateFile {
+function convexClientProviderComponent(hasAuth: boolean): TemplateFile {
   return file(
     "apps/web/src/components/providers/convex-client-provider.tsx",
-    convexClientProviderContent(),
+    convexClientProviderContent("next", hasAuth),
   );
 }
 
-function headerComponent(): TemplateFile {
-  return file("apps/web/src/components/header.tsx", headerFileContent("next"));
+function headerComponent(
+  hasI18n = false,
+  hasAuth = true,
+  hasBilling = true,
+  hasAdminNavigation = true,
+  convexApiImport?: string,
+  hasPdf = false,
+  hasMessaging = false,
+  navigation: HeaderNavigationCapabilities = {},
+): TemplateFile {
+  return file(
+    "apps/web/src/components/header.tsx",
+    headerFileContent(
+      "next",
+      hasI18n,
+      hasAuth,
+      hasBilling,
+      hasAdminNavigation,
+      convexApiImport,
+      hasPdf,
+      hasMessaging,
+      navigation,
+    ),
+  );
+}
+
+function headerSupportComponents(
+  hasI18n = false,
+  hasBilling = true,
+  hasAdminNavigation = true,
+  hasMessaging = false,
+  hasPdf = false,
+  navigation: HeaderNavigationCapabilities = {},
+): TemplateFile[] {
+  return [
+    file(
+      "apps/web/src/components/header-actions.tsx",
+      headerActionsContent("next", hasI18n, navigation.notifications),
+    ),
+    file(
+      "apps/web/src/components/header-user-menu.tsx",
+      headerUserMenuContent(
+        "next",
+        hasBilling,
+        hasAdminNavigation,
+        hasMessaging,
+        hasPdf,
+        navigation,
+      ),
+    ),
+  ];
 }
 
 function useCopyHook(): TemplateFile {
@@ -100,12 +197,8 @@ function signOutButton(): TemplateFile {
   return file("apps/web/src/components/sign-out-button.tsx", signOutButtonContent("next"));
 }
 
-function authClient(): TemplateFile {
-  return file("apps/web/src/lib/auth-client.ts", authClientShim());
-}
-
-function adminGuard(): TemplateFile {
-  return file("apps/web/src/components/admin-guard.tsx", adminGuardContent("next"));
+function authClient(database: "postgres" | "convex", hasEmail: boolean): TemplateFile {
+  return file("apps/web/src/lib/auth-client.ts", authClientShim(database, "nextjs", hasEmail));
 }
 
 function orpcClient(): TemplateFile {

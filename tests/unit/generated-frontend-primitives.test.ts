@@ -1,8 +1,9 @@
-// @allow-long 800: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
+// @allow-long 940: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseSync } from "oxc-parser";
+import { ui as uiVersions } from "../../packages/versions/src/index.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
@@ -15,6 +16,7 @@ type PrimitiveCategory =
   | "nonfunctional-select"
   | "partial-notification-bell"
   | "pending-boolean-or-spinner"
+  | "presentation-network-access"
   | "product-semantic-style"
   | "radix-as-child"
   | "raw-form-control"
@@ -101,26 +103,42 @@ interface ReviewedGapRecord {
 
 interface ConsumerPaths {
   adminUsers: string;
+  adminFilters: string;
   adminCreate: string;
   adminUserActions: string;
+  adminUserTable: string;
+  adminSchema: string;
+  adminTranslations: string;
+  adminHook: string;
   dangerZone: string;
   header: string;
 }
 
 function consumerPaths(target: GeneratedTarget): ConsumerPaths {
+  const feature = "features/admin-users";
   if (target.framework === "tanstack-start") {
     return {
-      adminUsers: "routes/admin.users.tsx",
-      adminCreate: "routes/admin.users.create.tsx",
-      adminUserActions: "routes/admin.users.tsx",
-      dangerZone: "routes/settings.tsx",
+      adminUsers: `${feature}/index.tsx`,
+      adminFilters: `${feature}/components/filters.tsx`,
+      adminCreate: `${feature}/components/create-user-form.tsx`,
+      adminUserActions: `${feature}/components/user-row.tsx`,
+      adminUserTable: `${feature}/components/user-table.tsx`,
+      adminSchema: `${feature}/schema.ts`,
+      adminTranslations: `${feature}/translations.ts`,
+      adminHook: `${feature}/hooks/use-admin-users.ts`,
+      dangerZone: "features/settings/danger-zone-section.tsx",
       header: "components/header.tsx",
     };
   }
   return {
-    adminUsers: "app/admin/users/page.tsx",
-    adminCreate: "app/admin/users/create/page.tsx",
-    adminUserActions: "app/admin/users/components/user-row.tsx",
+    adminUsers: `${feature}/index.tsx`,
+    adminFilters: `${feature}/components/filters.tsx`,
+    adminCreate: `${feature}/components/create-user-form.tsx`,
+    adminUserActions: `${feature}/components/user-row.tsx`,
+    adminUserTable: `${feature}/components/user-table.tsx`,
+    adminSchema: `${feature}/schema.ts`,
+    adminTranslations: `${feature}/translations.ts`,
+    adminHook: `${feature}/hooks/use-admin-users.ts`,
     dangerZone: "app/settings/components/danger-zone-card.tsx",
     header: "components/header.tsx",
   };
@@ -138,7 +156,7 @@ function repeatedReviewedRecord(
   }));
 }
 
-function legacyReviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
+function reviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
   const consumers = consumerPaths(target);
   const shared = [
     ...repeatedReviewedRecord("field-composition", "components/form-fields/SelectField.tsx"),
@@ -164,9 +182,7 @@ function legacyReviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
     ...repeatedReviewedRecord("radix-as-child", consumers.dangerZone),
     ...repeatedReviewedRecord("radix-as-child", consumers.header),
     ...repeatedReviewedRecord("ad-hoc-empty-state", consumers.adminUsers),
-    ...(target.mode === "monorepo"
-      ? repeatedReviewedRecord("raw-form-control", consumers.adminUsers)
-      : []),
+    ...repeatedReviewedRecord("raw-form-control", consumers.adminFilters),
     ...repeatedReviewedRecord("raw-form-control", consumers.adminCreate),
   ];
   return [...shared, ...consumer];
@@ -250,33 +266,40 @@ function rawInteractiveElements(path: string, content: string): string[] {
 
 function pendingFormExpectations(
   target: GeneratedTarget,
-): Array<{ relativePath: string; count: number }> {
+): Array<{ relativePath: string; count: number; appForm?: boolean }> {
   const auth =
     target.framework === "nextjs"
       ? [
           "app/2fa/page.tsx",
           "app/forgot-password/page.tsx",
           "app/reset-password/page.tsx",
-          "app/sign-in/page.tsx",
-          "app/sign-up/page.tsx",
+          "components/auth/sign-in-form.tsx",
+          "components/auth/sign-up-form.tsx",
         ]
       : [
           "routes/2fa.tsx",
           "routes/forgot-password.tsx",
           "routes/reset-password.tsx",
-          "routes/sign-in.tsx",
-          "routes/sign-up.tsx",
+          "components/auth/sign-in-form.tsx",
+          "components/auth/sign-up-form.tsx",
         ];
-  const expectations = auth.map((relativePath) => ({ relativePath, count: 1 }));
+  const expectations: Array<{ relativePath: string; count: number; appForm?: boolean }> = auth.map(
+    (relativePath) => ({ relativePath, count: 1 }),
+  );
   const consumers = consumerPaths(target);
-  expectations.push({ relativePath: consumers.adminCreate, count: 1 });
+  expectations.push({ relativePath: consumers.adminCreate, count: 1, appForm: true });
   if (target.framework === "nextjs") {
     expectations.push({
       relativePath: "app/settings/components/profile-card.tsx",
       count: 1,
     });
-  } else if (target.mode === "monorepo") {
-    expectations.push({ relativePath: "routes/settings.tsx", count: 6 });
+  } else {
+    expectations.push(
+      { relativePath: "features/settings/profile-card.tsx", count: 1 },
+      { relativePath: "features/settings/password-card.tsx", count: 1 },
+      { relativePath: "features/settings/two-factor-card.tsx", count: 3 },
+      { relativePath: "features/settings/danger-zone-section.tsx", count: 1 },
+    );
   }
   return expectations;
 }
@@ -403,13 +426,24 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   addMissingTokens(records, "partial-notification-bell", notificationPath, notification, [
     "<Popover>",
     "<PopoverTrigger",
-    "<PopoverTitle>Notifications</PopoverTitle>",
+    'aria-label={t("title")}',
+    '<PopoverTitle>{t("title")}</PopoverTitle>',
     "<PopoverDescription>",
     "<Empty>",
     "formatNotification(notification.type, notification.payload)",
-    "onClick={() => onMarkRead?.(notification.id)}",
+    "getNotificationHref(notification.type, notification.payload)",
+    "onClick={async () => {",
+    "if (notification.readAt === null) await onMarkRead?.(notification.id);",
+    "if (destination) onNavigate?.(destination.href);",
   ]);
 
+  addMissingTokens(records, "pending-boolean-or-spinner", formPath, form, [
+    "export function AppFormSubmitButton",
+    "<form.Subscribe selector=",
+    "disabled={!canSubmit || isSubmitting}",
+    "<Spinner data-icon=",
+    "SubmitButton: AppFormSubmitButton",
+  ]);
   for (const forbidden of ["isPending?:", "isPending={", "border-t-transparent"]) {
     if (form.includes(forbidden)) {
       records.push({ category: "pending-boolean-or-spinner", path: formPath, evidence: forbidden });
@@ -423,33 +457,26 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
         evidence: "stale isPending binding",
       });
     }
-    if (file.content.includes("<form.Subscribe")) {
-      for (const token of ["<Spinner data-icon=", "disabled={!canSubmit || isSubmitting}"]) {
-        if (!file.content.includes(token)) {
-          records.push({
-            category: "pending-boolean-or-spinner",
-            path: file.path,
-            evidence: `missing ${token}`,
-          });
-        }
-      }
-    }
   }
 
-  for (const { relativePath, count } of pendingFormExpectations(target)) {
+  for (const { relativePath, count, appForm } of pendingFormExpectations(target)) {
     const path = `${target.sourceRoot}/${relativePath}`;
-    const content = source(target, relativePath);
-    const useFormCount = (content.match(/\buseForm\(\{/g) ?? []).length;
+    const content = [
+      source(target, relativePath),
+      ...(relativePath === "features/settings/two-factor-card.tsx"
+        ? [source(target, "features/settings/use-two-factor-settings.ts")]
+        : []),
+    ].join("\n");
+    const useFormCount = (content.match(/\buse(?:App)?Form\(\{/g) ?? []).length;
     const subscribeCount = (content.match(/<(?:form|[A-Za-z][A-Za-z0-9]*Form)\.Subscribe\b/g) ?? [])
       .length;
-    const spinnerCount = (content.match(/<Spinner\s+data-icon=/g) ?? []).length;
-    const disabledCount = (content.match(/disabled=\{!canSubmit \|\| isSubmitting\}/g) ?? [])
-      .length;
+    const appSubmitCount = (
+      content.match(/<(?:form|[A-Za-z][A-Za-z0-9]*Form)\.SubmitButton\b/g) ?? []
+    ).length;
+    const submitContractCount = subscribeCount + appSubmitCount;
     for (const [evidence, actual] of [
-      ["concrete useForm call", useFormCount],
-      ["form.Subscribe", subscribeCount],
-      ["composed Spinner", spinnerCount],
-      ["submission disabled state", disabledCount],
+      ["concrete form hook call", useFormCount],
+      ["subscribed submit contract", submitContractCount],
     ] as const) {
       if (actual < count) {
         records.push({
@@ -458,6 +485,13 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
           evidence: `expected ${count} ${evidence} occurrence(s), received ${actual}`,
         });
       }
+    }
+    if (appForm) {
+      addMissingTokens(records, "field-composition", path, content, [
+        "<form.AppForm>",
+        "<form.AppField",
+        "<form.SubmitButton",
+      ]);
     }
   }
   if (selectField.includes("<SelectContent>{options.map")) {
@@ -492,16 +526,10 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   }
 
   const adminUsersPath = `${target.sourceRoot}/${consumers.adminUsers}`;
-  const adminUsers = source(target, consumers.adminUsers);
-  addMissingTokens(records, "field-composition", adminUsersPath, adminUsers, [
-    "<Field",
-    "<FieldLabel",
-    "<Input",
-    "<FieldDescription",
-    "admin-user-search-description",
-    "admin-user-search-error",
-    "aria-describedby=",
-  ]);
+  const adminUsers = [
+    source(target, consumers.adminUsers),
+    source(target, "features/admin-users/components/user-results.tsx"),
+  ].join("\n");
   addMissingTokens(records, "ad-hoc-empty-state", adminUsersPath, adminUsers, [
     "<Empty",
     "<EmptyHeader",
@@ -517,41 +545,60 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     });
   }
 
+  const adminFiltersPath = `${target.sourceRoot}/${consumers.adminFilters}`;
+  const adminFilters = source(target, consumers.adminFilters);
+  addMissingTokens(records, "field-composition", adminFiltersPath, adminFilters, [
+    "<form.AppForm>",
+    "<form.AppField",
+    "<field.TextField",
+    "const translate = useAdminUsersTranslations()",
+    "validators: { onSubmit: adminUsersFilterSchema(translate) }",
+    'label={translate("filters.label")}',
+    'description={translate("filters.description")}',
+    'placeholder={translate("filters.placeholder")}',
+    "<form.SubmitButton",
+    'pendingLabel={translate("filters.searching")}',
+    '{translate("filters.search")}',
+    'role="status"',
+    'aria-live="polite"',
+    'translate("filters.updating")',
+    'aria-label={translate("pagination.label")}',
+  ]);
+
   const adminCreatePath = `${target.sourceRoot}/${consumers.adminCreate}`;
   const adminCreate = source(target, consumers.adminCreate);
   addMissingTokens(records, "field-composition", adminCreatePath, adminCreate, [
     "<FieldGroup",
-    "<Field",
-    "<FieldLabel",
-    "<Input",
-    "<FieldDescription",
+    "<form.AppForm>",
+    "<form.AppField",
+    "<field.TextField",
+    "<field.PasswordField",
+    "<form.SubmitButton",
+    "const translate = useAdminUsersTranslations()",
+    "validators: { onSubmit: createAdminUserSchema(translate) }",
+    'label={translate("create.nameLabel")}',
+    'description={translate("create.nameDescription")}',
+    'label={translate("create.emailLabel")}',
+    'description={translate("create.emailDescription")}',
+    'label={translate("create.passwordLabel")}',
+    'description={translate("create.passwordDescription")}',
+    'label={translate("create.roleLabel")}',
+    'description={translate("create.roleDescription")}',
+    'role="alert"',
+    'aria-live="polite"',
+    'translate("create.creating")',
+    'pendingLabel={translate("create.creatingPending")}',
   ]);
   addMissingTokens(records, "nonfunctional-select", adminCreatePath, adminCreate, [
-    "<Select items={ROLE_OPTIONS}",
-    "value={field.state.value}",
-    "onValueChange=",
-    "<SelectGroup>",
+    "<field.SelectField",
+    "const roleOptions = [",
+    '{ label: translate("roles.user"), value: "user" }',
+    '{ label: translate("roles.admin"), value: "admin" }',
+    "options={roleOptions}",
   ]);
-  if (target.mode === "monorepo" && target.framework === "tanstack-start") {
-    for (const id of ["create-user-name", "create-user-email", "create-user-password"]) {
-      addFieldAssociationRecords(records, adminCreatePath, adminCreate, id);
-    }
-  }
-  for (const [value, label] of [
-    ["user", "User"],
-    ["admin", "Admin"],
-  ] as const) {
-    if (!new RegExp(`<SelectItem value=["']${value}["']>${label}</SelectItem>`).test(adminCreate)) {
-      records.push({
-        category: "nonfunctional-select",
-        path: adminCreatePath,
-        evidence: `missing ${value} SelectItem`,
-      });
-    }
-  }
 
   for (const [relativePath, content] of [
-    [consumers.adminUsers, adminUsers],
+    [consumers.adminFilters, adminFilters],
     [consumers.adminCreate, adminCreate],
   ] as const) {
     const path = `${target.sourceRoot}/${relativePath}`;
@@ -560,6 +607,102 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     )) {
       records.push({ category: "raw-form-control", path, evidence: `<${element}>` });
     }
+  }
+
+  const adminUserTablePath = `${target.sourceRoot}/${consumers.adminUserTable}`;
+  const adminUserTable = source(target, consumers.adminUserTable);
+  addMissingTokens(records, "field-composition", adminUserTablePath, adminUserTable, [
+    "<TableCaption>",
+    'scope="col"',
+    'translate("table.account")',
+    'translate("table.role")',
+    'translate("table.status")',
+    'translate("table.actions")',
+    'aria-busy="true"',
+    'aria-label={translate("table.loading")}',
+  ]);
+
+  const adminUserActionsPath = `${target.sourceRoot}/${consumers.adminUserActions}`;
+  const adminUserActions = [
+    source(target, consumers.adminUserActions),
+    source(target, "features/admin-users/components/user-row-confirmation.tsx"),
+  ].join("\n");
+  addMissingTokens(records, "field-composition", adminUserActionsPath, adminUserActions, [
+    "<AlertDialogTitle>",
+    "<AlertDialogDescription>",
+    'type="button"',
+    "aria-busy={pending}",
+    'translate("dialogs.cancel")',
+    'translate("dialogs.saving")',
+  ]);
+
+  for (const relativePath of [
+    consumers.adminUsers,
+    consumers.adminFilters,
+    consumers.adminCreate,
+    consumers.adminUserActions,
+    consumers.adminUserTable,
+  ]) {
+    const path = `${target.sourceRoot}/${relativePath}`;
+    const content = source(target, relativePath);
+    for (const match of content.matchAll(
+      /\bfetch\s*\(|@\/lib\/orpc|convex\/react|authClient|\buse(?:Query|Mutation)\s*\(/g,
+    )) {
+      records.push({
+        category: "presentation-network-access",
+        path,
+        evidence: match[0],
+      });
+    }
+  }
+
+  const adminSchemaPath = `${target.sourceRoot}/${consumers.adminSchema}`;
+  const adminSchema = source(target, consumers.adminSchema);
+  addMissingTokens(records, "field-composition", adminSchemaPath, adminSchema, [
+    'export const adminUserRoleSchema = z.enum(["user", "admin"])',
+    "export function adminUsersFilterSchema(translate: AdminUsersTranslate)",
+    "export function createAdminUserSchema(translate: AdminUsersTranslate)",
+    'translate("validation.searchTooLong")',
+    'translate("validation.emailInvalid")',
+  ]);
+  const adminTranslationsPath = `${target.sourceRoot}/${consumers.adminTranslations}`;
+  const adminTranslations = source(target, consumers.adminTranslations);
+  addMissingTokens(records, "field-composition", adminTranslationsPath, adminTranslations, [
+    "export const ADMIN_USERS_MESSAGE_KEYS",
+    "export type AdminUsersTranslate",
+    "export function useAdminUsersTranslations(): AdminUsersTranslate",
+    "const translateEnglish: AdminUsersTranslate",
+  ]);
+  if (/next-intl|@\/lib\/i18n/.test(adminTranslations)) {
+    records.push({
+      category: "presentation-network-access",
+      path: adminTranslationsPath,
+      evidence: "i18n runtime leaked into a feature-off target",
+    });
+  }
+  const adminHookPath = `${target.sourceRoot}/${consumers.adminHook}`;
+  const adminHook = source(target, consumers.adminHook);
+  addMissingTokens(records, "field-composition", adminHookPath, adminHook, [
+    "useAdminUsersData(filters",
+    "useAdminUserMutations()",
+    "AdminUsersFilterInput",
+    "CreateAdminUserInput",
+  ]);
+  for (const [path, content] of [
+    [adminSchemaPath, adminSchema],
+    [adminTranslationsPath, adminTranslations],
+    [adminHookPath, adminHook],
+  ] as Array<[string, string]>) {
+    for (const match of content.matchAll(/\bas unknown as\b|:\s*any\b|@ts-ignore/g)) {
+      records.push({ category: "unsafe-type-escape", path, evidence: match[0] });
+    }
+  }
+  for (const match of adminHook.matchAll(/\bfetch\s*\(|\buseEffect\s*\(/g)) {
+    records.push({
+      category: "presentation-network-access",
+      path: adminHookPath,
+      evidence: match[0],
+    });
   }
 
   if (/different email or name|email or name/i.test(adminUsers)) {
@@ -575,42 +718,57 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
       target.framework === "nextjs" ? "app/forgot-password/page.tsx" : "routes/forgot-password.tsx";
     const resetPath =
       target.framework === "nextjs" ? "app/reset-password/page.tsx" : "routes/reset-password.tsx";
-    addFieldAssociationRecords(
-      records,
-      `${target.sourceRoot}/${forgotPath}`,
-      source(target, forgotPath),
-      "forgot-email",
-    );
-    for (const id of ["new-password", "confirm-password"]) {
+    const forgot = source(target, forgotPath);
+    const reset = source(target, resetPath);
+    if (forgot.includes("<form.AppField")) {
+      addMissingTokens(records, "field-composition", `${target.sourceRoot}/${forgotPath}`, forgot, [
+        '<form.AppField name="email">',
+        "<field.TextField",
+      ]);
+    } else {
       addFieldAssociationRecords(
         records,
-        `${target.sourceRoot}/${resetPath}`,
-        source(target, resetPath),
-        id,
+        `${target.sourceRoot}/${forgotPath}`,
+        forgot,
+        "forgot-email",
       );
+    }
+    if (reset.includes("<form.AppField")) {
+      addMissingTokens(records, "field-composition", `${target.sourceRoot}/${resetPath}`, reset, [
+        '<form.AppField name="newPassword">',
+        '<form.AppField name="confirmPassword">',
+        "<field.PasswordField",
+      ]);
+    } else {
+      for (const id of ["new-password", "confirm-password"]) {
+        addFieldAssociationRecords(records, `${target.sourceRoot}/${resetPath}`, reset, id);
+      }
     }
   }
 
   if (target.mode === "single" && target.framework === "tanstack-start") {
-    const settingsPath = `${target.sourceRoot}/${consumers.dangerZone}`;
-    const settings = source(target, consumers.dangerZone);
+    const settingsPath = `${target.sourceRoot}/features/settings`;
+    const settings = target.files
+      .filter(({ path }) => path.startsWith(`${settingsPath}/`))
+      .map(({ content }) => content)
+      .join("\n");
     addMissingTokens(records, "field-composition", settingsPath, settings, [
-      "from '@/components/ui/field'",
-      "from '@/components/ui/input'",
-      "<Field",
-      "<FieldLabel",
-      "<Input",
-      "<FieldDescription",
+      'from "@/components/ui/form"',
+      "useAppForm({",
+      '<form.AppField name="password">',
+      "<field.PasswordField",
     ]);
     addMissingTokens(records, "nonfunctional-select", settingsPath, settings, [
-      "from '@/components/ui/select'",
-      "<Select items={SETTINGS_ACTIONS}",
+      'from "@/components/ui/select"',
+      "const securityActions = SETTINGS_ACTIONS.map",
+      "label: t(action.labelKey)",
+      "items={securityActions}",
       "onValueChange=",
       "<SelectGroup>",
       "<SelectItem",
     ]);
     addMissingTokens(records, "ad-hoc-empty-state", settingsPath, settings, [
-      "from '@/components/ui/empty'",
+      'from "@/components/ui/empty"',
       "<Empty",
       "<EmptyHeader",
       "<EmptyTitle",
@@ -618,7 +776,7 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
       "<EmptyContent",
     ]);
     addMissingTokens(records, "radix-as-child", settingsPath, settings, [
-      "from '@/components/ui/dialog'",
+      'from "@/components/ui/dialog"',
       "<Dialog",
       "<DialogTrigger render={<Button",
       "<DialogTitle",
@@ -634,20 +792,28 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   }
 
   const headerPath = `${target.sourceRoot}/${consumers.header}`;
-  addMissingTokens(records, "radix-as-child", headerPath, source(target, consumers.header), [
+  const header = [
+    source(target, consumers.header),
+    source(target, "components/header-actions.tsx"),
+    source(target, "components/header-user-menu.tsx"),
+  ].join("\n");
+  addMissingTokens(records, "radix-as-child", headerPath, header, [
     "<DropdownMenuTrigger",
     "render={<Button",
     "<Avatar",
   ]);
 
   const userActionsPath = `${target.sourceRoot}/${consumers.adminUserActions}`;
-  const userActions = source(target, consumers.adminUserActions);
+  const userActions = [
+    source(target, consumers.adminUserActions),
+    source(target, "features/admin-users/components/user-row-confirmation.tsx"),
+  ].join("\n");
   if (target.framework === "nextjs") {
-    if ((userActions.match(/<DialogTrigger\s+render=\{<Button/g) ?? []).length < 2) {
+    if ((userActions.match(/<Button\b/g) ?? []).length < 4) {
       records.push({
         category: "radix-as-child",
         path: userActionsPath,
-        evidence: "missing two composed role/ban Dialog triggers",
+        evidence: "missing accessible role/ban action and confirmation buttons",
       });
     }
   }
@@ -690,11 +856,12 @@ describe("generated shared frontend primitives", () => {
 
   for (const target of targets) {
     test(`${target.label} enumerates and parses every reviewed primitive record`, () => {
-      const inventory = legacyReviewedRecords(target);
-      expect(inventory).toHaveLength(target.mode === "monorepo" ? 36 : 35);
+      const inventory = reviewedRecords(target);
+      expect(inventory).toHaveLength(36);
       const reviewedRelativePaths = new Set([
         ...inventory.map(({ relativePath }) => relativePath),
         ...pendingFormExpectations(target).map(({ relativePath }) => relativePath),
+        ...Object.values(consumerPaths(target)),
       ]);
       expect(
         [...reviewedRelativePaths].filter((relativePath) => source(target, relativePath) === ""),
@@ -721,6 +888,7 @@ describe("generated shared frontend primitives", () => {
           "nonfunctional-select",
           "partial-notification-bell",
           "pending-boolean-or-spinner",
+          "presentation-network-access",
           "product-semantic-style",
           "radix-as-child",
           "raw-form-control",
@@ -740,6 +908,7 @@ describe("generated shared frontend primitives", () => {
         "nonfunctional-select": 0,
         "partial-notification-bell": 0,
         "pending-boolean-or-spinner": 0,
+        "presentation-network-access": 0,
         "product-semantic-style": 0,
         "radix-as-child": 0,
         "raw-form-control": 0,
@@ -755,9 +924,40 @@ describe("generated shared frontend primitives", () => {
       const manifest = JSON.parse(manifestSource) as {
         dependencies?: Record<string, string>;
       };
-      expect(manifest.dependencies?.["lucide-react"]).toBe("1.33.0");
+      expect(manifest.dependencies?.["lucide-react"]).toBe(uiVersions["lucide-react"]);
       expect(manifest.dependencies?.["server-only"]).toBe("0.0.1");
     });
+  }
+
+  for (const mode of ["monorepo", "single"] as const) {
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      test(`${mode} ${framework} keeps feature-off fallback and feature-on translations explicit`, () => {
+        const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
+        const translationPath = `${sourceRoot}/features/admin-users/translations.ts`;
+        const disabledFiles = generateProjectFiles(config(mode, framework), { dryRun: false });
+        const enabledFiles = generateProjectFiles(
+          { ...config(mode, framework), features: ["i18n"] },
+          { dryRun: false },
+        );
+        const disabled = disabledFiles.find(({ path }) => path === translationPath)?.content ?? "";
+        const enabled = enabledFiles.find(({ path }) => path === translationPath)?.content ?? "";
+        const enabledFeature = enabledFiles
+          .filter(({ path }) => path.startsWith(`${sourceRoot}/features/admin-users/`))
+          .map(({ content }) => content)
+          .join("\n");
+
+        expect(disabled).toContain("const translateEnglish: AdminUsersTranslate");
+        expect(disabled).toContain("return translateEnglish");
+        expect(disabled).not.toContain("useFrameworkTranslations");
+        expect(enabled).toContain(
+          framework === "nextjs" ? 'from "next-intl"' : 'from "@/lib/i18n"',
+        );
+        expect(enabled).toContain('useFrameworkTranslations("adminUsers")');
+        expect(enabled).not.toContain("translateEnglish");
+        expect(enabledFeature).toContain('description={translate("filters.description")}');
+        expect(enabledFeature).toContain('aria-label={translate("table.loading")}');
+      });
+    }
   }
 
   for (const mode of ["monorepo", "single"] as const) {
@@ -771,7 +971,7 @@ describe("generated shared frontend primitives", () => {
       const manifest = JSON.parse(manifestSource) as {
         dependencies?: Record<string, string>;
       };
-      expect(manifest.dependencies?.["lucide-react"]).toBe("1.33.0");
+      expect(manifest.dependencies?.["lucide-react"]).toBe(uiVersions["lucide-react"]);
       expect(manifest.dependencies?.["server-only"]).toBe("0.0.1");
     });
   }

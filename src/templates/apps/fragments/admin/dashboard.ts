@@ -1,9 +1,21 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function adminDashboardPage(): TemplateFile {
+import type { AdminTemplateOptions } from "./model.js";
+
+export function adminDashboardFile(options: AdminTemplateOptions): TemplateFile {
+  const root = options.sourceRoot === "src" ? "src/app" : "apps/web/src/app";
   return file(
-    "apps/web/src/app/admin/page.tsx",
+    `${root}/admin/page.tsx`,
     `import { redirect } from "next/navigation";
-export default async function AdminDashboardPage(): Promise<never> { redirect("/admin/users"); }
+export default function AdminDashboardPage(): never { redirect("/admin/users"); }
 `,
   );
+}
+
+export function adminDashboardPage(): TemplateFile {
+  return adminDashboardFile({
+    database: "postgres",
+    framework: "next",
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  });
 }

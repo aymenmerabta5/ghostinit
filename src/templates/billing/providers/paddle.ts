@@ -1,7 +1,7 @@
 /**
  * Paddle provider barrel — split for <300 compliance.
  *
- * Context7 paddlehq/paddle-node-sdk 3.8.0 MoR 5%+50c
+ * Paddle Node SDK 3.10.0 MoR 5%+50c
  * Paddle API_KEY Environment sandbox production
  * transactions.create items priceId quantity customerId collectionMode automatic customData checkout?.url url
  * SDK has NO separate checkouts resource — checkouts via transactions via transactions.create
@@ -42,8 +42,6 @@ export type { PaddleConfig } from "./paddle/client.js";
 export {
   mapSubscriptionStatus,
   mapSubscriptionStatus as mapPaddleSubscriptionStatus,
-  genId,
-  genId as genPaddleId,
 } from "./paddle/mappers.js";
 export { createPaddleCheckout } from "./paddle/checkout.js";
 export { createPaddleCustomer } from "./paddle/customer.js";

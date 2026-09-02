@@ -8,7 +8,7 @@ New env var → MUST update same PR in 5 places else broken generation or Turbo 
 2. `src/templates/shared/env/` builders — `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe.
 3. `src/templates/root.ts` `turbo()` + `root/index.ts` + split — `globalEnv` exhaustive 50+ vars list.
 4. Root `turbo.json` `globalEnv` host CI host-level.
-5. Docs: `docs/ARCHITECTURE.md` tooling quirks paragraph exhaustive list + `AGENTS.md` 5-place note + `skills/ghostinit-use/references/workflows.md` or `billing.md` or `frameworks.md` if user-visible + `CONTRIBUTING.md` if how-to affected.
+5. Docs: `AGENTS.md` environment contract + `skills/ghostinit-use/references/workflows.md` or `billing.md` or `frameworks.md` if user-visible + `CONTRIBUTING.md` if how-to affected.
 
 ## 1. `src/lib/constants.ts` `ENV_PLACEHOLDERS`
 
@@ -177,8 +177,7 @@ Location `turbo.json` root.
 
 ## 5. Docs Sync
 
-- `docs/ARCHITECTURE.md` tooling quirks paragraph lists example exhaustive `DATABASE_URL, BETTER_AUTH_*, STRIPE_*, CHARGILY_*, PADDLE_*, POLAR_*, RESEND_*, POSTHOG_*, NEXT_PUBLIC_*, VITE_*` + 5-place note.
-- `AGENTS.md` tooling quirks same + 5-place note.
+- `AGENTS.md` environment table documents the exhaustive manifest contract and five synchronized locations.
 - `skills/ghostinit-use/references/workflows.md` troubleshooting billing vars + turbo cache poisoned note.
 - `skills/ghostinit-use/references/billing.md` env vars needed list.
 - `CONTRIBUTING.md` if how-to add package section.

@@ -3,6 +3,7 @@ import { parseCreateArgs } from "../lib/interactive.js";
 import type { GlobalOptions } from "../commands/types.js";
 import type { Logger } from "../lib/logger.js";
 import { getString, getStringArray, getBoolean } from "./validation.js";
+import type { CliOptionName } from "./spec.js";
 
 export const CLI_OPTIONS = {
   cwd: { type: "string" as const },
@@ -16,7 +17,7 @@ export const CLI_OPTIONS = {
   quiet: { type: "boolean" as const, default: false },
   debug: { type: "boolean" as const, default: false },
   version: { type: "boolean" as const, default: false },
-  help: { type: "boolean" as const, default: false },
+  help: { type: "boolean" as const, short: "h", default: false },
   h: { type: "boolean" as const, default: false },
   kind: { type: "string" as const },
   check: { type: "boolean" as const, default: false },
@@ -39,10 +40,17 @@ export const CLI_OPTIONS = {
   "with-i18n": { type: "boolean" as const, default: false },
   "with-pdf": { type: "boolean" as const, default: false },
   "with-messaging": { type: "boolean" as const, default: false },
+  "with-storage": { type: "boolean" as const, default: false },
+  "with-notifications": { type: "boolean" as const, default: false },
+  "feature-flags": { type: "string" as const, multiple: true as const },
+  "with-jobs": { type: "boolean" as const, default: false },
   fix: { type: "boolean" as const, default: false },
   verbose: { type: "boolean" as const, default: false },
   list: { type: "boolean" as const, default: false },
-};
+} satisfies Record<
+  CliOptionName,
+  { readonly type: "string" | "boolean"; readonly [key: string]: unknown }
+>;
 
 export interface ParsedCli {
   values: Record<string, unknown>;
@@ -86,6 +94,10 @@ export interface CreateParsed {
   withI18n?: boolean;
   withPdf?: boolean;
   withMessaging?: boolean;
+  withStorage?: boolean;
+  withNotifications?: boolean;
+  featureFlags?: import("../lib/addons.js").FeatureFlagProvider;
+  withJobs?: boolean;
   fix?: boolean;
   verbose?: boolean;
   list?: boolean;
@@ -95,7 +107,7 @@ export function parseCreateSpecific(
   values: Record<string, unknown>,
   command: string,
 ): CreateParsed {
-  if (command === "create") {
+  if (command === "create" || command === "init") {
     const raw = {
       mode: getStringArray(values.mode),
       framework: getStringArray(values.framework),
@@ -116,6 +128,10 @@ export function parseCreateSpecific(
       "with-i18n": getBoolean(values["with-i18n"]),
       "with-pdf": getBoolean(values["with-pdf"]),
       "with-messaging": getBoolean(values["with-messaging"]),
+      "with-storage": getBoolean(values["with-storage"]),
+      "with-notifications": getBoolean(values["with-notifications"]),
+      "feature-flags": getStringArray(values["feature-flags"]),
+      "with-jobs": getBoolean(values["with-jobs"]),
     } as Record<string, unknown>;
     return parseCreateArgs(raw as never) as CreateParsed;
   }
@@ -172,6 +188,10 @@ export function buildGlobalOptions(
     withI18n: createParsed.withI18n,
     withPdf: createParsed.withPdf,
     withMessaging: createParsed.withMessaging,
+    withStorage: createParsed.withStorage,
+    withNotifications: createParsed.withNotifications,
+    featureFlags: createParsed.featureFlags,
+    withJobs: createParsed.withJobs,
     fix: getBoolean(values.fix),
     verbose: getBoolean(values.verbose),
     list: getBoolean(values.list),
@@ -184,6 +204,7 @@ export function buildGlobalOptions(
     rawPreset: getStringArray(values.preset),
     rawCache: getStringArray(values.cache),
     rawDeploy: getStringArray(values.deploy),
+    rawFeatureFlags: getStringArray(values["feature-flags"]),
     logger,
   };
 }

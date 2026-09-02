@@ -16,13 +16,14 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 - Validation:
   - `billing + database=none` blocked → needs DB for subscriptions.
   - `single + apps both|all|web,mobile` blocked → single supports only one target; use monorepo for web+mobile.
+  - `single + apps mobile|desktop` is frontend-only. Server-backed capabilities, database/cache/deploy selections, and implicit SaaS defaults are rejected with typed reason `single-native-server-capabilities-unsupported`.
   - `apps none` or empty alone blocked → at least one app required.
     Emits warning + exits 2 if invalid.
 - Output: folder `<cwd>/<name>` with scaffolded files, `.env.example`, `.env.local` placeholders, `.ghostinit/state.json`, `start-database.sh`, `turbo.json` exhaustive globalEnv (including EXPO_PUBLIC_*), `bunfig.toml` hoist=true.
   - `apps/web` when web selected (Next.js app router or TanStack Start src/routes).
-  - `apps/mobile` when mobile selected (Expo SDK 54 Router app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore).
+  - `apps/mobile` when mobile selected (Expo SDK 57 Router app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore).
   - `apps/web + apps/mobile` when both selected (monorepo only).
-  - Single mode `apps mobile` → flat `app/` + `src/server/` + `app.json` Expo structure.
+  - Single mode `apps mobile|desktop` → flat frontend-only native structure with no generated backend host.
 - If `existsSync(projectRoot)` and no `--force` → exit 18 conflict.
 - If install fails → exit 22 generation error but files still written.
 - If prompt cancelled → exit 130.
@@ -34,7 +35,7 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--preset`            | `saas,frontend,custom`                                    | `saas`     | Preset: saas=full Auth+DB+API+Email+Analytics; frontend=minimal; custom=pick via --with-*                                                                     |
 | `--mode`              | `monorepo`, `single`                                      | `monorepo` | Structure: workspaces vs flat                                                                                                                                 |
 | `--framework`         | `nextjs`, `tanstack-start`                                | `nextjs`   | Frontend framework for web target                                                                                                                             |
-| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron 41 + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                               |
+| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                                  |
 | `--billing`           | `stripe,chargily,paddle,polar,both,all,none` comma/repeat | `none`     | Any combo allowed                                                                                                                                             |
 | `--cache`             | `redis,none` (alias `upstash`)                            | `none`     | Cache via Upstash Redis + memory fallback                                                                                                                     |
 | `--stack`             | `nextjs,tanstack-start,expo,both`                         | —          | Frontend shorthand: maps to framework+apps for frontend preset                                                                                                |
@@ -78,8 +79,8 @@ ghostinit create my-app --preset frontend --stack nextjs --yes --no-install
 ghostinit create my-app --preset custom --with-auth --with-api --with-cache --cache redis --with-eve --database postgres --yes --no-install
 
 ghostinit create my-app --apps web,mobile
-ghostinit create my-app --apps mobile --mode monorepo
-ghostinit create my-app --apps mobile --mode single
+ghostinit create my-app --apps mobile --mode monorepo --preset frontend --database none
+ghostinit create my-app --apps mobile --mode single --preset frontend --database none
 ghostinit create my-app --apps both --framework tanstack-start
 ghostinit create my-app --dry-run --yes --no-install
 ghostinit create my-app --dry-run --json --yes | jq .data.files
@@ -213,8 +214,8 @@ Tooling + env verification:
 
 ```bash
 ghostinit doctor
-# [OK] bun: Bun 1.3.14
-# [OK] node: Node 24.18.0
+# [OK] bun: repository-pinned Bun version
+# [OK] node: Node 24.19.0
 # [OK] typescript: TypeScript 6.0.3
 # [OK] ghostinit-version: ghostinit 0.1.0
 # [OK] ghostinit-state: Project state found for my-app

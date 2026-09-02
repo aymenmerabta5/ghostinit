@@ -1,8 +1,8 @@
 /**
  * Stripe checkout session creation.
  */
-// @ts-ignore
 import type Stripe from "stripe";
+import { createHash } from "node:crypto";
 import type { CreateCheckoutInput, CreateCheckoutOutput } from "../interface.js";
 
 export async function createStripeCheckout(
@@ -14,6 +14,12 @@ export async function createStripeCheckout(
   if (!successUrl) throw new Error("STRIPE_CHECKOUT_MISSING_SUCCESS_URL: successUrl is required");
 
   const quantity = input.quantity ?? 1;
+  const requestMetadata = {
+    ...(input.metadata
+      ? Object.fromEntries(Object.entries(input.metadata).map(([k, v]) => [k, String(v)]))
+      : {}),
+    ...(input.requestKey ? { requestKey: input.requestKey } : {}),
+  };
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: "subscription",
@@ -24,15 +30,11 @@ export async function createStripeCheckout(
     expand: ["subscription"],
     ...(input.customerId ? { customer: input.customerId } : {}),
     ...(!input.customerId && input.customerEmail ? { customer_email: input.customerEmail } : {}),
-    ...(input.metadata
+    ...(Object.keys(requestMetadata).length > 0
       ? {
-          metadata: Object.fromEntries(
-            Object.entries(input.metadata).map(([k, v]) => [k, String(v)]),
-          ),
+          metadata: requestMetadata,
           subscription_data: {
-            metadata: Object.fromEntries(
-              Object.entries(input.metadata).map(([k, v]) => [k, String(v)]),
-            ),
+            metadata: requestMetadata,
           },
         }
       : {}),
@@ -64,7 +66,12 @@ export async function createStripeCheckout(
     };
   }
 
-  const session = await stripe.checkout.sessions.create(sessionParams);
+  const requestOptions: Stripe.RequestOptions | undefined = input.requestKey
+    ? {
+        idempotencyKey: `ghostinit_checkout_${createHash("sha256").update(`${input.userId}\0${input.requestKey}`).digest("hex")}`,
+      }
+    : undefined;
+  const session = await stripe.checkout.sessions.create(sessionParams, requestOptions);
   if (!session.url) throw new Error("STRIPE_CHECKOUT_NO_URL: checkout session url missing");
 
   return { id: session.id, url: session.url, providerCheckoutId: session.id };

@@ -7,8 +7,10 @@ export {
   type RouterType,
 } from "./imports.js";
 export { signInNavigateLogic, signUpNavigateLogic, authBackLink, linkTo } from "./navigation.js";
-export { signInFormFields, signInPageContent } from "./sign-in.js";
-export { signUpPageContent } from "./sign-up.js";
+export { authOAuthButtonsContent } from "./controls.js";
+export { signInFormContent, signInFormFields, signInPageContent } from "./sign-in.js";
+export { signInMethodsContent } from "./sign-in-methods.js";
+export { signUpFormContent, signUpPageContent } from "./sign-up.js";
 export { twoFactorPageContent } from "./two-factor.js";
 export {
   tanstackGetSessionFnContent,

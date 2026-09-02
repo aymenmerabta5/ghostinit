@@ -5,7 +5,9 @@ import {
   prepareGeneration,
   resolveUseCaseFromCwd,
 } from "./shared.js";
+import type { GenerationExecution } from "./shared.js";
 import { validateArtifactName } from "../lib/reserved.js";
+import { ValidationError } from "../lib/errors.js";
 import type { GlobalOptions } from "../commands/types.js";
 
 export async function generateAction(
@@ -13,18 +15,29 @@ export async function generateAction(
   moduleName: string,
   actionName: string,
   options: GlobalOptions,
+  execution: GenerationExecution = {},
 ): Promise<boolean> {
   const moduleCheck = validateArtifactName(moduleName, "module name");
   if (!moduleCheck.valid) throw new Error(moduleCheck.reason);
   const actionCheck = validateArtifactName(actionName, "action name");
   if (!actionCheck.valid) throw new Error(actionCheck.reason);
 
-  const filePath = `apps/web/src/actions/${moduleName}/${actionName}.ts`;
+  const ctx = await prepareGeneration(cwd, options, execution);
+  if (ctx.layout.framework !== "nextjs" || !ctx.state.project.apps.includes("web")) {
+    throw new ValidationError(
+      "Server actions require a Next.js web app. Use `add procedure` for other targets.",
+    );
+  }
+  const filePath = `${ctx.layout.actionRoot}/${moduleName}/${actionName}.ts`;
   if (existsSync(`${cwd}/${filePath}`)) return true;
 
-  const ctx = await prepareGeneration(cwd, options);
   const pascal = pascalCase(actionName);
-  const useCase = resolveUseCaseFromCwd(cwd, moduleName, actionName);
+  const useCase = resolveUseCaseFromCwd(cwd, moduleName, actionName, ctx.layout.moduleRoot);
+  const moduleImport = `${ctx.layout.moduleImportPrefix}/${moduleName}`;
+  const errorCodeImport =
+    ctx.layout.mode === "monorepo" ? 'import { ErrorCode } from "@repo/contracts";\n' : "";
+  const validationError =
+    ctx.layout.mode === "monorepo" ? "ErrorCode.VALIDATION_ERROR" : '"VALIDATION_ERROR"';
 
   await ctx.tx.write(
     filePath,
@@ -32,8 +45,8 @@ export async function generateAction(
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ${useCase.functionName}, type ${useCase.inputName} } from "@repo/modules/${moduleName}";
-import { ErrorCode } from "@repo/contracts";
+import { ${useCase.functionName}, type ${useCase.inputName} } from "${moduleImport}";
+${errorCodeImport}
 
 // InputSchema validates base fields and passthrough for forward-compat with ${useCase.inputName} extensions.
 const InputSchema = z
@@ -57,7 +70,7 @@ function mapError(cause: unknown): string {
 export async function ${pascal}Action(rawInput: unknown): Promise<${pascal}ActionResult> {
   const parseResult = InputSchema.safeParse(rawInput);
   if (!parseResult.success) {
-    return { ok: false, error: ErrorCode.VALIDATION_ERROR };
+    return { ok: false, error: ${validationError} };
   }
 
   try {

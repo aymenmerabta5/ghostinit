@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { EMBEDDED_TEMPLATE_SOURCES } from "../generation/embedded-template-sources.js";
 
 const thisFile = fileURLToPath(import.meta.url);
 const thisDir = dirname(thisFile);
@@ -82,6 +83,8 @@ export function stripHostOnlyPragmas(content: string): string {
 
 /** Read a template file, or null when it cannot be located. */
 export function tryLoadTemplate(rel: string): string | null {
+  const embedded = EMBEDDED_TEMPLATE_SOURCES[rel.replace(/^\.\//, "")];
+  if (embedded !== undefined) return stripHostOnlyPragmas(embedded);
   const found = findTemplateFile(rel);
   if (!found) return null;
   try {
@@ -93,6 +96,8 @@ export function tryLoadTemplate(rel: string): string | null {
 
 /** Read a template file, throwing a diagnostic listing every path tried. */
 export function loadTemplate(rel: string): string {
+  const embedded = EMBEDDED_TEMPLATE_SOURCES[rel.replace(/^\.\//, "")];
+  if (embedded !== undefined) return stripHostOnlyPragmas(embedded);
   const found = findTemplateFile(rel);
   if (!found) {
     const tried = templateCandidates(rel).join("\n  - ");

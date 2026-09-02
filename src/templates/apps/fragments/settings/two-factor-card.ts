@@ -1,73 +1,147 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function settingsTwoFactorCard(): TemplateFile {
-  return file(
-    "apps/web/src/app/settings/components/two-factor-card.tsx",
-    `"use client";
-import * as React from "react";
+
+export function settingsTwoFactorHookContent(): string {
+  return `"use client";
 import { useState } from "react";
-import { authClient } from "../../../lib/auth-client.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
-import { z } from "zod";
-const passwordSchema = z.object({ password: z.string().min(1, "Password required") });
-const totpSchema = z.object({ code: z.string().regex(/^[0-9]{6}$/, "Enter a 6-digit code") });
-export function TwoFactorCard(): React.JSX.Element {
-  const { data: session } = authClient.useSession();
+import { useAppForm } from "@/components/ui/form";
+import { createRequiredPasswordSchema, createTotpSchema, identityClient } from "@/lib/auth-client";
+import { useSurfaceTranslations } from "@/lib/translations";
+
+export function useTwoFactorSettings() {
+  const t = useSurfaceTranslations("settings");
+  const { data: session } = identityClient.useSession();
+  const serverEnabled = session?.user
+    ? Reflect.get(session.user, "twoFactorEnabled") === true
+    : false;
   const [totpUri, setTotpUri] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const serverEnabled = session?.user.twoFactorEnabled ?? false;
-  const [optimisticEnabled, setOptimisticEnabled] = useState<{
+  const [optimistic, setOptimistic] = useState<{
     serverValue: boolean;
-    optimisticValue: boolean;
+    value: boolean;
   } | null>(null);
-  const enabled = optimisticEnabled?.serverValue === serverEnabled
-    ? optimisticEnabled.optimisticValue
-    : serverEnabled;
-  const enableForm = useForm({ defaultValues: { password: "" } as { password: string }, validators: { onSubmit: ({ value }) => { const p = passwordSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } }, onSubmit: async ({ value }) => { setError(null); const parsed = passwordSchema.safeParse(value); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; } const result = await authClient.twoFactor.enable({ password: parsed.data.password }); if (result.error) { setError(result.error.message ?? "Failed to enable 2FA"); return; } setTotpUri(result.data.totpURI); setBackupCodes(result.data.backupCodes); } });
-  const verifyForm = useForm({ defaultValues: { code: "" } as { code: string }, validators: { onSubmit: ({ value }) => { const p = totpSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } }, onSubmit: async ({ value }) => { setError(null); const parsed = totpSchema.safeParse(value); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid code"); return; } const result = await authClient.twoFactor.verifyTotp({ code: parsed.data.code, trustDevice: true }); if (result.error) { setError(result.error.message ?? "Invalid code"); return; } setOptimisticEnabled({ serverValue: serverEnabled, optimisticValue: true }); setTotpUri(null); setBackupCodes(null); verifyForm.reset(); enableForm.reset(); } });
-  const disableForm = useForm({ defaultValues: { password: "" } as { password: string }, validators: { onSubmit: ({ value }) => { const p = passwordSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } }, onSubmit: async ({ value }) => { setError(null); const parsed = passwordSchema.safeParse(value); if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid"); return; } const result = await authClient.twoFactor.disable({ password: parsed.data.password }); if (result.error) { setError(result.error.message ?? "Failed to disable 2FA"); return; } setOptimisticEnabled({ serverValue: serverEnabled, optimisticValue: false }); disableForm.reset(); } });
+  const enabled = optimistic?.serverValue === serverEnabled ? optimistic.value : serverEnabled;
+  const passwordSchema = createRequiredPasswordSchema(t("validation.passwordRequired"));
+  const enableForm = useAppForm({
+    defaultValues: { password: "" },
+    validators: { onSubmit: passwordSchema },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const result = await identityClient.enableTwoFactor({ password: value.password });
+      if (result.error || !result.data) {
+        setError(result.error?.message ?? t("errors.twoFactorEnable"));
+        return;
+      }
+      setTotpUri(result.data.totpURI);
+      setBackupCodes(result.data.backupCodes);
+    },
+  });
+  const verifyForm = useAppForm({
+    defaultValues: { code: "" },
+    validators: { onSubmit: createTotpSchema(t("validation.codeSixDigits")) },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const result = await identityClient.verifyTwoFactor({ code: value.code, trustDevice: true });
+      if (result.error) {
+        setError(result.error.message ?? t("errors.invalidCode"));
+        return;
+      }
+      setOptimistic({ serverValue: serverEnabled, value: true });
+      setTotpUri(null);
+      setBackupCodes(null);
+      verifyForm.reset();
+      enableForm.reset();
+    },
+  });
+  const disableForm = useAppForm({
+    defaultValues: { password: "" },
+    validators: { onSubmit: passwordSchema },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const result = await identityClient.disableTwoFactor({ password: value.password });
+      if (result.error) {
+        setError(result.error.message ?? t("errors.twoFactorDisable"));
+        return;
+      }
+      setOptimistic({ serverValue: serverEnabled, value: false });
+      disableForm.reset();
+    },
+  });
+  return { backupCodes, disableForm, enabled, enableForm, error, totpUri, verifyForm };
+}
+`;
+}
+
+export function settingsTwoFactorCardContent(): string {
+  return `"use client";
+import type * as React from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Form } from "@/components/ui/form";
+import { useSurfaceTranslations } from "@/lib/translations";
+import { useTwoFactorSettings } from "./use-two-factor-settings";
+
+export function TwoFactorCard(): React.JSX.Element {
+  const t = useSurfaceTranslations("settings");
+  const { backupCodes, disableForm, enabled, enableForm, error, totpUri, verifyForm } =
+    useTwoFactorSettings();
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3"><CardTitle className="text-base">Two-factor authentication</CardTitle><Badge variant={enabled ? "secondary" : "outline"}><span className="flex items-center gap-1.5"><span className={enabled ? "size-1.5 rounded-full bg-primary" : "size-1.5 rounded-full bg-muted-foreground"} /> {enabled ? "enabled" : "disabled"}</span></Badge></div>
-        <CardDescription className="max-w-[65ch]">Secure your account with TOTP. Trust device 30 days, backup codes single-use.</CardDescription>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-base">{t("twoFactor.title")}</CardTitle>
+          <Badge variant={enabled ? "secondary" : "outline"}>
+            {enabled ? t("twoFactor.enabled") : t("twoFactor.disabled")}
+          </Badge>
+        </div>
+        <CardDescription className="max-w-[65ch]">{t("twoFactor.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {error ? <Alert variant="destructive"><AlertTitle>2FA error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+        {error ? <Alert variant="destructive"><AlertTitle>{t("twoFactor.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         {enabled ? (
-          <Form form={disableForm} className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground max-w-[65ch]">2FA is currently enabled for your account.</p>
-            <FieldGroup><TanStackField form={disableForm} name="password" validators={{ onSubmit: ({ value }) => (value.length < 1 ? "Password required" : undefined) }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="disable-2fa-password">Password</FieldLabel><Input id="disable-2fa-password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} aria-invalid={field.state.meta.errors.length > 0} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-            <SubmitButton variant="outline">Disable 2FA</SubmitButton>
-          </Form>
+          <disableForm.AppForm><Form form={disableForm} className="flex flex-col gap-4">
+            <p className="max-w-[65ch] text-sm text-muted-foreground">{t("twoFactor.enabledDescription")}</p>
+            <FieldGroup><disableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</disableForm.AppField></FieldGroup>
+            <disableForm.SubmitButton variant="outline" pendingLabel={t("twoFactor.disabling")}>{t("twoFactor.disable")}</disableForm.SubmitButton>
+          </Form></disableForm.AppForm>
+        ) : !totpUri ? (
+          <enableForm.AppForm><Form form={enableForm} className="flex flex-col gap-4">
+            <p className="max-w-[65ch] text-sm text-muted-foreground">{t("twoFactor.enableDescription")}</p>
+            <FieldGroup><enableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</enableForm.AppField></FieldGroup>
+            <enableForm.SubmitButton pendingLabel={t("twoFactor.preparing")}>{t("twoFactor.enable")}</enableForm.SubmitButton>
+          </Form></enableForm.AppForm>
         ) : (
-          <div className="flex flex-col gap-4">
-            {!totpUri ? (
-              <Form form={enableForm} className="flex flex-col gap-4">
-                <p className="text-sm text-muted-foreground max-w-[65ch]">Enable TOTP-based two-factor authentication.</p>
-                <FieldGroup><TanStackField form={enableForm} name="password" validators={{ onSubmit: ({ value }) => (value.length < 1 ? "Password required" : undefined) }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="enable-2fa-password">Password</FieldLabel><Input id="enable-2fa-password" name={field.name} type="password" required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} aria-invalid={field.state.meta.errors.length > 0} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : null}</Field>)}</TanStackField></FieldGroup>
-                <SubmitButton>Enable 2FA</SubmitButton>
-              </Form>
-            ) : (
-              <Form form={verifyForm} className="flex flex-col gap-4">
-                <p className="text-sm text-muted-foreground max-w-[65ch]">Scan the TOTP URI in your authenticator app, then enter the code to verify.</p>
-                <div className="break-all rounded-md bg-muted/40 border p-3 text-xs font-mono">{totpUri}</div>
-                {backupCodes ? <div className="flex flex-col gap-2"><p className="text-sm font-medium">Backup codes</p><pre className="break-all rounded-md bg-muted/40 border p-3 text-xs font-mono whitespace-pre-wrap">{backupCodes.join("\\n")}</pre><p className="text-xs text-muted-foreground max-w-[60ch]">Store these securely. Each code can be used once.</p></div> : null}
-                <FieldGroup><TanStackField form={verifyForm} name="code" validators={{ onSubmit: ({ value }) => (/^[0-9]{6}$/.test(value) ? undefined : "Enter a 6-digit code") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="verify-code">Verification code</FieldLabel><Input id="verify-code" name={field.name} inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={field.state.value} onChange={(e) => field.handleChange(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))} onBlur={field.handleBlur} placeholder="000000" className="font-mono tracking-widest text-center" aria-invalid={field.state.meta.errors.length > 0} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>6-digit code from authenticator.</FieldDescription>)}</Field>)}</TanStackField></FieldGroup>
-                <SubmitButton>Verify and enable</SubmitButton>
-              </Form>
-            )}
-          </div>
+          <verifyForm.AppForm><Form form={verifyForm} className="flex flex-col gap-4">
+            <p className="max-w-[65ch] text-sm text-muted-foreground">{t("twoFactor.scanDescription")}</p>
+            <div className="break-all rounded-md border bg-muted/40 p-3 font-mono text-xs">{totpUri}</div>
+            {backupCodes ? <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">{t("twoFactor.backupCodesTitle")}</p>
+              <pre className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 font-mono text-xs">{backupCodes.join("\\n")}</pre>
+              <p className="max-w-[60ch] text-xs text-muted-foreground">{t("twoFactor.backupCodesDescription")}</p>
+            </div> : null}
+            <FieldGroup><verifyForm.AppField name="code">{(field) => <field.OtpField label={t("twoFactor.codeLabel")} description={t("twoFactor.codeDescription")} placeholder="000000" required length={6} />}</verifyForm.AppField></FieldGroup>
+            <verifyForm.SubmitButton pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.verify")}</verifyForm.SubmitButton>
+          </Form></verifyForm.AppForm>
         )}
       </CardContent>
     </Card>
   );
 }
-`,
+`;
+}
+
+export function settingsTwoFactorCard(): TemplateFile {
+  return file(
+    "apps/web/src/app/settings/components/two-factor-card.tsx",
+    settingsTwoFactorCardContent(),
+  );
+}
+
+export function settingsTwoFactorHook(): TemplateFile {
+  return file(
+    "apps/web/src/app/settings/components/use-two-factor-settings.ts",
+    settingsTwoFactorHookContent(),
   );
 }

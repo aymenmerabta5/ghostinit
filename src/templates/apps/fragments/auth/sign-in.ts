@@ -1,102 +1,182 @@
-import { sharedValidators } from "./validators.js";
-import { linkTo, signInNavigateLogic, type RouterType } from "./navigation.js";
+import type { RouterType } from "./imports.js";
 
-export function signInFormFields(router: RouterType, hasEmail = true): string {
-  const forgot = hasEmail
-    ? linkTo(
-        router,
-        "/forgot-password",
-        "text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline",
-        "Forgot?",
-      )
-    : "";
-  return `              <FieldGroup>
-                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined), onSubmit: ({ value }) => (${sharedValidators.email}), }}>
-                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="signin-email">Email</FieldLabel><Input id="signin-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>Your account email address.</FieldDescription>)}</Field>)}
-                </TanStackField>
-                <TanStackField form={form} name="password" validators={{ onChange: ({ value }) => (value.length >= 8 ? undefined : "Password must be at least 8 characters"), onSubmit: ({ value }) => (${sharedValidators.password}), }}>
-                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="signin-password">Password</FieldLabel>${forgot}</div><Input id="signin-password" name={field.name} type="password" autoComplete="current-password" required minLength={8} aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : null}</Field>)}
-                </TanStackField>
-              </FieldGroup>
-              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (
-                  <SubmitButton className="w-full" disabled={!canSubmit || isSubmitting}>
-                    {isSubmitting ? (<><Spinner data-icon="inline-start" />Signing in...</>) : "Sign in"}
-                  </SubmitButton>
-                )}
-              </form.Subscribe>`;
-}
-
-export function oauthButtons(_router: RouterType): string {
-  const googleAction = `async () => { await authClient.signIn.social({ provider: "google", callbackURL: "/dashboard" }); }`;
-  const githubAction = `async () => { await authClient.signIn.social({ provider: "github", callbackURL: "/dashboard" }); }`;
-  return `            <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" onClick={${googleAction}}>Google</Button>
-              <Button type="button" variant="outline" onClick={${githubAction}}>GitHub</Button>
-            </div>
-            <div className="relative flex items-center gap-3 py-2"><span className="h-px flex-1 bg-border" /><span className="text-xs text-muted-foreground">or</span><span className="h-px flex-1 bg-border" /></div>`;
-}
-
-export function signInPageContent(router: RouterType, hasEmail = true): string {
+/** Route/page orchestrator. The stateful form is emitted as a focused sibling component. */
+export function signInPageContent(router: RouterType, _hasEmail = true): string {
   const isTanstack = router === "tanstack";
-  const routerHook = isTanstack
-    ? `  const navigate = useNavigate()\n  const [error, setError] = useState<string | null>(null)`
-    : `  const router = useRouter();\n  const [error, setError] = useState<string | null>(null);`;
   const imports = isTanstack
-    ? `"use client"\nimport * as React from 'react'\nimport { createFileRoute, Link, useNavigate } from '@tanstack/react-router'\nimport { useState } from 'react'\nimport { z } from 'zod'\nimport { authClient } from '../lib/auth-client.js'\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form"\n\nexport const Route = createFileRoute('/sign-in')({ component: SignInPage, })`
-    : `"use client";\nimport * as React from "react";\nimport { useRouter } from "next/navigation";\nimport { useState } from "react";\nimport Link from "next/link";\nimport { z } from "zod";\nimport { authClient } from "../../lib/auth-client.js";\nimport { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";\nimport { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";\nimport { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`;
+    ? `"use client";
+import type * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { SignInForm } from "@/components/auth/sign-in-form";
+import { useSurfaceTranslations } from "@/lib/translations";
+
+export const Route = createFileRoute("/sign-in")({ component: SignInPage });`
+    : `"use client";
+import type * as React from "react";
+import Link from "next/link";
+import { SignInForm } from "@/components/auth/sign-in-form";
+import { useSurfaceTranslations } from "@/lib/translations";`;
   const backLink = isTanstack
-    ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>`
-    : `<Link href="/" className="text-sm text-muted-foreground hover:text-foreground">\n          ← Back to home\n        </Link>`;
-  const footerLinks = isTanstack
-    ? `<div className="flex w-full ${hasEmail ? "justify-between" : "justify-end"} text-sm">${hasEmail ? '<Link to="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Forgot password?</Link>' : ""}<Link to="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Create account</Link></div>`
-    : `<div className="flex w-full ${hasEmail ? "justify-between" : "justify-end"} text-sm">${hasEmail ? '<Link href="/forgot-password" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Forgot password?\n              </Link>' : ""}<Link href="/sign-up" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">\n                Create account\n              </Link></div>`;
+    ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <span aria-hidden className="inline-block rtl:rotate-180">←</span>
+          <span>{t("signIn.backHome")}</span>
+        </Link>`
+    : `<Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <span aria-hidden className="inline-block rtl:rotate-180">←</span>
+          <span>{t("signIn.backHome")}</span>
+        </Link>`;
 
   return `${imports}
 
-interface SignInForm { email: string; password: string; }
-
 ${isTanstack ? "function" : "export default function"} SignInPage(): React.JSX.Element {
-${routerHook}
-  const signInSchema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(8, "Password must be at least 8 characters").max(64) });
-  const form = useForm({
-    defaultValues: { email: "", password: "", } as SignInForm,
-    validators: { onSubmit: ({ value }) => { const p = signInSchema.safeParse(value); return p.success ? undefined : p.error.issues[0]?.message; } },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const parsed = signInSchema.safeParse(value);
-      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Invalid input"); return; }
-      const result = await authClient.signIn.email({ email: parsed.data.email, password: parsed.data.password, callbackURL: "/dashboard", });
-      if (result.error) { setError(result.error.message ?? "Sign in failed"); return; }
-${signInNavigateLogic(router)}
-    },
-  });
+  const t = useSurfaceTranslations("auth");
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-background">
-      <div className="w-full max-w-[420px] flex flex-col gap-6">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex w-full max-w-[420px] flex-col gap-6">
         ${backLink}
-        <Card><CardHeader className="gap-2"><CardTitle className="text-2xl tracking-tight">Sign in</CardTitle><CardDescription className="max-w-[60ch]">Enter your credentials to access your account. Secure session with httpOnly lax cookies.</CardDescription></CardHeader>
-          <CardContent className="flex flex-col gap-6">
-            {error ? (<Alert variant="destructive"><AlertTitle>Unable to sign in</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>) : null}
-${oauthButtons(router)}
-            <Form form={form} className="flex flex-col gap-6">
-${signInFormFields(router, hasEmail)}
-            </Form>
-          </CardContent>
-          <CardFooter className="flex-col gap-3">${footerLinks}</CardFooter>
-        </Card>
-        <p className="text-center text-xs text-muted-foreground max-w-[65ch] mx-auto">Session cookie httpOnly secure sameSite lax. Rate limit 60 requests per minute. Better Auth 1.6.23 with admin + 2FA TOTP.</p>
+        <SignInForm />
+        <p className="mx-auto max-w-[65ch] text-center text-xs text-muted-foreground">{t("signIn.securityNote")}</p>
       </div>
     </main>
   );
 }
 `;
+}
+
+export function signInFormContent(router: RouterType, hasEmail = true, _hasPasskey = true): string {
+  const isTanstack = router === "tanstack";
+  if (!hasEmail) {
+    const homeImport = isTanstack
+      ? `import { Link } from "@tanstack/react-router";`
+      : `import Link from "next/link";`;
+    const homeLink = isTanstack
+      ? '<Link to="/" className="text-muted-foreground underline">{t("signIn.backHome")}</Link>'
+      : '<Link href="/" className="text-muted-foreground underline">{t("signIn.backHome")}</Link>';
+    return `"use client";
+
+import type * as React from "react";
+${homeImport}
+import { SignInMethods } from "./sign-in-methods.js";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSurfaceTranslations } from "@/lib/translations";
+
+export function SignInForm(): React.JSX.Element {
+  const t = useSurfaceTranslations("auth");
+
+  return (
+    <Card>
+      <CardHeader className="gap-2">
+        <CardTitle className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
+        <CardDescription className="max-w-[60ch]">Email/password sign-in is disabled because the email capability is not selected. Use a configured OAuth provider.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        <SignInMethods />
+      </CardContent>
+      <CardFooter className="justify-center text-sm">${homeLink}</CardFooter>
+    </Card>
+  );
+}
+`;
+  }
+  const routerImport = isTanstack
+    ? 'import { Link, useNavigate } from "@tanstack/react-router";'
+    : `import Link from "next/link";
+import { useRouter } from "next/navigation";`;
+  const routerHook = isTanstack
+    ? "  const navigate = useNavigate();"
+    : "  const router = useRouter();";
+  const navigate = isTanstack
+    ? `    void navigate({ to: requiresTwoFactor ? "/2fa" : "/dashboard" });`
+    : `    router.push(requiresTwoFactor ? "/2fa" : "/dashboard");`;
+  const forgotLink = !hasEmail
+    ? ""
+    : isTanstack
+      ? `<Link to="/forgot-password" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.forgotPassword")}</Link>`
+      : `<Link href="/forgot-password" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.forgotPassword")}</Link>`;
+  const createAccountLink = isTanstack
+    ? `<Link to="/sign-up" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.createAccountLink")}</Link>`
+    : `<Link href="/sign-up" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.createAccountLink")}</Link>`;
+  const emailFlowLinks = !hasEmail
+    ? ""
+    : isTanstack
+      ? '<div className="flex w-full justify-center gap-4 text-xs"><Link to="/magic-link" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.magicLink")}</Link><Link to="/verify-email" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.verifyEmail")}</Link></div>'
+      : '<div className="flex w-full justify-center gap-4 text-xs"><Link href="/magic-link" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.magicLink")}</Link><Link href="/verify-email" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signIn.verifyEmail")}</Link></div>';
+  return `"use client";
+
+import type * as React from "react";
+${routerImport}
+import { useState } from "react";
+import { SignInMethods } from "./sign-in-methods.js";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Form, useAppForm } from "@/components/ui/form";
+import { createSignInSchema, identityClient } from "@/lib/auth-client";
+import { useSurfaceTranslations } from "@/lib/translations";
+
+export function SignInForm(): React.JSX.Element {
+${routerHook}
+  const t = useSurfaceTranslations("auth");
+  const [error, setError] = useState<string | null>(null);
+  const schema = createSignInSchema({
+    invalidEmail: t("validation.invalidEmail"),
+    passwordRequired: t("validation.passwordRequired"),
+    passwordTooShort: t("validation.passwordTooShort"),
+    passwordTooLong: t("validation.passwordTooLong"),
+  });
+  const form = useAppForm({
+    defaultValues: { email: "", password: "" },
+    validators: { onSubmit: schema },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      const result = await identityClient.signInWithEmail({ ...value, callbackURL: "/dashboard" });
+      if (result.error) {
+        setError(t("signIn.genericError"));
+        return;
+      }
+      const requiresTwoFactor =
+        typeof result.data === "object" &&
+        result.data !== null &&
+        "twoFactorRedirect" in result.data &&
+        result.data.twoFactorRedirect === true;
+${navigate}
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader className="gap-2">
+        <CardTitle className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
+        <CardDescription className="max-w-[60ch]">{t("signIn.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        {error ? <Alert variant="destructive"><AlertTitle>{t("signIn.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+        <SignInMethods />
+        <form.AppForm>
+          <Form form={form} className="flex flex-col gap-6">
+            <FieldGroup>
+              <form.AppField name="email">
+                {(field) => <field.TextField type="email" label={t("signIn.emailLabel")} description={t("signIn.emailDescription")} placeholder={t("signIn.emailPlaceholder")} autoComplete="email" required />}
+              </form.AppField>
+              <form.AppField name="password">
+                {(field) => <field.PasswordField label={t("signIn.passwordLabel")} autoComplete="current-password" required minLength={8} maxLength={64} />}
+              </form.AppField>
+            </FieldGroup>
+            <form.SubmitButton className="w-full" pendingLabel={t("signIn.submitting")}>{t("signIn.submit")}</form.SubmitButton>
+          </Form>
+        </form.AppForm>
+      </CardContent>
+      <CardFooter className="flex-col gap-3">
+        <div className="flex w-full ${hasEmail ? "justify-between" : "justify-end"} text-sm">${forgotLink}${createAccountLink}</div>
+        ${emailFlowLinks}
+      </CardFooter>
+    </Card>
+  );
+}
+`;
+}
+
+/** @deprecated Forms now compose through useAppForm/AppField in signInFormContent. */
+export function signInFormFields(): string {
+  return "";
 }

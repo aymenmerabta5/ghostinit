@@ -1,12 +1,6 @@
 export function invoiceTemplateContent(): string {
-  return `import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
-import * as path from "node:path";
-
-const fontsDir = path.join(process.cwd(), "node_modules/dejavu-fonts-ttf/ttf");
-try {
-  Font.register({ family: "DejaVu Sans", src: path.join(fontsDir, "DejaVuSans.ttf") });
-  Font.register({ family: "DejaVu Sans Bold", src: path.join(fontsDir, "DejaVuSans-Bold.ttf") });
-} catch {}
+  return `import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign } from "../lib/locale";
 
 const styles = StyleSheet.create({
   page: { fontFamily: "DejaVu Sans", fontSize: 9, padding: 32, backgroundColor: "#ffffff", color: "#1e293b" },
@@ -44,34 +38,36 @@ export interface InvoiceData {
 }
 
 function formatDate(d: Date, locale = "en"): string {
-  return d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString(pdfLocaleTag(locale), { year: "numeric", month: "long", day: "numeric" });
 }
-function formatMoney(amount: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+function formatMoney(amount: number, currency = "USD", locale = "en"): string {
+  return new Intl.NumberFormat(pdfLocaleTag(locale), { style: "currency", currency }).format(amount);
 }
 
 export function InvoiceTemplate({ data, locale = "en" }: { data: InvoiceData; locale?: string }) {
+  const resolvedLocale = normalizePdfLocale(locale);
+  const message = (key: Parameters<typeof pdfMessage>[1]) => pdfMessage(resolvedLocale, key);
   const subtotal = data.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
   const currency = data.currency ?? "USD";
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
+      <Page size="A4" style={[styles.page, { textAlign: pdfTextAlign(resolvedLocale) }]}>
+        <View style={[styles.header, { flexDirection: pdfRowDirection(resolvedLocale) }]}>
           <View><Text style={styles.brand}>{data.from.name}</Text><Text style={styles.meta}>{data.from.email ?? ""}</Text><Text style={styles.meta}>{data.from.address ?? ""}</Text></View>
-          <View style={{ alignItems: "flex-end" }}><Text style={styles.title}>Invoice</Text><Text style={styles.meta}>#{data.invoiceNumber}</Text><Text style={styles.meta}>{formatDate(data.issuedAt, locale)}</Text></View>
+          <View style={{ alignItems: resolvedLocale === "ar" ? "flex-start" : "flex-end" }}><Text style={styles.title}>{message("invoice")}</Text><Text style={styles.meta}>#{data.invoiceNumber}</Text><Text style={styles.meta}>{formatDate(data.issuedAt, resolvedLocale)}</Text></View>
         </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 16 }}>
-          <View style={styles.section}><Text style={styles.label}>Bill To</Text><Text style={styles.value}>{data.to.name}</Text><Text style={styles.meta}>{data.to.email ?? ""}</Text><Text style={styles.meta}>{data.to.address ?? ""}</Text></View>
-          <View style={[styles.section, { alignItems: "flex-end" }]}>{data.dueDate ? <><Text style={styles.label}>Due Date</Text><Text style={styles.value}>{formatDate(data.dueDate, locale)}</Text></> : null}<Text style={styles.label}>Currency</Text><Text style={styles.value}>{currency}</Text></View>
+        <View style={{ flexDirection: pdfRowDirection(resolvedLocale), justifyContent: "space-between", marginBottom: 16 }}>
+          <View style={styles.section}><Text style={styles.label}>{message("billTo")}</Text><Text style={styles.value}>{data.to.name}</Text><Text style={styles.meta}>{data.to.email ?? ""}</Text><Text style={styles.meta}>{data.to.address ?? ""}</Text></View>
+          <View style={[styles.section, { alignItems: resolvedLocale === "ar" ? "flex-start" : "flex-end" }]}>{data.dueDate ? <><Text style={styles.label}>{message("dueDate")}</Text><Text style={styles.value}>{formatDate(data.dueDate, resolvedLocale)}</Text></> : null}<Text style={styles.label}>{message("currency")}</Text><Text style={styles.value}>{currency}</Text></View>
         </View>
-        <View style={styles.tableHeader}><Text style={[styles.cell, { color: "#ffffff" }]}>Description</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>Qty</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>Unit</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>Amount</Text></View>
+        <View style={[styles.tableHeader, { flexDirection: pdfRowDirection(resolvedLocale) }]}><Text style={[styles.cell, { color: "#ffffff" }]}>{message("description")}</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>{message("quantity")}</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>{message("unit")}</Text><Text style={[styles.cellRight, { color: "#ffffff" }]}>{message("amount")}</Text></View>
         {data.items.map((it, idx) => (
-          <View key={idx} style={styles.tableRow}><Text style={styles.cell}>{it.description}</Text><Text style={styles.cellRight}>{it.quantity}</Text><Text style={styles.cellRight}>{formatMoney(it.unitPrice, currency)}</Text><Text style={styles.cellRight}>{formatMoney(it.quantity * it.unitPrice, currency)}</Text></View>
+          <View key={idx} style={[styles.tableRow, { flexDirection: pdfRowDirection(resolvedLocale) }]}><Text style={styles.cell}>{it.description}</Text><Text style={styles.cellRight}>{it.quantity}</Text><Text style={styles.cellRight}>{formatMoney(it.unitPrice, currency, resolvedLocale)}</Text><Text style={styles.cellRight}>{formatMoney(it.quantity * it.unitPrice, currency, resolvedLocale)}</Text></View>
         ))}
-        <View style={styles.totalBox}><Text style={styles.totalLabel}>Total</Text><Text style={styles.totalValue}>{formatMoney(subtotal, currency)}</Text></View>
-        {data.notes ? <View style={[styles.section, { marginTop: 16 }]}><Text style={styles.label}>Notes</Text><Text style={{ fontSize: 8, marginTop: 4 }}>{data.notes}</Text></View> : null}
-        {data.verificationCode ? <View style={{ marginTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><View><Text style={styles.label}>Verification</Text><Text style={{ fontFamily: "DejaVu Sans Bold", fontSize: 9 }}>{data.verificationCode}</Text></View>{data.qrCodeDataUrl ? <View style={{ width: 48, height: 48 }} /> : null}</View> : null}
-        <Text style={styles.footer}>Generated with GhostInit PDF — {data.from.name} • Thank you for your business</Text>
+        <View style={[styles.totalBox, { alignItems: resolvedLocale === "ar" ? "flex-start" : "flex-end" }]}><Text style={styles.totalLabel}>{message("total")}</Text><Text style={styles.totalValue}>{formatMoney(subtotal, currency, resolvedLocale)}</Text></View>
+        {data.notes ? <View style={[styles.section, { marginTop: 16 }]}><Text style={styles.label}>{message("notes")}</Text><Text style={{ fontSize: 8, marginTop: 4 }}>{data.notes}</Text></View> : null}
+        {data.verificationCode ? <View style={{ marginTop: 16, flexDirection: pdfRowDirection(resolvedLocale), justifyContent: "space-between", alignItems: "center" }}><View><Text style={styles.label}>{message("verification")}</Text><Text style={{ fontFamily: "DejaVu Sans Bold", fontSize: 9 }}>{data.verificationCode}</Text></View>{data.qrCodeDataUrl ? <View style={{ width: 48, height: 48 }} /> : null}</View> : null}
+        <Text style={styles.footer}>{message("generatedWith")} — {data.from.name} • {message("thankYou")}</Text>
       </Page>
     </Document>
   );

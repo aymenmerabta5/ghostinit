@@ -10,13 +10,20 @@ export function checkDatabaseIsolation(
   findings: ArchitectureFinding[],
   file: string,
   imp: string,
+  resolvedTarget?: string,
 ): void {
   const moduleMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(file);
   if (!moduleMatch) return;
   const moduleName = moduleMatch[1];
   const databaseDirPattern = new RegExp(`/modules/src/${moduleName}/infrastructure/database/`);
   if (databaseDirPattern.test(file)) return;
-  if (DATABASE_PACKAGES.has(imp) || DATABASE_PACKAGES.has(getBasePackage(imp))) {
+  const target = resolvedTarget?.replace(/\\/g, "/") ?? "";
+  if (
+    DATABASE_PACKAGES.has(imp) ||
+    DATABASE_PACKAGES.has(getBasePackage(imp)) ||
+    /(?:^|\/)packages\/database(?:\/|$)/.test(target) ||
+    /(?:^|\/)src\/server\/(?:db|database)(?:\/|$)/.test(target)
+  ) {
     findings.push({
       id: "database-import-outside-infrastructure",
       severity: "HIGH",

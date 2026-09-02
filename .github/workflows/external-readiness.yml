@@ -1,0 +1,165 @@
+name: External readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Sandbox/staging contract to probe"
+        required: true
+        type: choice
+        options:
+          - upstash
+          - convex
+          - stripe
+          - chargily
+          - paddle
+          - polar
+          - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-readiness-${{ github.ref }}-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  ref-policy:
+    name: Require the canonical protected default branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Reject an untrusted repository, ref, or target
+        shell: bash
+        env:
+          CANONICAL_REPOSITORY: aymenmerabta5/ghostinit
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_REF: ${{ github.ref }}
+          EVENT_IS_FORK: ${{ github.event.repository.fork }}
+          EVENT_REPOSITORY: ${{ github.repository }}
+          REF_PROTECTED: ${{ github.ref_protected }}
+          SELECTED_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_REPOSITORY" != "$CANONICAL_REPOSITORY" || "$EVENT_IS_FORK" != "false" ]]; then
+            echo "External readiness is restricted to the canonical repository." >&2
+            exit 1
+          fi
+          if [[ "$DISPATCH_REF" != "refs/heads/$DEFAULT_BRANCH" || "$REF_PROTECTED" != "true" ]]; then
+            echo "External readiness requires the protected default branch." >&2
+            exit 1
+          fi
+          case "$SELECTED_TARGET" in
+            upstash|convex|stripe|chargily|paddle|polar|staging) ;;
+            *) echo "Unsupported external-readiness target." >&2; exit 1 ;;
+          esac
+
+  sandbox-smoke:
+    name: ${{ inputs.target }} sandbox/staging smoke
+    needs: ref-policy
+    environment:
+      name: external-readiness-${{ inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+
+      - name: Probe Upstash write/read/cleanup contract
+        if: inputs.target == 'upstash'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          GHOSTINIT_SMOKE_UPSTASH_CONFIG: ${{ secrets.GHOSTINIT_SMOKE_UPSTASH_CONFIG }}
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target upstash
+          printf '%s\n' upstash >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe Convex authenticated query contract
+        if: inputs.target == 'convex'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          GHOSTINIT_SMOKE_CONVEX_CONFIG: ${{ secrets.GHOSTINIT_SMOKE_CONVEX_CONFIG }}
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target convex
+          printf '%s\n' convex >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe Stripe test balance contract
+        if: inputs.target == 'stripe'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target stripe
+          printf '%s\n' stripe >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe Chargily test balance contract
+        if: inputs.target == 'chargily'
+        shell: bash
+        env:
+          CHARGILY_API_KEY: ${{ secrets.CHARGILY_TEST_API_KEY }}
+          CHARGILY_MODE: test
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target chargily
+          printf '%s\n' chargily >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe Paddle sandbox event-types contract
+        if: inputs.target == 'paddle'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          PADDLE_API_KEY: ${{ secrets.PADDLE_SANDBOX_API_KEY }}
+          PADDLE_ENVIRONMENT: sandbox
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target paddle
+          printf '%s\n' paddle >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe Polar sandbox organizations contract
+        if: inputs.target == 'polar'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_SANDBOX_ACCESS_TOKEN }}
+          POLAR_ENVIRONMENT: sandbox
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target polar
+          printf '%s\n' polar >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Probe authenticated staging health contract
+        if: inputs.target == 'staging'
+        shell: bash
+        env:
+          GHOSTINIT_EXTERNAL_READINESS: "1"
+          GHOSTINIT_STAGING_CONFIG: ${{ secrets.GHOSTINIT_STAGING_CONFIG }}
+        run: |
+          set -euo pipefail
+          bun ./scripts/external-readiness.ts --target staging
+          printf '%s\n' staging >> "$RUNNER_TEMP/ghostinit-external-readiness-completed"
+
+      - name: Require exactly one selected probe to complete
+        shell: bash
+        env:
+          SELECTED_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          completion_file="$RUNNER_TEMP/ghostinit-external-readiness-completed"
+          [[ -f "$completion_file" ]] || { echo "No external-readiness probe completed." >&2; exit 1; }
+          mapfile -t completed < "$completion_file"
+          if [[ "${#completed[@]}" -ne 1 || "${completed[0]}" != "$SELECTED_TARGET" ]]; then
+            echo "External-readiness probe completion did not match the selected target." >&2
+            exit 1
+          fi

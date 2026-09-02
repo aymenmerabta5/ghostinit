@@ -29,7 +29,8 @@ import { createPolarLicenseKey } from "./polar/license.js";
 import { ingestPolarUsageEvent } from "./polar/usage.js";
 
 // Explicit named re-exports (no export *)
-export type { PolarSdkConstructor } from "./polar/types.js";
+export { PolarProviderError } from "./polar/types.js";
+export type { PolarProviderErrorCode, PolarSdkConstructor } from "./polar/types.js";
 export { loadPolarSdk, getPolarCtor } from "./polar/sdk-loader.js";
 export { mapPolarSubscriptionStatus, polarProductIdsOrIds } from "./polar/mappers.js";
 export { getPolarClient, getPolarClientAsync } from "./polar/client.js";

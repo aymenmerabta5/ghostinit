@@ -29,8 +29,8 @@ import type {
   CreateCheckoutOutput,
   CreateCustomerInput,
   CreateCustomerOutput,
-  CreatePortalSessionInput,
-  CreatePortalSessionOutput,
+  CreatePaymentLinkInput,
+  CreatePaymentLinkOutput,
   VerifyWebhookInput,
   VerifyWebhookOutput,
   ListSubscriptionsInput,
@@ -43,6 +43,7 @@ import {
 } from "./chargily/client.js";
 import { createChargilyCheckout } from "./chargily/checkout.js";
 import { createChargilyCustomer } from "./chargily/customer.js";
+import { createChargilyPaymentLink } from "./chargily/payment-link.js";
 import { verifyChargilyWebhook } from "./chargily/webhook.js";
 import { listChargilySubscriptions } from "./chargily/subscriptions.js";
 
@@ -80,6 +81,10 @@ export { listChargilySubscriptions } from "./chargily/subscriptions.js";
 
 export type { ChargilyProviderConfig as ChargilyConfig } from "./chargily/client.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function createChargilyProvider(
   config?: ChargilyProviderConfig | Record<string, unknown>,
 ): BillingProvider {
@@ -92,12 +97,18 @@ export function createChargilyProvider(
     createCustomer(input: CreateCustomerInput): Promise<CreateCustomerOutput> {
       return createChargilyCustomer(input, config);
     },
-    async createPortalSession(
-      _input: CreatePortalSessionInput,
-    ): Promise<CreatePortalSessionOutput> {
-      throw new Error(
-        "NOT_SUPPORTED: Chargily checkout-only (EDAHABIA/CIB) no portal. Manual recurring via DB + cron.",
-      );
+    async createPaymentLink(input: CreatePaymentLinkInput): Promise<CreatePaymentLinkOutput> {
+      const response: unknown = await createChargilyPaymentLink(input, config);
+      if (!isRecord(response)) throw new Error("Chargily payment-link response is not an object");
+      const id = typeof response.id === "string" && response.id ? response.id : null;
+      const url =
+        typeof response.url === "string" && response.url
+          ? response.url
+          : typeof response.checkout_url === "string" && response.checkout_url
+            ? response.checkout_url
+            : null;
+      if (!id || !url) throw new Error("Chargily payment-link response is missing id or url");
+      return { id, url };
     },
     verifyWebhook(input: VerifyWebhookInput): Promise<VerifyWebhookOutput> {
       return verifyChargilyWebhook(input, config);
@@ -119,10 +130,10 @@ export const createChargilyProviderFactory = createChargilyProvider;
  * drift if an underlying signature changes.
  */
 type ChargilyConfigArg = ChargilyProviderConfig | Record<string, unknown> | undefined;
-type ProductModule = typeof import("./chargily/product.js");
-type PaymentLinkModule = typeof import("./chargily/payment-link.js");
-type OperationsModule = typeof import("./chargily/operations.js");
-type CustomerModule = typeof import("./chargily/customer.js");
+type ProductModule = typeof import("./chargily/product");
+type PaymentLinkModule = typeof import("./chargily/payment-link");
+type OperationsModule = typeof import("./chargily/operations");
+type CustomerModule = typeof import("./chargily/customer");
 
 export const Chargily = {
   createClient: (cfg: ChargilyProviderConfig | Record<string, unknown>) => getChargilyClient(cfg),
@@ -130,33 +141,33 @@ export const Chargily = {
   createProduct: async (
     i: Parameters<ProductModule["createChargilyProduct"]>[0],
     cfg?: ChargilyConfigArg,
-  ) => (await import("./chargily/product.js")).createChargilyProduct(i, cfg),
+  ) => (await import("./chargily/product")).createChargilyProduct(i, cfg),
   createPrice: async (
     i: Parameters<ProductModule["createChargilyPrice"]>[0],
     cfg?: ChargilyConfigArg,
-  ) => (await import("./chargily/product.js")).createChargilyPrice(i, cfg),
+  ) => (await import("./chargily/product")).createChargilyPrice(i, cfg),
   createPaymentLink: async (
     i: Parameters<PaymentLinkModule["createChargilyPaymentLink"]>[0],
     cfg?: ChargilyConfigArg,
-  ) => (await import("./chargily/payment-link.js")).createChargilyPaymentLink(i, cfg),
+  ) => (await import("./chargily/payment-link")).createChargilyPaymentLink(i, cfg),
   getBalance: async (cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/operations.js")).getChargilyBalance(cfg),
+    (await import("./chargily/operations")).getChargilyBalance(cfg),
   listCustomers: async (p?: number, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/customer.js")).listChargilyCustomers(p, cfg),
+    (await import("./chargily/customer")).listChargilyCustomers(p, cfg),
   getCustomer: async (id: string, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/customer.js")).getChargilyCustomer(id, cfg),
+    (await import("./chargily/customer")).getChargilyCustomer(id, cfg),
   getCheckout: async (id: string, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/operations.js")).getChargilyCheckout(id, cfg),
+    (await import("./chargily/operations")).getChargilyCheckout(id, cfg),
   listCheckouts: async (p?: number, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/operations.js")).listChargilyCheckouts(p, cfg),
+    (await import("./chargily/operations")).listChargilyCheckouts(p, cfg),
   getCheckoutItems: async (id: string, p?: number, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/operations.js")).getChargilyCheckoutItems(id, p, cfg),
+    (await import("./chargily/operations")).getChargilyCheckoutItems(id, p, cfg),
   expireCheckout: async (id: string, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/operations.js")).expireChargilyCheckout(id, cfg),
+    (await import("./chargily/operations")).expireChargilyCheckout(id, cfg),
   listPaymentLinks: async (p?: number, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/payment-link.js")).listChargilyPaymentLinks(p, cfg),
+    (await import("./chargily/payment-link")).listChargilyPaymentLinks(p, cfg),
   getProductPrices: async (pid: string, p?: number, cfg?: ChargilyConfigArg) =>
-    (await import("./chargily/product.js")).getChargilyProductPrices(pid, p, cfg),
+    (await import("./chargily/product")).getChargilyProductPrices(pid, p, cfg),
 } satisfies Record<string, unknown>;
 
 // Referenced only for the Parameters<> derivations above.

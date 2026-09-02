@@ -4,6 +4,7 @@ import { storageLibFiles } from "./lib/storage.js";
 import { surfaceStylesLibFiles } from "./lib/surface-styles.js";
 import { notificationsLibFiles } from "./lib/notifications.js";
 import { hooksLibFiles } from "./lib/hooks.js";
+import { queryClientLibFiles } from "./lib/query-client.js";
 
 // Unified web lib — generic scaffolder patterns (animations, flags, storage, styles, notifications, hooks)
 // Form-fields and dialogs are emitted via web-ui fragments (webUiFiles), not here, to avoid duplicate paths.
@@ -13,6 +14,7 @@ export function webLibFiles(
   framework: "nextjs" | "tanstack-start" = "nextjs",
 ): TemplateFile[] {
   return [
+    ...queryClientLibFiles(base),
     ...featureFlagsLibFiles(base, framework),
     ...storageLibFiles(base),
     ...surfaceStylesLibFiles(base),

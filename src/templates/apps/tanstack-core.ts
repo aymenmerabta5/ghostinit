@@ -9,7 +9,11 @@ import * as v from "../versions.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
-import { viteSecurityHeaders, postcssConfigContent } from "./fragments/core.js";
+import {
+  postcssConfigContent,
+  tanstackSecurityPolicyDeclaration,
+  viteSecurityHeaders,
+} from "./fragments/core.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 import { webUiFiles } from "./fragments/web-ui/index.js";
 import { webLibFiles } from "./fragments/web-lib.js";
@@ -43,7 +47,7 @@ function resolveAddonMapTanstack(
   if (typeof hasEveInput === "object" && !Array.isArray(hasEveInput)) {
     const rec = hasEveInput as Record<string, unknown>;
     if ("convex" in rec || "postgres" in rec || "eve" in rec || "i18n" in rec) {
-      return hasEveInput as unknown as AddonInstallerMap;
+      return hasEveInput as AddonInstallerMap;
     }
   }
   return undefined;
@@ -60,10 +64,20 @@ export function tanstackCoreFiles(
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
   const addonMap = resolveAddonMapTanstack(hasEveInput, addonMapExplicit);
   const hasEmail = addonMap ? hasAddon(addonMap, "email") : true;
+  const hasPostgres = addonMap ? hasAddon(addonMap, "postgres") : true;
+  const hasWebSocketMessaging = Boolean(
+    addonMap && hasAddon(addonMap, "messaging") && !hasAddon(addonMap, "convex"),
+  );
+  const nitroPreset =
+    addonMap && hasAddon(addonMap, "vercel")
+      ? "vercel"
+      : runtime === "node"
+        ? "node-server"
+        : "bun";
   return [
     webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap, hasEmail),
-    viteConfig(hasEve, effectiveHasI18n),
-    nitroConfig(),
+    viteConfig(hasEve, effectiveHasI18n, hasWebSocketMessaging, hasPostgres),
+    nitroConfig(hasWebSocketMessaging, nitroPreset),
     routerFile(),
     globalCss(),
     postcssConfig(),
@@ -90,18 +104,22 @@ function webPackageTanstack(
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
   hasEmail = true,
 ): TemplateFile {
+  const hasAuth = addonMap ? hasAddon(addonMap as AddonInstallerMap, "auth") : true;
+  const hasPostgres = addonMap ? hasAddon(addonMap as AddonInstallerMap, "postgres") : true;
   return file(
     "apps/web/package.json",
     packageJson({
       name: "web",
       type: "module",
-      packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
+      packageManager: `bun@${v.runtime.bun}`,
       scripts: {
         dev: "vite dev --port 3000",
         build: "vite build",
-        start: "node .output/server/index.mjs",
+        start: runtime === "bun" ? "bun .output/server/index.mjs" : "node .output/server/index.mjs",
         ...codeScripts({
-          test: runtime === "bun" ? "bun test tests" : "npm run test:unit",
+          // Package management and tests stay on Bun for both execution runtimes.
+          // Scope unit discovery so Playwright e2e specs are never run by bun:test.
+          test: "bun test tests",
           e2e: true,
           // src/routeTree.gen.ts is written by the router codegen; every
           // createFileRoute("/path") needs it to resolve, so generate before tsc.
@@ -115,7 +133,7 @@ function webPackageTanstack(
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
         "@repo/analytics": "workspace:*",
         "@repo/api": "workspace:*",
-        "@repo/auth": "workspace:*",
+        ...(hasAuth ? { "@repo/auth": "workspace:*" } : {}),
         "@repo/config": "workspace:*",
         "@repo/contracts": "workspace:*",
         "@repo/database": "workspace:*",
@@ -123,9 +141,14 @@ function webPackageTanstack(
         "@repo/kernel": "workspace:*",
         "@repo/modules": "workspace:*",
         "@repo/observability": "workspace:*",
+        ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "pdf")
+          ? { "@repo/pdf": "workspace:*" }
+          : {}),
+        ...(hasAuth ? { "@repo/services": "workspace:*" } : {}),
         "@repo/ui": "workspace:*",
         "@tanstack/react-start": `^${v.tanstackStart["@tanstack/react-start"]}`,
         "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}`,
+        "@tanstack/react-router-ssr-query": `^${v.tanstackStart["@tanstack/react-router-ssr-query"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         // Required by the shared shadcn-style components emitted via webUiFiles().
@@ -136,14 +159,25 @@ function webPackageTanstack(
         "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
+        "react-is": `^${v.ui["react-is"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
         "lucide-react": `^${v.ui["lucide-react"]}`,
         "server-only": `^${v.runtime["server-only"]}`,
+        ...(hasPostgres ? { pg: `^${v.database.pg}` } : {}),
+        ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "pdf")
+          ? {
+              "@react-pdf/renderer": `^${v.pdf["@react-pdf/renderer"]}`,
+              "dejavu-fonts-ttf": `^${v.pdf["dejavu-fonts-ttf"]}`,
+              pdfkit: `^${v.pdf.pdfkit}`,
+            }
+          : {}),
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
           ? {
               convex: `^${v.convex.convex}`,
-              "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
+              ...(hasAuth
+                ? { "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}` }
+                : {}),
             }
           : {}),
         // Messaging (postgres) needs WS runtime for crossws/Bun.serve
@@ -151,6 +185,9 @@ function webPackageTanstack(
         hasAddon(addonMap as AddonInstallerMap, "messaging") &&
         !hasAddon(addonMap as AddonInstallerMap, "convex")
           ? {
+              "@repo/realtime": "workspace:*",
+              "@repo/storage": "workspace:*",
+              "drizzle-orm": `^${v.database["drizzle-orm"]}`,
               ws: `^${v.realtime.ws}`,
               crossws: `^${v.realtime.crossws}`,
             }
@@ -178,6 +215,10 @@ function webPackageTanstack(
         "@types/node": `^${v.runtime["@types/node"]}`,
         "@types/react": `^${v.nextStack["@types/react"]}`,
         "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
+        "@types/react-is": `^${v.ui["@types/react-is"]}`,
+        ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "messaging")
+          ? { "@types/ws": `^${v.realtime["@types/ws"]}` }
+          : {}),
         "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
         postcss: `^${v.styling.postcss}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
@@ -187,7 +228,12 @@ function webPackageTanstack(
   );
 }
 
-function viteConfig(_hasEve = false, _hasI18n = false): TemplateFile {
+function viteConfig(
+  _hasEve = false,
+  _hasI18n = false,
+  hasWebSocketMessaging = false,
+  hasPostgres = true,
+): TemplateFile {
   return file(
     "apps/web/vite.config.ts",
     `import { defineConfig } from 'vite'
@@ -195,35 +241,49 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
+import { fileURLToPath } from 'node:url'
 
-export default defineConfig({
+const includeNitroInDev = ${hasWebSocketMessaging};
+
+export default defineConfig(({ command }) => ({
   server: {
     port: 3000,
   },
-  plugins: [
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      'server-only': '@tanstack/react-start/server-only',
+    },
+  },
+${hasPostgres ? "  ssr: { external: ['pg'] },\n" : ""}  plugins: [
     tailwindcss(),
-    tanstackStart({
+    ...tanstackStart({
       srcDirectory: 'src',
       router: {
         routesDirectory: 'routes',
       },
     }),
-    nitro(),
     viteReact(),
+    ...(command === 'build' || includeNitroInDev ? [nitro()] : []),
   ],
-})
+}))
 `,
   );
 }
 
-function nitroConfig(): TemplateFile {
+function nitroConfig(
+  hasWebSocketMessaging: boolean,
+  preset: "bun" | "node-server" | "vercel",
+): TemplateFile {
   return file(
     "apps/web/nitro.config.ts",
     `import { defineNitroConfig } from 'nitro/config'
 
+${tanstackSecurityPolicyDeclaration()}
+
 export default defineNitroConfig({
-  preset: 'bun',
-  routeRules: {
+  preset: '${preset}',
+${hasWebSocketMessaging ? "  serverDir: 'server',\n  experimental: { websocket: true },\n  plugins: [\n    './server/plugins/00-nitro-websocket-compat.ts',\n    './server/plugins/messaging-outbox.ts',\n  ],\n" : ""}  routeRules: {
 ${viteSecurityHeaders()}
   },
 })
@@ -235,23 +295,43 @@ function routerFile(): TemplateFile {
   return file(
     "apps/web/src/router.tsx",
     `import { createRouter } from '@tanstack/react-router'
-import { QueryClient } from '@tanstack/react-query'
+import { dehydrate, hydrate, type DehydratedState, type QueryClient } from '@tanstack/react-query'
+import { getQueryClient } from './lib/query-client'
 import { routeTree } from './routeTree.gen'
 
+function serializeQueryState(queryClient: QueryClient): string {
+  const serialized = JSON.stringify(dehydrate(queryClient, {
+    shouldDehydrateMutation: () => false,
+  }))
+  if (typeof serialized !== 'string') throw new Error('Query state could not be serialized')
+  return serialized
+}
+
+function isDehydratedState(value: unknown): value is DehydratedState {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    Array.isArray(Reflect.get(value, 'mutations')) &&
+    Array.isArray(Reflect.get(value, 'queries')),
+  )
+}
+
+function hydrateQueryState(queryClient: QueryClient, serialized: string): void {
+  const value: unknown = JSON.parse(serialized)
+  if (!isDehydratedState(value)) throw new Error('Invalid dehydrated Query state')
+  hydrate(queryClient, value)
+}
+
 export function getRouter() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 1000 * 60,
-      },
-    },
-  })
+  const queryClient = getQueryClient()
 
   const router = createRouter({
     routeTree,
     context: {
       queryClient,
     },
+    dehydrate: () => ({ queryClientState: serializeQueryState(queryClient) }),
+    hydrate: (dehydrated) => hydrateQueryState(queryClient, dehydrated.queryClientState),
     scrollRestoration: true,
     defaultPreload: 'intent',
   })

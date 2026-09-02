@@ -4,9 +4,66 @@
  */
 
 import type { ArchitectureFinding } from "../types.js";
-import { getBasePackage, isFrameworkEntryPoint } from "../utils.js";
+import { getBasePackage } from "../utils.js";
+
+const FEATURE_REMOTE_PACKAGES = new Set([
+  "@apollo/client",
+  "@tanstack/react-query",
+  "axios",
+  "better-auth",
+  "convex",
+  "graphql-request",
+  "got",
+  "ky",
+  "swr",
+  "undici",
+  "urql",
+]);
+
+/** A generated feature is presentation code, regardless of the app or framework. */
+export function isFeatureFile(file: string): boolean {
+  const normalized = file.replace(/\\/g, "/");
+  if (/(?:^|\/)(?:packages|tooling)\/[^/]+\/src\/features(?:\/|$)/.test(normalized)) {
+    return false;
+  }
+  return /(?:^|\/)(?:apps\/[^/]+\/)?src\/features\/[^/]+(?:\/|$)/.test(normalized);
+}
+
+/** Components are the prop-driven/presentational edge of a generated feature. */
+export function isFeatureComponentFile(file: string): boolean {
+  const normalized = file.replace(/\\/g, "/");
+  return isFeatureFile(normalized) && /(?:^|\/)src\/features\/[^/]+\/components\//.test(normalized);
+}
+
+/** Only these feature-root modules own remote-state adapter imports. */
+export function isFeatureDataAdapterFile(file: string): boolean {
+  const normalized = file.replace(/\\/g, "/");
+  return (
+    isFeatureFile(normalized) &&
+    /(?:^|\/)src\/features\/[^/]+\/(?:queries|mutations)\.[cm]?[jt]sx?$/.test(normalized)
+  );
+}
+
+export function isFeatureRemoteAdapterImport(imp: string): boolean {
+  const normalized = imp.replace(/\\/g, "/");
+  const base = getBasePackage(normalized);
+  return (
+    FEATURE_REMOTE_PACKAGES.has(base) ||
+    normalized.startsWith("@orpc/") ||
+    /(?:^|\/)lib\/(?:orpc|auth-client)(?:\.[cm]?[jt]sx?)?$/.test(normalized) ||
+    normalized.includes("convex/_generated/api")
+  );
+}
 
 export function isVendorDirectImport(imp: string): boolean {
+  const normalized = imp.replace(/\\/g, "/");
+  // Check provider paths before local-alias exclusions. Otherwise an import such as
+  // `@/server/billing/providers/stripe` would evade the boundary solely by using an alias.
+  if (normalized.includes("/billing/providers/") || normalized.includes("billing/providers")) {
+    return true;
+  }
+  if (normalized.includes("@repo/billing") && normalized.includes("providers")) return true;
+
   if (
     imp.startsWith(".") ||
     imp.startsWith("@/") ||
@@ -15,8 +72,6 @@ export function isVendorDirectImport(imp: string): boolean {
   ) {
     return false;
   }
-  if (imp.includes("/billing/providers/") || imp.includes("billing/providers")) return true;
-  if (imp.includes("@repo/billing") && imp.includes("providers")) return true;
 
   const base = getBasePackage(imp);
   if (base === "stripe" || imp === "stripe" || imp.startsWith("stripe/")) return true;
@@ -31,7 +86,7 @@ export function checkVendorIsolation(
   file: string,
   imp: string,
 ): void {
-  if (isFrameworkEntryPoint(file)) return;
+  const normalizedFile = file.replace(/\\/g, "/");
   // Electron main/preload are legit Vendors consumers (electron, electron-updater, electron-store)
   // They live at apps/desktop/src/main.ts / preload.ts and are allowed to import electron family.
   // Only desktop renderer + web UI are restricted from direct vendor SDKs.
@@ -57,7 +112,18 @@ export function checkVendorIsolation(
       return;
     }
   }
+  // TanStack's route files are deliberately thin. Raw-body verification lives
+  // in this exact server-only HTTP transport tree, where provider SDKs are the
+  // boundary implementation rather than UI dependencies.
+  if (
+    /(?:^|\/)(?:apps\/web\/)?src\/server\/http\/webhooks\/[^/]+\.server\.[cm]?[jt]s$/.test(
+      normalizedFile,
+    )
+  ) {
+    return;
+  }
   const isWebUI =
+    isFeatureFile(file) ||
     file.includes("apps/web") ||
     file.includes("apps/desktop") ||
     file.includes("apps/mobile") ||
@@ -78,7 +144,7 @@ export function checkVendorIsolation(
   findings.push({
     id: "ui-imports-vendor",
     severity: "HIGH",
-    message: `UI layer (apps/web) imports vendor directly: ${imp} - must go via Capabilities (@repo/services / @repo/billing) not directly`,
+    message: `UI layer imports vendor directly: ${imp} - use the typed transport or an application-owned adapter instead`,
     file,
     rule: "vendor-isolation",
   });

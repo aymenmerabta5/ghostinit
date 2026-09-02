@@ -12,7 +12,7 @@ import { ThemeProvider as NextThemesProvider, type ThemeProviderProps } from "ne
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps): React.JSX.Element {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange {...props}>
+    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange {...props}>
       {children}
     </NextThemesProvider>
   );
@@ -63,6 +63,7 @@ export function themeToggleFileContent(): string {
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { useSurfaceTranslations } from "@/lib/translations";
 
 ${sunIconSvg}
 
@@ -70,6 +71,7 @@ ${moonIconSvg}
 
 export function ThemeToggle(): React.JSX.Element {
   const { theme, setTheme } = useTheme();
+  const t = useSurfaceTranslations("theme");
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -78,7 +80,7 @@ export function ThemeToggle(): React.JSX.Element {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled aria-label="Toggle theme">
+      <Button variant="ghost" size="icon" disabled aria-label={t("toggle")}>
         <span className="size-4" />
       </Button>
     );
@@ -89,157 +91,95 @@ export function ThemeToggle(): React.JSX.Element {
       variant="ghost"
       size="icon"
       onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-      aria-label="Toggle theme"
+      aria-label={t("toggle")}
     >
       <SunIcon className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" data-icon="inline-start" />
       <MoonIcon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" data-icon="inline-start" />
-      <span className="sr-only">Toggle theme</span>
+      <span className="sr-only">{t("toggle")}</span>
     </Button>
   );
 }
 `;
 }
 
-/**
- * Re-exports for providers.tsx shared logic
- * Next and TanStack providers are 90% identical – theme + queryClient + PostHog + Toaster
- * When isConvex=true, wraps with ConvexReactClient + ConvexBetterAuthProvider per @convex-dev/better-auth docs
- */
+/** Shared web composition root for Next.js and TanStack Start. */
 export type RouterType = "next" | "tanstack";
 
 export function providersFileContent(
   router: RouterType,
   isConvex = false,
   hasAnalytics = true,
+  hasI18n = false,
+  hasAuth = false,
 ): string {
   const analyticsImport = hasAnalytics
     ? `import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";`
     : "";
-  const suspenseStart = router === "tanstack" ? "<React.Suspense" : "<Suspense";
-  const suspenseEnd = router === "tanstack" ? "</React.Suspense>" : "</Suspense>";
-  const analyticsOpen = hasAnalytics
-    ? `<PostHogProvider>\n          ${suspenseStart} fallback={null}>\n            <PostHogPageView />\n          ${suspenseEnd}`
+  const convexImport = isConvex
+    ? `import { ConvexClientProvider } from "./providers/convex-client-provider.js";`
     : "";
-  const analyticsClose = hasAnalytics ? `</PostHogProvider>` : "";
-  if (isConvex) {
-    if (router === "tanstack") {
-      return `"use client";
-
-import * as React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConvexReactClient } from "convex/react";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { authClient } from "@/lib/auth-client";
-import { ThemeProvider } from "./theme-provider.js";
-import { Toaster } from "@/components/ui/sonner";
-${analyticsImport}
-
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL;
-if (!convexUrl) {
-  throw new Error("NEXT_PUBLIC_CONVEX_URL is not set. Set it in .env.local via \`npx convex dev\`");
-}
-const convex = new ConvexReactClient(convexUrl);
-
-export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [queryClient] = React.useState(() => new QueryClient());
-
-  return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      <QueryClientProvider client={queryClient}>
-        ${analyticsOpen}
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            {children}
-            <Toaster richColors position="bottom-right" />
-          </ThemeProvider>
-        ${analyticsClose}
-      </QueryClientProvider>
-    </ConvexBetterAuthProvider>
-  );
-}
-`;
-    }
-    return `"use client";
-
-import { useState${hasAnalytics ? ", Suspense" : ""} } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConvexReactClient } from "convex/react";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import { authClient } from "@/lib/auth-client";
-import { ThemeProvider } from "./theme-provider.js";
-import { Toaster } from "@/components/ui/sonner";
-${analyticsImport}
-
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-if (!convexUrl) {
-  throw new Error("NEXT_PUBLIC_CONVEX_URL is not set. Set it in .env.local via \`npx convex dev\`");
-}
-const convex = new ConvexReactClient(convexUrl);
-
-export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [queryClient] = useState(() => new QueryClient());
-
-  return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      <QueryClientProvider client={queryClient}>
-        ${analyticsOpen}
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-            {children}
-            <Toaster richColors position="bottom-right" />
-          </ThemeProvider>
-        ${analyticsClose}
-      </QueryClientProvider>
-    </ConvexBetterAuthProvider>
-  );
-}
-`;
-  }
-
-  if (router === "tanstack") {
-    return `"use client";
-
-import * as React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "./theme-provider.js";
-import { Toaster } from "@/components/ui/sonner";
-${analyticsImport}
-
-export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [queryClient] = React.useState(() => new QueryClient());
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      ${analyticsOpen}
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          {children}
-          <Toaster richColors position="bottom-right" />
-        </ThemeProvider>
-      ${analyticsClose}
-    </QueryClientProvider>
-  );
-}
-`;
-  }
+  const i18nImport =
+    router === "tanstack" && hasI18n
+      ? `import { I18nProvider, type Locale } from "@/lib/i18n";`
+      : "";
+  const queryAuthBoundaryImport =
+    router === "tanstack" && hasAuth
+      ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary.js";`
+      : "";
+  const analyticsOpen = hasAnalytics ? "<PostHogProvider>" : "";
+  const analyticsClose = hasAnalytics ? "</PostHogProvider>" : "";
+  const pageView = hasAnalytics
+    ? `<React.Suspense fallback={null}>\n              <PostHogPageView />\n            </React.Suspense>`
+    : "";
+  const convexOpen = isConvex ? "<ConvexClientProvider>" : "";
+  const convexClose = isConvex ? "</ConvexClientProvider>" : "";
+  const i18nOpen =
+    router === "tanstack" && hasI18n ? "<I18nProvider initialLocale={initialLocale}>" : "";
+  const i18nClose = router === "tanstack" && hasI18n ? "</I18nProvider>" : "";
+  const initialLocaleProperty =
+    router === "tanstack" && hasI18n ? "  initialLocale: Locale;\n" : "";
+  const initialLocaleParameter = router === "tanstack" && hasI18n ? ", initialLocale" : "";
+  const queryAuthOpen =
+    router === "tanstack" && hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
+  const queryAuthClose = router === "tanstack" && hasAuth ? `</QueryAuthCacheBoundary>` : "";
   return `"use client";
 
-import { useState${hasAnalytics ? ", Suspense" : ""} } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as React from "react";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query-client";
 import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
 ${analyticsImport}
+${convexImport}
+${i18nImport}
+${queryAuthBoundaryImport}
 
-export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [queryClient] = useState(() => new QueryClient());
+export interface AppProvidersProps {
+  children: React.ReactNode;
+  queryClient?: QueryClient;
+${initialLocaleProperty}}
 
+export function AppProviders({ children, queryClient${initialLocaleParameter} }: AppProvidersProps): React.JSX.Element {
+  const client = queryClient ?? getQueryClient();
   return (
-    <QueryClientProvider client={queryClient}>
-      ${analyticsOpen}
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          {children}
-          <Toaster richColors position="bottom-right" />
-        </ThemeProvider>
-      ${analyticsClose}
+    <QueryClientProvider client={client}>
+      ${queryAuthOpen}
+        ${i18nOpen}
+          ${convexOpen}
+            <ThemeProvider>
+              ${analyticsOpen}
+                ${pageView}
+                {children}
+                <Toaster richColors position="bottom-right" />
+              ${analyticsClose}
+            </ThemeProvider>
+          ${convexClose}
+        ${i18nClose}
+      ${queryAuthClose}
     </QueryClientProvider>
   );
 }
+
+export const Providers = AppProviders;
 `;
 }

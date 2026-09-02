@@ -6,41 +6,57 @@
  * and config files so we never accidentally publish floating versions.
  *
  * Versions were researched from official npm registry, project docs, and the
- * Context7 MCP on 2026-07-12. See `docs/RESEARCH.md` for details.
+ * Registry and compatibility checks are enforced by `bun run check:versions`.
  */
 
 export const ghostinitVersion = "0.1.0" as const;
 
+export interface SupplyChainPolicy {
+  readonly minimumReleaseAgeSeconds: number;
+}
+
+/** Minimum npm package age accepted by generated and host installs. */
+export const supplyChain = {
+  minimumReleaseAgeSeconds: 604800,
+} as const satisfies SupplyChainPolicy;
+
 export const runtime = {
-  bun: "1.3.14",
-  node: "24.18.0", // LTS target; local has v25.8.0 (EOL) for development only
-  "@types/node": "22.20.1",
+  bun: "1.4.0",
+  node: "24.19.0", // LTS target; do not replace with the current non-LTS Node line
+  // Match the selected Node LTS line even though DefinitelyTyped's latest tag follows Node 26.
+  "@types/node": "24.13.3",
   "server-only": "0.0.1",
 } as const;
 
 export const typescript = {
-  // Fix: TS7 Go port breaks Next 16.2.10 (no lib/typescript.js) -> "It looks like you're trying to use TypeScript but do not have required package(s) installed"
-  // + npm fallback fails on workspace:* -> "Unsupported URL Type workspace:*"
-  // Use TS6 for stable bun dev. TS7 can be opt-in via @typescript/native + useTypeScriptCli when Next stable supports it (PR #95639)
-  // User requested bun not npm - root cause is TS7 detection failure triggers npm install path
+  // TanStack/Vite and Expo tooling still load the JavaScript compiler API.
+  // Keep that tooling on TS6 until those consumers support the TS7 native port.
   typescript: "6.0.3",
-  typescriptLegacy: "5.9.2",
-  "@typescript/native-preview": "7.0.0-dev.20260707.2",
+  // Next 16.3 uses the project-local tsc CLI by default, which supports TS7
+  // without the JavaScript compiler API. Never set useTypeScriptCli=false.
+  typescriptNext: "7.0.2",
 } as const;
 
 export const nextStack = {
-  next: "16.2.10",
+  next: "16.3.3",
   react: "19.2.8",
   "react-dom": "19.2.8",
   "@types/react": "19.2.18",
-  "@types/react-dom": "19.2.4",
+  "@types/react-dom": "19.2.5",
+} as const;
+
+/** Expo SDK 57's React line, kept separate from the npm-latest web stack. */
+export const expoReact = {
+  react: "19.2.3",
+  "react-dom": "19.2.3",
+  "@types/react": "19.2.18",
 } as const;
 
 export const database = {
   "drizzle-orm": "0.45.2",
   "drizzle-kit": "0.31.10",
-  pg: "8.22.0",
-  "@types/pg": "8.11.14", // latest stable at research time; verify in spike
+  pg: "8.23.0",
+  "@types/pg": "8.23.1",
 } as const;
 
 export const convex = {
@@ -51,29 +67,32 @@ export const convex = {
   // at module load, and `convex deploy` fail on a missing `/auth-config` subpath.
   //
   // @convex-dev/better-auth@0.12.5 peers on convex ^1.25.0 and
-  // better-auth >=1.6.11 <1.7.0 (we pin 1.6.23). convex 1.23.0 additionally
+  // better-auth >=1.6.11 <1.7.0 (we pin the latest compatible 1.6.x). convex 1.23.0 additionally
   // lacked the `compareValues` export the component imports at module top level.
-  convex: "1.42.3",
+  convex: "1.45.0",
   "@convex-dev/better-auth": "0.12.5",
 } as const;
 
 export const auth = {
-  "better-auth": "1.6.23",
+  "better-auth": "1.6.30",
+  // Passkeys moved to a dedicated official package in Better Auth 1.6.
+  // Keep this exact pin aligned with better-auth so their plugin types agree.
+  "@better-auth/passkey": "1.6.30",
   // Expo client plugin — must track the better-auth version above.
-  "@better-auth/expo": "1.6.23",
+  "@better-auth/expo": "1.6.30",
 } as const;
 
 export const orpc = {
-  "@orpc/server": "1.14.7",
-  "@orpc/contract": "1.14.7",
-  "@orpc/client": "1.14.7",
-  "@orpc/openapi": "1.14.7",
-  "@orpc/react-query": "1.14.7",
-  "@orpc/zod": "1.14.7",
-  // NOTE: @orpc/next is intentionally omitted. The 0.27.0 release peers with
-  // @orpc/server 0.27.0, which conflicts with the stable 1.14.7 core line.
-  // GhostInit exposes oRPC via RPCHandler route handlers and keeps Server
-  // Actions as plain Next.js actions.
+  "@orpc/server": "1.15.0",
+  "@orpc/contract": "1.15.0",
+  "@orpc/client": "1.15.0",
+  "@orpc/openapi": "1.15.0",
+  "@orpc/react-query": "1.15.0",
+  "@orpc/zod": "1.15.0",
+  // NOTE: @orpc/next is intentionally omitted. Its latest 1.14.11 release is
+  // deprecated as an accidental v2 publish and points to an unpublished
+  // 1.14.12. GhostInit uses RPCHandler route handlers directly and keeps
+  // Server Actions as plain Next.js actions.
 } as const;
 
 export const validation = {
@@ -85,44 +104,53 @@ export const validation = {
 } as const;
 
 export const tanstack = {
-  "@tanstack/react-query": "5.101.2",
-  "@tanstack/react-form": "1.33.1",
-  "@tanstack/query-async-storage-persister": "5.90.1",
-  "@tanstack/query-persist-client-core": "5.90.1",
+  "@tanstack/react-query": "5.102.3",
+  "@tanstack/react-form": "1.33.5",
+  // Keep every package that owns QueryClient types on the React Query line.
+  // Mismatched private fields make QueryClient nominally incompatible.
+  "@tanstack/query-async-storage-persister": "5.102.3",
+  "@tanstack/query-persist-client-core": "5.102.3",
 } as const;
 
 export const tanstackStart = {
-  "@tanstack/react-start": "1.168.30",
-  "@tanstack/react-router": "1.170.18",
-  "@tanstack/router-plugin": "1.168.22",
+  "@tanstack/react-start": "1.168.49",
+  "@tanstack/react-router": "1.170.32",
+  "@tanstack/react-router-ssr-query": "1.167.1",
+  "@tanstack/router-plugin": "1.168.35",
   // `tsr generate` writes src/routeTree.gen.ts. Without it a freshly generated
   // TanStack project cannot typecheck: every createFileRoute("/path") call has no
   // route tree to resolve against. The codegen packages lag react-router's line;
   // 1.167.x is the newest published.
-  "@tanstack/router-cli": "1.167.21",
-  "@tanstack/react-router-devtools": "1.167.0",
+  "@tanstack/router-cli": "1.167.33",
+  "@tanstack/react-router-devtools": "1.167.1",
+  // Nitro's current release is prerelease-labelled but supports both Vite 7 and
+  // Vite 8 and carries the maintained h3 line. Its config and WebSocket runtime
+  // APIs differ from 3.0.0, so keep this pin coupled to the generated Nitro
+  // config/runtime compatibility tests.
   vite: "7.3.6",
   "@vitejs/plugin-react": "5.2.0",
-  nitro: "3.0.0",
+  nitro: "3.0.260610-beta",
   "@tailwindcss/vite": "4.3.3",
 } as const;
 
 export const styling = {
   tailwindcss: "4.3.3",
   "@tailwindcss/postcss": "4.3.3",
-  postcss: "8.5.17",
-  autoprefixer: "10.5.2", // only used if legacy pipeline required
+  postcss: "8.5.26",
+  autoprefixer: "10.5.4", // only used if legacy pipeline required
 } as const;
 
 export const ui = {
-  shadcn: "4.13.0",
-  "@base-ui/react": "1.6.0",
-  "lucide-react": "1.33.0",
+  shadcn: "4.19.0",
+  "@base-ui/react": "1.7.0",
+  "lucide-react": "1.34.0",
   clsx: "2.1.1",
   "tailwind-merge": "3.6.0",
   "class-variance-authority": "0.7.1",
-  sonner: "1.7.0",
-  recharts: "2.12.0",
+  sonner: "2.0.8",
+  recharts: "3.10.1",
+  "react-is": "19.2.8",
+  "@types/react-is": "19.2.0",
   "next-themes": "0.4.6",
 } as const;
 
@@ -130,62 +158,65 @@ export const tooling = {
   // NOTE: no `biome` entry. This toolchain uses oxlint + oxfmt; the old
   // `biome: "2.5.3"` pin referenced the unscoped `biome` package on npm, which is
   // an unrelated project (Biome ships as @biomejs/biome), and nothing consumed it.
-  oxlint: "1.73.0",
-  oxfmt: "0.58.0",
-  turbo: "2.10.4",
+  oxlint: "1.80.0",
+  oxfmt: "0.65.0",
+  turbo: "2.10.11",
   husky: "9.1.7",
   // oxc-parser is breaking-change-prone (AST shape changes across minor).
   // Pin to exact version, no ^. Parser extraction in src/lib/architecture/parsers/imports.ts
   // must tolerate shape changes via defensive checks; only that file needs update on bump.
-  "oxc-parser": "0.139.0",
+  "oxc-parser": "0.147.0",
 } as const;
 
 export const testing = {
-  playwright: "1.61.1",
+  "@electric-sql/pglite": "0.5.7",
+  "@electric-sql/pglite-socket": "0.2.10",
+  playwright: "1.62.1",
 } as const;
 
 export const eve = {
-  eve: "0.24.6",
-  ai: "7.0.26",
-  "@vercel/connect": "0.2.2",
+  eve: "0.44.4",
+  ai: "7.0.79",
+  "@vercel/connect": "1.0.0",
 } as const;
 
 export const billing = {
-  stripe: "19.1.0",
+  stripe: "22.5.0",
   "@chargily/chargily-pay": "2.1.0",
-  "@paddle/paddle-node-sdk": "3.8.0",
-  "@paddle/paddle-js": "1.6.4",
-  "@polar-sh/sdk": "0.48.1",
+  "@paddle/paddle-node-sdk": "3.10.0",
+  "@paddle/paddle-js": "1.6.5",
+  "@polar-sh/sdk": "0.49.0",
   "@polar-sh/nextjs": "0.9.6",
 } as const;
 
 export const analytics = {
   // Both were previously pinned to versions that do not exist on npm
   // (posthog-js 1.233.2, posthog-node 4.20.1), so `bun install` failed in every
-  // generated project. Pinned to real releases within the same major to keep the
-  // client/server APIs the templates are written against.
-  "posthog-js": "1.239.1",
-  "posthog-node": "4.18.0",
-  "posthog-react-native": "4.6.0",
+  // generated project. Every replacement below is registry-validated; Node 5's
+  // native-fetch/GZip transport requires the generated analytics runtime gate.
+  "posthog-js": "1.419.0",
+  "posthog-node": "5.51.2",
+  "posthog-react-native": "4.64.2",
 } as const;
 
 export const email = {
-  resend: "6.18.1",
-  "@react-email/components": "1.0.12",
-  "@react-email/render": "2.1.0",
-  "@react-email/tailwind": "2.0.7",
+  resend: "6.22.1",
+  // React Email 6 consolidates components, rendering, and Tailwind exports.
+  // The former components/tailwind packages are deprecated on npm.
+  "react-email": "6.9.2",
 } as const;
 
 export const cache = {
-  "@upstash/redis": "1.35.0",
+  "@upstash/redis": "1.38.2",
 } as const;
 
 export const electron = {
-  electron: "41.5.0",
-  "electron-vite": "3.1.0",
-  "electron-builder": "26.15.6",
-  "electron-updater": "6.6.2",
-  "electron-store": "8.2.0",
+  electron: "44.0.0",
+  "electron-vite": "5.0.0",
+  // npm's `latest` tag lags at 26.15.3; `v26` is the maintained stable line.
+  "electron-builder": "26.15.7",
+  "electron-updater": "6.8.9",
+  "electron-store": "11.0.2",
 } as const;
 
 /**
@@ -196,82 +227,95 @@ export const electron = {
  * Raw body webhooks handled via Next.js route handlers (single port) Buffer.from(await request.arrayBuffer()).
  * Catalog still spreads ...backend for backwards compat but consumers should NOT use elysia.
  * If you need to remove from bundle size, filter backend out of catalog in your own fork.
- * See docs/RESEARCH.md Pure oRPC Only - Elysia Removed Decision (2026-07-18).
+ * Pure oRPC transport is the supported architecture; Elysia is intentionally absent.
  */
 export const backend = {
-  elysia: "1.2.0",
-  "@elysiajs/cors": "1.2.0",
-  "@elysiajs/swagger": "1.2.0",
+  elysia: "1.4.29",
+  "@elysiajs/cors": "1.4.2",
+  "@elysiajs/swagger": "1.3.1",
 } as const;
 
 export const i18n = {
-  "next-intl": "4.0.0",
+  "next-intl": "4.13.7",
 } as const;
 
 export const pdf = {
-  "@react-pdf/renderer": "4.3.2",
+  "@react-pdf/renderer": "4.8.1",
   "dejavu-fonts-ttf": "2.37.3",
+  pdfkit: "0.20.1",
   qrcode: "1.5.4",
   "@types/qrcode": "1.5.6",
 } as const;
 
 export const interactive = {
-  // Must match the host package.json — 0.8.3 was never published.
-  "@clack/prompts": "0.8.2",
+  // Must match the host package.json. Clack 1.x is ESM-only; the CLI loads it
+  // lazily through a native dynamic import.
+  "@clack/prompts": "1.7.0",
 } as const;
 
 export const postgresDocker = {
-  image: "postgres:18.4",
+  image: "postgres:18.6",
 } as const;
 
 export const expo = {
-  expo: "54.0.13",
-  "@expo/metro-runtime": "6.1.2",
-  "expo-constants": "18.0.9",
-  "expo-linking": "8.0.8",
-  "expo-router": "6.0.24",
-  // Peer of @better-auth/expo. SDK 54 tracks the expo-network 8.x line.
-  "expo-network": "8.0.8",
-  "expo-secure-store": "15.0.8",
-  "expo-status-bar": "3.0.9",
-  "expo-web-browser": "15.0.7",
-  "expo-clipboard": "8.0.6",
-  "expo-notifications": "0.32.11",
-  "expo-updates": "29.0.13",
-  "expo-localization": "16.0.1",
-  "@react-native-community/netinfo": "11.3.1",
-  "react-native": "0.81.4",
-  "react-native-safe-area-context": "5.4.0",
-  "react-native-web": "0.21.1",
-  "babel-preset-expo": "54.0.12",
+  // Keep this matrix on Expo SDK 57's compatibility ranges while selecting
+  // releases that satisfy the supply-chain age policy. Native manifests use
+  // exact/tilde ranges rather than generic carets so independently released
+  // packages do not drift onto incompatible React Native/Reanimated/Worklets lines.
+  expo: "57.0.16",
+  "@expo/metro-runtime": "57.0.13",
+  "expo-constants": "57.0.14",
+  "expo-device": "57.0.1",
+  "expo-file-system": "57.0.5",
+  "expo-linking": "57.0.7",
+  "expo-router": "57.0.16",
+  "expo-network": "57.0.1",
+  "expo-secure-store": "57.0.1",
+  "expo-sharing": "57.0.15",
+  "expo-status-bar": "57.0.1",
+  "expo-web-browser": "57.0.2",
+  "expo-clipboard": "57.0.1",
+  "expo-notifications": "57.0.14",
+  "expo-updates": "57.0.17",
+  "expo-localization": "57.0.1",
+  "@react-native-async-storage/async-storage": "2.2.0",
+  "@react-native-community/netinfo": "12.0.1",
+  "react-native": "0.86.3",
+  "react-native-safe-area-context": "5.7.0",
+  "react-native-screens": "4.26.2",
+  "react-native-gesture-handler": "2.32.0",
+  "react-native-web": "0.21.2",
+  "babel-preset-expo": "57.0.8",
 } as const;
 
 export const reanimated = {
-  "react-native-reanimated": "4.1.1",
+  "react-native-reanimated": "4.5.1",
 } as const;
 
 export const worklets = {
-  "react-native-worklets": "0.5.1",
+  "react-native-worklets": "0.10.1",
 } as const;
 
 export const uniwind = {
-  uniwind: "1.10.0",
-  "tailwind-variants": "3.2.2",
+  uniwind: "1.11.0",
+  "tailwind-variants": "3.3.1",
   "tw-animate-css": "1.4.0",
 } as const;
 
 export const realtime = {
-  ws: "8.18.3",
-  crossws: "0.3.4",
+  ws: "8.21.3",
+  "@types/ws": "8.18.1",
+  crossws: "0.4.12",
 } as const;
 
 export const storage = {
-  "@aws-sdk/client-s3": "3.850.0",
+  "@aws-sdk/client-s3": "3.1117.0",
 } as const;
 
 export const catalog = {
   ...runtime,
   ...typescript,
+  ...expoReact,
   ...nextStack,
   ...database,
   ...convex,

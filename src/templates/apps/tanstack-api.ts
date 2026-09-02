@@ -15,12 +15,33 @@ import {
   orpcFileContent,
   healthFileContent,
   openapiFileContent,
+  tanstackAuthServerHandlerContent,
+  tanstackOpenApiOperationsRouteContent,
+  tanstackOpenApiOperationsServerContent,
+  tanstackOpenApiServerHandlerContent,
+  tanstackRpcServerHandlerContent,
 } from "./fragments/api.js";
 
 export function tanstackApiFiles(
   _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
-  return [authApiRoute(), orpcApiRoute(), healthApiRoute(), openapiApiRoute()];
+  return [
+    authApiRoute(),
+    file("apps/web/src/server/http/auth.server.ts", tanstackAuthServerHandlerContent("@repo/auth")),
+    orpcApiRoute(),
+    file("apps/web/src/server/http/rpc.server.ts", tanstackRpcServerHandlerContent("@repo/api")),
+    openapiOperationsRoute(),
+    file(
+      "apps/web/src/server/http/openapi-operations.server.ts",
+      tanstackOpenApiOperationsServerContent("@repo/api"),
+    ),
+    healthApiRoute(),
+    openapiApiRoute(),
+    file(
+      "apps/web/src/server/http/openapi.server.ts",
+      tanstackOpenApiServerHandlerContent("@repo/api/openapi"),
+    ),
+  ];
 }
 
 function authApiRoute(): TemplateFile {
@@ -29,6 +50,10 @@ function authApiRoute(): TemplateFile {
 
 function orpcApiRoute(): TemplateFile {
   return file("apps/web/src/routes/api/rpc/$splat.ts", orpcFileContent("tanstack"));
+}
+
+function openapiOperationsRoute(): TemplateFile {
+  return file("apps/web/src/routes/api/$splat.ts", tanstackOpenApiOperationsRouteContent());
 }
 
 function healthApiRoute(): TemplateFile {

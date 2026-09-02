@@ -3,7 +3,11 @@
  */
 import type { VerifyWebhookInput, VerifyWebhookOutput, BillingEvent } from "../interface.js";
 import { getPaddleClient, getEnv, type PaddleConfig } from "./client.js";
-import { genId } from "./mappers.js";
+import { createHash } from "node:crypto";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 export async function verifyPaddleWebhook(
   paddleConfig: PaddleConfig,
@@ -20,35 +24,28 @@ export async function verifyPaddleWebhook(
   try {
     const paddle = await getPaddleClient(paddleConfig);
     const event = await paddle.webhooks.unmarshal(rawBodyString, secret, signature);
-    const ev = event as unknown as {
-      eventType?: string;
-      eventId?: string;
-      id?: string;
-      data?: unknown;
-    };
-    const eventType = ev.eventType ?? "unknown";
-    const eventId = ev.eventId ?? ev.id ?? genId("evt");
-    const payload = ev.data ?? event;
+    if (!isRecord(event)) {
+      return { valid: false, error: "Paddle webhook unmarshal returned an invalid event" };
+    }
+    const eventType = typeof event.eventType === "string" ? event.eventType : "unknown";
+    const eventId =
+      typeof event.eventId === "string" && event.eventId.trim()
+        ? event.eventId
+        : `body_sha256:${createHash("sha256").update(input.rawBody).digest("hex")}`;
+    const payload = event.data ?? event;
 
     const billingEvent: BillingEvent = {
-      id: genId("we"),
+      id: eventId,
       provider: "paddle",
       providerEventId: eventId,
       type: eventType,
-      payload: payload as Record<string, unknown>,
+      payload,
       processed: false,
       createdAt: new Date(),
     };
 
     return { valid: true, event: billingEvent };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (
-      msg.toLowerCase().includes("signature") ||
-      msg.toLowerCase().includes("verification failed")
-    ) {
-      return { valid: false, error: `Paddle webhook signature verification failed: ${msg}` };
-    }
-    return { valid: false, error: `Paddle webhook unmarshal failed: ${msg}` };
+  } catch {
+    return { valid: false, error: "Paddle webhook verification failed" };
   }
 }

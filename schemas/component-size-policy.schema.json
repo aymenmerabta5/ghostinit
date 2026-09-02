@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/component-size-policy.schema.json",
+  "title": "GhostInit maintained component size policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "counting",
+    "defaultMaximum",
+    "sourceGlobs",
+    "exceptions"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/component-size-policy.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "counting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "excludeBlank", "excludeCommentOnly"],
+      "properties": {
+        "unit": { "const": "physical-line" },
+        "excludeBlank": { "const": true },
+        "excludeCommentOnly": { "const": true }
+      }
+    },
+    "defaultMaximum": { "type": "integer", "minimum": 50, "maximum": 500 },
+    "sourceGlobs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/glob" }
+    },
+    "exceptions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/exception" }
+    }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "exception": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "glob",
+        "maximum",
+        "singleResponsibility",
+        "owner",
+        "expiresOn",
+        "reviewId"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "glob": { "$ref": "#/$defs/glob" },
+        "maximum": { "type": "integer", "minimum": 51, "maximum": 1000 },
+        "singleResponsibility": { "type": "string", "minLength": 20 },
+        "owner": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._/-]*$" },
+        "expiresOn": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "reviewId": { "type": "string", "pattern": "^[A-Z]+-[0-9]+$" }
+      }
+    }
+  }
+}

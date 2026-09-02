@@ -2,8 +2,11 @@
  * Dependency declaration: all imported packages must be declared in package.json.
  */
 
+import { builtinModules } from "node:module";
 import type { ArchitectureFinding, PackageInfo } from "../types.js";
 import { getBasePackage } from "../utils.js";
+
+const BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 
 /** tsconfig `paths` aliases that resolve inside the package, not to node_modules. */
 function isPathAlias(imp: string): boolean {
@@ -18,8 +21,7 @@ export async function checkUndeclaredDependency(
   packageByDir: Map<string, PackageInfo>,
 ): Promise<void> {
   if (!pkg) return;
-  if (imp.startsWith("node:")) return;
-  if (imp === "bun:test") return;
+  if (BUILTINS.has(imp) || imp === "bun" || imp.startsWith("bun:")) return;
   // `@/*` and `~/*` are tsconfig path aliases pointing back into the package's own
   // source, not npm packages. Treating them as external produced a spurious
   // "undeclared dependency @/components" on every app file that uses the alias.
@@ -39,6 +41,7 @@ export async function checkUndeclaredDependency(
   if (imp.startsWith("@repo/")) {
     const targetName = imp.split("/").slice(0, 2).join("/");
     const target = Array.from(packageByDir.values()).find((p) => p.name === targetName);
+    if (target?.name === pkg.name) return;
     if (target && !pkg.dependencies.has(target.name)) {
       findings.push({
         id: "undeclared-workspace-dependency",

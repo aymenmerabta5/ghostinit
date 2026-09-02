@@ -7,6 +7,7 @@ export function pdfComposerFiles(
   hasDesktop = false,
   framework: string = "nextjs",
   hasWeb = true,
+  hasI18n = false,
 ): TemplateFile[] {
-  return pdfFilesWithApps(mode, hasMobile, hasDesktop, framework, hasWeb);
+  return pdfFilesWithApps(mode, hasMobile, hasDesktop, framework, hasWeb, hasI18n);
 }

@@ -4,8 +4,13 @@
 
 import type { ArchitectureFinding } from "../types.js";
 
-export function checkPrivatePath(findings: ArchitectureFinding[], file: string, imp: string): void {
-  if (/(\/private\/|\/_\/)/.test(imp)) {
+export function checkPrivatePath(
+  findings: ArchitectureFinding[],
+  file: string,
+  imp: string,
+  resolvedTarget?: string,
+): void {
+  if (/(\/private\/|\/_\/)/.test(imp) || /(\/private\/|\/_\/)/.test(resolvedTarget ?? "")) {
     findings.push({
       id: "private-path-import",
       severity: "MEDIUM",

@@ -1,3 +1,4 @@
+// @allow-long 425: validation, generator dispatch, and one-lock transaction reporting form one CLI command
 /**
  * ghostinit add implementation — with empty-args guard, pre-lock validation, and noop-aware sync.
  */
@@ -6,7 +7,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ExitCode, ValidationError, GhostinitError, exitCodeName } from "../lib/errors.js";
 import { acquireLock } from "../lib/lock.js";
-import { loadState } from "../lib/state.js";
+import { loadState, stageState } from "../lib/state.js";
+import { relativeChecksum } from "../lib/checksum.js";
+import { FsRollbackError, FsTransaction } from "../lib/fs.js";
 import { envelope, printJson } from "../lib/json.js";
 import { generateModule } from "../generators/module.js";
 import { generateUseCase } from "../generators/use-case.js";
@@ -18,10 +21,15 @@ import { generateAction } from "../generators/action.js";
 import { validateArtifactName } from "../lib/reserved.js";
 import { checkGitStatus, assertCleanGit } from "../lib/git.js";
 import { validateProjectForMutation } from "../lib/validate-project.js";
+import { createAddManagedFileState } from "../generators/shared.js";
 import type { GlobalOptions } from "./types.js";
 
-function assertModuleExists(cwd: string, moduleName: string): void {
-  const moduleDir = join(cwd, "packages", "modules", "src", moduleName);
+function assertModuleExists(cwd: string, moduleName: string, mode: "monorepo" | "single"): void {
+  const moduleDir = join(
+    cwd,
+    ...(mode === "single" ? ["src", "server", "modules"] : ["packages", "modules", "src"]),
+    moduleName,
+  );
   if (!existsSync(moduleDir)) {
     throw new ValidationError(
       `Module "${moduleName}" does not exist. Create it first with: ghostinit add module ${moduleName}`,
@@ -55,7 +63,17 @@ function showAddUsage(): string {
   ghostinit add action <module> <name>`;
 }
 
-export async function addCommand(args: string[], options: GlobalOptions): Promise<number> {
+export interface AddCommandDependencies {
+  stageState?: typeof stageState;
+  rebuildRegistries?: typeof import("./sync.js").rebuildRegistries;
+  createTransaction?: (root: string) => FsTransaction;
+}
+
+export async function addCommand(
+  args: string[],
+  options: GlobalOptions,
+  dependencies: AddCommandDependencies = {},
+): Promise<number> {
   const start = Date.now();
 
   // --list / list subcommand: list existing modules without mutation
@@ -69,7 +87,12 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
       const { readdir } = await import("node:fs/promises");
       const { join: joinPath } = await import("node:path");
       const { existsSync: existsSyncFs } = await import("node:fs");
-      const modulesDir = joinPath(options.cwd, "packages", "modules", "src");
+      const modulesDir = joinPath(
+        options.cwd,
+        ...(state?.project.mode === "single"
+          ? ["src", "server", "modules"]
+          : ["packages", "modules", "src"]),
+      );
       if (existsSyncFs(modulesDir)) {
         const entries = await readdir(modulesDir, { withFileTypes: true });
         fsModules = entries
@@ -154,17 +177,22 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
   }
 
   const validation = await validateProjectForMutation(options.cwd);
-  if (!validation.valid) {
-    if (validation.exitCodeSuggestion === ExitCode.INVALID_STATE) {
-      throw new GhostinitError(validation.message, ExitCode.INVALID_STATE, {
-        ...validation.details,
-        cause: validation.error?.message,
-      });
+  const projectState = await (async () => {
+    if (validation.valid) return validation.state;
+    if (options.force && validation.details?.drift) {
+      const forced = await loadState(options.cwd);
+      if (forced) {
+        options.logger.warn("Drift detected; --force will reconcile generated registries.");
+        return forced;
+      }
     }
-    throw new ValidationError(validation.message);
-  }
+    throw new GhostinitError(validation.message, ExitCode.INVALID_STATE, {
+      ...validation.details,
+      cause: validation.error?.message,
+    });
+  })();
 
-  if (!options.force) {
+  if (!options.force && !options.dryRun) {
     const gitStatus = await checkGitStatus(options.cwd, options.logger);
     assertCleanGit(gitStatus, options.force, options.logger);
   }
@@ -173,29 +201,65 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
   if (subcommand !== "module") {
     const moduleName = args[1] as string;
     if (moduleName) {
-      assertModuleExists(options.cwd, moduleName);
+      assertModuleExists(options.cwd, moduleName, projectState.project.mode);
     }
   }
 
-  const { release } = await acquireLock(options.cwd, options.logger, { force: options.force });
+  const lock = options.dryRun
+    ? undefined
+    : await acquireLock(options.cwd, options.logger, { force: options.force });
   let addedName = "";
   let noop = false;
   let syncExitCode: number = ExitCode.OK;
 
   try {
+    let mutationState = projectState;
+    if (!options.dryRun) {
+      // Validation before locking keeps common argument failures cheap. Repeat
+      // it after locking so the state used for staging cannot be swapped in the
+      // validation/acquire gap by another GhostInit process.
+      const lockedValidation = await validateProjectForMutation(options.cwd);
+      if (!lockedValidation.valid) {
+        if (options.force && lockedValidation.details?.drift) {
+          const forced = await loadState(options.cwd);
+          if (forced) {
+            mutationState = forced;
+          } else {
+            throw new GhostinitError("No GhostInit project state found", ExitCode.INVALID_STATE);
+          }
+        } else {
+          throw new GhostinitError(lockedValidation.message, ExitCode.INVALID_STATE, {
+            ...lockedValidation.details,
+            cause: lockedValidation.error?.message,
+          });
+        }
+      } else {
+        mutationState = lockedValidation.state;
+      }
+    }
+
     // TOCTOU fix: re-check module existence post-lock (state may have changed between pre-lock check and lock acquisition).
     if (subcommand !== "module") {
       const moduleName = args[1] as string;
       if (moduleName) {
-        assertModuleExists(options.cwd, moduleName);
+        assertModuleExists(options.cwd, moduleName, mutationState.project.mode);
       }
     }
+
+    const transaction = options.dryRun
+      ? new FsTransaction(options.cwd)
+      : (dependencies.createTransaction ?? ((root) => new FsTransaction(root)))(options.cwd);
+    const execution = {
+      transaction,
+      state: mutationState,
+      deferCommit: true,
+    } as const;
 
     switch (subcommand) {
       case "module": {
         const name = args[1] as string;
         addedName = name;
-        noop = await generateModule(options.cwd, name, options);
+        noop = await generateModule(options.cwd, name, options, execution);
         break;
       }
       case "use-case": {
@@ -208,6 +272,7 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
           useCaseName,
           options.kind ?? "command",
           options,
+          execution,
         );
         break;
       }
@@ -215,14 +280,14 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
         const moduleName = args[1] as string;
         const procedureName = args[2] as string;
         addedName = `${moduleName}/${procedureName}`;
-        noop = await generateProcedure(options.cwd, moduleName, procedureName, options);
+        noop = await generateProcedure(options.cwd, moduleName, procedureName, options, execution);
         break;
       }
       case "action": {
         const moduleName = args[1] as string;
         const actionName = args[2] as string;
         addedName = `${moduleName}/${actionName}`;
-        noop = await generateAction(options.cwd, moduleName, actionName, options);
+        noop = await generateAction(options.cwd, moduleName, actionName, options, execution);
         break;
       }
     }
@@ -252,6 +317,29 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
       return ExitCode.OK;
     }
 
+    if (options.dryRun) {
+      options.logger.info(`[dry-run] Would add ${subcommand} ${addedName}`);
+      if (options.json) {
+        printJson(
+          envelope({
+            success: true,
+            exitCode: ExitCode.OK,
+            data: {
+              added: subcommand,
+              name: addedName,
+              noop: false,
+              dryRun: true,
+              modules: projectState.modules,
+              procedures: projectState.procedures,
+            },
+            command: "add",
+            durationMs: Date.now() - start,
+          }),
+        );
+      }
+      return ExitCode.OK;
+    }
+
     // One lock for both the module write above and the registry rebuild below.
     // This is the fix for the reported lock gap: previously `add` released its
     // lock in a finally before invoking syncCommand, which re-acquired.
@@ -264,14 +352,48 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
     // new module has deliberately dirtied the tree *because of us* — a second
     // git-clean check inside the rebuild would exit 20 on every first `add` in a
     // git-tracked repo, leaving the module written but never wired.
-    const { rebuildRegistries } = await import("./sync.js");
-    const rebuilt = await rebuildRegistries(
-      { ...options, json: false, force: true, cwd: options.cwd },
-      start,
-    );
-    syncExitCode = rebuilt.exitCode;
+    let commitAttempted = false;
+    try {
+      const rebuildRegistries =
+        dependencies.rebuildRegistries ?? (await import("./sync.js")).rebuildRegistries;
+      const rebuilt = await rebuildRegistries(
+        { ...options, json: false, force: true, cwd: options.cwd },
+        start,
+        { state: mutationState, transaction, deferCommit: true },
+      );
+      syncExitCode = rebuilt.exitCode;
+      if (syncExitCode !== ExitCode.OK) {
+        await transaction.rollback();
+      } else {
+        const staged = transaction.getStagedFiles();
+        const checksums = staged.map(({ path, content }) =>
+          relativeChecksum(options.cwd, path, content),
+        );
+        const managedFiles = staged.map(({ path, content }) =>
+          createAddManagedFileState(mutationState, path, content),
+        );
+        await (dependencies.stageState ?? stageState)(
+          transaction,
+          options.cwd,
+          mutationState.project,
+          checksums,
+          rebuilt.modules,
+          rebuilt.procedures,
+          { managedFiles, existingState: mutationState },
+        );
+        commitAttempted = true;
+        await transaction.commit();
+      }
+    } catch (error) {
+      if (error instanceof FsRollbackError) throw error;
+      // Clear a failed pre-commit composition. Once commit is attempted, the
+      // transaction owns exact-byte compensation for every artifact, registry,
+      // and state write in that same batch.
+      if (!commitAttempted && transaction.stagedPaths.length > 0) await transaction.rollback();
+      throw error;
+    }
   } finally {
-    await release();
+    await lock?.release();
   }
 
   const updated = await loadState(options.cwd);
@@ -287,6 +409,13 @@ export async function addCommand(args: string[], options: GlobalOptions): Promis
           modules: updated?.modules ?? [],
           procedures: updated?.procedures ?? [],
         },
+        error:
+          syncExitCode === ExitCode.OK
+            ? undefined
+            : {
+                message: "Add transaction was rolled back because registry synchronization failed",
+                code: exitCodeName(syncExitCode),
+              },
         command: "add",
         durationMs: Date.now() - start,
       }),

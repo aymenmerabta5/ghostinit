@@ -1,32 +1,51 @@
 /**
  * Polar client resolution — sync + async.
  */
-import type { PolarSdkConstructor } from "./types.js";
+import { isConfiguredAccessToken, type PolarClient } from "./types.js";
 import { loadPolarSdk, getPolarCtor } from "./sdk-loader.js";
 
-export function getPolarClient(config?: Record<string, unknown>) {
+function configString(
+  config: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = config?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+export interface PolarClientResolution {
+  client: PolarClient | null;
+  accessToken: string;
+  orgId: string | undefined;
+  webhookSecret: string | undefined;
+  environment: "production" | "sandbox";
+}
+
+export function getPolarClient(config?: Record<string, unknown>): PolarClientResolution {
   const accessToken =
-    (config?.accessToken as string | undefined) ??
-    (config?.POLAR_ACCESS_TOKEN as string | undefined) ??
+    configString(config, "accessToken") ??
+    configString(config, "POLAR_ACCESS_TOKEN") ??
     process.env.POLAR_ACCESS_TOKEN ??
     process.env.POLAR_ORG_ACCESS_TOKEN ??
     "";
   const orgId =
-    (config?.organizationId as string | undefined) ??
-    (config?.POLAR_ORG_ID as string | undefined) ??
+    configString(config, "organizationId") ??
+    configString(config, "POLAR_ORG_ID") ??
     process.env.POLAR_ORG_ID ??
     process.env.POLAR_ORGANIZATION_ID;
   const webhookSecret =
-    (config?.webhookSecret as string | undefined) ??
-    (config?.POLAR_WEBHOOK_SECRET as string | undefined) ??
+    configString(config, "webhookSecret") ??
+    configString(config, "POLAR_WEBHOOK_SECRET") ??
     process.env.POLAR_WEBHOOK_SECRET;
-  const environment =
-    (config?.environment as string | undefined) ??
-    (config?.POLAR_ENVIRONMENT as string | undefined) ??
+  const environmentValue =
+    configString(config, "environment") ??
+    configString(config, "POLAR_ENVIRONMENT") ??
     process.env.POLAR_ENVIRONMENT ??
     "sandbox";
+  const environment = environmentValue === "production" ? "production" : "sandbox";
 
-  if (!accessToken) return { client: null, accessToken, orgId, webhookSecret, environment };
+  if (!isConfiguredAccessToken(accessToken)) {
+    return { client: null, accessToken, orgId, webhookSecret, environment };
+  }
 
   const ctor = getPolarCtor();
   if (ctor) {
@@ -36,7 +55,7 @@ export function getPolarClient(config?: Record<string, unknown>) {
         server: environment === "production" ? "production" : "sandbox",
       });
       return {
-        client: client as InstanceType<PolarSdkConstructor>,
+        client,
         accessToken,
         orgId,
         webhookSecret,
@@ -52,44 +71,8 @@ export function getPolarClient(config?: Record<string, unknown>) {
 export async function getPolarClientAsync(config?: Record<string, unknown>) {
   const sdk = await loadPolarSdk();
   const base = getPolarClient(config);
-  if (!sdk) {
-    return {
-      client: null,
-      polar: null,
-      accessToken: base.accessToken,
-      orgId: base.orgId,
-      webhookSecret: base.webhookSecret,
-      environment: base.environment,
-    };
-  }
-  const ctor = getPolarCtor();
-  if (ctor && base.accessToken) {
-    try {
-      const client = new ctor({
-        accessToken: base.accessToken,
-        server: base.environment === "production" ? "production" : "sandbox",
-      });
-      return {
-        client: client as InstanceType<PolarSdkConstructor>,
-        polar: sdk,
-        accessToken: base.accessToken,
-        orgId: base.orgId,
-        webhookSecret: base.webhookSecret,
-        environment: base.environment,
-      };
-    } catch {
-      return {
-        client: null,
-        polar: sdk,
-        accessToken: base.accessToken,
-        orgId: base.orgId,
-        webhookSecret: base.webhookSecret,
-        environment: base.environment,
-      };
-    }
-  }
   return {
-    client: null,
+    client: sdk ? base.client : null,
     polar: sdk,
     accessToken: base.accessToken,
     orgId: base.orgId,

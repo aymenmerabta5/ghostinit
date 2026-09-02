@@ -9,33 +9,37 @@ import { useEveAgent } from "eve/react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Bubble, BubbleContent, Marker, MarkerContent, Message, MessageContent, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/chat";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { useSurfaceTranslations } from "@/lib/translations";
 export default function AgentPage(): React.JSX.Element {
-  const agent = useEveAgent();
+  const agent = useEveAgent({ host: "/api/agent" });
+  const t = useSurfaceTranslations("agent");
   const [input, setInput] = useState("");
   const isBusy = agent.status === "submitted" || agent.status === "streaming";
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 p-6 md:p-8 lg:p-10">
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">Eve Durable Agent</h1><Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> durable</span></Badge></div>
-          <p className="text-sm text-muted-foreground max-w-[65ch] leading-relaxed">This chat uses the eve agent in <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">apps/eve/</code> — filesystem-first durable backend. Tools: scaffold_module, check_architecture, sync_registries, list_modules, db_migrate. Skills: ghostinit-workflow, module-design loaded via load_skill. Durable sessions stream NDJSON, pause for approval, resume, crash-safe via Workflow SDK.</p>
+          <div className="flex items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {t("durableBadge")}</span></Badge></div>
+          <p className="text-sm text-muted-foreground max-w-[65ch] leading-relaxed">{t("webDescription", { agentRoot: "apps/eve/agent/" })}</p>
         </div>
         <Separator />
         <Card className="flex flex-col gap-4 p-4">
-          <CardHeader className="p-0"><CardTitle className="text-base">Conversation</CardTitle><CardDescription className="max-w-[60ch]">Mounted same-origin via withEve. Cookie auth flows, zero CORS.</CardDescription></CardHeader>
+          <CardHeader className="p-0"><CardTitle className="text-base">{t("conversationTitle")}</CardTitle><CardDescription className="max-w-[60ch]">{t("conversationDescription")}</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-4 p-0">
-            <div role="log" aria-live="polite" aria-label="Conversation with the agent" className="flex max-h-96 flex-col gap-2 overflow-y-auto rounded-md border bg-muted/20 p-3">
-              {agent.data.messages.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">No messages yet. Ask to scaffold a module or check architecture.</p> : agent.data.messages.map((m: { id: string; role: string; content?: string }) => (<div key={m.id} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}><span className={m.role === "user" ? "inline-block max-w-[80%] rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground" : "inline-block max-w-[80%] rounded-lg bg-muted px-3 py-2 text-sm text-foreground"}>{m.content ?? ""}</span></div>))}
-            </div>
-            <form onSubmit={(e) => { e.preventDefault(); if (!input.trim() || isBusy) return; agent.send({ message: input }); setInput(""); }} className="flex gap-2">
-              <Input aria-label="Message the agent" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isBusy ? "Agent working..." : "Ask to scaffold a module, check architecture, sync registries..."} disabled={isBusy} className="flex-1 bg-background" />
-              <Button type="submit" disabled={isBusy || !input.trim()}>{isBusy ? "Working…" : "Send"}</Button>
-            </form>
-            {agent.status === "streaming" ? <p className="text-xs text-muted-foreground">Streaming durable workflow...</p> : null}
-            {agent.error ? <Alert variant="destructive"><AlertTitle>Agent error</AlertTitle><AlertDescription className="break-all text-xs">{String(agent.error)}</AlertDescription></Alert> : null}
+            <MessageScrollerProvider autoScroll><MessageScroller className="max-h-96"><MessageScrollerViewport><MessageScrollerContent role="log" aria-live="polite" aria-label={t("conversationLabel")}>
+              {agent.data.messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("empty")}</EmptyTitle><EmptyDescription>{t("conversationDescription")}</EmptyDescription></EmptyHeader></Empty> : agent.data.messages.map((message) => (
+                <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}><Message align={message.role === "user" ? "end" : "start"}><MessageContent><MessageHeader>{message.role}</MessageHeader><Bubble align={message.role === "user" ? "end" : "start"} variant={message.role === "user" ? "default" : "muted"}><BubbleContent>{message.parts.map((part, index) => part.type === "text" ? <p key={message.id + "-text-" + String(index)}>{part.text}</p> : null)}</BubbleContent></Bubble></MessageContent></Message></MessageScrollerItem>
+              ))}
+              {agent.status === "streaming" ? <MessageScrollerItem messageId="streaming"><Marker><MarkerContent className="shimmer">{t("streaming")}</MarkerContent></Marker></MessageScrollerItem> : null}
+            </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller></MessageScrollerProvider>
+            <form onSubmit={(e) => { e.preventDefault(); if (!input.trim() || isBusy) return; void agent.send(input); setInput(""); }}><FieldGroup><Field><FieldLabel className="sr-only" htmlFor="agent-message">{t("messageLabel")}</FieldLabel><div className="flex gap-2"><Input id="agent-message" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isBusy ? t("workingPlaceholder") : t("messagePlaceholder")} disabled={isBusy} className="flex-1" /><Button type="submit" disabled={isBusy || !input.trim()}>{isBusy ? t("working") : t("send")}</Button></div></Field></FieldGroup></form>
+            {agent.error ? <Alert variant="destructive"><AlertTitle>{t("requestError")}</AlertTitle><AlertDescription className="break-all text-xs">{String(agent.error)}</AlertDescription></Alert> : null}
           </CardContent>
         </Card>
       </div>

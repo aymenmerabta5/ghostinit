@@ -6,9 +6,14 @@ export function featureFlagsLibFiles(
   base = "apps/web/src",
   framework: "nextjs" | "tanstack-start" = "nextjs",
 ): TemplateFile[] {
-  const configImport = base === "src" ? "@/lib/env" : "@repo/config";
-  const clientAnalyticsDisabledKey =
-    framework === "tanstack-start" ? "VITE_ANALYTICS_DISABLED" : "NEXT_PUBLIC_ANALYTICS_DISABLED";
+  const configImport = base === "src" ? "@/lib/env/server" : "@repo/config/server";
+  const publicEntry = framework === "tanstack-start" ? "vite" : "next";
+  const clientConfigImport =
+    base === "src" ? `@/lib/env/${publicEntry}` : `@repo/config/${publicEntry}`;
+  const clientAnalyticsDisabled =
+    framework === "tanstack-start"
+      ? "env.VITE_ANALYTICS_DISABLED"
+      : "env.NEXT_PUBLIC_ANALYTICS_DISABLED";
   const serverContent = `import "server-only";
 import { env } from "${configImport}";
 
@@ -23,10 +28,10 @@ export function isFeatureEnabled(flag: ServerFeatureFlag): boolean {
 `;
 
   const clientContent = `"use client";
-import { env } from "${configImport}";
+import { env } from "${clientConfigImport}";
 
 export const CLIENT_FEATURE_FLAGS = {
-  ANALYTICS: env.${clientAnalyticsDisabledKey} !== "true",
+  ANALYTICS: ${clientAnalyticsDisabled} !== "true",
 } as const;
 
 export type ClientFeatureFlag = keyof typeof CLIENT_FEATURE_FLAGS;

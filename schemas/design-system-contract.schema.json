@@ -1,0 +1,471 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/design-system-contract.schema.json",
+  "title": "GhostInit versioned design-system contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "contractVersion",
+    "layout",
+    "layoutIdentity",
+    "apps",
+    "styles",
+    "tokens",
+    "typography",
+    "spacing",
+    "radius",
+    "elevation",
+    "semanticStates",
+    "iconLibrary",
+    "density",
+    "motion",
+    "shell",
+    "navigation",
+    "forms",
+    "feedback",
+    "componentImports",
+    "adapters",
+    "fixtures",
+    "policies"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/design-system-contract.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "contractVersion": { "const": "1.0.0" },
+    "layout": { "$ref": "#/$defs/layout" },
+    "layoutIdentity": { "enum": ["monorepo:@repo/ui", "single:@/platform/ui"] },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/app" }
+    },
+    "styles": {
+      "type": "object",
+      "minProperties": 3,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "tokens": { "$ref": "#/$defs/tokens" },
+    "typography": { "$ref": "#/$defs/typography" },
+    "spacing": { "$ref": "#/$defs/spacing" },
+    "radius": { "$ref": "#/$defs/radius" },
+    "elevation": { "$ref": "#/$defs/elevation" },
+    "semanticStates": {
+      "type": "array",
+      "minItems": 11,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "required"],
+        "properties": {
+          "id": {
+            "enum": [
+              "default",
+              "hover",
+              "focus",
+              "active",
+              "disabled",
+              "selected",
+              "loading",
+              "error",
+              "warning",
+              "success",
+              "info"
+            ]
+          },
+          "required": { "const": true }
+        }
+      }
+    },
+    "iconLibrary": { "$ref": "#/$defs/iconLibrary" },
+    "density": { "$ref": "#/$defs/density" },
+    "motion": { "$ref": "#/$defs/motion" },
+    "shell": { "$ref": "#/$defs/shell" },
+    "navigation": { "$ref": "#/$defs/navigation" },
+    "forms": { "$ref": "#/$defs/forms" },
+    "feedback": { "$ref": "#/$defs/feedback" },
+    "componentImports": { "$ref": "#/$defs/componentImports" },
+    "adapters": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/adapter" }
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/fixture" }
+    },
+    "policies": { "$ref": "#/$defs/policies" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "adapterId": { "enum": ["next", "tanstack", "electron", "expo"] },
+    "layout": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "logicalModule",
+            "moduleRoot",
+            "sourceRoot",
+            "stylesRoot",
+            "stylesImport",
+            "contractPath",
+            "contractImport",
+            "componentRegistryPath",
+            "componentRegistryImport"
+          ],
+          "properties": {
+            "mode": { "const": "monorepo" },
+            "logicalModule": { "const": "@repo/ui" },
+            "moduleRoot": { "const": "packages/ui" },
+            "sourceRoot": { "const": "packages/ui/src" },
+            "stylesRoot": { "const": "packages/ui/src/styles" },
+            "stylesImport": { "const": "@repo/ui/styles" },
+            "contractPath": { "const": "packages/ui/src/contract.ts" },
+            "contractImport": { "const": "@repo/ui/contract" },
+            "componentRegistryPath": { "const": "packages/ui/src/component-registry.json" },
+            "componentRegistryImport": { "const": "@repo/ui/component-registry.json" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "logicalModule",
+            "moduleRoot",
+            "sourceRoot",
+            "stylesRoot",
+            "stylesImport",
+            "contractPath",
+            "contractImport",
+            "componentRegistryPath",
+            "componentRegistryImport"
+          ],
+          "properties": {
+            "mode": { "const": "single" },
+            "logicalModule": { "const": "@/platform/ui" },
+            "moduleRoot": { "const": "src/platform/ui" },
+            "sourceRoot": { "const": "src/platform/ui" },
+            "stylesRoot": { "const": "src/platform/ui/styles" },
+            "stylesImport": { "const": "@/platform/ui/styles" },
+            "contractPath": { "const": "src/platform/ui/contract.ts" },
+            "contractImport": { "const": "@/platform/ui/contract" },
+            "componentRegistryPath": { "const": "src/platform/ui/component-registry.json" },
+            "componentRegistryImport": { "const": "@/platform/ui/component-registry.json" }
+          }
+        }
+      ]
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "adapter"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "target": { "$ref": "#/$defs/adapterId" },
+        "adapter": { "$ref": "#/$defs/adapterId" }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "defaultTheme", "themes", "names", "contrast"],
+      "properties": {
+        "format": { "const": "oklch" },
+        "defaultTheme": { "const": "dark" },
+        "themes": { "const": ["dark", "light"] },
+        "names": {
+          "type": "array",
+          "minItems": 20,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "contrast": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["minimumTextRatio", "darkPrimaryForeground", "lightPrimaryForeground"],
+          "properties": {
+            "minimumTextRatio": { "type": "number", "minimum": 4.5 },
+            "darkPrimaryForeground": { "type": "string", "pattern": "^oklch\\(" },
+            "lightPrimaryForeground": { "type": "string", "pattern": "^oklch\\(" }
+          }
+        }
+      }
+    },
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sans",
+        "mono",
+        "bodyRem",
+        "scaleRatio",
+        "proseMaxCharacters",
+        "headingTrackingEm"
+      ],
+      "properties": {
+        "sans": { "type": "string", "minLength": 10 },
+        "mono": { "type": "string", "minLength": 10 },
+        "bodyRem": { "type": "number", "minimum": 0.75 },
+        "scaleRatio": { "type": "number", "minimum": 1.125, "maximum": 1.25 },
+        "proseMaxCharacters": { "type": "integer", "minimum": 60, "maximum": 75 },
+        "headingTrackingEm": { "type": "number", "maximum": 0 }
+      }
+    },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unitRem",
+        "controlHeightRem",
+        "topBarHeightRem",
+        "sidebarWidthRem",
+        "contentMaxRem"
+      ],
+      "properties": {
+        "unitRem": { "const": 0.25 },
+        "controlHeightRem": { "const": 2.25 },
+        "topBarHeightRem": { "const": 3.5 },
+        "sidebarWidthRem": { "const": 16 },
+        "contentMaxRem": { "const": 72 }
+      }
+    },
+    "radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseRem", "control", "surface", "status"],
+      "properties": {
+        "baseRem": { "const": 0.5 },
+        "control": { "const": "md" },
+        "surface": { "const": "lg" },
+        "status": { "const": "full" }
+      }
+    },
+    "elevation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "surfaceShadow", "overlayShadow"],
+      "properties": {
+        "default": { "const": "border" },
+        "surfaceShadow": { "const": "none" },
+        "overlayShadow": { "const": "shadow-lg" }
+      }
+    },
+    "iconLibrary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["web", "electron", "native", "sizing", "buttonPositionAttribute"],
+      "properties": {
+        "web": { "const": "lucide-react" },
+        "electron": { "const": "lucide-react" },
+        "native": { "const": "lucide-react-native" },
+        "sizing": { "const": "component-owned" },
+        "buttonPositionAttribute": { "const": "data-icon" }
+      }
+    },
+    "density": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "bodySize", "metadataSize", "controlHeight"],
+      "properties": {
+        "default": { "const": "compact" },
+        "bodySize": { "const": "sm" },
+        "metadataSize": { "const": "xs" },
+        "controlHeight": { "const": "h-9" }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fastMs", "standardMs", "easing", "reducedMotion", "purpose"],
+      "properties": {
+        "fastMs": { "type": "integer", "minimum": 100, "maximum": 200 },
+        "standardMs": { "type": "integer", "minimum": 150, "maximum": 250 },
+        "easing": { "type": "string", "pattern": "^cubic-bezier\\(" },
+        "reducedMotion": { "const": "required" },
+        "purpose": { "const": "state-only" }
+      }
+    },
+    "shell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topBar", "sidebar", "content", "nestedCards"],
+      "properties": {
+        "topBar": { "type": "string" },
+        "sidebar": { "type": "string" },
+        "content": { "type": "string" },
+        "nestedCards": { "const": "forbidden" }
+      }
+    },
+    "navigation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patterns", "logicalDirections", "customScrollbars"],
+      "properties": {
+        "patterns": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "logicalDirections": { "const": "required" },
+        "customScrollbars": { "const": "forbidden" }
+      }
+    },
+    "forms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["architecture", "layout", "validation", "disabled"],
+      "properties": {
+        "architecture": { "const": "tanstack-form" },
+        "layout": { "const": "FieldGroup/Field" },
+        "validation": { "const": "data-invalid-and-aria-invalid" },
+        "disabled": { "const": "data-disabled-and-native-disabled" }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["loading", "empty", "toast", "errors"],
+      "properties": {
+        "loading": { "const": "skeleton" },
+        "empty": { "const": "teaching-empty-state" },
+        "toast": { "const": "theme-aware" },
+        "errors": { "const": "inline-before-overlay" }
+      }
+    },
+    "componentImports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry", "utilities", "web", "electron", "native"],
+      "properties": {
+        "registry": { "type": "string", "minLength": 1 },
+        "utilities": { "type": "string", "minLength": 1 },
+        "web": { "const": "@/components/ui/{component}" },
+        "electron": { "const": "@/components/ui/{component}" },
+        "native": { "const": "@/components/ui/{component}" }
+      }
+    },
+    "adapterApplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "status",
+        "platform",
+        "entrypoint",
+        "source",
+        "mappings",
+        "fixtures"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/adapterId" },
+        "version": { "const": 1 },
+        "status": { "const": "applicable" },
+        "platform": { "enum": ["web", "native"] },
+        "entrypoint": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "mappings": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "fixtures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "adapterInapplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "status", "rationale"],
+      "properties": {
+        "id": { "$ref": "#/$defs/adapterId" },
+        "version": { "const": 1 },
+        "status": { "const": "inapplicable" },
+        "rationale": { "type": "string", "minLength": 20 }
+      }
+    },
+    "adapter": {
+      "oneOf": [{ "$ref": "#/$defs/adapterApplicable" }, { "$ref": "#/$defs/adapterInapplicable" }]
+    },
+    "fixtureApplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "kind",
+        "status",
+        "adapter",
+        "source",
+        "sourceHash",
+        "assertions"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "const": 1 },
+        "kind": {
+          "enum": ["tokens", "utilities", "interaction-variants", "adapter-css", "native-style"]
+        },
+        "status": { "const": "applicable" },
+        "adapter": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/adapterId" }] },
+        "source": { "type": "string", "minLength": 1 },
+        "sourceHash": { "$ref": "#/$defs/hash" },
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "fixtureInapplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "kind", "status", "adapter", "rationale"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "const": 1 },
+        "kind": {
+          "enum": ["tokens", "utilities", "interaction-variants", "adapter-css", "native-style"]
+        },
+        "status": { "const": "inapplicable" },
+        "adapter": { "$ref": "#/$defs/adapterId" },
+        "rationale": { "type": "string", "minLength": 20 }
+      }
+    },
+    "fixture": {
+      "oneOf": [{ "$ref": "#/$defs/fixtureApplicable" }, { "$ref": "#/$defs/fixtureInapplicable" }]
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maintainedSource", "componentSize"],
+      "properties": {
+        "maintainedSource": {
+          "const": "https://ghostinit.dev/schemas/maintained-source-globs.schema.json"
+        },
+        "componentSize": {
+          "const": "https://ghostinit.dev/schemas/component-size-policy.schema.json"
+        }
+      }
+    }
+  }
+}

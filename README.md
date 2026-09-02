@@ -2,7 +2,10 @@
 
 Production-grade CLI that scaffolds well-structured monorepos with architectural linting (inspired by modular monolith, enforcement build-time via oxc-parser) for Next.js/TanStack Start.
 
-> New contributor? Start with **[CONTRIBUTING.md](./CONTRIBUTING.md)** (host vs generated, GhostInit Layered Architecture UI->Supporting inspired by DDD, how to add packages/billing/modes) and deep dive **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** for dependency graph, oRPC contract-first, billing flexibility.
+> Start with **[VISION.md](./VISION.md)** for the product boundary, then see
+> **[CONTRIBUTING.md](./CONTRIBUTING.md)** and the contributor
+> **[architecture guide](./AGENTS.md#architecture)** for the dependency graph,
+> oRPC contract-first transport, and billing model.
 
 ## Overview
 
@@ -29,6 +32,16 @@ ghostinit create my-app
 - `ghostinit add module <name>` – add an empty bounded-context module
 - `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none --deploy vercel|fly|docker|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
 
+Deployment artifacts keep Bun package management on exact catalog version `1.4.0`. Vercel's `bunVersion: "1.4.x"` is a provider-managed function-runtime patch line, while its install/build commands still invoke exact Bun `1.4.0`; use Docker or Fly when the execution runtime itself must remain byte-exact. Vercel, Docker, and Fly require a regular root `bun.lock`: after `--no-install`, run `bun install` with Bun `1.4.0` before building or deploying. Vercel runs the shared lock guard before both dependency installation and application build; the Dockerfile runs it before the frozen install rather than trusting Bun's missing-lock behavior. Docker emits a BuildKit-secret build, health check, 30-second graceful-stop Compose contract, and explicit named Eve Workflow volume when selected. The local Postgres 18 Compose path mounts `/var/lib/postgresql` so its versioned data directory persists.
+
+Host, generated-project, deployment, and compatibility-fixture installs enforce a seven-day (`604800` second) minimum package release age through `bunfig.toml`. The exclusion list is empty by default; update the typed supply-chain policy deliberately rather than bypassing it per package.
+
+Production API mutations require `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for atomic shared rate limiting, even when the optional cache package is not selected. Generated placeholders enable only the bounded process-local development/test fallback; production fails closed when either value is absent or invalid.
+
+Electron production builds require `DESKTOP_API_URL=https://api.example.com` in the build environment or the generated `.env.production.local`. electron-vite validates and embeds only that non-secret origin before electron-builder packages the app. Managed launches may override it with a runtime `DESKTOP_API_URL`; ordinary Explorer/Finder launches use the embedded origin. Credentials, query strings, fragments, non-HTTPS production URLs, and server secrets are rejected or excluded, and only development may fall back to `http://localhost:3000`. Generated desktop projects include a dedicated packaging guide.
+
+- Single-mode Expo/Electron is frontend-only: no backend host or external remote-host contract is generated. Use monorepo `web,mobile` or `web,desktop` for auth, API, billing, messaging, storage, and other server-backed capabilities.
+
 ## Development
 
 ```bash
@@ -36,7 +49,12 @@ bun install
 bun run check   # lint + format-check + typecheck
 bun run test    # unit + integration --timeout 100000
 bun run build   # Bun.build js + tsc real d.ts
+bun run release # verify all gates, then pack/test/digest once; never publishes
 ```
+
+Release preparation writes the exact tested tarball and SHA-256 sidecar under
+`.ghostinit-release/`; see [CONTRIBUTING.md](./CONTRIBUTING.md#release). The
+checksum identifies artifact bytes but is not a registry provenance attestation.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
@@ -47,19 +65,23 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 ## Stack
 
-- Bun 1.3.14 + Node 24 target, isolated linker host vs hoist=true generated
-- Next.js 16.2.10 + React 19 + TanStack Start 1.168
-- TypeScript 6.0.3 (TS7 7.0-dev preview, blocked for Next 16.2.10 detection)
+- Bun version sourced from `packages/versions` + retained Node runtime target, isolated linker host vs hoist=true generated
+- Next.js 16 + React 19 + TanStack Start 1.x (exact pins in `packages/versions`)
+- TypeScript 7.0.2 for Next 16.3's project-local tsc CLI; TypeScript 6.0.3 only for compiler-API-dependent TanStack/Expo tooling
 - Drizzle ORM + PostgreSQL / Convex
 - Better Auth (email/password, 2FA, admin)
-- oRPC 1.14.7 contract-first + OpenAPI (pure, no Elysia dual RPC)
+- oRPC 1.15 contract-first + OpenAPI (pure, no Elysia dual RPC)
 - Billing flexible any combo: stripe, chargily (Algeria EDAHABIA/CIB server-only), paddle, polar
 - TanStack Query / Form, Tailwind v4 + Base UI + shadcn
 - oxlint + oxfmt, Turborepo 2.10, t3env validation
-- Architecture enforcer via oxc-parser 0.139
+- Architecture enforcer via catalog-pinned oxc-parser
 
 ## Docs
 
+- [VISION.md](./VISION.md) — durable product direction: opinionated project infrastructure, internal architecture compiler, framework-native semantics, and explicit non-goals
 - [CONTRIBUTING.md](./CONTRIBUTING.md) — onboarding, project structure, how to add packages/billing/modes/features, build, code style, testing, release (<500 lines concise)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — deep GhostInit Layered Architecture (6-layer pragmatic inspired by DDD) dependency graph, host vs generated, billing flexibility model, vendor isolation, capability isolation, oRPC contract-first, security logger, FsTransaction, release version sync
-- [docs/RESEARCH.md](./docs/RESEARCH.md) — dependency version research (Context7 + npm registry)
+- [AGENTS.md — Architecture](./AGENTS.md#architecture) — generated dependency graph, capability isolation, transport, security, and release invariants
+- [AGENTS.md — Version Sync Gotcha](./AGENTS.md#version-sync-gotcha) — dependency/version verification and registry policy
+- [External readiness contracts](./docs/engineering/EXTERNAL_READINESS.md) — credential-free CI versus protected, manual sandbox and staging evidence
+- [V1-to-V2 compatibility ledger](./evidence/compatibility/v1-to-v2.json) and [schema](./evidence/compatibility/v1-to-v2.schema.json) — machine-readable command, option, exit-code, protocol, configuration, and migration decisions
+- [DESIGN.md — Evidence and policy gates](./DESIGN.md#evidence-and-policy-gates) and the [initial frontend engineering record](./docs/engineering/frontend-task-records/design-system-contract-v1.json) — versioned design-system evidence and review provenance

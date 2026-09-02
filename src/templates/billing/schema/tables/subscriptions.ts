@@ -1,5 +1,14 @@
 // @ts-nocheck - template
-import { pgTable, uuid, text, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  jsonb,
+  integer,
+  uniqueIndex,
+  index,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { billingProviderEnum, subscriptionStatusEnum } from "../enums.js";
 import { prices } from "./products.js";
@@ -9,7 +18,7 @@ export const subscriptions = pgTable(
   "subscriptions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     provider: billingProviderEnum("provider").notNull(),
     providerSubscriptionId: text("provider_subscription_id").notNull(),
     status: subscriptionStatusEnum("status").notNull(),
@@ -18,6 +27,11 @@ export const subscriptions = pgTable(
     priceId: uuid("price_id").references(() => prices.id, { onDelete: "set null" }),
     customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
     metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+    providerEventAt: timestamp("provider_event_at"),
+    // Monotonic fencing token for provider-state reads. Every Stripe handler
+    // claims a new version before its remote retrieve; a stale fetch can no
+    // longer commit after a concurrent cancellation claimed a newer version.
+    providerStateVersion: integer("provider_state_version").notNull().default(0),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

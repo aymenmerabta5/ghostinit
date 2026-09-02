@@ -33,16 +33,33 @@ export const securityHeaders = [
   },
   {
     key: "Content-Security-Policy",
-    // Note: 'unsafe-eval' removed — no generated dependency requires eval.
-    // If adding a library that needs eval (e.g. legacy analytics), isolate it
-    // and add 'unsafe-eval' only to that route's CSP.
+    // Production baseline. React's development diagnostics require
+    // 'unsafe-eval', so framework adapters may append it only in development.
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
   },
 ];
 
+export const cacheComponentsConfigBlock = `  // Cache Components keeps static shells and Partial Prerendering available.
+  // On self-hosted horizontal replicas, configure and verify the appropriate
+  // Next.js cacheHandler/cacheHandlers against shared storage. --cache redis
+  // configures the application cache only; it does not configure Next.js.
+  cacheComponents: true,`;
+
 export function nextConfigHeadersFunction(): string {
   return `  async headers() {
+    // Next.js and the locale bootstrap emit inline hydration scripts. A
+    // per-request nonce would force every route to be dynamic and would disable
+    // Cache Components/PPR, so unsafe-inline remains until a production-ready
+    // static hash/SRI path is available. React needs unsafe-eval only in dev.
+    // Test runners can launch the development server with NODE_ENV=test, so
+    // treat that explicit non-production mode as development diagnostics too.
+    const allowsDevelopmentDiagnostics =
+      process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+    const contentSecurityPolicy =
+      "default-src 'self'; script-src 'self' 'unsafe-inline'" +
+      (allowsDevelopmentDiagnostics ? " 'unsafe-eval'" : "") +
+      "; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
     return [
       {
         source: "/:path*",
@@ -74,9 +91,7 @@ export function nextConfigHeadersFunction(): string {
           },
           {
             key: "Content-Security-Policy",
-            // 'unsafe-eval' removed; PostHog served via /ingest rewrites so no extra connect-src needed in CSP here
-            value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+            value: contentSecurityPolicy,
           },
         ],
       },
@@ -105,6 +120,27 @@ export function posthogRewritesBlock(): string {
   },`;
 }
 
+export function tanstackSecurityPolicyDeclaration(): string {
+  return `function contentSecurityPolicy(): string {
+  // Vite dev servers launched by a test runner can inherit NODE_ENV=test.
+  // Production remains an exact fail-closed mode with no eval or HMR sockets.
+  const isDevelopment =
+    process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+  return [
+    "default-src 'self'",
+    \`script-src 'self' 'unsafe-inline'\${isDevelopment ? " 'unsafe-eval'" : ""}\`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' blob: data:",
+    "font-src 'self'",
+    \`connect-src 'self' https://us.i.posthog.com\${isDevelopment ? " ws: wss:" : ""}\`,
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; ") + ";";
+}`;
+}
+
 export function viteSecurityHeaders(): string {
   return `        '/**': {
           headers: {
@@ -115,9 +151,9 @@ export function viteSecurityHeaders(): string {
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
             // preload omitted by default — see securityHeaders comment
             'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
-            'Content-Security-Policy':
-              // 'unsafe-eval' removed; allow ws/wss for vite HMR in dev (prod Nitro routeRules overrides with stricter connect-src)
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+            // Vite/React diagnostics and HMR require eval/WebSockets only in
+            // development. The production Nitro artifact is fail-closed.
+            'Content-Security-Policy': contentSecurityPolicy(),
           },
         },`;
 }

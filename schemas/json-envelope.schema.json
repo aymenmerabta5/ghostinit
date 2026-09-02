@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/json-envelope.schema.json",
+  "title": "GhostInit CLI JSON envelope V2",
+  "oneOf": [{ "$ref": "#/$defs/success" }, { "$ref": "#/$defs/failure" }],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["$schema", "schemaVersion", "success", "exitCode", "meta"],
+      "properties": {
+        "$schema": { "const": "https://ghostinit.dev/schemas/json-envelope.schema.json" },
+        "schemaVersion": { "const": 2 },
+        "success": { "type": "boolean" },
+        "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "meta": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command", "durationMs"],
+          "properties": {
+            "command": { "type": "string", "minLength": 1 },
+            "durationMs": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "data": true,
+        "error": { "$ref": "#/$defs/error" }
+      }
+    },
+    "success": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["data"],
+          "properties": {
+            "$schema": true,
+            "schemaVersion": true,
+            "success": { "const": true },
+            "exitCode": { "const": 0 },
+            "meta": true,
+            "data": true,
+            "error": true
+          },
+          "not": {
+            "type": "object",
+            "properties": { "error": true },
+            "required": ["error"]
+          }
+        }
+      ]
+    },
+    "failure": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["error"],
+          "properties": {
+            "$schema": true,
+            "schemaVersion": true,
+            "success": { "const": false },
+            "exitCode": { "type": "integer", "minimum": 1, "maximum": 255 },
+            "meta": true,
+            "data": true,
+            "error": true
+          }
+        }
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message"],
+      "properties": {
+        "message": { "type": "string", "minLength": 1 },
+        "code": { "type": "string", "minLength": 1 },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

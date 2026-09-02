@@ -9,6 +9,7 @@ import {
 } from "./shared.js";
 import * as v from "./versions.js";
 import type { AddonInstallerMap, ProjectMode } from "../lib/addons.js";
+import { transactionalEmailLocaleContent } from "./i18n/transactional-email.js";
 
 type Runtime = "node" | "bun";
 
@@ -18,7 +19,8 @@ type Runtime = "node" | "bun";
 
 function constantsContent(mode: ProjectMode): string {
   if (mode === "monorepo") {
-    return `import { env } from "@repo/config";
+    return `import "server-only";
+import { env } from "@repo/config/server";
 
 export const EMAIL_FROM = env.EMAIL_FROM ?? "noreply@example.com";
 export const EMAIL_FROM_NAME = env.EMAIL_FROM_NAME ?? env.APP_NAME ?? "GhostInit";
@@ -26,7 +28,7 @@ export const EMAIL_FROM_FORMATTED = \`\${EMAIL_FROM_NAME} <\${EMAIL_FROM}>\`;
 export const RESEND_API_KEY = env.RESEND_API_KEY;
 `;
   }
-  return `import { env } from "@/lib/env";
+  return `import { env } from "@/lib/env/server";
 
 export const EMAIL_FROM = env.EMAIL_FROM ?? "noreply@example.com";
 export const EMAIL_FROM_NAME = env.EMAIL_FROM_NAME ?? env.APP_NAME ?? "GhostInit";
@@ -35,8 +37,30 @@ export const RESEND_API_KEY = env.RESEND_API_KEY;
 `;
 }
 
-function indexContent(_mode: ProjectMode): string {
-  return `export { sendEmail } from "./send.js";
+function templatesIndexContent(): string {
+  return `export { default as EmailLayout } from "./templates/EmailLayout.js";
+export { default as VerifyEmail } from "./templates/VerifyEmail.js";
+export { default as ResetPasswordEmail } from "./templates/ResetPassword.js";
+export { default as WelcomeEmail } from "./templates/Welcome.js";
+export { default as MagicLinkEmail } from "./templates/MagicLink.js";
+export {
+  EMAIL_LOCALES,
+  emailDirection,
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  getTransactionalEmailFallbackLink,
+  normalizeEmailLocale,
+  resolveEmailLocale,
+  transactionalEmailSubject,
+} from "./locale.js";
+export type { EmailLocale, TransactionalEmailKind } from "./locale.js";
+`;
+}
+
+function serverIndexContent(): string {
+  return `import "server-only";
+
+export { sendEmail } from "./send.js";
 export type { SendEmailOptions } from "./send.js";
 export { default as EmailLayout } from "./templates/EmailLayout.js";
 export { default as VerifyEmail } from "./templates/VerifyEmail.js";
@@ -44,6 +68,29 @@ export { default as ResetPasswordEmail } from "./templates/ResetPassword.js";
 export { default as WelcomeEmail } from "./templates/Welcome.js";
 export { default as MagicLinkEmail } from "./templates/MagicLink.js";
 export {
+  EMAIL_LOCALES,
+  emailDirection,
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  getTransactionalEmailFallbackLink,
+  normalizeEmailLocale,
+  resolveEmailLocale,
+  transactionalEmailSubject,
+} from "./locale.js";
+export type { EmailLocale, TransactionalEmailKind } from "./locale.js";
+export {
+  EMAIL_FROM,
+  EMAIL_FROM_NAME,
+  EMAIL_FROM_FORMATTED,
+  RESEND_API_KEY,
+} from "./constants.js";
+`;
+}
+
+function singleIndexContent(): string {
+  return `export { sendEmail } from "./send.js";
+export type { SendEmailOptions } from "./send.js";
+${templatesIndexContent()}export {
   EMAIL_FROM,
   EMAIL_FROM_NAME,
   EMAIL_FROM_FORMATTED,
@@ -57,12 +104,12 @@ export {
 function sendContent(mode: ProjectMode): string {
   const isMonorepo = mode === "monorepo";
   const envImport = isMonorepo
-    ? `import { env } from "@repo/config";`
-    : `import { env } from "@/lib/env";`;
+    ? `import { env } from "@repo/config/server";`
+    : `import { env } from "@/lib/env/server";`;
   // Single mode stays plain node; monorepo can use server-only guard when available.
   const serverOnlyImport = isMonorepo ? `import "server-only";\n` : ``;
   return `${serverOnlyImport}import * as React from "react";
-import { render } from "@react-email/render";
+import { render } from "react-email";
 import { Resend } from "resend";
 ${envImport}
 
@@ -101,10 +148,17 @@ export async function sendEmail<T extends object>(
 }
 
 // EmailLayout — Tailwind + pixelBasedPreset, same for Next/TanStack/single (copied from licence-last EmailLayout)
-const emailLayoutContent = `import { Body, Container, Head, Html } from "@react-email/components";
-import type { TailwindConfig } from "@react-email/tailwind";
-import { Tailwind, pixelBasedPreset } from "@react-email/tailwind";
+const emailLayoutContent = `import {
+  Body,
+  Container,
+  Head,
+  Html,
+  Tailwind,
+  pixelBasedPreset,
+  type TailwindConfig,
+} from "react-email";
 import type { ReactNode } from "react";
+import { emailDirection, type EmailLocale } from "../locale.js";
 
 const tailwindConfig: TailwindConfig = {
   presets: [pixelBasedPreset],
@@ -130,9 +184,9 @@ const tailwindConfig: TailwindConfig = {
   },
 };
 
-export default function EmailLayout({ children, title = "GhostInit" }: { children: ReactNode; title?: string }) {
+export default function EmailLayout({ children, title = "GhostInit", locale = "en" }: { children: ReactNode; title?: string; locale?: EmailLocale }) {
   return (
-    <Html>
+    <Html lang={locale} dir={emailDirection(locale)}>
       <Head>
         <title>{title}</title>
       </Head>
@@ -148,26 +202,36 @@ export default function EmailLayout({ children, title = "GhostInit" }: { childre
 export { tailwindConfig };
 `;
 
-const verifyEmailContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+const verifyEmailContent = `import { Button, Heading, Section, Text } from "react-email";
 import EmailLayout from "./EmailLayout.js";
+import {
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  getTransactionalEmailFallbackLink,
+  transactionalEmailSubject,
+  type EmailLocale,
+} from "../locale.js";
 
-export default function VerifyEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+export default function VerifyEmail({ link, appName = "GhostInit", locale = "en" }: { link: string; appName?: string; locale?: EmailLocale }) {
+  const copy = getTransactionalEmailCopy(locale, "verification");
+  const values = { appName };
   return (
-    <EmailLayout title={\`Verify your email — \${appName}\`}>
+    <EmailLayout title={transactionalEmailSubject("verification", locale, appName)} locale={locale}>
       <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
         <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
           {appName}
         </Heading>
         <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
-          Verify your email
+          {copy.title}
         </Heading>
         <Text className="text-mutedForeground mb-6 text-base">
-          Thanks for signing up! Please verify your email address by clicking the button below.
+          {formatTransactionalEmailMessage(copy.body, values)}
         </Text>
         <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>
-          Verify Email
+          {copy.action}
         </Button>
-        <Text className="text-mutedForeground mt-6 text-sm">If you didn&apos;t create an account, you can safely ignore this email.</Text>
+        <Text className="text-mutedForeground mt-6 text-sm">{copy.detail}</Text>
+        <Text className="text-mutedForeground mt-2 text-xs">{getTransactionalEmailFallbackLink(locale)}</Text>
         <Text className="text-mutedForeground mt-2 text-xs break-all">
           <a href={link} className="text-foreground underline">
             {link}
@@ -179,26 +243,35 @@ export default function VerifyEmail({ link, appName = "GhostInit" }: { link: str
 }
 `;
 
-const resetPasswordContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+const resetPasswordContent = `import { Button, Heading, Section, Text } from "react-email";
 import EmailLayout from "./EmailLayout.js";
+import {
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  getTransactionalEmailFallbackLink,
+  transactionalEmailSubject,
+  type EmailLocale,
+} from "../locale.js";
 
-export default function ResetPasswordEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+export default function ResetPasswordEmail({ link, appName = "GhostInit", locale = "en" }: { link: string; appName?: string; locale?: EmailLocale }) {
+  const copy = getTransactionalEmailCopy(locale, "password-reset");
   return (
-    <EmailLayout title={\`Reset your password — \${appName}\`}>
+    <EmailLayout title={transactionalEmailSubject("password-reset", locale, appName)} locale={locale}>
       <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
         <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
           {appName}
         </Heading>
         <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
-          Reset your password
+          {copy.title}
         </Heading>
         <Text className="text-mutedForeground mb-6 text-base">
-          We received a request to reset your password. If you didn&apos;t make this request, you can safely ignore this email.
+          {formatTransactionalEmailMessage(copy.body, { appName })}
         </Text>
         <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>
-          Reset Password
+          {copy.action}
         </Button>
-        <Text className="text-mutedForeground mt-6 text-sm">This link will expire in 1 hour for security reasons.</Text>
+        <Text className="text-mutedForeground mt-6 text-sm">{copy.detail}</Text>
+        <Text className="text-mutedForeground mt-2 text-xs">{getTransactionalEmailFallbackLink(locale)}</Text>
         <Text className="text-mutedForeground mt-2 text-xs break-all">
           <a href={link} className="text-foreground underline">
             {link}
@@ -210,24 +283,34 @@ export default function ResetPasswordEmail({ link, appName = "GhostInit" }: { li
 }
 `;
 
-const welcomeContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+const welcomeContent = `import { Button, Heading, Section, Text } from "react-email";
 import EmailLayout from "./EmailLayout.js";
+import {
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  transactionalEmailSubject,
+  type EmailLocale,
+} from "../locale.js";
 
-export default function WelcomeEmail({ appName = "GhostInit", name, dashboardUrl = "/dashboard" }: { appName?: string; name?: string; dashboardUrl?: string }) {
+export default function WelcomeEmail({ appName = "GhostInit", name, dashboardUrl = "/dashboard", locale = "en" }: { appName?: string; name?: string; dashboardUrl?: string; locale?: EmailLocale }) {
+  const copy = getTransactionalEmailCopy(locale, "welcome");
+  const title = name && copy.titleWithName
+    ? formatTransactionalEmailMessage(copy.titleWithName, { name })
+    : copy.title;
   return (
-    <EmailLayout title={\`Welcome to \${appName}\`}>
+    <EmailLayout title={transactionalEmailSubject("welcome", locale, appName)} locale={locale}>
       <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
         <Heading as="h1" className="text-primary mb-2 text-2xl font-bold">
           {appName}
         </Heading>
         <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">
-          Welcome{name ? \`, \${name}\` : ""}!
+          {title}
         </Heading>
         <Text className="text-mutedForeground mb-6 text-base">
-          Your account for {appName} is ready. You can now sign in, enable 2FA, and manage your workspace.
+          {formatTransactionalEmailMessage(copy.body, { appName })}
         </Text>
         <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={dashboardUrl}>
-          Go to Dashboard
+          {copy.action}
         </Button>
       </Section>
     </EmailLayout>
@@ -235,16 +318,26 @@ export default function WelcomeEmail({ appName = "GhostInit", name, dashboardUrl
 }
 `;
 
-const magicLinkContent = `import { Button, Heading, Section, Text } from "@react-email/components";
+const magicLinkContent = `import { Button, Heading, Section, Text } from "react-email";
 import EmailLayout from "./EmailLayout.js";
+import {
+  formatTransactionalEmailMessage,
+  getTransactionalEmailCopy,
+  getTransactionalEmailFallbackLink,
+  transactionalEmailSubject,
+  type EmailLocale,
+} from "../locale.js";
 
-export default function MagicLinkEmail({ link, appName = "GhostInit" }: { link: string; appName?: string }) {
+export default function MagicLinkEmail({ link, appName = "GhostInit", locale = "en" }: { link: string; appName?: string; locale?: EmailLocale }) {
+  const copy = getTransactionalEmailCopy(locale, "magic-link");
   return (
-    <EmailLayout title={\`Sign in — \${appName}\`}>
+    <EmailLayout title={transactionalEmailSubject("magic-link", locale, appName)} locale={locale}>
       <Section className="bg-card my-6 rounded-lg px-6 py-12 text-center">
-        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">Sign in with magic link</Heading>
-        <Text className="text-mutedForeground mb-6 text-base">Click below to sign in to {appName}. This link expires in 15 minutes and can only be used once.</Text>
-        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>Sign in</Button>
+        <Heading as="h2" className="text-foreground mb-4 text-3xl font-bold">{copy.title}</Heading>
+        <Text className="text-mutedForeground mb-6 text-base">{formatTransactionalEmailMessage(copy.body, { appName })}</Text>
+        <Button className="bg-primary rounded-lg px-6 py-3 font-semibold text-white" href={link}>{copy.action}</Button>
+        <Text className="text-mutedForeground mt-6 text-sm">{copy.detail}</Text>
+        <Text className="text-mutedForeground mt-2 text-xs">{getTransactionalEmailFallbackLink(locale)}</Text>
         <Text className="text-mutedForeground mt-2 text-xs break-all"><a href={link} className="text-foreground underline">{link}</a></Text>
       </Section>
     </EmailLayout>
@@ -252,21 +345,55 @@ export default function MagicLinkEmail({ link, appName = "GhostInit" }: { link: 
 }
 `;
 
+function renderTestContent(templateImport: string, hasI18n: boolean): string {
+  const locale = hasI18n ? "ar" : "en";
+  const expectedTitle = hasI18n ? "تحقق من بريدك الإلكتروني" : "Verify your email";
+  const rtlExpectation = hasI18n ? `    expect(html).toContain('dir="rtl"');\n` : "";
+  return `import { describe, expect, it } from "bun:test";
+import * as React from "react";
+import { render, type TailwindConfig } from "react-email";
+import VerifyEmail from "${templateImport}";
+
+const configTypeContract = {
+  presets: [],
+  theme: { extend: { colors: { primary: "#d33d00" } } },
+} satisfies TailwindConfig;
+
+describe("React Email integration", () => {
+  it("renders a typed template with the supported unified package", async () => {
+    expect(configTypeContract.theme.extend.colors.primary).toBe("#d33d00");
+    const html = await render(
+      React.createElement(VerifyEmail, {
+        link: "https://example.test/verify",
+        appName: "GhostInit",
+        locale: "${locale}",
+      }),
+    );
+
+    expect(html).toContain("<!DOCTYPE html");
+    expect(html).toContain(${JSON.stringify(expectedTitle)});
+    expect(html).toContain("https://example.test/verify");
+${rtlExpectation}
+  });
+});
+`;
+}
+
 export function emailFiles(
   modeOrOpts?: ProjectMode | string | Record<string, unknown>,
   runtimeOrAddons?: Runtime | string | AddonInstallerMap | Record<string, unknown>,
   maybeAddons?: AddonInstallerMap | Record<string, unknown>,
 ): TemplateFile[] {
-  const { mode, runtime } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
-  const testCmd = runtime === "bun" ? "bun test" : "npm run test:unit";
+  const { mode } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
+  const hasI18n = typeof modeOrOpts === "object" && modeOrOpts !== null && modeOrOpts.i18n === true;
+  const testCmd =
+    "bun test tests/barrel.test.ts tests/render.test.ts && bun --conditions=react-server test --preload ../../scripts/test-env.ts tests/server-barrel.test.ts";
 
   const emailDependencies: Record<string, string> = {
     resend: `^${v.email.resend}`,
     react: `^${v.nextStack.react}`,
     "react-dom": `^${v.nextStack["react-dom"]}`,
-    "@react-email/components": `^${v.email["@react-email/components"]}`,
-    "@react-email/render": `^${v.email["@react-email/render"]}`,
-    "@react-email/tailwind": `^${v.email["@react-email/tailwind"]}`,
+    "react-email": `^${v.email["react-email"]}`,
     "server-only": `^${v.runtime["server-only"]}`,
   };
   if (mode === "monorepo") {
@@ -285,9 +412,12 @@ export function emailFiles(
           scripts: codeScripts({ test: testCmd }),
           exports: {
             ".": "./src/index.ts",
+            "./templates": "./src/index.ts",
+            "./server": "./src/server.ts",
           },
           dependencies: emailDependencies,
           devDependencies: {
+            "bun-types": `^${v.runtime.bun}`,
             "@types/node": `^${v.runtime["@types/node"]}`,
             "@types/react": `^${v.nextStack["@types/react"]}`,
             typescript: `^${v.typescript.typescript}`,
@@ -301,11 +431,11 @@ export function emailFiles(
         tsconfig({
           compilerOptions: {
             jsx: "react-jsx",
-            types: ["node"],
+            types: ["bun-types", "node"],
             esModuleInterop: true,
             allowSyntheticDefaultImports: true,
           },
-          include: ["src/**/*"],
+          include: ["src/**/*", "tests/**/*"],
         }),
       ),
       file(
@@ -314,15 +444,35 @@ export function emailFiles(
 import * as mod from "../src/index.js";
 
 describe("@repo/email barrel", () => {
-  it("loads and exposes React Email API", () => {
-    expect(typeof mod.sendEmail).toBe("function");
+  it("loads the environment-neutral React Email template API", () => {
     expect(typeof mod.EmailLayout).toBe("function");
+    expect(typeof mod.VerifyEmail).toBe("function");
+    expect("sendEmail" in mod).toBe(false);
   });
 });
 `,
       ),
+      file(
+        "packages/email/tests/server-barrel.test.ts",
+        `import { describe, expect, it } from "bun:test";
+import * as mod from "../src/server.js";
+
+describe("@repo/email/server barrel", () => {
+  it("loads with a test-only validated server environment", () => {
+    expect(typeof mod.sendEmail).toBe("function");
+    expect(mod.EMAIL_FROM).toBe("noreply@example.test");
+  });
+});
+`,
+      ),
+      file(
+        "packages/email/tests/render.test.ts",
+        renderTestContent("../src/templates/VerifyEmail.js", hasI18n),
+      ),
       file("packages/email/src/constants.ts", constantsContent("monorepo")),
-      file("packages/email/src/index.ts", indexContent("monorepo")),
+      file("packages/email/src/locale.ts", transactionalEmailLocaleContent(hasI18n)),
+      file("packages/email/src/index.ts", templatesIndexContent()),
+      file("packages/email/src/server.ts", serverIndexContent()),
       file("packages/email/src/send.ts", sendContent("monorepo")),
       file("packages/email/src/templates/EmailLayout.tsx", emailLayoutContent),
       file("packages/email/src/templates/VerifyEmail.tsx", verifyEmailContent),
@@ -333,7 +483,8 @@ describe("@repo/email barrel", () => {
   } else {
     files.push(
       file("src/server/email/constants.ts", constantsContent("single")),
-      file("src/server/email/index.ts", indexContent("single")),
+      file("src/server/email/locale.ts", transactionalEmailLocaleContent(hasI18n)),
+      file("src/server/email/index.ts", singleIndexContent()),
       file("src/server/email/send.ts", sendContent("single")),
       file("src/server/email/templates/EmailLayout.tsx", emailLayoutContent),
       file("src/server/email/templates/VerifyEmail.tsx", verifyEmailContent),

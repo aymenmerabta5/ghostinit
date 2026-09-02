@@ -162,6 +162,8 @@ describe("billing schema — Drizzle provider enum all 4", () => {
     const schema = aggSchema(billingFiles("monorepo"));
     expect(schema).toContain("checkouts");
     expect(schema).toContain("providerCheckoutId");
+    expect(schema).toContain("userId");
+    expect(schema).toContain("providerEventAt");
     expect(schema).toContain("url");
     expect(schema).toContain("pending");
     expect(schema).toContain("paid");
@@ -195,6 +197,11 @@ describe("billing schema — Drizzle provider enum all 4", () => {
     const schema = aggSchema(billingFiles("monorepo"));
     expect(schema).toContain("providerCustomerId");
     expect(schema).toContain("billing_customers");
+    expect(schema).toContain('userId: text("user_id").notNull()');
+    expect(
+      schema.match(/userId: text\("user_id"\)\.notNull\(\)/g)?.length ?? 0,
+    ).toBeGreaterThanOrEqual(3);
+    expect(schema).not.toContain('userId: uuid("user_id").notNull()');
   });
 
   it("products has name provider providerProductId", () => {

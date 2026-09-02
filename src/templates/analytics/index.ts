@@ -17,17 +17,57 @@ const zodVer = v.validation.zod;
 
 type AnalyticsFramework = "nextjs" | "tanstack-start";
 
-/**
- * The PostHog reverse-proxy routes are Next.js App Router route handlers
- * (`export async function POST(req: NextRequest)`). A TanStack Start app has no
- * `src/app/` router, so emitting them there shipped a dead file that imported
- * `next` — a package the TanStack app does not depend on. TanStack projects
- * proxy through their own `src/routes/api/*` handlers instead.
- */
+function tanstackProxyServerContent(mode: ProjectMode): string {
+  return `import "server-only";\n${c
+    .proxyRouteContent(mode)
+    .replace('import { NextRequest, NextResponse } from "next/server";\n', "")
+    .replaceAll("NextRequest", "Request")
+    .replaceAll("NextResponse", "Response")}`;
+}
+
+function tanstackProxyRouteContent(route: "/api/ingest" | "/api/ingest/$"): string {
+  return `import { createServerOnlyFn } from "@tanstack/react-start";
+import { createFileRoute } from "@tanstack/react-router";
+
+const dispatchAnalyticsGet = createServerOnlyFn(async (request: Request): Promise<Response> => {
+  const { GET } = await import("@/server/http/analytics-ingest.server");
+  return await GET(request);
+});
+
+const dispatchAnalyticsPost = createServerOnlyFn(async (request: Request): Promise<Response> => {
+  const { POST } = await import("@/server/http/analytics-ingest.server");
+  return await POST(request);
+});
+
+const dispatchAnalyticsOptions = createServerOnlyFn(
+  async (request: Request): Promise<Response> => {
+    const { OPTIONS } = await import("@/server/http/analytics-ingest.server");
+    return await OPTIONS(request);
+  },
+);
+
+export const Route = createFileRoute("${route}")({
+  server: {
+    handlers: {
+      GET: ({ request }: { request: Request }) => dispatchAnalyticsGet(request),
+      POST: ({ request }: { request: Request }) => dispatchAnalyticsPost(request),
+      OPTIONS: ({ request }: { request: Request }) => dispatchAnalyticsOptions(request),
+    },
+  },
+});
+`;
+}
+
 function proxyRouteFiles(mode: ProjectMode, framework: AnalyticsFramework): TemplateFile[] {
-  if (framework !== "nextjs") return [];
   const base = mode === "monorepo" ? "apps/web/src" : "src";
   const scope = mode === "monorepo" ? "monorepo" : "single";
+  if (framework === "tanstack-start") {
+    return [
+      file(`${base}/routes/api/ingest.ts`, tanstackProxyRouteContent("/api/ingest")),
+      file(`${base}/routes/api/ingest/$.ts`, tanstackProxyRouteContent("/api/ingest/$")),
+      file(`${base}/server/http/analytics-ingest.server.ts`, tanstackProxyServerContent(scope)),
+    ];
+  }
   return [
     file(`${base}/app/api/ingest/route.ts`, c.proxyRouteContent(scope)),
     file(`${base}/app/api/ingest/[...path]/route.ts`, c.proxyCatchAllRouteContent(scope)),
@@ -58,7 +98,7 @@ function monorepoList(
           test: testCmd,
           "test:unit": testCmd,
           typecheck: "tsc --noEmit",
-          lint: "oxlint .",
+          lint: "oxlint --deny-warnings .",
           format: "oxfmt --write .",
           "format:check": "oxfmt --check .",
         },
@@ -71,8 +111,10 @@ function monorepoList(
           "./proxy": "./src/proxy/README.md",
         },
         dependencies: {
+          "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
           "posthog-js": `^${jsVer}`,
           "posthog-node": `^${nodeVer}`,
+          "server-only": `^${v.runtime["server-only"]}`,
           zod: `^${zodVer}`,
           "@repo/config": "workspace:*",
           "@repo/observability": "workspace:*",
@@ -92,19 +134,32 @@ function monorepoList(
         },
       }),
     ),
-    // A real assertion, not a placeholder: this package declared a `test` script
-    // with zero test files, so `bun test` exited 1 ("No tests found!") and
-    // `turbo run test` was red on every freshly generated project. Importing the
-    // barrel also catches the broken re-export class of bug.
+    // The default barrel is deliberately environment-neutral. Server runtime
+    // coverage runs separately with the react-server condition and an explicit
+    // inert test environment; neither compromise is applied to client tests.
     file(
       "packages/analytics/tests/barrel.test.ts",
       `import { describe, it, expect } from "bun:test";
 import * as mod from "../src/index.js";
 
 describe("@repo/analytics barrel", () => {
-  it("loads and exposes its public API", () => {
-    expect(typeof mod.getAnalyticsConfig).toBe("function");
-    expect(typeof mod.isAnalyticsEnabled).toBe("function");
+  it("loads the environment-neutral public API", () => {
+    expect(typeof mod.createEvent).toBe("function");
+    expect(typeof mod.createMockPostHogClient).toBe("function");
+    expect("getAnalyticsConfig" in mod).toBe(false);
+  });
+});
+`,
+    ),
+    file(
+      "packages/analytics/tests/server-barrel.test.ts",
+      `import { describe, expect, it } from "bun:test";
+import * as server from "../src/server/index.js";
+
+describe("@repo/analytics/server barrel", () => {
+  it("loads with a test-only validated server environment", () => {
+    expect(typeof server.getAnalyticsConfig).toBe("function");
+    expect(server.isAnalyticsEnabled()).toBe(false);
   });
 });
 `,
@@ -126,10 +181,12 @@ describe("@repo/analytics barrel", () => {
     file("packages/analytics/src/shared/properties.ts", c.sharedPropertiesContent("monorepo")),
     file("packages/analytics/src/shared/consent.ts", c.sharedConsentContent("monorepo")),
     file("packages/analytics/src/client/index.ts", c.monorepoClientIndexContent()),
+    file("packages/analytics/src/client/config.ts", c.clientConfigContent("monorepo", framework)),
     file(
       "packages/analytics/src/client/posthog-client.ts",
       c.clientPosthogClientContent("monorepo"),
     ),
+    file("packages/analytics/src/client/context.tsx", c.postHogContextContent()),
     file("packages/analytics/src/client/provider.tsx", c.clientProviderContent("monorepo")),
     file(
       "packages/analytics/src/client/pageview.tsx",
@@ -170,7 +227,10 @@ function singleList(_mode: ProjectMode, framework: AnalyticsFramework): Template
     file("src/server/analytics/testing/mocks.ts", c.testingMocksContent("single")),
     file("src/server/analytics/integrations/auth.ts", c.integrationsAuthContent("single")),
     file("src/server/analytics/integrations/billing.ts", c.integrationsBillingContent("single")),
+    file("src/lib/analytics-config.ts", c.clientConfigContent("single", framework)),
     file("src/lib/analytics.ts", c.singleLibAnalyticsContent()),
+    file("src/components/analytics/posthog-context.tsx", c.postHogContextContent()),
+    file("src/components/analytics/posthog-hooks.ts", c.singleComponentsHooksContent()),
     file("src/components/analytics/posthog-provider.tsx", c.singleComponentsProviderContent()),
     file("src/components/analytics/posthog-pageview.tsx", c.singlePageViewContent(framework)),
     file("src/components/analytics/feature-flag-gate.tsx", c.singleFeatureFlagGateContent()),
@@ -197,7 +257,8 @@ export function analyticsFiles(
   maybeAddons?: AddonInstallerMap | Record<string, unknown>,
 ): TemplateFile[] {
   const { mode, runtime } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
-  const testCmd = runtime === "bun" ? "bun test" : "npm run test:unit";
+  const testCmd =
+    "bun test tests/barrel.test.ts && bun --conditions=react-server test --preload ../../scripts/test-env.ts tests/server-barrel.test.ts";
   const framework = readFramework(modeOrOpts);
   const files =
     mode === "monorepo"

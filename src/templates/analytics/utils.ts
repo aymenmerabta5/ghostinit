@@ -68,20 +68,14 @@ export function extractDistinctId(opts: {
   if (opts.userId) return opts.userId;
   if (opts.anonymousId) return opts.anonymousId;
   try {
-    // Intersecting a getter signature with Map made \`.get\` a union of two
-    // incompatible call signatures, so TS refused to call it (TS2349). Narrow the
-    // Map case first, then treat anything else as a cookies()-style accessor.
-    const cookieStore = opts.cookies as unknown as string;
-    if (cookieStore) {
-      if (cookieStore instanceof Map) {
-        const m = cookieStore as Map<string, string>;
-        const v = m.get("posthog_distinct_id") ?? m.get("distinct_id");
-        if (v) return v;
-      } else if (typeof (cookieStore as { get?: unknown }).get === "function") {
-        const store = cookieStore as { get: (name: string) => { value?: string } | undefined };
-        const v = store.get("posthog_distinct_id")?.value ?? store.get("distinct_id")?.value;
-        if (v) return v;
-      }
+    const cookieStore = opts.cookies;
+    if (cookieStore instanceof Map) {
+      const value = cookieStore.get("posthog_distinct_id") ?? cookieStore.get("distinct_id");
+      if (value) return value;
+    } else if (cookieStore) {
+      const value =
+        cookieStore.get("posthog_distinct_id")?.value ?? cookieStore.get("distinct_id")?.value;
+      if (value) return value;
     }
   } catch {}
   try {

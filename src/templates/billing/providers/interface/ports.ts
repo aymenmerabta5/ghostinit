@@ -10,6 +10,8 @@ import type {
   CreateCustomerOutput,
   CreatePortalSessionInput,
   CreatePortalSessionOutput,
+  CreatePaymentLinkInput,
+  CreatePaymentLinkOutput,
   VerifyWebhookInput,
   VerifyWebhookOutput,
   ListSubscriptionsInput,
@@ -29,9 +31,11 @@ export interface BillingProvider {
    * Not supported for Chargily — checkout-only, no portal, manual recurring via DB + cron.
    */
   createPortalSession?(input: CreatePortalSessionInput): Promise<CreatePortalSessionOutput>;
+  /** Merchant payment-link creation. Only providers with a native capability implement this. */
+  createPaymentLink?(input: CreatePaymentLinkInput): Promise<CreatePaymentLinkOutput>;
   /**
    * Webhook verification — all 4 need raw Buffer:
-   * stripe: constructEvent(buf, sig, secret)
+   * stripe: await constructEventAsync(buf, sig, secret) for Bun/worker SubtleCrypto
    * chargily: verifySignature(payload Buffer, sig, secret) header "signature"
    * paddle: unmarshal(buf.toString(), secret, sig header paddle-signature)
    * polar: validateEvent raw body whsec base64

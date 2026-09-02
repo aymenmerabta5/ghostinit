@@ -18,6 +18,7 @@ import {
   parseCacheInput,
   parseDeployInput,
   parseStackInput,
+  parseFeatureFlagsInput,
   type ProjectMode,
   type BillingProviderName,
   type FeatureName,
@@ -27,9 +28,11 @@ import {
   type PresetName,
   type CacheProvider,
   type DeployTarget,
+  type FeatureFlagProvider,
 } from "./addons.js";
+import { VALID_NAME_RE, validateArtifactName } from "./reserved.js";
 
-export const PROJECT_NAME_RE = /^[a-z][a-z0-9-]*$/;
+export const PROJECT_NAME_RE = VALID_NAME_RE;
 export const PROJECT_NAME_MESSAGE =
   "Name must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens";
 
@@ -74,6 +77,10 @@ export interface CreateFlagBag {
   "with-i18n"?: boolean;
   "with-pdf"?: boolean;
   "with-messaging"?: boolean;
+  "with-storage"?: boolean;
+  "with-notifications"?: boolean;
+  "feature-flags"?: string | string[];
+  "with-jobs"?: boolean;
 }
 
 export interface ParsedCreateArgs {
@@ -96,6 +103,10 @@ export interface ParsedCreateArgs {
   withI18n: boolean | undefined;
   withPdf: boolean | undefined;
   withMessaging: boolean | undefined;
+  withStorage: boolean | undefined;
+  withNotifications: boolean | undefined;
+  featureFlags: FeatureFlagProvider;
+  withJobs: boolean | undefined;
 }
 
 function lastOrUndefined(value?: string | string[]): string | undefined {
@@ -137,6 +148,7 @@ export function parseCreateArgs(
   const cacheRaw = lastOrUndefined(bag.cache);
   const deployRaw = lastOrUndefined(bag.deploy);
   const stackRaw = lastOrUndefined(bag.stack);
+  const featureFlagsRaw = lastOrUndefined(bag["feature-flags"]);
 
   const billingCombined = combineToSingleString(bag.billing);
   const featuresCombined = combineToSingleString(bag.features);
@@ -151,6 +163,7 @@ export function parseCreateArgs(
   const preset = parsePresetInput(presetRaw);
   let cache = parseCacheInput(cacheRaw);
   const deploy = parseDeployInput(deployRaw);
+  const featureFlags = parseFeatureFlagsInput(featureFlagsRaw);
 
   // with-* booleans override cache + handle --features alias for eve/i18n (backward compat)
   let withAuth = bag["with-auth"] as boolean | undefined;
@@ -162,6 +175,9 @@ export function parseCreateArgs(
   let withI18n = bag["with-i18n"] as boolean | undefined;
   const withPdf = bag["with-pdf"] as boolean | undefined;
   const withMessaging = bag["with-messaging"] as boolean | undefined;
+  const withStorage = bag["with-storage"] as boolean | undefined;
+  const withNotifications = bag["with-notifications"] as boolean | undefined;
+  const withJobs = bag["with-jobs"] as boolean | undefined;
   if (withCacheFlag) cache = "redis";
   // --features eve/i18n is alias for --with-eve/--with-i18n (unified addons)
   if (features.includes("eve" as never) && withEve === undefined) withEve = true;
@@ -200,6 +216,10 @@ export function parseCreateArgs(
     withI18n,
     withPdf,
     withMessaging,
+    withStorage,
+    withNotifications,
+    featureFlags,
+    withJobs,
   };
 }
 
@@ -236,8 +256,9 @@ export function validateProjectName(
   if (!name || name.trim().length === 0) {
     return { valid: false, reason: "Project name is required" };
   }
-  if (!PROJECT_NAME_RE.test(name)) {
-    return { valid: false, reason: `Invalid project name "${name}": ${PROJECT_NAME_MESSAGE}` };
+  const result = validateArtifactName(name, "project name");
+  if (!result.valid) {
+    return { valid: false, reason: `Invalid project name "${name}": ${result.reason}` };
   }
   return { valid: true };
 }

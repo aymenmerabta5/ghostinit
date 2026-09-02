@@ -52,7 +52,7 @@ export const DropdownMenuItem = React.forwardRef<
     data-inset={inset}
     data-variant={variant}
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:ps-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
@@ -68,7 +68,7 @@ export const DropdownMenuLabel = React.forwardRef<
     ref={ref}
     data-slot="dropdown-menu-label"
     data-inset={inset}
-    className={cn("px-2 py-1.5 text-sm font-semibold data-[inset]:pl-8", className)}
+    className={cn("px-2 py-1.5 text-sm font-semibold data-[inset]:ps-8", className)}
     {...props}
   />
 ));
@@ -93,13 +93,13 @@ export const DropdownMenuSubTrigger = React.forwardRef<
     data-slot="dropdown-menu-sub-trigger"
     data-inset={inset}
     className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent data-[inset]:ps-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto" aria-hidden />
+    <ChevronRight className="ms-auto rtl:rotate-180" aria-hidden />
   </BaseMenu.SubmenuTrigger>
 ));
 DropdownMenuSubTrigger.displayName = "DropdownMenuSubTrigger";

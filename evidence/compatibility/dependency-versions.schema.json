@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/dependency-versions.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "auditedAt",
+    "asOf",
+    "registry",
+    "bun",
+    "supplyChain",
+    "summary",
+    "upgrades",
+    "adjustments",
+    "holds",
+    "omissions",
+    "nonNpm",
+    "lockedReleases",
+    "pins"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "auditedAt": { "type": "string", "format": "date-time" },
+    "asOf": { "type": "string", "format": "date" },
+    "registry": { "const": "https://registry.npmjs.org" },
+    "bun": { "const": "1.4.0" },
+    "supplyChain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimumReleaseAgeSeconds", "cutoffAt", "releaseAgeExceptions"],
+      "properties": {
+        "minimumReleaseAgeSeconds": { "const": 604800 },
+        "cutoffAt": { "type": "string", "format": "date-time" },
+        "releaseAgeExceptions": { "const": [] }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "auditedScopes",
+        "uniquePackages",
+        "latestScopes",
+        "compatibilityHeldScopes",
+        "uniqueCompatibilityHolds",
+        "auditedLockfiles",
+        "lockedPackageVersions",
+        "missingPins",
+        "unreviewedPins"
+      ],
+      "properties": {
+        "auditedScopes": { "type": "integer", "minimum": 1 },
+        "uniquePackages": { "type": "integer", "minimum": 1 },
+        "latestScopes": { "type": "integer", "minimum": 0 },
+        "compatibilityHeldScopes": { "type": "integer", "minimum": 0 },
+        "uniqueCompatibilityHolds": { "type": "integer", "minimum": 0 },
+        "auditedLockfiles": { "type": "integer", "minimum": 1 },
+        "lockedPackageVersions": { "type": "integer", "minimum": 1 },
+        "missingPins": { "const": 0 },
+        "unreviewedPins": { "const": 0 }
+      }
+    },
+    "upgrades": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
+    "adjustments": { "type": "array", "items": { "type": "object" } },
+    "holds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "pinned", "reasonCode", "detail", "evidence", "scopes"],
+        "properties": {
+          "package": { "type": "string", "minLength": 1 },
+          "pinned": { "type": "string", "pattern": "^\\d" },
+          "reasonCode": { "type": "string", "minLength": 3 },
+          "detail": { "type": "string", "minLength": 20 },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "format": "uri" }
+          },
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "package",
+          "registryLatest",
+          "registryLatestPublishedAt",
+          "eligibleLatest",
+          "eligibleLatestPublishedAt",
+          "reason"
+        ],
+        "properties": {
+          "package": { "type": "string", "minLength": 1 },
+          "registryLatest": { "type": "string", "pattern": "^\\d" },
+          "registryLatestPublishedAt": { "type": "string", "format": "date-time" },
+          "eligibleLatest": { "type": "string", "pattern": "^\\d" },
+          "eligibleLatestPublishedAt": { "type": "string", "format": "date-time" },
+          "reason": { "type": "string", "minLength": 20 }
+        }
+      }
+    },
+    "nonNpm": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "value", "reason"],
+        "properties": {
+          "scope": { "type": "string", "minLength": 1 },
+          "value": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 20 }
+        }
+      }
+    },
+    "lockedReleases": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package", "version", "publishedAt"],
+        "properties": {
+          "package": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "pattern": "^\\d" },
+          "publishedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "pins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "group",
+          "key",
+          "package",
+          "source",
+          "exists",
+          "currentDeprecated",
+          "status",
+          "pinned",
+          "pinnedPublishedAt",
+          "registryLatest",
+          "registryLatestPublishedAt",
+          "eligibleLatest",
+          "eligibleLatestPublishedAt"
+        ],
+        "properties": {
+          "scope": { "type": "string" },
+          "group": { "type": "string" },
+          "key": { "type": "string" },
+          "package": { "type": "string" },
+          "source": { "enum": ["catalog", "host"] },
+          "exists": { "const": true },
+          "currentDeprecated": { "type": ["string", "null"] },
+          "status": { "enum": ["latest", "compatibility-hold"] },
+          "pinned": { "type": "string", "pattern": "^\\d" },
+          "pinnedPublishedAt": { "type": "string", "format": "date-time" },
+          "registryLatest": { "type": "string", "pattern": "^\\d" },
+          "registryLatestPublishedAt": { "type": "string", "format": "date-time" },
+          "eligibleLatest": { "type": "string", "pattern": "^\\d" },
+          "eligibleLatestPublishedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "package", "from", "to", "reason"],
+      "properties": {
+        "scope": { "type": "string" },
+        "package": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "reason": { "type": "string", "minLength": 10 }
+      }
+    }
+  }
+}

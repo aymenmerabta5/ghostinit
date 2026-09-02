@@ -70,10 +70,12 @@ describe("generated web primitive environment boundary", () => {
 
       const env = createGeneratedProcessEnv(root, "http://127.0.0.1:43123", {
         BASE_ONLY: "base",
+        JEST_WORKER_ID: "nested-runner",
         NEXT_PUBLIC_APP_URL: "http://stale.invalid",
       });
 
       expect(env.BASE_ONLY).toBe("base");
+      expect(env.JEST_WORKER_ID).toBeUndefined();
       expect(env.ROOT_ONLY).toBe("root");
       expect(env.APP_ONLY).toBe("app");
       expect(env.NEXT_PUBLIC_APP_URL).toBe("http://127.0.0.1:43123");

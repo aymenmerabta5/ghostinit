@@ -1,20 +1,12 @@
 export function monorepoRootIndexContent(): string {
-  return `// Barrel — server-safe exports
-export * from "./config.js";
+  return `// Default barrel — environment-neutral analytics contracts and helpers.
+// Import runtime implementations explicitly from @repo/analytics/client or
+// @repo/analytics/server so client bundles can never traverse server modules.
 export * from "./types.js";
 export * from "./shared/events.js";
 export * from "./shared/properties.js";
 export * from "./shared/consent.js";
-export * from "./server/posthog-server.js";
-export * from "./server/utils.js";
-export * from "./server/bootstrap.js";
-export * from "./integrations/auth.js";
-export * from "./integrations/billing.js";
 export * from "./testing/mocks.js";
-
-export * as client from "./client/index.js";
-export * as server from "./server/index.js";
-export * as shared from "./shared/events.js";
 `;
 }
 
@@ -30,7 +22,10 @@ export * from "./components.js";
 }
 
 export function monorepoServerIndexContent(): string {
-  return `export * from "./posthog-server.js";
+  return `import "server-only";
+
+export * from "../config.js";
+export * from "./posthog-server.js";
 export * from "./utils.js";
 export * from "./bootstrap.js";
 `;

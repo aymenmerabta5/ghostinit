@@ -8,9 +8,25 @@ export function nextLegacyI18nBarrel(filePath: string): TemplateFile {
   return file(
     filePath,
     `export { default } from "${requestImport}";
-export { routing, type Locale, localeDirection } from "${routingImport}";
-export { Link, redirect, usePathname, useRouter, getPathname } from "${navigationImport}";
-export { locales, defaultLocale, localeNames, localeLabels } from "${configImport}";
+export {
+  defaultLocale,
+  isValidLocale,
+  localeCookieMaxAge,
+  localeCookieName,
+  localeDirection,
+  locales,
+  routing,
+  type Locale,
+} from "${routingImport}";
+export { Link, redirect, usePathname, useRouter } from "${navigationImport}";
+export {
+  isRtl,
+  localeDisplay,
+  localeLabels,
+  localeNames,
+  nextIntlVersion,
+  timeZone,
+} from "${configImport}";
 `,
   );
 }

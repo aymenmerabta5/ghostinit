@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "title": "GhostInit frontend implementation or review evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "taskId",
+    "role",
+    "recordedOn",
+    "changedGlobs",
+    "impeccable",
+    "register",
+    "appliedRules",
+    "shadcnDiscovery",
+    "selectedComponentIds",
+    "exceptionIds"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/frontend-task-record.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "taskId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "role": { "enum": ["implementer", "reviewer"] },
+    "recordedOn": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "changedGlobs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/glob" }
+    },
+    "impeccable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loaderSource",
+        "loaderSha256",
+        "resultSha256",
+        "resultBytes",
+        "productSha256",
+        "designSha256"
+      ],
+      "properties": {
+        "loaderSource": { "const": "impeccable/scripts/load-context.mjs" },
+        "loaderSha256": { "$ref": "#/$defs/hash" },
+        "resultSha256": { "$ref": "#/$defs/hash" },
+        "resultBytes": { "type": "integer", "minimum": 1 },
+        "productSha256": { "$ref": "#/$defs/hash" },
+        "designSha256": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "register": { "enum": ["product", "brand"] },
+    "appliedRules": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/identifier" }
+    },
+    "shadcnDiscovery": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/discovery" }
+    },
+    "selectedComponentIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/identifier" }
+    },
+    "exceptionIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/identifier" }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner", "registry", "query", "itemType", "results", "selected"],
+      "properties": {
+        "runner": { "const": "bunx --bun shadcn@latest" },
+        "registry": { "type": "string", "pattern": "^@[a-z0-9-]+$" },
+        "query": { "type": "string", "minLength": 1 },
+        "itemType": { "const": "ui" },
+        "results": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^@[a-z0-9-]+/[a-z0-9-]+$" }
+        },
+        "selected": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^@[a-z0-9-]+/[a-z0-9-]+$" }
+        }
+      }
+    }
+  }
+}

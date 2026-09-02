@@ -4,7 +4,7 @@
 import type { SubscriptionStatus } from "../interface.js";
 
 export function mapSubscriptionStatus(paddleStatus?: string): SubscriptionStatus {
-  switch (paddleStatus) {
+  switch (paddleStatus?.trim().toLowerCase()) {
     case "active":
       return "active";
     case "trialing":
@@ -16,14 +16,16 @@ export function mapSubscriptionStatus(paddleStatus?: string): SubscriptionStatus
     case "paused":
       return "paused";
     default:
-      return "active";
+      // Unknown/missing provider state must never grant entitlement.
+      return "incomplete";
   }
 }
 
-export function genId(prefix: string): string {
-  try {
-    const cryptoObj = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
-    if (cryptoObj?.randomUUID) return `${prefix}_${cryptoObj.randomUUID().slice(0, 8)}`;
-  } catch {}
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+export function requirePaddleResponseString(
+  value: unknown,
+  operation: string,
+  field: string,
+): string {
+  if (typeof value === "string" && value.trim()) return value;
+  throw new Error(`Paddle ${operation}: provider response did not include ${field}`);
 }

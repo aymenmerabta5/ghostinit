@@ -7,7 +7,13 @@
 
 import { redact } from "./logger.js";
 
+export const JSON_ENVELOPE_SCHEMA_URI =
+  "https://ghostinit.dev/schemas/json-envelope.schema.json" as const;
+export const JSON_ENVELOPE_SCHEMA_VERSION = 2 as const;
+
 export interface JsonEnvelope<T = unknown> {
+  $schema: typeof JSON_ENVELOPE_SCHEMA_URI;
+  schemaVersion: typeof JSON_ENVELOPE_SCHEMA_VERSION;
   success: boolean;
   exitCode: number;
   data?: T;
@@ -30,7 +36,25 @@ export function envelope<T>(args: {
   command: string;
   durationMs?: number;
 }): JsonEnvelope<T> {
+  if (args.success && args.exitCode !== 0) {
+    throw new Error("Invalid JSON envelope: successful responses require exitCode 0");
+  }
+  if (!args.success && args.exitCode === 0) {
+    throw new Error("Invalid JSON envelope: failed responses require a non-zero exitCode");
+  }
+  if (args.success && args.data === undefined) {
+    throw new Error("Invalid JSON envelope: successful responses require data");
+  }
+  if (args.success && args.error) {
+    throw new Error("Invalid JSON envelope: successful responses cannot include an error");
+  }
+  if (!args.success && !args.error) {
+    throw new Error("Invalid JSON envelope: failed responses require an error");
+  }
+
   const out: JsonEnvelope<T> = {
+    $schema: JSON_ENVELOPE_SCHEMA_URI,
+    schemaVersion: JSON_ENVELOPE_SCHEMA_VERSION,
     success: args.success,
     exitCode: args.exitCode,
     meta: {

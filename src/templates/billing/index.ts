@@ -8,13 +8,12 @@
  *   - add folder src/templates/billing/providers/<name>/ with core files
  *     (client, checkout, customer, portal?, webhook, subscriptions, mappers?)
  *   - update BILLING_PROVIDER_NAMES in providers/interface/types.ts
- *   - factory convention create<CapName>Provider — loop registry auto-discovers
+ *   - register its factory export in billing-generator.ts
  *   - tests/unit/billing-barrel.test.ts validates fs matches SSOT
  * CRITICAL webhook pattern (all providers): Buffer.from(await req.arrayBuffer()) NOT req.json()
  * Idempotent via webhook_events unique(provider+providerEventId) onConflictDoNothing.
- * Codegen note: shared/env/billing.ts uses billingEnvLines() loop over BILLING_PROVIDERS
- * for env placeholders — same loop pattern could generate this barrel, but test safety-net
- * is sufficient vs full codegen (dogfooding via CLI).
+ * billing-generator.ts rewrites the typed lazy-loader map to exactly the selected
+ * provider modules; every emitted specifier stays literal and extensionless.
  */
 
 // Explicit re-exports from interface (no export *)
@@ -81,32 +80,29 @@ import type {
   BillingProviderRegistry,
 } from "./providers/interface.js";
 
-let _registry: BillingProviderRegistry | null = null;
+type BillingProviderLoader = () => Promise<BillingProviderFactory>;
 
-function capitalizeProvider(name: string): string {
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
+/**
+ * Default source registry. The generator rewrites this map to the exact selected
+ * provider set, keeping every import literal so Turbopack can resolve its closure.
+ */
+const billingProviderLoaders: Partial<Record<BillingProviderName, BillingProviderLoader>> = {
+  stripe: async () => (await import("./providers/stripe")).createStripeProvider,
+  chargily: async () => (await import("./providers/chargily")).createChargilyProvider,
+  paddle: async () => (await import("./providers/paddle")).createPaddleProvider,
+  polar: async () => (await import("./providers/polar")).createPolarProvider,
+};
+
+let registryCache: BillingProviderRegistry | null = null;
 
 export async function loadBillingRegistry(): Promise<BillingProviderRegistry> {
-  if (_registry) return _registry;
+  if (registryCache) return registryCache;
   const registry: BillingProviderRegistry = {};
-  // Loop over SSOT — adding 5th provider only requires touching
-  // BILLING_PROVIDER_NAMES + provider folder; factory auto-discovered via naming convention
   for (const provider of BILLING_PROVIDER_NAMES) {
-    try {
-      const mod = await import(`./providers/${provider}.js`);
-      const factoryKey = `create${capitalizeProvider(provider)}Provider`;
-      const factory = (mod as Record<string, unknown>)[factoryKey] as
-        | BillingProviderFactory
-        | undefined;
-      if (factory) {
-        (registry as Record<string, BillingProviderFactory>)[provider] = factory;
-      }
-    } catch {
-      // provider not installed / missing optional file — skip
-    }
+    const loadProvider = billingProviderLoaders[provider];
+    if (loadProvider) registry[provider] = await loadProvider();
   }
-  _registry = registry;
+  registryCache = registry;
   return registry;
 }
 
@@ -133,4 +129,4 @@ export function createBillingProviderRegistry(
 // Canonical barrel alias — SSOT is BILLING_PROVIDER_NAMES from interface/types.ts
 // which mirrors BILLING_PROVIDERS in src/lib/constants.ts (validated by billing-barrel test)
 export const ALL_BILLING_PROVIDERS =
-  BILLING_PROVIDER_NAMES as unknown as readonly BillingProviderName[] satisfies readonly BillingProviderName[];
+  BILLING_PROVIDER_NAMES satisfies readonly BillingProviderName[];

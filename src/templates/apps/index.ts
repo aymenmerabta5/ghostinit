@@ -33,7 +33,7 @@ export function appsFiles(
     ...pageFiles(addonsOrHasEve),
     ...(hasApi ? apiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...componentFiles(addonsOrHasEve as AddonInstallerMap),
-    ...testFiles(runtime),
+    ...testFiles(runtime, "nextjs"),
   ];
 }
 
@@ -49,16 +49,35 @@ export function tanstackStartFiles(
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
       ? hasAddon(addonsOrHasEve as AddonInstallerMap, "api")
       : true;
+  const hasAuth =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "auth")
+      : true;
   const isConvex =
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
       ? hasAddon(addonsOrHasEve as AddonInstallerMap, "convex")
       : false;
+  const isPostgres =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "postgres")
+      : true;
+  const hasI18n =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "i18n")
+      : false;
+  const hasBilling =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "billing") ||
+        (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
+          hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
+        )
+      : true;
   return [
     ...tanstackCoreFiles(runtime, addonsOrHasEve),
-    ...tanstackPageFiles(hasEmail, isConvex),
+    ...tanstackPageFiles(hasEmail, isConvex, hasAuth, hasApi, isPostgres, hasI18n, hasBilling),
     ...(hasApi ? tanstackApiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),
-    ...testFiles(runtime),
+    ...testFiles(runtime, "tanstack-start"),
   ];
 }
 
@@ -68,8 +87,7 @@ export function expoFiles(
 ): TemplateFile[] {
   return [
     ...expoCoreFiles(runtime, addonsOrHasEve, addonsOrHasEve),
-    ...expoComponentFiles(),
-    ...expoPageFiles(),
-    ...testFiles(runtime),
+    ...expoComponentFiles(addonsOrHasEve),
+    ...expoPageFiles(addonsOrHasEve),
   ];
 }

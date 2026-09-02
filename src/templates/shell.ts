@@ -48,7 +48,8 @@ export function DashboardMasthead({ title, description, badge }: { title: string
 `;
 }
 
-function sidebarContent(): string {
+function sidebarContent(hasBilling: boolean): string {
+  const billingNavigation = hasBilling ? '  { href: "/billing", label: "Billing" },\n' : "";
   return `"use client";
 import * as React from "react";
 import Link from "next/link";
@@ -57,14 +58,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/billing", label: "Billing" },
-  { href: "/settings", label: "Settings" },
+${billingNavigation}  { href: "/settings", label: "Settings" },
   { href: "/admin", label: "Admin" },
 ];
 export function DashboardSidebar(): React.JSX.Element {
   const pathname = usePathname();
   return (
-    <aside className="hidden md:flex w-56 shrink-0 flex-col gap-4 border-r pr-4 py-6">
+    <aside className="hidden w-56 shrink-0 flex-col gap-4 border-e py-6 pe-4 md:flex">
       <div className="px-2 font-semibold tracking-tight">GhostInit</div>
       <nav className="flex flex-col gap-1">
         {NAV.map((item) => {
@@ -97,9 +97,25 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
+
+interface NavbarUser {
+  email?: string;
+  role?: string;
+}
+
+function readNavbarUser(session: unknown): NavbarUser | undefined {
+  if (typeof session !== "object" || session === null || !("user" in session)) return undefined;
+  const candidate = session.user;
+  if (typeof candidate !== "object" || candidate === null) return undefined;
+  return {
+    email: "email" in candidate && typeof candidate.email === "string" ? candidate.email : undefined,
+    role: "role" in candidate && typeof candidate.role === "string" ? candidate.role : undefined,
+  };
+}
+
 export function DashboardNavbar(): React.JSX.Element {
   const { data: session } = authClient.useSession();
-  const user = (session as unknown as { user?: { email?: string; role?: string } })?.user;
+  const user = readNavbarUser(session);
   return (
     <header className="sticky top-0 z-20 flex h-12 items-center justify-between border-b bg-background px-4">
       <div className="flex items-center gap-2">
@@ -122,12 +138,12 @@ export function DashboardNavbar(): React.JSX.Element {
 `;
 }
 
-export function shellFiles(mode: ProjectMode = "monorepo"): TemplateFile[] {
+export function shellFiles(mode: ProjectMode = "monorepo", hasBilling = true): TemplateFile[] {
   const base = shellContent(mode);
   return [
     file(`${base}/StatsCard.tsx`, statsCardContent()),
     file(`${base}/Masthead.tsx`, mastheadContent()),
-    file(`${base}/Sidebar.tsx`, sidebarContent()),
+    file(`${base}/Sidebar.tsx`, sidebarContent(hasBilling)),
     file(`${base}/Navbar.tsx`, navbarContent()),
   ];
 }

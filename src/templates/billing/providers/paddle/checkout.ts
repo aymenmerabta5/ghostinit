@@ -3,7 +3,7 @@
  */
 import type { CreateCheckoutInput, CreateCheckoutOutput } from "../interface.js";
 import { getPaddleClient, type PaddleConfig } from "./client.js";
-import { genId } from "./mappers.js";
+import { requirePaddleResponseString } from "./mappers.js";
 
 export async function createPaddleCheckout(
   paddleConfig: PaddleConfig,
@@ -23,10 +23,11 @@ export async function createPaddleCheckout(
     collectionMode: "automatic",
     customData: {
       userId: input.userId,
+      requestKey: input.requestKey,
       successUrl: input.successUrl,
       failureUrl: input.failureUrl ?? input.cancelUrl ?? input.successUrl,
       cancelUrl: input.cancelUrl ?? input.successUrl,
-      ...(input.metadata as Record<string, unknown>),
+      ...input.metadata,
     },
   };
 
@@ -38,44 +39,52 @@ export async function createPaddleCheckout(
         email: input.customerEmail,
         name: input.customerEmail.split("@")[0],
       });
-      const createdId = (customer as { id?: string }).id;
-      if (createdId) basePayload.customerId = createdId;
+      if (customer.id) basePayload.customerId = customer.id;
     } catch {
       try {
-        const collection = paddle.customers.list({ email: input.customerEmail } as never);
-        const hasAsyncIterator =
-          typeof (collection as unknown as { [Symbol.asyncIterator]?: unknown })[
-            Symbol.asyncIterator
-          ] === "function";
-        if (hasAsyncIterator) {
-          for await (const c of collection as AsyncIterable<{ id: string }>) {
-            if ((c as { id: string }).id) {
-              basePayload.customerId = (c as { id: string }).id;
-              break;
-            }
+        const collection = paddle.customers.list({ email: [input.customerEmail] });
+        for await (const customer of collection) {
+          if (customer.id) {
+            basePayload.customerId = customer.id;
+            break;
           }
-        } else {
-          const col = collection as unknown as {
-            next: () => Promise<{ id: string }[]>;
-            hasMore: boolean;
-          };
-          const page = await col.next();
-          if (page[0]?.id) basePayload.customerId = page[0].id;
         }
       } catch {}
     }
   }
 
-  const transaction = await paddle.transactions.create(basePayload as never);
-  const t = transaction as { id: string; checkout?: { url?: string | null } };
-  const checkoutUrl = t.checkout?.url;
-  const txId = t.id ?? genId("txn");
-
-  if (!checkoutUrl) {
-    throw new Error(
-      `Paddle transaction ${txId} created but checkout?.url missing. Tx: ${JSON.stringify(transaction).slice(0, 600)}`,
-    );
+  if (input.requestKey) {
+    // Paddle's SDK does not accept an idempotency key for transaction
+    // creation. A retry must reconcile the provider transaction first.
+    const existingTransactions = paddle.transactions.list({
+      ...(basePayload.customerId ? { customerId: [basePayload.customerId] } : {}),
+      perPage: 100,
+    });
+    for await (const candidate of existingTransactions) {
+      if (
+        candidate.customData?.userId !== input.userId ||
+        candidate.customData?.requestKey !== input.requestKey
+      ) {
+        continue;
+      }
+      if (!candidate.checkout?.url) {
+        throw new Error("PADDLE_RECONCILIATION_NO_URL: existing transaction checkout url missing");
+      }
+      return {
+        id: candidate.id,
+        url: candidate.checkout.url,
+        providerCheckoutId: candidate.id,
+      };
+    }
   }
+
+  const transaction = await paddle.transactions.create(basePayload);
+  const txId = requirePaddleResponseString(transaction.id, "create checkout", "transaction.id");
+  const checkoutUrl = requirePaddleResponseString(
+    transaction.checkout?.url,
+    "create checkout",
+    "transaction.checkout.url",
+  );
 
   return { id: txId, url: checkoutUrl, providerCheckoutId: txId };
 }

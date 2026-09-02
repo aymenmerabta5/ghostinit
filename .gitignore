@@ -12,6 +12,9 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.ghostinit-release/
+.ghostinit-dist-stage-*/
+.ghostinit-dist-backup-*/
 
 # Dev orchestration / local tooling
 .opencode/

@@ -14,11 +14,15 @@
 import * as v from "../../versions.js";
 import { hasAddon, type AddonInstallerMap, type BillingProviderName } from "../../../lib/addons.js";
 
-const PROVIDER_SDK: Record<BillingProviderName, readonly [string, string]> = {
-  stripe: ["stripe", v.billing.stripe],
-  chargily: ["@chargily/chargily-pay", v.billing["@chargily/chargily-pay"]],
-  paddle: ["@paddle/paddle-node-sdk", v.billing["@paddle/paddle-node-sdk"]],
-  polar: ["@polar-sh/sdk", v.billing["@polar-sh/sdk"]],
+const PROVIDER_SDK: Record<
+  BillingProviderName,
+  readonly [packageName: string, version: string, exact: boolean]
+> = {
+  // Stripe couples its SDK release to one LatestApiVersion type literal.
+  stripe: ["stripe", v.billing.stripe, true],
+  chargily: ["@chargily/chargily-pay", v.billing["@chargily/chargily-pay"], false],
+  paddle: ["@paddle/paddle-node-sdk", v.billing["@paddle/paddle-node-sdk"], false],
+  polar: ["@polar-sh/sdk", v.billing["@polar-sh/sdk"], false],
 };
 
 export function webhookRuntimeDeps(
@@ -31,8 +35,8 @@ export function webhookRuntimeDeps(
   let anyProvider = false;
   for (const provider of Object.keys(PROVIDER_SDK) as BillingProviderName[]) {
     if (!hasAddon(map, provider)) continue;
-    const [pkg, version] = PROVIDER_SDK[provider];
-    deps[pkg] = `^${version}`;
+    const [pkg, version, exact] = PROVIDER_SDK[provider];
+    deps[pkg] = exact ? version : `^${version}`;
     anyProvider = true;
   }
 

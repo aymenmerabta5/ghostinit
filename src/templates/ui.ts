@@ -1,7 +1,6 @@
-// @allow-long 9: ghostinit's primitives/forms/overlays/layout/feedback/dropdown/data UI components
-// live at src/templates/apps/fragments/web-ui/. This folder is ONLY the minimal
-// @repo/ui tokens package — theme.css + cn util + package.json. Nothing else.
-// See src/templates/apps/fragments/web-ui/index.ts for the actual UI barrel.
+// GhostInit's primitives/forms/overlays/layout/feedback components live at
+// src/templates/apps/fragments/web-ui/. This module owns the mode-resolved,
+// machine-defined design contract, registry, styles and package surface.
 /**
  * Compat shim — original god file split into src/templates/ui/ modular folder.
  * See top-level note about tokens-only vs components split.
@@ -17,7 +16,31 @@ export {
   barrelFile,
   themeCssContent,
   themeFiles,
+  componentRegistry,
+  componentRegistryContent,
+  componentsJsonContent,
+  componentsJsonData,
+  buildDesignSystemContract,
+  designSystemContractJsonContent,
+  designSystemContractModuleContent,
+  designSystemFiles,
+  designSystemTemplateFiles,
+  selectedUiAdapters,
+  normalizeDesignSystemApps,
+  resolveDesignSystemApps,
+  resolveUiLayout,
+  uiAdapterIds,
+  designSystemExports,
+  applyDesignSystemApplications,
+  integrateDesignSystemApplications,
+  baseContractCssContent,
+  designStyleSources,
+  nativeBaseTsContent,
+  utilitiesCssContent,
+  webBaseCssContent,
 } from "./ui/index.js";
+
+export type { ResolvedDesignSystemApp, ResolvedUiLayout, UiAdapterId } from "./ui/index.js";
 
 // Orphan guard: every file in this folder must be referenced by index.ts.
 // The 7 component files that used to live here (primitives/forms/overlays/layout/

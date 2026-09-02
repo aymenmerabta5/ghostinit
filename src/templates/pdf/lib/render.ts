@@ -1,8 +1,10 @@
 export function renderContent(): string {
   return `import { renderToBuffer } from "@react-pdf/renderer";
-import { createElement } from "react";
+import type { ReactElement } from "react";
+import { registerPdfFonts } from "./fonts.js";
 
-export async function renderPdfToBuffer(element: React.ReactElement): Promise<Buffer> {
+export async function renderPdfToBuffer(element: ReactElement): Promise<Buffer> {
+  registerPdfFonts();
   const buf = await renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);
   return Buffer.from(buf);
 }

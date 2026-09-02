@@ -1,0 +1,51 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/maintained-source-globs.schema.json",
+  "schemaVersion": 1,
+  "scopes": [
+    {
+      "id": "host-v2",
+      "executionRoot": "host",
+      "globs": ["src/application/**/*.ts", "src/domain/**/*.ts", "src/infrastructure/**/*.ts"]
+    },
+    {
+      "id": "generator-templates",
+      "executionRoot": "host",
+      "globs": ["src/templates/**/*.ts", "src/templates/**/*.tsx"]
+    },
+    {
+      "id": "generated-owned",
+      "executionRoot": "generated",
+      "globs": [
+        "apps/*/src/**/*.ts",
+        "apps/*/src/**/*.tsx",
+        "packages/*/src/**/*.ts",
+        "packages/*/src/**/*.tsx",
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "convex/**/*.ts"
+      ]
+    },
+    {
+      "id": "maintained-tests",
+      "executionRoot": "host",
+      "globs": ["tests/unit/**/*.ts", "tests/integration/**/*.ts"]
+    }
+  ],
+  "rules": {
+    "forbiddenAstNodes": ["TSAnyKeyword"],
+    "forbiddenSyntax": [
+      "nested-type-assertion",
+      "mixed-type-assertion-chain",
+      "ts-ignore",
+      "malformed-suppression"
+    ],
+    "suppressions": {
+      "tsIgnore": "forbidden",
+      "tsExpectError": {
+        "allowedScope": "type-negative-test",
+        "pattern": "@ts-expect-error TS####: <reason>",
+        "requiresAdjacentDiagnosticFixture": true
+      }
+    }
+  }
+}

@@ -10,11 +10,13 @@
 
 import { readdirSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { ExitCode, ConflictError } from "../lib/errors.js";
-import { projectConfigSchema } from "../lib/config.js";
+import { ExitCode, ConflictError, exitCodeName } from "../lib/errors.js";
 import { envelope, printJson } from "../lib/json.js";
 import { PROJECT_NAME_RE } from "../lib/interactive.js";
 import { runProjectInstall } from "./create/installer.js";
+import { resolveCreateConfig } from "./create/resolution.js";
+import { validateProjectName } from "./create/validation.js";
+import { publicGenerationPlan } from "../templates/default.js";
 import type { GlobalOptions } from "./types.js";
 
 /** Directories that never count as "existing content" when guarding init. */
@@ -30,55 +32,92 @@ function hasExistingContent(cwd: string): boolean {
 }
 
 export async function initCommand(args: string[], options: GlobalOptions): Promise<number> {
-  const start = Date.now();
-  const cwd = resolve(options.cwd ?? process.cwd());
+  const start = options.dryRun ? null : Date.now();
+  const durationMs = () => (start === null ? 0 : Date.now() - start);
+  const cwd = resolve(options.cwd);
 
   let name = args[0];
   if (!name) {
     const derived = basename(cwd);
     name = PROJECT_NAME_RE.test(derived) ? derived : "my-app";
   }
-  if (!PROJECT_NAME_RE.test(name)) {
-    throw new ConflictError(
-      `Invalid project name "${name}": must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens`,
-    );
-  }
+  validateProjectName(name);
 
   // Guard BEFORE generating: any real content (not just package.json) requires --force.
-  if (!options.force && hasExistingContent(cwd)) {
+  if (!options.dryRun && !options.force && hasExistingContent(cwd)) {
     throw new ConflictError(
       `Directory ${cwd} is not empty. Use --force to initialize anyway (existing files may be overwritten).`,
     );
   }
 
-  const config = projectConfigSchema.parse({
+  const resolution = resolveCreateConfig({
     name,
-    runtime: options.runtime ?? "bun",
-    version: "0.1.0",
-    generatedAt: new Date().toISOString(),
+    runtime: options.runtime,
     mode: options.mode ?? "monorepo",
     framework: options.framework ?? "nextjs",
     billing: options.billing ?? [],
-    features: (options.features ?? []).filter((f) => f !== "eve" && f !== "i18n"),
+    features: options.features ?? [],
     database: options.database ?? "postgres",
+    databaseWasExplicit: Array.isArray(options.rawDatabase)
+      ? options.rawDatabase.length > 0
+      : !!options.rawDatabase,
     apps: options.apps ?? ["web"],
-    preset: options.preset ?? "saas",
+    preset: options.preset,
     cache: options.cache ?? "none",
     deploy: options.deploy ?? "none",
-    auth: options.preset === "frontend" ? false : undefined,
-    api: options.preset === "frontend" ? false : undefined,
-    email: options.preset === "frontend" ? false : undefined,
-    analytics: options.preset === "frontend" ? false : undefined,
-    eve: options.withEve === true || (options.features ?? []).includes("eve" as never),
-    i18n: options.withI18n === true || (options.features ?? []).includes("i18n" as never),
-    pdf: options.withPdf === true,
-    messaging: options.withMessaging === true,
+    withAuth: options.withAuth,
+    withApi: options.withApi,
+    withEmail: options.withEmail,
+    withAnalytics: options.withAnalytics,
+    withEve: options.withEve,
+    withI18n: options.withI18n,
+    withPdf: options.withPdf,
+    withMessaging: options.withMessaging,
+    withStorage: options.withStorage,
+    withNotifications: options.withNotifications,
+    featureFlags: options.featureFlags,
+    withJobs: options.withJobs,
   });
+  if (!resolution.ok) {
+    const warning = resolution.message;
+    if (options.json) {
+      printJson(
+        envelope({
+          success: false,
+          exitCode: ExitCode.INVALID_ARGUMENTS,
+          error: {
+            message: warning,
+            code: exitCodeName(ExitCode.INVALID_ARGUMENTS),
+            details: {
+              reason: resolution.reason,
+              unsupportedSelections: resolution.unsupportedSelections,
+            },
+          },
+          data: {
+            warning,
+            incompatible: true,
+            reason: resolution.reason,
+            unsupportedSelections: resolution.unsupportedSelections,
+          },
+          command: "init",
+          durationMs: durationMs(),
+        }),
+      );
+    } else {
+      options.logger.error(warning);
+    }
+    return ExitCode.INVALID_ARGUMENTS;
+  }
+  const config = resolution.config;
+  const desiredConfig = resolution.desiredConfig;
+  const resolvedProjectConfig = resolution.resolvedConfig;
 
-  const { filesWritten, installFailed, isDryRun } = await runProjectInstall({
+  const { filesWritten, installFailed, isDryRun, plan } = await runProjectInstall({
     projectName: name,
     projectRoot: cwd,
     config,
+    desiredConfig,
+    resolvedConfig: resolvedProjectConfig,
     options,
     noInstall: options.noInstall,
   });
@@ -94,9 +133,21 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
           filesWritten,
           installFailed,
           dryRun: Boolean(isDryRun),
+          resolvedConfig: config,
+          resolvedProjectConfig,
+          configHash: plan.projectConfigHash,
+          planHash: plan.planHash,
+          ...(isDryRun ? { plan: publicGenerationPlan(plan) } : {}),
         },
+        error: installFailed
+          ? {
+              message:
+                "Project files were generated, but dependency installation or formatting failed",
+              code: exitCodeName(ExitCode.GENERATION_ERROR),
+            }
+          : undefined,
         command: "init",
-        durationMs: Date.now() - start,
+        durationMs: durationMs(),
       }),
     );
   } else {

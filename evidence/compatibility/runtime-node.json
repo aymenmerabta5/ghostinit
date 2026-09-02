@@ -1,0 +1,50 @@
+{
+  "$schema": "./runtime-node.schema.json",
+  "schemaVersion": 1,
+  "recordKind": "verification-contract",
+  "subject": "execution-runtime:node",
+  "nodeVersion": "24.19.0",
+  "entries": [
+    {
+      "id": "runtime.node.generated-matrix.v1",
+      "proofLevel": "generated-install-typecheck-lint-contract",
+      "tests": [
+        {
+          "path": "scripts/test-generated.ts",
+          "id": "next-monorepo-node"
+        },
+        {
+          "path": "tests/unit/generated-runtime-types.test.ts",
+          "id": "runtime.node.generated-matrix.v1"
+        }
+      ],
+      "scope": [
+        "The generated-project gate defines a Node monorepo corner that installs, formats, checks architecture, typechecks, and lints when executed.",
+        "Focused template generation covers both Bun and Node @repo/modules manifests and ambient type selections."
+      ],
+      "limitations": [
+        "This record maps committed verification contracts; it is not a captured gate result.",
+        "A current bun run test:generated -- --only next-monorepo-node result is required before claiming installed generated-project compatibility."
+      ],
+      "releaseGateClaim": false
+    },
+    {
+      "id": "runtime.node.packed-cli.v1",
+      "proofLevel": "packed-cli-no-install-contract",
+      "tests": [
+        {
+          "path": "tests/integration/packed-cli.test.ts",
+          "id": "runtime.node.packed-cli.v1"
+        }
+      ],
+      "scope": [
+        "The packed-CLI contract installs the exact Bun-packed tarball, generates Bun and Node monorepos with --no-install, and inspects the Node @repo/modules manifest and tsconfig."
+      ],
+      "limitations": [
+        "This record maps a committed packed-CLI test contract; it is not a captured gate result.",
+        "The packed-CLI contract does not install, typecheck, build, start, or exercise the generated application under Node."
+      ],
+      "releaseGateClaim": false
+    }
+  ]
+}

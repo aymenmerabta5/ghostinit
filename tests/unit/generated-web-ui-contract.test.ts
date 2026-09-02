@@ -11,7 +11,9 @@ const content = (files: Array<{ path: string; content: string }>, path: string):
 
 describe("shared web UI contracts", () => {
   test("Select is controlled Base UI composition", () => {
-    const source = content(webUiFiles(), "apps/web/src/components/ui/select.tsx");
+    const files = webUiFiles();
+    const source = content(files, "apps/web/src/components/ui/select.tsx");
+    const items = content(files, "apps/web/src/components/ui/select-items.tsx");
     expect(source).toContain('from "@base-ui/react/select"');
     expect(source).toContain("<BaseSelect.Root");
     expect(source).toContain("items={resolvedItems}");
@@ -20,8 +22,12 @@ describe("shared web UI contracts", () => {
     expect(source).toContain("disabled={disabled}");
     expect(source).toContain("BaseSelect.Positioner");
     expect(source).toContain("BaseSelect.List");
-    expect(source).toContain("export const SelectGroup");
+    expect(source).toContain('from "./select-items"');
+    expect(source).toContain("SelectGroup");
+    expect(items).toContain("export const SelectGroup");
+    expect(items).toContain("export function SelectItem");
     expect(source).not.toContain("<button");
+    expect(items).not.toContain("<button");
   });
 
   test("SelectField supplies items and groups item children", () => {
@@ -32,10 +38,27 @@ describe("shared web UI contracts", () => {
   });
 
   test("notification items format content and mark unread items from the click", () => {
-    const source = content(notificationsLibFiles(), "apps/web/src/components/NotificationBell.tsx");
-    expect(source).toContain("formatNotification(notification.type, notification.payload)");
-    expect(source).toContain("onClick={() => onMarkRead?.(notification.id)}");
-    expect(source).toContain("<PopoverTitle>Notifications</PopoverTitle>");
+    const files = notificationsLibFiles();
+    const source = content(files, "apps/web/src/components/NotificationBell.tsx");
+    const navigationSource = content(files, "apps/web/src/lib/notifications.ts");
+    const format = source.indexOf("formatNotification(notification.type, notification.payload)");
+    const destination = source.indexOf(
+      "getNotificationHref(notification.type, notification.payload)",
+    );
+    const markRead = source.indexOf(
+      "if (notification.readAt === null) await onMarkRead?.(notification.id);",
+    );
+    const navigate = source.indexOf("if (destination) onNavigate?.(destination.href);");
+    expect(format).toBeGreaterThanOrEqual(0);
+    expect(destination).toBeGreaterThan(format);
+    expect(markRead).toBeGreaterThan(destination);
+    expect(navigate).toBeGreaterThan(markRead);
+    expect(source.match(/onMarkRead\?\.\(notification\.id\)/g) ?? []).toHaveLength(1);
+    expect(source).toContain('aria-label={t("title")}');
+    expect(source).toContain('<PopoverTitle>{t("title")}</PopoverTitle>');
+    expect(navigationSource).toContain(
+      'const href = resolveNotificationDestination(rec.href ?? "/notifications")',
+    );
     expect(source).toContain("<Empty>");
     expect(source).not.toContain('<Bell className="size-5"');
   });

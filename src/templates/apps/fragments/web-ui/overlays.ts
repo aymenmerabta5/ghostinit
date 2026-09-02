@@ -101,13 +101,19 @@ export function sheetFiles(): TemplateFile[] {
 import * as React from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ChevronRight, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "../../lib/utils.js";
+import { useSurfaceTranslations } from "../../lib/translations.js";
 
 export const Sheet = BaseDialog.Root;
 export const SheetTrigger = BaseDialog.Trigger;
 export const SheetPortal = BaseDialog.Portal;
 export const SheetClose = BaseDialog.Close;
+
+function SheetCloseLabel(): React.JSX.Element {
+  const t = useSurfaceTranslations("common");
+  return <span className="sr-only">{t("close")}</span>;
+}
 
 export const SheetOverlay = React.forwardRef<
   HTMLDivElement,
@@ -132,12 +138,12 @@ const sheetVariants = cva(
       side: {
         top: "inset-x-0 top-0 border-b data-[closed]:slide-out-to-top data-[open]:slide-in-from-top",
         bottom: "inset-x-0 bottom-0 border-t data-[closed]:slide-out-to-bottom data-[open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r data-[closed]:slide-out-to-left data-[open]:slide-in-from-left sm:max-w-sm",
-        right: "inset-y-0 right-0 h-full w-3/4 border-l data-[closed]:slide-out-to-right data-[open]:slide-in-from-right sm:max-w-sm",
+        start: "inset-y-0 start-0 h-full w-3/4 border-e data-[closed]:slide-out-to-left data-[open]:slide-in-from-left rtl:data-[closed]:slide-out-to-right rtl:data-[open]:slide-in-from-right sm:max-w-sm",
+        end: "inset-y-0 end-0 h-full w-3/4 border-s data-[closed]:slide-out-to-right data-[open]:slide-in-from-right rtl:data-[closed]:slide-out-to-left rtl:data-[open]:slide-in-from-left sm:max-w-sm",
       },
     },
     defaultVariants: {
-      side: "right",
+      side: "end",
     },
   },
 );
@@ -149,7 +155,7 @@ export interface SheetContentProps
 }
 
 export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
-  ({ side = "right", className, children, showCloseButton = true, ...props }, ref) => (
+  ({ side = "end", className, children, showCloseButton = true, ...props }, ref) => (
     <BaseDialog.Portal>
       <SheetOverlay />
       <BaseDialog.Popup ref={ref} data-slot="sheet-content" className={cn(sheetVariants({ side }), className)} {...props}>
@@ -157,10 +163,10 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
         {showCloseButton && (
           <BaseDialog.Close
             data-slot="sheet-close"
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+            className="absolute end-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
           >
             <X aria-hidden />
-            <span className="sr-only">Close</span>
+            <SheetCloseLabel />
           </BaseDialog.Close>
         )}
       </BaseDialog.Popup>
@@ -170,7 +176,7 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
 SheetContent.displayName = "SheetContent";
 
 export const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div data-slot="sheet-header" className={cn("flex flex-col gap-2 text-center sm:text-left", className)} {...props} />
+  <div data-slot="sheet-header" className={cn("flex flex-col gap-2 text-center sm:text-start", className)} {...props} />
 );
 SheetHeader.displayName = "SheetHeader";
 
@@ -201,12 +207,15 @@ SheetDescription.displayName = "SheetDescription";
       `"use client";
 
 import * as React from "react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "../../lib/utils.js";
+import { useSurfaceTranslations } from "../../lib/translations.js";
 
 export const Breadcrumb = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<"nav"> & { separator?: React.ReactNode }>(
-  ({ className, ...props }, ref) => (
-    <nav ref={ref} aria-label="breadcrumb" data-slot="breadcrumb" className={cn("", className)} {...props} />
-  ),
+  function Breadcrumb({ className, ...props }, ref) {
+    const t = useSurfaceTranslations("common");
+    return <nav ref={ref} aria-label={t("breadcrumb")} data-slot="breadcrumb" className={cn("", className)} {...props} />;
+  },
 );
 Breadcrumb.displayName = "Breadcrumb";
 
@@ -253,7 +262,7 @@ BreadcrumbPage.displayName = "BreadcrumbPage";
 
 export const BreadcrumbSeparator = ({ children, className, ...props }: React.HTMLAttributes<HTMLLIElement>) => (
   <li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true" className={className} {...props}>
-    {children ?? <ChevronRight aria-hidden />}
+    {children ?? <ChevronRight className="rtl:rotate-180" aria-hidden />}
   </li>
 );
 BreadcrumbSeparator.displayName = "BreadcrumbSeparator";

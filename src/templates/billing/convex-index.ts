@@ -44,24 +44,23 @@ import type {
   BillingProviderRegistry,
 } from "./providers/interface.js";
 
-let registryCache: BillingProviderRegistry | null = null;
+type BillingProviderLoader = () => Promise<BillingProviderFactory>;
 
-function capitalizeProvider(name: string): string {
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
+const billingProviderLoaders: Partial<Record<BillingProviderName, BillingProviderLoader>> = {
+  stripe: async () => (await import("./providers/stripe")).createStripeProvider,
+  chargily: async () => (await import("./providers/chargily")).createChargilyProvider,
+  paddle: async () => (await import("./providers/paddle")).createPaddleProvider,
+  polar: async () => (await import("./providers/polar")).createPolarProvider,
+};
+
+let registryCache: BillingProviderRegistry | null = null;
 
 export async function loadBillingRegistry(): Promise<BillingProviderRegistry> {
   if (registryCache) return registryCache;
   const registry: BillingProviderRegistry = {};
   for (const provider of BILLING_PROVIDER_NAMES) {
-    try {
-      const providerModule = await import(\`./providers/\${provider}.js\`);
-      const factoryKey = \`create\${capitalizeProvider(provider)}Provider\`;
-      const factory = providerModule[factoryKey] as BillingProviderFactory | undefined;
-      if (factory) registry[provider] = factory;
-    } catch {
-      // An unselected optional provider has no emitted module.
-    }
+    const loadProvider = billingProviderLoaders[provider];
+    if (loadProvider) registry[provider] = await loadProvider();
   }
   registryCache = registry;
   return registry;

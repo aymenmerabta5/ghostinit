@@ -13,76 +13,39 @@ import {
   versionBadgesTanstack,
 } from "./shared.js";
 
-export function marketingHeaderFragment(router: RouterType): string {
-  const githubStars = `<a href="https://github.com/aymenmerabta5/ghostinit" target="_blank" rel="noreferrer" className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><span className="font-mono">★</span> GitHub</a>`;
-  if (router === "tanstack") {
-    return `      <header className="sticky top-0 z-40 w-full border-b bg-background">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight">GhostInit</span>
-            <Badge variant="secondary" className="hidden sm:inline-flex">control plane</Badge>
-          </Link>
-          <div className="flex items-center gap-2">
-            ${githubStars}
-            <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/sign-in">Sign in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/sign-up">Sign up</Link>
-            </Button>
-          </div>
-        </div>
-      </header>`;
-  }
-  return `      <header className="sticky top-0 z-40 w-full border-b bg-background">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight">GhostInit</span>
-            <Badge variant="secondary" className="hidden sm:inline-flex">control plane</Badge>
-          </Link>
-          <div className="flex items-center gap-2">
-            ${githubStars}
-            <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/sign-up">Sign up</Link>
-            </Button>
-          </div>
-        </div>
-      </header>`;
+export function marketingHeaderFragment(_router: RouterType): string {
+  // Kept as a compatibility export. The application-wide Header owns navigation.
+  return "";
 }
 
 export function marketingHeroFragment(router: RouterType): string {
   const desc = router === "next" ? sharedHeroDescNext : sharedHeroDescTanStack;
-  const badgeExtra = router === "tanstack" ? " • TanStack Start" : "";
+  const eyebrowKey = router === "tanstack" ? "hero.eyebrowTanstack" : "hero.eyebrow";
   const ctas =
     router === "next"
       ? `          <div className="flex flex-wrap gap-3">
-            <Button size="lg" asChild>
-              <Link href="/sign-up">Start building</Link>
+            <Button size="lg" render={<Link href="/sign-up" />} nativeButton={false} aria-label={t("hero.primaryCta")}>
+              {t("hero.primaryCta")}
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="https://github.com/ghostinit/ghostinit">View source</Link>
+            <Button size="lg" variant="outline" render={<a href="https://github.com/ghostinit/ghostinit" target="_blank" rel="noreferrer" />} nativeButton={false} aria-label={t("hero.secondaryCta")}>
+              {t("hero.secondaryCta")}
             </Button>
           </div>`
       : `          <div className="flex flex-wrap gap-3">
-            <Button size="lg" asChild>
-              <Link to="/sign-up">Start building</Link>
+            <Button size="lg" render={<Link to="/sign-up" />} nativeButton={false} aria-label={t("hero.primaryCta")}>
+              {t("hero.primaryCta")}
             </Button>
-            <Button size="lg" variant="outline" asChild>
-              <a href="https://github.com/ghostinit/ghostinit" target="_blank" rel="noreferrer">View source</a>
+            <Button size="lg" variant="outline" render={<a href="https://github.com/ghostinit/ghostinit" target="_blank" rel="noreferrer" />} nativeButton={false} aria-label={t("hero.secondaryCta")}>
+              {t("hero.secondaryCta")}
             </Button>
           </div>`;
 
   const versionBadges = router === "next" ? versionBadgesNext() : versionBadgesTanstack();
 
   return `        <section className="flex flex-col gap-8 pt-8 md:pt-16">
-          <Badge variant="secondary" className="w-fit font-mono text-xs">Bun only • oRPC • Better Auth${badgeExtra}</Badge>
+          <Badge variant="secondary" className="w-fit font-mono text-xs">{t("${eyebrowKey}")}</Badge>
           <div className="flex flex-col gap-4">
-            <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl lg:text-[3.75rem]">
+            <h1 className="max-w-[18ch] text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl lg:text-[3.75rem]">
               ${sharedHeroTitle}
             </h1>
             <p className="max-w-[60ch] text-lg text-muted-foreground leading-relaxed">
@@ -93,13 +56,13 @@ ${ctas}
           <div className="rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center gap-2 border-b bg-muted/50 px-4 py-2">
               <div className="flex gap-1.5"><span className="size-3 rounded-full bg-red-500/80" /><span className="size-3 rounded-full bg-yellow-500/80" /><span className="size-3 rounded-full bg-green-500/80" /></div>
-              <span className="ml-2 font-mono text-xs text-muted-foreground">~/code — zsh</span>
+              <span className="ms-2 font-mono text-xs text-muted-foreground">{t("hero.terminalTitle")}</span>
             </div>
             <div className="p-4 font-mono text-sm leading-relaxed">
               <div className="text-muted-foreground">$ bunx ghostinit create my-app --billing stripe,chargily</div>
-              <div className="text-foreground">✓ Scaffolded my-app in 1.2s — 216 files, 0 drift</div>
+              <div className="text-foreground">✓ {t("hero.terminalScaffolded", { project: "my-app", duration: "1.2s", count: 216 })}</div>
               <div className="text-muted-foreground">$ cd my-app && bun install && bun run dev</div>
-              <div className="text-foreground">✓ Ready on http://localhost:3000 — <span className="text-primary">ghostinit check</span> passed</div>
+              <div className="text-foreground">✓ {t("hero.terminalReady", { url: "http://localhost:3000" })}</div>
             </div>
           </div>
 ${versionBadges}
@@ -127,12 +90,12 @@ export function marketingQuickStartFragment(router: RouterType): string {
 
   const desc =
     router === "next"
-      ? `Bun only. No npm fallback. Secret strength validation length 32+`
-      : `Bun only. TanStack Start uses vite dev.`;
+      ? `{t("quickStart.descriptionNext")}`
+      : `{t("quickStart.descriptionTanstack")}`;
 
   return `        <section className="flex flex-col gap-6 rounded-lg border bg-card p-6 md:p-8">
           <div className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold tracking-tight">Quick start</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{t("quickStart.title")}</h2>
             <p className="text-sm text-muted-foreground max-w-[65ch]">${desc}</p>
           </div>
           <div className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed">
@@ -141,17 +104,20 @@ ${cmd}
         </section>`;
 }
 
-export function marketingFooterFragment(router: RouterType): string {
+export function marketingFooterFragment(router: RouterType, hasBilling = true): string {
+  const billingLink = hasBilling
+    ? `              <Link href="/billing" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">{t("footer.billing")}</Link>`
+    : "";
   const links =
     router === "next"
-      ? `              <Link href="/sign-in" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Sign in</Link>
-              <Link href="/billing" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Billing</Link>`
-      : `              <Link to="/sign-in" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Sign in</Link>
-              <Link to="/dashboard" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">Dashboard</Link>`;
+      ? `              <Link href="/sign-in" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">{t("footer.signIn")}</Link>
+${billingLink}`
+      : `              <Link to="/sign-in" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">{t("footer.signIn")}</Link>
+              <Link to="/dashboard" className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">{t("footer.dashboard")}</Link>`;
 
   return `        <footer className="flex flex-col gap-4 border-t pt-8">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">Built with shadcn + Base UI + Tailwind v4 • OKLCH paper + indigo ≤10%</span>
+            <span className="text-xs text-muted-foreground">{t("footer.tagline")}</span>
             <div className="flex gap-4 text-xs">
 ${links}
             </div>

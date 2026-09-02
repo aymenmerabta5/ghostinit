@@ -70,6 +70,27 @@ const INDEPENDENT_CAPABILITY_MATRIX = (["monorepo", "single"] as const).flatMap(
   ),
 );
 
+const INTERNAL_JOBS_MATRIX = (["monorepo", "single"] as const).flatMap((mode) =>
+  (["postgres", "convex"] as const).map((database) => ({
+    key: `${mode}/${database}/internal-jobs`,
+    config: projectConfigSchema.parse({
+      name: "demo",
+      mode,
+      framework: "nextjs",
+      database,
+      preset: "custom",
+      auth: false,
+      api: false,
+      jobs: true,
+      jobsUserFacingApi: false,
+      email: false,
+      analytics: false,
+      billing: [],
+      apps: ["web"],
+    }),
+  })),
+);
+
 const packageName = (specifier: string): string =>
   specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
@@ -144,7 +165,7 @@ function findUndeclaredImports(files: TemplateFile[]): string[] {
         continue;
       }
       const dependency = packageName(specifier);
-      if (!owner.declarations.has(dependency)) {
+      if (dependency !== owner.name && !owner.declarations.has(dependency)) {
         missing.add(`${owner.name} :: ${file.path} -> ${dependency}`);
       }
     }
@@ -164,20 +185,26 @@ describe("generated package ownership", () => {
       "adminClient({ ac, roles })",
     );
     expect(files.find(({ path }) => path === "packages/auth/src/index.ts")?.content).toContain(
-      'export { auth, type Auth } from "./server"',
+      'export { auth, getRequestUser, type Auth } from "./server"',
     );
-    expect(
-      files.find(({ path }) => path === "apps/web/src/components/admin-guard.tsx")?.content,
-    ).toContain('import { isAdminRole } from "@repo/auth/access"');
-    expect(
-      files.find(({ path }) => path === "apps/web/src/app/admin/layout.tsx")?.content,
-    ).toContain('if (!isAdminRole(session?.user?.role)) redirect("/")');
+    expect(files.some(({ path }) => path === "apps/web/src/components/admin-guard.tsx")).toBe(
+      false,
+    );
+    const adminLayout =
+      files.find(({ path }) => path === "apps/web/src/app/admin/layout.tsx")?.content ?? "";
+    expect(adminLayout).toContain('import { isAdminRole } from "@repo/auth/access"');
+    expect(adminLayout).toContain(
+      'if (!session?.user || !isAdminRole(session.user.role) || session.user.banned === true) redirect("/")',
+    );
   });
 
   test("every maintained import is declared by its nearest root or workspace owner", () => {
-    const problems = [...CLOSURE_MATRIX, ...INDEPENDENT_CAPABILITY_MATRIX].flatMap(
-      ({ key, config }) =>
-        findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
+    const problems = [
+      ...CLOSURE_MATRIX,
+      ...INDEPENDENT_CAPABILITY_MATRIX,
+      ...INTERNAL_JOBS_MATRIX,
+    ].flatMap(({ key, config }) =>
+      findUndeclaredImports(generateProjectFiles(config)).map((problem) => `${key}: ${problem}`),
     );
     expect(problems).toEqual([]);
   });
@@ -193,8 +220,10 @@ describe("generated package ownership", () => {
         billing: [],
         apps: ["web"],
       }),
-    ).filter(({ path }) => path !== "src/lib/env.ts");
-    expect(findUndeclaredImports(files)).toContain("demo :: src/lib/feature-flags.ts -> @/lib/env");
+    ).filter(({ path }) => path !== "src/lib/env/server.ts");
+    expect(findUndeclaredImports(files)).toContain(
+      "demo :: src/lib/feature-flags.ts -> @/lib/env/server",
+    );
   });
 
   test("single mode has only its flat root package boundary", () => {
@@ -211,16 +240,22 @@ describe("generated package ownership", () => {
     }
   });
 
-  test("API and billing selections derive their required auth and API packages", () => {
+  test("transport stays authless while billing derives both auth and API packages", () => {
     for (const { key, config } of INDEPENDENT_CAPABILITY_MATRIX) {
-      const paths = generateProjectFiles(config).map(({ path }) => path);
+      const generated = generateProjectFiles(config);
+      const paths = generated.map(({ path }) => path);
+      const expectsAuth = config.billing.length > 0;
       if (config.mode === "monorepo") {
-        expect(paths, key).toContain("packages/auth/package.json");
         expect(paths, key).toContain("packages/api/package.json");
+        expect(paths.includes("packages/auth/package.json"), key).toBe(expectsAuth);
       } else {
-        expect(paths, key).toContain("src/server/auth/index.ts");
         expect(paths, key).toContain("src/server/api/index.ts");
+        expect(paths.includes("src/server/auth/index.ts"), key).toBe(expectsAuth);
       }
+      const proxy = generated.find(
+        ({ path }) => path.endsWith("/proxy.ts") || path === "src/proxy.ts",
+      );
+      if (!expectsAuth) expect(proxy?.content ?? "", key).not.toContain("better-auth");
     }
   });
 
@@ -237,8 +272,7 @@ describe("generated package ownership", () => {
     );
     const server = files.find(({ path }) => path === "src/server/auth/index.ts")?.content ?? "";
     const client = files.find(({ path }) => path === "src/lib/auth-client.ts")?.content ?? "";
-    const guard =
-      files.find(({ path }) => path === "src/components/admin-guard.tsx")?.content ?? "";
+    const guard = files.find(({ path }) => path === "src/app/admin/layout.tsx")?.content ?? "";
     expect(server).toContain("admin()");
     expect(client).toContain("adminClient()");
     expect(server).not.toContain("adminRoles");
@@ -247,7 +281,7 @@ describe("generated package ownership", () => {
     expect(guard).not.toContain("@repo/auth/access");
   });
 
-  test("Convex server and client use the mode-specific access contract", () => {
+  test("Convex auth rejects plugins absent from the stock component schema", () => {
     const monorepoFiles = generateProjectFiles(
       projectConfigSchema.parse({
         name: "demo",
@@ -262,9 +296,15 @@ describe("generated package ownership", () => {
       monorepoFiles.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
     const monorepoClient =
       monorepoFiles.find(({ path }) => path === "packages/auth/src/client.ts")?.content ?? "";
-    expect(monorepoServer).toContain('import { ac, roles } from "@repo/auth/access"');
-    expect(monorepoServer).toContain('admin({ ac, roles, adminRoles: ["admin", "superAdmin"] })');
-    expect(monorepoClient).toContain("adminClient({ ac, roles })");
+    expect(monorepoServer).toContain('selectedIdentityPlugins = ["two-factor"]');
+    expect(monorepoServer).toContain(
+      'rejectedIdentityPlugins = ["admin", "passkey", "organization"]',
+    );
+    expect(monorepoServer).toContain("accountLockout: { enabled: false }");
+    expect(monorepoServer).not.toContain("@repo/auth/access");
+    expect(monorepoServer).not.toContain("admin({");
+    expect(monorepoClient).not.toContain("adminClient");
+    expect(monorepoClient).not.toContain("organizationClient");
 
     const singleConfigurations = [
       { framework: "nextjs" as const, apps: ["web"] as const },
@@ -285,11 +325,12 @@ describe("generated package ownership", () => {
       );
       const server = files.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
       const client = files.find(({ path }) => path === "src/lib/auth-client.ts")?.content ?? "";
-      expect(server).toContain("admin()");
-      expect(server).not.toContain("adminRoles");
+      expect(server).toContain('selectedIdentityPlugins = ["two-factor"]');
+      expect(server).toContain("accountLockout: { enabled: false }");
+      expect(server).not.toContain("admin({");
       expect(server).not.toContain("@repo/auth/access");
-      expect(client).toContain("adminClient()");
-      expect(client).not.toContain("{ ac, roles }");
+      expect(client).not.toContain("adminClient");
+      expect(client).not.toContain("organizationClient");
     }
   });
 
@@ -320,7 +361,7 @@ describe("generated package ownership", () => {
     }
   });
 
-  test("Convex subscription routes use the mode-correct adapter without Drizzle leakage", () => {
+  test("Convex subscription routes delegate to the authenticated request facade without Drizzle leakage", () => {
     for (const mode of ["monorepo", "single"] as const) {
       for (const framework of ["nextjs", "tanstack-start"] as const) {
         const files = generateProjectFiles(
@@ -334,16 +375,24 @@ describe("generated package ownership", () => {
             apps: ["web"],
           }),
         );
-        const prefix = mode === "monorepo" ? "apps/web/" : "";
-        const routePath =
-          framework === "nextjs"
-            ? `${prefix}src/app/api/billing/subscriptions/route.ts`
-            : `${prefix}src/routes/api/billing/subscriptions.ts`;
-        const route = files.find(({ path }) => path === routePath)?.content ?? "";
-        expect(route, `${mode}/${framework}`).toContain("billingConvex.listSubscriptions(user.id)");
-        expect(route).not.toContain("drizzle-orm");
-        expect(route).not.toContain("db.select");
-        expect(route).not.toContain("schema/billing");
+        const procedurePath =
+          mode === "monorepo"
+            ? "packages/api/src/procedures/billing/subscriptions.ts"
+            : "src/server/api/procedures/billing/subscriptions.ts";
+        const procedure = files.find(({ path }) => path === procedurePath)?.content ?? "";
+        expect(procedure, `${mode}/${framework}`).toContain(
+          "context.application.billing.subscriptions()",
+        );
+        expect(procedure).not.toContain("drizzle-orm");
+        expect(procedure).not.toContain("db.select");
+        expect(procedure).not.toContain("schema/billing");
+        expect(
+          files.some(({ path }) =>
+            /(?:app|routes)\/api\/billing\/(?:subscriptions|checkout|portal|payment-link)(?:\/route)?\.ts$/.test(
+              path,
+            ),
+          ),
+        ).toBe(false);
 
         const webManifestPath = mode === "monorepo" ? "apps/web/package.json" : "package.json";
         const manifest = JSON.parse(
@@ -359,7 +408,7 @@ describe("generated package ownership", () => {
     }
   });
 
-  test("Convex subscription adapters send pagination args and return only the page", async () => {
+  test("Convex subscription reads use the authenticated query wrapper and server mutations use the trusted action", () => {
     for (const mode of ["monorepo", "single"] as const) {
       for (const framework of ["nextjs", "tanstack-start"] as const) {
         const files = generateProjectFiles(
@@ -377,42 +426,26 @@ describe("generated package ownership", () => {
           mode === "monorepo"
             ? "packages/billing/src/adapters/convex.ts"
             : "src/server/billing/adapters/convex.ts";
-        const source = files.find(({ path }) => path === adapterPath)?.content ?? "";
-        const body = source
-          .replace(/^import .*;$/gm, "")
-          .replace("export const billingConvex =", "const billingConvex =")
-          .replace(/^export type .*;$/gm, "");
-        const transpiler = new Bun.Transpiler({ loader: "ts" });
-        const executable = transpiler.transformSync(
-          `function createAdapter(convexClient: unknown, api: unknown) {${body}; return billingConvex;}`,
-        );
-        const createAdapter = new Function(`${executable}; return createAdapter;`)() as (
-          convexClient: { query: (query: unknown, args: unknown) => Promise<unknown> },
-          api: { billing: { listSubscriptions: symbol } },
-        ) => { listSubscriptions: (userId: string) => Promise<Array<{ id: string }>> };
-        const calls: unknown[] = [];
-        const query = Symbol("listSubscriptions");
-        const adapter = createAdapter(
-          {
-            query: async (queryRef, args) => {
-              calls.push({ queryRef, args });
-              return { page: [{ id: "sub_1" }], isDone: true, continueCursor: "" };
-            },
-          },
-          { billing: { listSubscriptions: query } },
-        );
+        const adapter = files.find(({ path }) => path === adapterPath)?.content ?? "";
+        const servicePath =
+          mode === "monorepo"
+            ? "packages/services/src/billing/list-subscriptions.service.ts"
+            : "src/server/services/billing/list-subscriptions.service.ts";
+        const service = files.find(({ path }) => path === servicePath)?.content ?? "";
+        const snapshotRepositoryPath =
+          mode === "monorepo"
+            ? "packages/services/src/billing/billing-snapshot.repository.ts"
+            : "src/server/services/billing/billing-snapshot.repository.ts";
+        const snapshotRepository =
+          files.find(({ path }) => path === snapshotRepositoryPath)?.content ?? "";
 
-        await expect(adapter.listSubscriptions("user_1")).resolves.toEqual([{ id: "sub_1" }]);
-        expect(calls).toEqual([
-          {
-            queryRef: query,
-            args: {
-              paginationOpts: { numItems: 100, cursor: null },
-              userId: "user_1",
-            },
-          },
-        ]);
-        expect(source).not.toContain("as unknown as");
+        expect(service).toContain("repository.findSnapshot(userId)");
+        expect(snapshotRepository).toContain("fetchAuthQuery(api.billing.getBillingSnapshot, {})");
+        expect(service).not.toContain("paginationOpts:");
+        expect(service).not.toContain("userId,");
+        expect(adapter).toContain("convexClient.action(api.billingServer.mutate");
+        expect(adapter).toContain("trustedServerToken()");
+        expect(adapter).not.toContain("convexClient.mutation(api.billing");
       }
     }
   });

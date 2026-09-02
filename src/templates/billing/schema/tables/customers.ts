@@ -15,7 +15,7 @@ export const customers = pgTable(
   "billing_customers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id").notNull(),
+    userId: text("user_id").notNull(),
     provider: billingProviderEnum("provider").notNull(),
     providerCustomerId: text("provider_customer_id").notNull(),
     email: varchar("email", { length: 255 }),

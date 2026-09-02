@@ -13,6 +13,27 @@ function isRuntime(v: unknown): v is Runtime {
   return v === "node" || v === "bun";
 }
 
+function isAddonInstaller(value: unknown): value is { inUse: boolean } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "inUse" in value &&
+    typeof value.inUse === "boolean"
+  );
+}
+
+function normalizeAddonMap(record: Record<string, unknown>): AddonInstallerMap {
+  const normalized: Record<string, { inUse: boolean }> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (typeof value === "boolean") {
+      normalized[key] = { inUse: value };
+    } else if (isAddonInstaller(value)) {
+      normalized[key] = { inUse: value.inUse };
+    }
+  }
+  return normalized as AddonInstallerMap;
+}
+
 export function resolveI18nParams(
   a?: unknown,
   b?: unknown,
@@ -66,7 +87,7 @@ export function resolveI18nParams(
         );
         if (looksLikeAddonMap || hasFrameworkOrFeatureKeys) {
           if (!obj.mode && !obj.runtime && !obj.framework && !obj.addons && !obj.addonRegistry) {
-            addons = obj as unknown as AddonInstallerMap;
+            addons = normalizeAddonMap(obj);
           }
         }
       }

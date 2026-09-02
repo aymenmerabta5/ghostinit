@@ -2,14 +2,19 @@
  * Expo header + sign-out fragments - RNR + Uniwind className, no StyleSheet, no hardcoded hex
  */
 
-export function expoHeaderContent(): string {
+export function expoHeaderContent(hasI18n = false, hasEve = false, hasPdf = false): string {
+  const i18nImport = hasI18n ? 'import { LocaleSwitcher, useTranslations } from "@/lib/i18n";' : "";
+  const i18nHook = hasI18n ? '  const t = useTranslations("header");\n' : "";
+  const label = (key: string, fallback: string): string => (hasI18n ? `{t("${key}")}` : fallback);
   return `import * as React from "react";
-import { View, Pressable } from "react-native";
+import { ScrollView, View } from "react-native";
 import { useRouter, Link } from "expo-router";
 import { authClient } from "@/lib/auth-client";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+${i18nImport}
 
 function getInitials(name?: string | null, email?: string | null): string {
   if (name) {
@@ -22,59 +27,63 @@ function getInitials(name?: string | null, email?: string | null): string {
 }
 
 export function Header(): React.JSX.Element {
-  const router = useRouter();
+${i18nHook}  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const user = session?.user;
   const isAuthed = !!user;
   const initials = getInitials(user?.name, user?.email);
 
   return (
-    <View className="border-b border-border bg-background/95">
-      <View className="flex-row items-center justify-between px-5 h-14">
+    <View className="border-b border-border bg-background">
+      <View className="min-h-14 flex-row items-center justify-between px-4">
         <View className="flex-row items-center gap-3">
           <Link href="/" asChild>
-            <Pressable><Text className="text-sm font-bold tracking-tight">GhostInit</Text></Pressable>
+            <Button variant="ghost" size="sm" accessibilityLabel={${hasI18n ? 't("home")' : '"GhostInit home"'}}><Text className="text-sm font-bold tracking-tight">${label("productName", "GhostInit")}</Text></Button>
           </Link>
-          <Badge><Text className="text-[10px]">mobile</Text></Badge>
-          {isAuthed ? (
-            <View className="flex-row gap-2 ml-2">
-              <Link href="/dashboard" asChild><Button variant="ghost" size="sm"><Text>Dashboard</Text></Button></Link>
-              <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>Billing</Text></Button></Link>
-              <Link href="/settings" asChild><Button variant="ghost" size="sm"><Text>Settings</Text></Button></Link>
-            </View>
-          ) : null}
+          <Badge><Text className="text-[10px]">${label("productBadge", "mobile")}</Text></Badge>
         </View>
         <View className="flex-row items-center gap-2">
+          ${hasI18n ? "<LocaleSwitcher />" : ""}
           {isPending ? (
-            <View className="w-8 h-8 rounded-full bg-muted" />
+            <Skeleton accessibilityLabel={${hasI18n ? 't("userMenu")' : '"Loading account"'}} className="size-11 rounded-full" />
           ) : isAuthed ? (
-            <Pressable onPress={() => router.push("/settings")} className="w-8 h-8 rounded-full bg-foreground items-center justify-center">
-              <Text className="text-background text-[11px] font-bold">{initials}</Text>
-            </Pressable>
+            <Button size="icon" variant="secondary" accessibilityLabel={${hasI18n ? 't("userMenu")' : '"Open account settings"'}} onPress={() => router.push("/settings")}><Text className="text-[11px] font-bold">{initials}</Text></Button>
           ) : (
             <View className="flex-row gap-2">
-              <Link href="/sign-in" asChild><Button variant="outline" size="sm"><Text>Sign in</Text></Button></Link>
-              <Link href="/sign-up" asChild><Button size="sm"><Text>Sign up</Text></Button></Link>
+              <Link href="/sign-in" asChild><Button variant="outline" size="sm"><Text>${label("signIn", "Sign in")}</Text></Button></Link>
+              <Link href="/sign-up" asChild><Button size="sm"><Text>${label("signUp", "Sign up")}</Text></Button></Link>
             </View>
           )}
         </View>
       </View>
+      {isAuthed ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1 px-4 pb-2">
+          <Link href="/dashboard" asChild><Button variant="ghost" size="sm"><Text>${label("dashboard", "Dashboard")}</Text></Button></Link>
+          ${hasEve ? `<Link href="/agent" asChild><Button variant="ghost" size="sm"><Text>${label("agent", "Agent")}</Text></Button></Link>` : ""}
+          ${hasPdf ? `<Link href="/pdf" asChild><Button variant="ghost" size="sm"><Text>${label("pdf", "PDF")}</Text></Button></Link>` : ""}
+          <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>${label("billing", "Billing")}</Text></Button></Link>
+          <Link href="/settings" asChild><Button variant="ghost" size="sm"><Text>${label("settings", "Settings")}</Text></Button></Link>
+        </ScrollView>
+      ) : null}
     </View>
   );
 }
 `;
 }
 
-export function expoSignOutButtonContent(): string {
+export function expoSignOutButtonContent(hasI18n = false): string {
+  const i18nImport = hasI18n ? 'import { useTranslations } from "@/lib/i18n";' : "";
+  const i18nHook = hasI18n ? '  const t = useTranslations("navigation");\n' : "";
+  const label = hasI18n ? 't("signOut")' : '"Sign out"';
   return `import * as React from "react";
-import { Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
-import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+${i18nImport}
 
 export function SignOutButton(): React.JSX.Element {
-  const router = useRouter();
+${i18nHook}  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleSignOut(): Promise<void> {
@@ -82,11 +91,7 @@ export function SignOutButton(): React.JSX.Element {
     try { await authClient.signOut(); } finally { setPending(false); router.replace("/"); }
   }
 
-  return (
-    <Pressable onPress={handleSignOut} disabled={pending} className="border border-border rounded-lg h-9 px-3 items-center justify-center bg-background">
-      {pending ? <ActivityIndicator size="small" /> : <Text className="text-[13px] font-semibold">Sign out</Text>}
-    </Pressable>
-  );
+  return <Button size="sm" variant="outline" accessibilityLabel={${label}} isLoading={pending} onPress={handleSignOut} disabled={pending}>{${label}}</Button>;
 }
 `;
 }

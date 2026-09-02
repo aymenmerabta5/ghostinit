@@ -6,13 +6,20 @@ import { analyzeProject } from "../../src/lib/architecture";
 
 describe("architecture checker", () => {
   it("returns no findings for an empty project", async () => {
-    const findings = await analyzeProject("/dev/null/nonexistent");
-    expect(findings).toEqual([]);
+    const empty = mkdtempSync(join(tmpdir(), "ghostinit-architecture-empty-"));
+    try {
+      const findings = await analyzeProject(empty);
+      expect(findings).toEqual([]);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
   });
 
-  it("returns empty findings for a non-existent path", async () => {
-    const findings = await analyzeProject("/nonexistent/path");
-    expect(findings).toEqual([]);
+  it("fails closed for a non-existent project root", async () => {
+    const findings = await analyzeProject(join(tmpdir(), "ghostinit-does-not-exist", "nested"));
+    expect(findings).toContainEqual(
+      expect.objectContaining({ id: "project-root-unavailable", severity: "BLOCKER" }),
+    );
   });
 });
 
@@ -64,6 +71,10 @@ describe("architecture checker fixtures", () => {
     fixture(
       "apps/web/src/app/sign-in/page.tsx",
       `import { SignInForm } from "../../components/SignInForm";\nexport default function Page() { return <SignInForm />; }`,
+    );
+    fixture(
+      "apps/web/src/components/SignInForm.tsx",
+      `export function SignInForm() { return <form />; }`,
     );
     fixture(
       "apps/web/src/index.jsx",
@@ -349,8 +360,41 @@ describe("architecture checker fixtures", () => {
     expect(layered).toEqual([]);
   });
 
+  it("keeps WebSocket authentication and API context inside the transport boundary", async () => {
+    webPkg({ "@repo/api": "workspace:*" });
+    pkg("api");
+    fixture(
+      "apps/web/tsconfig.json",
+      JSON.stringify({
+        compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } },
+      }),
+    );
+    fixture(
+      "apps/web/src/server/transport/websocket-auth.ts",
+      'import { createContext } from "@repo/api";\nexport const trustedWebSocketOrigin = createContext;\n',
+    );
+    fixture(
+      "packages/api/src/index.ts",
+      "export function createContext(): boolean { return true; }\n",
+    );
+    fixture(
+      "apps/web/src/app/api/ws/route.ts",
+      'import { trustedWebSocketOrigin } from "@/server/transport/websocket-auth";\nexport const GET = trustedWebSocketOrigin;\n',
+    );
+
+    const findings = await analyzeProject(root);
+    expect(
+      findings.filter(
+        (finding) =>
+          finding.id === "layered-dependency-violation" &&
+          finding.file === "apps/web/src/app/api/ws/route.ts",
+      ),
+    ).toEqual([]);
+    expect(findings.filter((finding) => finding.id === "unresolved-owned-import")).toEqual([]);
+  });
+
   it("detects vendor direct import from UI - stripe should flag vendor-isolation", async () => {
-    webPkg({ stripe: "^19.1.0", react: "^18" });
+    webPkg({ stripe: "22.5.0", react: "^18" });
     fixture(
       "apps/web/src/components/Payment.tsx",
       `import Stripe from "stripe";\nexport function Pay() { return Stripe; }`,
@@ -386,7 +430,7 @@ describe("architecture checker fixtures", () => {
     expect(violation?.rule).toBe("capability-isolation");
   });
 
-  it("skips framework entrypoint __root.tsx and router.tsx for layered check", async () => {
+  it("classifies exact framework entries without exempting lookalike package files", async () => {
     webPkg({ "@repo/database": "workspace:*" });
     pkg("database");
 
@@ -401,7 +445,7 @@ describe("architecture checker fixtures", () => {
       "apps/web/src/routes/router.tsx",
       `import { db } from "@repo/database";\nexport const r = db;`,
     );
-    // Also place a __root.tsx under supporting path to prove Supporting->UI skip when file name matches entrypoint pattern
+    // A lookalike filename in a supporting package is not a framework entry.
     fixture(
       "packages/database/src/__root.tsx",
       `import { Button } from "../../../apps/web/src/routes/__root";\nexport const x = Button;`,
@@ -409,8 +453,8 @@ describe("architecture checker fixtures", () => {
 
     const findings = await analyzeProject(root);
     const layered = findings.filter((f) => f.id === "layered-dependency-violation");
-    // All three entrypoint files should be skipped => no layered violation
-    expect(layered).toEqual([]);
+    expect(layered).toHaveLength(1);
+    expect(layered[0]?.file).toContain("packages/database/src/__root.tsx");
   });
 
   it("skips intra-module same BC domain<-application for layered check", async () => {
@@ -434,23 +478,22 @@ describe("architecture checker fixtures", () => {
     expect(crossModule).toEqual([]);
   });
 
-  it("detects tanstack createServerFn exclusion for client boundary", async () => {
-    // File contains "use client" but also createServerFn -> should be excluded from client-imports-server-only
+  it("does not let createServerFn text exempt a top-level client import", async () => {
     webPkg({ "@repo/database": "workspace:*", "@tanstack/react-start": "workspace:*" });
     pkg("database");
     // Package mock for tanstack start to avoid undeclared dep
     mkdirSync(join(root, "packages", "tanstack"), { recursive: true });
 
     fixture(
-      "apps/web/src/components/ServerFnGuard.tsx",
+      "apps/web/src/routes/ServerFnGuard.tsx",
       `"use client";\nimport { createServerFn } from "@tanstack/react-start";\nimport { db } from "@repo/database";\nexport const myFn = createServerFn(() => { return db; });`,
     );
 
     const findings = await analyzeProject(root);
     const clientViolations = findings.filter((f) => f.id === "client-imports-server-only");
 
-    // Because file contains createServerFn, isServerRouteWithServerFn returns early => no client violation
-    expect(clientViolations).toEqual([]);
+    // A top-level client import is not made safe by mentioning createServerFn.
+    expect(clientViolations).toHaveLength(1);
 
     // Sanity: same file without createServerFn SHOULD flag
     fixture(

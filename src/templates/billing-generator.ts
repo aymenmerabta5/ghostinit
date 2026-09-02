@@ -3,8 +3,10 @@
  * Billing package template generator — emits files for generated projects.
  * Refactored <300 line compliance: each provider now modular services.
  *
- * Monorepo: packages/billing/src/providers/interface.ts + interface/* + domain/types.ts + schema/billing.ts + schema/enums + schema/tables/* + index.ts + providers/*.ts + providers/<provider>/*.ts
- * Single:   src/server/billing/... mirrored
+ * Monorepo: provider/domain sources plus a database-aware package barrel;
+ * Postgres additionally gets the database-owned schema re-export.
+ * Single: src/server/billing/... mirrored; Postgres owns schema definitions
+ * under src/server/db/schema while Convex emits no Drizzle surface.
  * Framework-aware: detects nextjs vs tanstack-start from addon map. If tanstack-start,
  * webhook routes emit under src/routes/api/webhooks/... (*.ts) with createFileRoute handlers,
  * else under src/app/api/webhooks/.../route.ts with Next.js handlers.
@@ -24,54 +26,59 @@ import { billingProviders as allBillingProviders, hasAddon } from "../lib/addons
 
 import {
   webhookContent,
+  webhookRouteFiles,
   type BillingProviderName as WebhookProviderName,
 } from "./billing/webhooks/factory.js";
 
 import { billingUiFiles } from "./billing/ui/billing-page.js";
 import { convexApiImport } from "./billing/webhooks/providers/shared.js";
-import { billingApiFiles } from "./billing/api/routes.js";
 import { convexBillingIndexContent } from "./billing/convex-index.js";
+import { billingApplicationsFiles } from "./billing/applications/billing.js";
 // Shared multi-root template resolver. This file used to carry a private
 // near-verbatim copy, which meant host-only pragmas were not stripped here.
 import { loadTemplate as load, tryLoadTemplate as tryLoad } from "./template-loader.js";
 
 type Runtime = "node" | "bun";
+type ProviderName = (typeof allBillingProviders)[number];
 
 function convexAdapterContent(databaseImport: string, adapterPath: string): string {
-  return `import type { FunctionArgs } from "convex/server";
-import { convexClient } from "${databaseImport}";
+  return `import { convexClient } from "${databaseImport}";
 import { api } from "${convexApiImport(adapterPath)}";
 
-type UpsertWebhookEventArgs = FunctionArgs<typeof api.billing.upsertWebhookEvent>;
-type CheckWebhookEventArgs = FunctionArgs<typeof api.billing.checkWebhookEvent>;
-type UpsertCustomerArgs = FunctionArgs<typeof api.billing.upsertCustomer>;
-type UpsertSubscriptionArgs = FunctionArgs<typeof api.billing.upsertSubscription>;
-type UpsertCheckoutArgs = FunctionArgs<typeof api.billing.upsertCheckout>;
-type UpsertInvoiceArgs = FunctionArgs<typeof api.billing.upsertInvoice>;
-type InsertUsageEventArgs = FunctionArgs<typeof api.billing.insertUsageEvent>;
+type BillingServerOperation = "claimWebhookEvent" | "completeWebhookEvent" | "failWebhookEvent" | "claimCheckoutIntent" | "completeCheckoutIntent" | "upsertCustomer" | "upsertSubscription" | "updateSubscriptionStatus" | "claimProviderSubscriptionState" | "commitProviderSubscriptionState" | "cancelProviderSubscriptionState" | "createProviderSubscriptionState" | "upsertCheckout" | "upsertInvoice" | "recordUsageEvent" | "upsertProduct" | "upsertPrice";
+
+function trustedServerToken(): string {
+  const token = process.env.BETTER_AUTH_SECRET;
+  if (!token || token.length < 32 || token.startsWith("REPLACE_WITH")) {
+    throw new Error("BETTER_AUTH_SECRET is required for trusted billing mutations");
+  }
+  return token;
+}
+
+function mutate(operation: BillingServerOperation, input: Record<string, unknown>): Promise<unknown> {
+  return convexClient.action(api.billingServer.mutate, {
+    serverToken: trustedServerToken(),
+    operation,
+    input,
+  });
+}
 
 export const billingConvex = {
-  upsertWebhookEvent: (args: UpsertWebhookEventArgs) =>
-    convexClient.mutation(api.billing.upsertWebhookEvent, args),
-  checkWebhookEvent: (args: CheckWebhookEventArgs) =>
-    convexClient.query(api.billing.checkWebhookEvent, args),
-  upsertCustomer: (args: UpsertCustomerArgs) =>
-    convexClient.mutation(api.billing.upsertCustomer, args),
-  upsertSubscription: (args: UpsertSubscriptionArgs) =>
-    convexClient.mutation(api.billing.upsertSubscription, args),
-  upsertCheckout: (args: UpsertCheckoutArgs) =>
-    convexClient.mutation(api.billing.upsertCheckout, args),
-  upsertInvoice: (args: UpsertInvoiceArgs) =>
-    convexClient.mutation(api.billing.upsertInvoice, args),
-  insertUsageEvent: (args: InsertUsageEventArgs) =>
-    convexClient.mutation(api.billing.insertUsageEvent, args),
-  listSubscriptions: async (userId: string) => {
-    const result = await convexClient.query(api.billing.listSubscriptions, {
-      paginationOpts: { numItems: 100, cursor: null },
-      userId,
-    });
-    return result.page;
-  },
+  claimWebhookEvent: (input: Record<string, unknown>) => mutate("claimWebhookEvent", input),
+  completeWebhookEvent: (input: Record<string, unknown>) => mutate("completeWebhookEvent", input),
+  failWebhookEvent: (input: Record<string, unknown>) => mutate("failWebhookEvent", input),
+  upsertCustomer: (input: Record<string, unknown>) => mutate("upsertCustomer", input),
+  upsertSubscription: (input: Record<string, unknown>) => mutate("upsertSubscription", input),
+  updateSubscriptionStatus: (input: Record<string, unknown>) => mutate("updateSubscriptionStatus", input),
+  claimProviderSubscriptionState: (input: Record<string, unknown>) => mutate("claimProviderSubscriptionState", input),
+  commitProviderSubscriptionState: (input: Record<string, unknown>) => mutate("commitProviderSubscriptionState", input),
+  cancelProviderSubscriptionState: (input: Record<string, unknown>) => mutate("cancelProviderSubscriptionState", input),
+  createProviderSubscriptionState: (input: Record<string, unknown>) => mutate("createProviderSubscriptionState", input),
+  upsertCheckout: (input: Record<string, unknown>) => mutate("upsertCheckout", input),
+  upsertInvoice: (input: Record<string, unknown>) => mutate("upsertInvoice", input),
+  insertUsageEvent: (input: Record<string, unknown>) => mutate("recordUsageEvent", input),
+  upsertProduct: (input: Record<string, unknown>) => mutate("upsertProduct", input),
+  upsertPrice: (input: Record<string, unknown>) => mutate("upsertPrice", input),
 };
 
 export type BillingConvex = typeof billingConvex;
@@ -108,12 +115,14 @@ function billingDeps(
 ): Record<string, string> {
   const isConvex = Boolean(addonMap && hasAddon(addonMap, "convex"));
   const baseNonConvex = {
-    stripe: `^${v.billing.stripe}`,
+    // Stripe's TypeScript surface pins one LatestApiVersion literal per SDK
+    // release. Exact pinning prevents a future minor from invalidating the
+    // generated explicit apiVersion at install time.
+    stripe: v.billing.stripe,
     "@chargily/chargily-pay": `^${v.billing["@chargily/chargily-pay"]}`,
     "@paddle/paddle-node-sdk": `^${v.billing["@paddle/paddle-node-sdk"]}`,
     "@paddle/paddle-js": `^${v.billing["@paddle/paddle-js"]}`,
     "@polar-sh/sdk": `^${v.billing["@polar-sh/sdk"]}`,
-    "@polar-sh/nextjs": `^${v.billing["@polar-sh/nextjs"]}`,
     zod: `^${v.validation.zod}`,
     "@repo/config": "workspace:*",
     "@repo/database": "workspace:*",
@@ -123,10 +132,6 @@ function billingDeps(
     return isConvex
       ? {
           ...baseNonConvex,
-          // packages/billing/src/schema/**.ts is emitted (and re-exported from the
-          // package barrel) in BOTH database modes, and it imports drizzle-orm.
-          // Convex projects additionally get the convex client.
-          "drizzle-orm": `^${v.database["drizzle-orm"]}`,
           convex: `^${v.convex.convex}`,
         }
       : {
@@ -141,15 +146,14 @@ function billingDeps(
     "@repo/database": "workspace:*",
   };
 
-  // The drizzle schema module ships in both database modes and is re-exported
-  // from the package barrel, so drizzle-orm is always a real dependency here.
-  deps["drizzle-orm"] = `^${v.database["drizzle-orm"]}`;
   if (isConvex) {
     deps.convex = `^${v.convex.convex}`;
+  } else {
+    deps["drizzle-orm"] = `^${v.database["drizzle-orm"]}`;
   }
 
   const effective = selected.length === 0 ? [...allBillingProviders] : selected;
-  if (effective.includes("stripe")) deps.stripe = `^${v.billing.stripe}`;
+  if (effective.includes("stripe")) deps.stripe = v.billing.stripe;
   if (effective.includes("chargily"))
     deps["@chargily/chargily-pay"] = `^${v.billing["@chargily/chargily-pay"]}`;
   if (effective.includes("paddle")) {
@@ -158,7 +162,6 @@ function billingDeps(
   }
   if (effective.includes("polar")) {
     deps["@polar-sh/sdk"] = `^${v.billing["@polar-sh/sdk"]}`;
-    deps["@polar-sh/nextjs"] = `^${v.billing["@polar-sh/nextjs"]}`;
   }
   return deps;
 }
@@ -177,14 +180,74 @@ function shouldEmitProvider(
   return selected.includes(provider);
 }
 
+const PROVIDER_FACTORY_EXPORTS: Record<ProviderName, string> = {
+  stripe: "createStripeProvider",
+  chargily: "createChargilyProvider",
+  paddle: "createPaddleProvider",
+  polar: "createPolarProvider",
+};
+
+function providerRegistryContent(selected: readonly string[]): string {
+  const selectedSet = new Set(selected);
+  const loaderEntries = allBillingProviders
+    .filter((provider) => selectedSet.has(provider))
+    .map(
+      (provider) =>
+        `  ${provider}: async () => (await import("./providers/${provider}")).${PROVIDER_FACTORY_EXPORTS[provider]},`,
+    )
+    .join("\n");
+  return `type BillingProviderLoader = () => Promise<BillingProviderFactory>;
+
+const billingProviderLoaders: Partial<Record<BillingProviderName, BillingProviderLoader>> = {
+${loaderEntries}
+};
+
+let registryCache: BillingProviderRegistry | null = null;
+
+export async function loadBillingRegistry(): Promise<BillingProviderRegistry> {
+  if (registryCache) return registryCache;
+  const registry: BillingProviderRegistry = {};
+  for (const provider of BILLING_PROVIDER_NAMES) {
+    const loadProvider = billingProviderLoaders[provider];
+    if (loadProvider) registry[provider] = await loadProvider();
+  }
+  registryCache = registry;
+  return registry;
+}
+
+`;
+}
+
+/** Replace both the current source map and the pre-build embedded legacy loop. */
+function withSelectedProviderRegistry(indexTemplate: string, selected: readonly string[]): string {
+  const possibleStarts = [
+    indexTemplate.indexOf("type BillingProviderLoader ="),
+    indexTemplate.indexOf("let _registry: BillingProviderRegistry"),
+    indexTemplate.indexOf("let registryCache: BillingProviderRegistry"),
+  ].filter((index) => index >= 0);
+  const start = possibleStarts.length > 0 ? Math.min(...possibleStarts) : -1;
+  const end = indexTemplate.indexOf("export async function getBillingProvider", start);
+  if (start < 0 || end < 0) {
+    throw new Error("Billing index provider registry markers are missing");
+  }
+  return `${indexTemplate.slice(0, start)}${providerRegistryContent(selected)}${indexTemplate.slice(end)}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Provider emitter — now modular services <300                      */
 /* ------------------------------------------------------------------ */
 
-type ProviderName = "stripe" | "chargily" | "paddle" | "polar";
-
 const PROVIDER_SUBFILES: Record<ProviderName, string[]> = {
-  stripe: ["client", "mappers", "checkout", "customer", "portal", "webhook", "subscriptions"],
+  stripe: [
+    "api-version",
+    "client",
+    "mappers",
+    "checkout",
+    "customer",
+    "portal",
+    "webhook",
+    "subscriptions",
+  ],
   chargily: [
     "client",
     "product",
@@ -299,7 +362,7 @@ const BILLING_SCHEMA_EXPORTS = [
 ] as const;
 
 /**
- * The billing schema surface, as re-exports from the database layer.
+ * The Postgres billing schema surface, as re-exports from the database layer.
  *
  * The tables used to be emitted TWICE — a byte-identical copy under both
  * `packages/database/src/schema/` and `packages/billing/src/schema/` (20 files).
@@ -308,7 +371,7 @@ const BILLING_SCHEMA_EXPORTS = [
  * see both.
  *
  * The old justification was avoiding a `database -> billing -> database` cycle,
- * but no such cycle is possible: `@repo/billing` already depends on
+ * but no such cycle is possible in Postgres projects: `@repo/billing` depends on
  * `@repo/database` (see billingPackageJson), never the reverse. So the database
  * layer owns the definitions and billing re-exports them — which is also the
  * correct direction under the layered architecture, where billing (Capabilities)
@@ -320,7 +383,7 @@ function schemaSplitFiles(mode: ProjectMode): TemplateFile[] {
     mode === "monorepo" ? "packages/billing/src/schema/" : "src/server/billing/schema/";
   // Monorepo resolves through the workspace alias; single mode is a relative
   // hop from src/server/billing/schema/ up to src/server/db/schema/.
-  const dbSpecifier = mode === "monorepo" ? "@repo/database" : "../../db/schema/billing";
+  const dbSpecifier = mode === "monorepo" ? "@repo/database/schema" : "../../db/schema/billing";
 
   // In single mode there is no @repo/database package, so the real definitions
   // are emitted here under src/server/db/schema/. In monorepo mode database.ts
@@ -381,13 +444,13 @@ function webhookRoutes(
     // TanStack Start: src/routes/api/webhooks/*.ts or apps/web/src/routes/api/webhooks/*.ts
     for (const name of allProviders) {
       if (!shouldEmitProvider(name, selected, addonsPresent, map)) continue;
-      const wf = webhookContent(
+      const webhookFiles = webhookRouteFiles(
         name as WebhookProviderName,
         "tanstack",
         isMonorepo ? "monorepo" : "single",
         database,
       );
-      out.push(wf);
+      out.push(...webhookFiles);
     }
     return out;
   }
@@ -414,12 +477,17 @@ export function billingFiles(
   const { mode, runtime, addons } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
   const selected = selectedBilling(addons);
   const addonsPresent = addons !== undefined;
-  // Framework drives where the /api/billing/* routes land: Next.js App Router
-  // route handlers vs TanStack Start file routes.
+  // Framework drives provider webhook and UI placement. Billing application
+  // traffic itself is exposed only through the typed oRPC router.
   const billingFramework = detectFramework(addons);
   const explicitNone = addonsPresent && selected.length === 0 && !hasAddon(addons, "billing");
   if (explicitNone) {
-    return billingUiFiles({ mode, addons } as never, "bun" as Runtime);
+    // TanStack Start owns its typed `/billing` file route in the app composer.
+    // Emitting the Next-only UI template here would leak `src/app/billing/**`
+    // into a Vite/TanStack project even when no provider was selected.
+    return billingFramework === "tanstack-start"
+      ? []
+      : billingUiFiles({ mode, addons } as never, "bun" as Runtime);
   }
   const interfaceContent = load("./billing/providers/interface.ts");
   const domainContent = load("./billing/domain/types.ts");
@@ -429,7 +497,8 @@ export function billingFiles(
   // from "./index", which only resolves by accident depending on what else got
   // emitted next to it — see the same note in database.ts.
   const schemaContent = load("./billing/schema/index.ts");
-  const indexContent = isConvex ? convexBillingIndexContent() : load("./billing/index.ts");
+  const indexTemplate = isConvex ? convexBillingIndexContent() : load("./billing/index.ts");
+  const indexContent = withSelectedProviderRegistry(indexTemplate, selected);
 
   const files: TemplateFile[] = [];
 
@@ -468,10 +537,10 @@ export function billingFiles(
             ".": "./src/index.ts",
             "./*": "./src/*/index.ts",
             "./providers/*": "./src/providers/*.ts",
-            "./schema/*": "./src/schema/*.ts",
+            ...(!isConvex ? { "./schema/*": "./src/schema/*.ts" } : {}),
             "./domain/*": "./src/domain/*",
           },
-          scripts: codeScripts({ test: runtime === "bun" ? "bun test" : "npm run test:unit" }),
+          scripts: codeScripts({ test: "bun test" }),
           dependencies: deps,
           devDependencies: {
             // tsconfig declares types: ["node"] — must be depended on or TS2688.
@@ -525,25 +594,20 @@ All webhooks Buffer.from(await req.arrayBuffer()) NOT req.json()
 `,
       ),
       ...interfaceSplitFiles("monorepo"),
-      ...schemaSplitFiles("monorepo"),
+      ...(!isConvex ? schemaSplitFiles("monorepo") : []),
       ...providerFiles(selected, addonsPresent, addons, "monorepo"),
       ...webhookRoutes(selected, addonsPresent, addons, "monorepo"),
       ...billingConvexAdapterFiles(),
-      ...billingUiFiles({ mode: "monorepo", addons: addons ?? ({} as never) } as never, "bun"),
-      // The /api/billing/* surface the UI above actually calls. Without these
-      // every button 404s and hasActiveSubscription is permanently false.
-      ...billingApiFiles(
-        "monorepo",
-        billingFramework === "tanstack-start" ? "tanstack-start" : "nextjs",
-        isConvex ? "convex" : "postgres",
-      ),
+      ...(billingFramework === "tanstack-start"
+        ? []
+        : billingUiFiles({ mode: "monorepo", addons: addons ?? ({} as never) } as never, "bun")),
       file(
         "packages/billing/src/webhooks/README.md",
         `# Billing webhooks — raw body pattern
 All 4 need Buffer.from(await req.arrayBuffer()) NOT req.json() else 403.
 Idempotent via webhook_events unique(provider+providerEventId).
 Framework-aware: Next.js emits app/api/webhooks/*/route.ts, TanStack Start emits routes/api/webhooks/*.ts with createFileRoute server.handlers.
-Convex: uses convexClient.mutation(api.billing.*) with composite idempotency [provider, providerEventId].
+Convex: public routes call api.billingServer.mutate; that trusted action delegates to internal.billing.* with leased composite idempotency [provider, providerEventId].
 `,
       ),
     );
@@ -560,7 +624,7 @@ stripe/: client,mappers,checkout,customer,portal,webhook,subscriptions
 chargily/, paddle/, polar/ similar. Interface split into interface/types,inputs,ports.
 Schema split into enums + tables/* + index.ts barrel.
 Webhook routes: Next.js src/app/api/webhooks/*/route.ts vs TanStack Start src/routes/api/webhooks/*.ts
-Convex: billing mutations via convexClient.mutation(api.billing.*)
+Convex: billing mutations go through the token-authenticated api.billingServer.mutate action; public reads stay actor-scoped api.billing queries.
 `,
       ),
       ...interfaceSplitFiles("single"),
@@ -568,14 +632,10 @@ Convex: billing mutations via convexClient.mutation(api.billing.*)
       ...providerFiles(selected, addonsPresent, addons, "single"),
       ...webhookRoutes(selected, addonsPresent, addons, "single"),
       ...billingConvexAdapterFiles(),
-      ...billingUiFiles({ mode: "single", addons: addons ?? ({} as never) } as never, "bun"),
-      // The /api/billing/* surface the UI above actually calls. Without these
-      // every button 404s and hasActiveSubscription is permanently false.
-      ...billingApiFiles(
-        "single",
-        billingFramework === "tanstack-start" ? "tanstack-start" : "nextjs",
-        isConvex ? "convex" : "postgres",
-      ),
+      ...billingApplicationsFiles("single"),
+      ...(billingFramework === "tanstack-start"
+        ? []
+        : billingUiFiles({ mode: "single", addons: addons ?? ({} as never) } as never, "bun")),
     );
   }
 

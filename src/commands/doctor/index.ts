@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -9,7 +9,9 @@ import { ghostinitVersion } from "../../templates/versions.js";
 import type { GlobalOptions } from "../types.js";
 import { loadEnvMap } from "./env.js";
 import { collectToolVersions } from "./versions.js";
-import { getGlobalEnvKeys } from "../../lib/env-manifest.js";
+import { FsTransaction } from "../../lib/fs.js";
+import { fixTurboEnv } from "../check.js";
+import { acquireLock } from "../../lib/lock.js";
 import {
   checkDatabase,
   checkDatabaseConnectivity,
@@ -25,19 +27,27 @@ function mintSecret(): string {
 async function fixEnvSecrets(
   cwd: string,
   _logger: GlobalOptions["logger"],
-): Promise<{ fixed: string[]; messages: string[] }> {
+  options: { dryRun?: boolean } = {},
+): Promise<{ fixed: string[]; wouldFix: string[]; messages: string[] }> {
   const fixed: string[] = [];
+  const wouldFix: string[] = [];
   const messages: string[] = [];
   const envLocalPath = join(cwd, ".env.local");
   const envExamplePath = join(cwd, ".env.example");
+  let content: string | undefined;
+  let createsEnvLocal = false;
 
   // Ensure .env.local exists — if missing create it from .env.example or minimal
   if (!existsSync(envLocalPath) && existsSync(envExamplePath)) {
     try {
-      const example = await readFile(envExamplePath, "utf-8");
-      await writeFile(envLocalPath, example, "utf-8");
-      fixed.push(".env.local");
-      messages.push("Created .env.local from .env.example");
+      content = await readFile(envExamplePath, "utf-8");
+      createsEnvLocal = true;
+      wouldFix.push(".env.local");
+      messages.push(
+        options.dryRun
+          ? "Would create .env.local from .env.example"
+          : "Created .env.local from .env.example",
+      );
     } catch (err) {
       messages.push(
         `Failed to create .env.local: ${err instanceof Error ? err.message : String(err)}`,
@@ -45,21 +55,21 @@ async function fixEnvSecrets(
     }
   }
 
-  if (!existsSync(envLocalPath)) return { fixed, messages };
+  if (!existsSync(envLocalPath) && content === undefined) return { fixed, wouldFix, messages };
 
   try {
-    let content = await readFile(envLocalPath, "utf-8");
+    content ??= await readFile(envLocalPath, "utf-8");
     let changed = false;
-    const replacements: Array<[RegExp, string, string]> = [
-      [/REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS/g, mintSecret(), "BETTER_AUTH_SECRET"],
-      [/REPLACE_WITH_A_STRONG_POSTGRES_PASSWORD/g, mintSecret(), "POSTGRES_PASSWORD"],
-      [/REPLACE_WITH_BETTER_AUTH_SECRET/g, mintSecret(), "BETTER_AUTH_SECRET"],
+    const replacements: Array<[RegExp, string]> = [
+      [/REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS/g, "BETTER_AUTH_SECRET"],
+      [/REPLACE_WITH_A_STRONG_POSTGRES_PASSWORD/g, "POSTGRES_PASSWORD"],
+      [/REPLACE_WITH_BETTER_AUTH_SECRET/g, "BETTER_AUTH_SECRET"],
     ];
-    for (const [pattern, replacement, label] of replacements) {
+    for (const [pattern, label] of replacements) {
       if (pattern.test(content)) {
-        content = content.replace(pattern, replacement);
-        if (!fixed.includes(label)) fixed.push(label);
-        messages.push(`Minted ${label}`);
+        if (!wouldFix.includes(label)) wouldFix.push(label);
+        messages.push(options.dryRun ? `Would mint ${label}` : `Minted ${label}`);
+        if (!options.dryRun) content = content.replace(pattern, mintSecret());
         changed = true;
       }
       // Reset lastIndex for global regex
@@ -74,14 +84,14 @@ async function fixEnvSecrets(
         const val = trimmed.split("=")[1].trim();
         if (val.length === 0 || val.startsWith("REPLACE_WITH")) {
           emptyFixed = true;
-          return `BETTER_AUTH_SECRET=${mintSecret()}`;
+          return options.dryRun ? line : `BETTER_AUTH_SECRET=${mintSecret()}`;
         }
       }
       if (trimmed.startsWith("POSTGRES_PASSWORD=") && trimmed.split("=")[1].trim().length < 8) {
         const val = trimmed.split("=")[1].trim();
         if (val.length === 0 || val.startsWith("REPLACE_WITH")) {
           emptyFixed = true;
-          return `POSTGRES_PASSWORD=${mintSecret()}`;
+          return options.dryRun ? line : `POSTGRES_PASSWORD=${mintSecret()}`;
         }
       }
       return line;
@@ -89,47 +99,28 @@ async function fixEnvSecrets(
     if (emptyFixed) {
       content = updatedLines.join("\n");
       changed = true;
-      if (!fixed.includes("empty-secret")) fixed.push("BETTER_AUTH_SECRET/POSTGRES_PASSWORD");
-      messages.push("Fixed empty secret values");
+      if (!wouldFix.includes("BETTER_AUTH_SECRET/POSTGRES_PASSWORD"))
+        wouldFix.push("BETTER_AUTH_SECRET/POSTGRES_PASSWORD");
+      messages.push(options.dryRun ? "Would fix empty secret values" : "Fixed empty secret values");
     }
 
-    if (changed) {
-      await writeFile(envLocalPath, content, "utf-8");
+    if ((changed || createsEnvLocal) && !options.dryRun) {
+      const tx = new FsTransaction(cwd);
+      await tx.write(".env.local", content);
+      await tx.commit();
+      fixed.push(...wouldFix);
     }
   } catch (err) {
     messages.push(`Failed to fix env secrets: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return { fixed, messages };
-}
-
-async function fixTurboEnvDoctor(
-  cwd: string,
-  _logger: GlobalOptions["logger"],
-): Promise<{ fixed: boolean; message: string }> {
-  const turboPath = join(cwd, "turbo.json");
-  if (!existsSync(turboPath)) return { fixed: false, message: "" };
-  try {
-    const raw = await readFile(turboPath, "utf-8");
-    const parsed = JSON.parse(raw) as { globalEnv?: string[]; [k: string]: unknown };
-    const expected = getGlobalEnvKeys("bun");
-    const actual = parsed.globalEnv ?? [];
-    if (JSON.stringify(actual) === JSON.stringify(expected)) return { fixed: false, message: "" };
-    parsed.globalEnv = expected;
-    await writeFile(turboPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8");
-    return { fixed: true, message: `Fixed turbo.json globalEnv (${expected.length} keys)` };
-  } catch (err) {
-    return {
-      fixed: false,
-      message: `Failed to fix turbo.json: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
+  return { fixed, wouldFix, messages };
 }
 
 export async function doctorCommand(_args: string[], options: GlobalOptions): Promise<number> {
   const start = Date.now();
   const checks: Check[] = [];
 
-  const { bun, node, tsc } = await collectToolVersions();
+  const { bun, node, tsc } = await collectToolVersions(options.cwd);
 
   checks.push({
     name: "bun",
@@ -208,20 +199,36 @@ export async function doctorCommand(_args: string[], options: GlobalOptions): Pr
 
   const wantsFix = Boolean(options.fix);
   const fixed: string[] = [];
+  const wouldFix: string[] = [];
   const fixMessages: string[] = [];
 
   if (wantsFix) {
-    const envFix = await fixEnvSecrets(options.cwd, options.logger);
-    if (envFix.fixed.length > 0) {
-      fixed.push(...envFix.fixed);
+    const lock = options.dryRun
+      ? undefined
+      : await acquireLock(options.cwd, options.logger, { force: options.force });
+    try {
+      const envFix = await fixEnvSecrets(options.cwd, options.logger, {
+        dryRun: options.dryRun,
+      });
+      if (envFix.fixed.length > 0) {
+        fixed.push(...envFix.fixed);
+      }
+      wouldFix.push(...envFix.wouldFix);
       fixMessages.push(...envFix.messages);
-    }
-    const turboFix = await fixTurboEnvDoctor(options.cwd, options.logger);
-    if (turboFix.fixed) {
-      fixed.push("turbo.json");
-      fixMessages.push(turboFix.message);
-    } else if (turboFix.message) {
-      fixMessages.push(turboFix.message);
+      const turboFix = await fixTurboEnv(options.cwd, options.logger, {
+        dryRun: options.dryRun,
+      });
+      if (turboFix.fixed) {
+        fixed.push("turbo.json");
+        fixMessages.push(turboFix.message);
+      } else if (turboFix.wouldFix) {
+        wouldFix.push("turbo.json");
+        fixMessages.push(turboFix.message);
+      } else if (turboFix.message) {
+        fixMessages.push(turboFix.message);
+      }
+    } finally {
+      await lock?.release();
     }
     // Re-load env after fix for accurate re-check
     if (fixed.length > 0) {
@@ -274,14 +281,27 @@ export async function doctorCommand(_args: string[], options: GlobalOptions): Pr
         data: {
           checks,
           fixed: wantsFix ? fixed : undefined,
+          wouldFix: wantsFix && options.dryRun ? [...new Set(wouldFix)] : undefined,
           fixMessages: wantsFix ? fixMessages : undefined,
         },
+        error: allOk
+          ? undefined
+          : {
+              message: "One or more required doctor checks failed",
+              code: "GENERAL_ERROR",
+              details: {
+                failed: requiredChecks.filter((check) => !check.ok).map((check) => check.name),
+              },
+            },
         command: "doctor",
         durationMs: Date.now() - start,
       }),
     );
   } else {
-    if (wantsFix && fixed.length > 0) {
+    if (wantsFix && options.dryRun && wouldFix.length > 0) {
+      options.logger.info(`[dry-run] Would auto-fix: ${[...new Set(wouldFix)].join(", ")}`);
+      for (const m of fixMessages) options.logger.info(m);
+    } else if (wantsFix && fixed.length > 0) {
       options.logger.info(`Auto-fixed ${fixed.length} issue(s): ${fixed.join(", ")}`);
       for (const m of fixMessages) options.logger.info(m);
     } else if (wantsFix) {

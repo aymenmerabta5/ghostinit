@@ -1,13 +1,7 @@
 export function certificateTemplateContent(): string {
-  return `import { Document, Page, Text, View, StyleSheet, Font, Image } from "@react-pdf/renderer";
-import * as path from "node:path";
+  return `import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { type BorderStyleKey, borderComponents } from "../borders";
-
-const fontsDir = path.join(process.cwd(), "node_modules/dejavu-fonts-ttf/ttf");
-try {
-  Font.register({ family: "DejaVu Sans", src: path.join(fontsDir, "DejaVuSans.ttf") });
-  Font.register({ family: "DejaVu Sans Bold", src: path.join(fontsDir, "DejaVuSans-Bold.ttf") });
-} catch {}
+import { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign } from "../lib/locale";
 
 const styles = StyleSheet.create({
   page: { fontFamily: "DejaVu Sans", fontSize: 11, padding: 32, backgroundColor: "#ffffff" },
@@ -50,13 +44,15 @@ export interface CertificateData {
 }
 
 export function CertificateTemplate({ data, locale = "en", borderStyle = "classic", verificationCode, qrCodeDataUrl }: { data: CertificateData; locale?: string; borderStyle?: BorderStyleKey; verificationCode?: string; qrCodeDataUrl?: string }) {
-  const formatDate = (d: Date) => d.toLocaleDateString(locale === "fr" ? "fr-FR" : "en-US", { year: "numeric", month: "long", day: "numeric" });
+  const resolvedLocale = normalizePdfLocale(locale);
+  const message = (key: Parameters<typeof pdfMessage>[1]) => pdfMessage(resolvedLocale, key);
+  const formatDate = (d: Date) => d.toLocaleDateString(pdfLocaleTag(resolvedLocale), { year: "numeric", month: "long", day: "numeric" });
   const Border = borderComponents[borderStyle] ?? borderComponents.classic;
-  const title = data.title ?? (locale === "fr" ? "CERTIFICAT" : "CERTIFICATE");
-  const issuedLabel = locale === "fr" ? "Délivré le" : "Issued on";
+  const title = data.title ?? message("certificate");
+  const issuedLabel = message("issuedOn");
   return (
     <Document>
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={[styles.page, { textAlign: pdfTextAlign(resolvedLocale) }]}>
         <Border>
           <View style={styles.header}>
             {data.issuerLogoUrl ? <Image src={data.issuerLogoUrl} style={{ width: 64, height: 64, objectFit: "contain", marginBottom: 8 }} /> : null}
@@ -66,18 +62,18 @@ export function CertificateTemplate({ data, locale = "en", borderStyle = "classi
           </View>
           <View style={styles.body}>
             <Text style={styles.certifyText}>
-              {locale === "fr" ? "Nous certifions que" : "This is to certify that"} <Text style={styles.strong}>{data.recipientName}</Text> {data.reason}
+              {message("certifiesThat")} <Text style={styles.strong}>{data.recipientName}</Text> {data.reason}
             </Text>
-            <View style={styles.detailsRow}>
+            <View style={[styles.detailsRow, { flexDirection: pdfRowDirection(resolvedLocale) }]}>
               <View style={styles.detailItem}><Text style={styles.detailLabel}>{issuedLabel}</Text><Text style={styles.detailValue}>{formatDate(data.issuedAt ?? new Date())}</Text></View>
-              {data.validUntil ? <View style={styles.detailItemBorder}><Text style={styles.detailLabel}>Valid until</Text><Text style={styles.detailValue}>{formatDate(data.validUntil)}</Text></View> : null}
+              {data.validUntil ? <View style={[styles.detailItemBorder, resolvedLocale === "ar" ? { borderLeftWidth: 0, borderRightWidth: 1, borderRightColor: "#e0e0e0" } : {}]}><Text style={styles.detailLabel}>{message("validUntil")}</Text><Text style={styles.detailValue}>{formatDate(data.validUntil)}</Text></View> : null}
             </View>
             {data.recipientEmail ? <Text style={styles.emailText}>{data.recipientEmail}</Text> : null}
           </View>
-          <View style={styles.sigSection}><View style={styles.sigBox}><Text style={styles.sigLine}>{locale === "fr" ? "Signature" : "Signature"}</Text></View></View>
-          <View style={styles.bottomRow}>
+          <View style={styles.sigSection}><View style={styles.sigBox}><Text style={styles.sigLine}>{message("signature")}</Text></View></View>
+          <View style={[styles.bottomRow, { flexDirection: pdfRowDirection(resolvedLocale) }]}>
             <Text style={styles.issueDate}>{issuedLabel} {formatDate(data.issuedAt ?? new Date())}</Text>
-            {verificationCode ? <View style={styles.verificationBox}>{qrCodeDataUrl ? <Image style={styles.qrCode} src={qrCodeDataUrl} /> : null}<View style={styles.vTextBox}><Text style={styles.vCode}>{verificationCode}</Text><Text style={styles.vUrl}>verify</Text></View></View> : null}
+            {verificationCode ? <View style={[styles.verificationBox, { flexDirection: pdfRowDirection(resolvedLocale) }]}>{qrCodeDataUrl ? <Image style={styles.qrCode} src={qrCodeDataUrl} /> : null}<View style={styles.vTextBox}><Text style={styles.vCode}>{verificationCode}</Text><Text style={styles.vUrl}>{message("verify")}</Text></View></View> : null}
           </View>
         </Border>
       </Page>

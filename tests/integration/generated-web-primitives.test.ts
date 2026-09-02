@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { createServer } from "node:net";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { runtime } from "../../packages/versions/src/index.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -36,6 +37,9 @@ type CommandResult =
   | { kind: "exit"; code: number | null }
   | { kind: "error"; error: Error }
   | { kind: "timeout" };
+
+const REQUIRED_BUN_VERSION = runtime.bun;
+const BUN_EXECUTABLE = process.execPath;
 
 const fixtureRoute = `"use client";
 
@@ -159,7 +163,27 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
-  await page.goto("/primitive-contract");
+  const navigation = await page.goto("/primitive-contract");
+  const destination = new URL(page.url());
+  if (
+    navigation === null ||
+    navigation.status() !== 200 ||
+    destination.pathname !== "/primitive-contract" ||
+    destination.search !== ""
+  ) {
+    throw new Error(
+      "Primitive fixture navigation failed: status=" + String(navigation?.status()) +
+      " url=" + page.url() + " body=" + (await page.locator("body").innerText()).slice(0, 2_000),
+    );
+  }
+  if (await page.getByTestId("hydration-state").count() === 0) {
+    throw new Error(
+      "Primitive fixture marker is missing: title=" + (await page.title()) +
+      " body=" + (await page.locator("body").innerText()).slice(0, 4_000) +
+      " pageErrors=" + JSON.stringify(pageErrors) +
+      " consoleErrors=" + JSON.stringify(consoleErrors),
+    );
+  }
   await expect(page.getByTestId("hydration-state")).toHaveText("ready", { timeout: 30_000 });
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
@@ -359,30 +383,19 @@ async function runBounded(
 }
 
 async function runBun(cwd: string, args: string[], env: NodeJS.ProcessEnv): Promise<void> {
-  const bun = Bun.which("bun");
-  if (bun === null) throw new Error("bun executable was not found");
-  await runBounded(nativeExecutable("bun", bun), args, cwd, env, 600_000);
+  await runBounded(BUN_EXECUTABLE, args, cwd, env, 900_000);
 }
 
 async function runBunx(cwd: string, args: string[], env: NodeJS.ProcessEnv): Promise<void> {
-  const bunx = Bun.which("bunx");
-  if (bunx === null) throw new Error("bunx executable was not found");
-  await runBounded(nativeExecutable("bunx", bunx), args, cwd, env, 120_000);
-}
-
-function nativeExecutable(name: "bun" | "bunx", resolved: string): string {
-  if (process.platform !== "win32" || !/\.(?:cmd|bat)$/i.test(resolved)) return resolved;
-  return Bun.which(`${name}.exe`) ?? resolved;
+  await runBounded(BUN_EXECUTABLE, ["x", ...args], cwd, env, 120_000);
 }
 
 export function startServer(target: BrowserTarget): RunningServer {
-  const bun = Bun.which("bun");
-  if (bun === null) throw new Error("bun executable was not found");
   const args =
     target.kind === "next-monorepo"
       ? ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(target.port)]
       : ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(target.port)];
-  const child = spawn(nativeExecutable("bun", bun), args, {
+  const child = spawn(BUN_EXECUTABLE, args, {
     cwd: target.appRoot,
     env: target.env,
     windowsHide: true,
@@ -462,6 +475,7 @@ function verifyTempRoot(root: string): void {
 
 describe("generated web primitive interactions", () => {
   test("Next monorepo and single TanStack primitives share the interaction contract", async () => {
+    expect(Bun.version).toBe(REQUIRED_BUN_VERSION);
     const roots = [
       mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
       mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
@@ -490,15 +504,13 @@ describe("generated web primitive interactions", () => {
       }
 
       const nextTarget = targets[0];
-      const tanstackTarget = targets[1];
-      await Promise.all([
-        runStage("next-monorepo bun install", () =>
-          runBun(nextTarget.root, ["install"], nextTarget.env),
-        ),
-        runStage("single-tanstack bun install", () =>
-          runBun(tanstackTarget.root, ["install"], tanstackTarget.env),
-        ),
-      ]);
+      // Serial installs avoid shared-cache and isolated-linker contention on
+      // Windows. The first clean target warms Bun's cache for the second.
+      for (const target of targets) {
+        await runStage(`${target.kind} bun install`, () =>
+          runBun(target.root, ["install"], target.env),
+        );
+      }
       expect(
         existsSync(join(nextTarget.appRoot, "node_modules", "@playwright", "test", "package.json")),
       ).toBe(true);
@@ -559,5 +571,5 @@ describe("generated web primitive interactions", () => {
 
     if (cleanupError !== undefined) throw cleanupError;
     if (operationError !== undefined) throw operationError;
-  });
+  }, 2_400_000);
 });

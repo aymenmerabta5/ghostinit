@@ -1,74 +1,16 @@
 export function singleLibAnalyticsContent(): string {
   return `"use client";
 
-import posthog, { type PostHog, type PostHogConfig } from "posthog-js";
+import posthog, { type PostHogConfig, type PostHogInterface } from "posthog-js";
+import { getAnalyticsConfig, isAnalyticsEnabled } from "./analytics-config.js";
 
-export interface AnalyticsConfig {
-  key: string;
-  host: string;
-  enabled: boolean;
-  debug: boolean;
-  autocapture: boolean;
-  capturePageview: boolean;
-  capturePageleave: boolean;
-  sessionRecording: boolean;
-  persistence: "localStorage+cookie" | "cookie" | "memory" | "localStorage";
-  personProfiles: "identified_only" | "always" | "never";
-  apiEndpoint: string;
-  flushAt: number;
-  flushIntervalMs: number;
-}
+export { getAnalyticsConfig, getClientAnalyticsConfig, isAnalyticsEnabled } from "./analytics-config.js";
+export type { AnalyticsConfig } from "./analytics-config.js";
 
-function readEnv(): Record<string, string | undefined> {
-  if (typeof process === "undefined") return {};
-  return process.env as Record<string, string | undefined>;
-}
-
-function parseEnvBoolean(value: string | undefined, defaultValue: boolean): boolean {
-  if (value === undefined || value === "") return defaultValue;
-  return value === "true" || value === "1";
-}
-
-function isDisabledFlag(value: unknown): boolean {
-  return value === "true" || value === "1";
-}
-
-export function isAnalyticsEnabled(): boolean {
-  try {
-    const env = readEnv();
-    const disabledFlag = env.ANALYTICS_DISABLED ?? env.NEXT_PUBLIC_ANALYTICS_DISABLED ?? env.VITE_ANALYTICS_DISABLED;
-    if (isDisabledFlag(disabledFlag)) return false;
-    const key = env.NEXT_PUBLIC_POSTHOG_KEY;
-    if (!key) return false;
-    if (key.includes("REPLACE") || key.includes("placeholder")) return false;
-    return true;
-  } catch {
-    return false;
+declare global {
+  interface Window {
+    posthog?: PostHogInterface;
   }
-}
-
-export function getAnalyticsConfig(): AnalyticsConfig {
-  const env = readEnv();
-  const rawHost = env.NEXT_PUBLIC_POSTHOG_HOST ?? env.VITE_POSTHOG_HOST ?? env.POSTHOG_HOST;
-  const isDev = env.NODE_ENV !== "production";
-  return {
-    // key/host are declared as plain strings; fall back rather than leaking an
-    // optional (TS2322). An empty key means "not configured", which
-    // isAnalyticsEnabled() already treats as disabled.
-    key: env.NEXT_PUBLIC_POSTHOG_KEY ?? env.VITE_POSTHOG_KEY ?? env.POSTHOG_KEY ?? "",
-    host: rawHost ?? "https://us.i.posthog.com",
-    enabled: isAnalyticsEnabled(),
-    debug: isDev,
-    autocapture: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_AUTOCAPTURE ?? env.VITE_POSTHOG_AUTOCAPTURE, true),
-    capturePageview: false,
-    capturePageleave: true,
-    sessionRecording: parseEnvBoolean(env.NEXT_PUBLIC_POSTHOG_SESSION_RECORDING ?? env.VITE_POSTHOG_SESSION_RECORDING, !isDev),
-    persistence: "localStorage+cookie",
-    personProfiles: "identified_only",
-    apiEndpoint: "/api/ingest",
-    flushAt: 20,
-    flushIntervalMs: 10_000,
-  };
 }
 
 const CONSENT_STORAGE_KEY = "ghostinit:consent";
@@ -132,14 +74,14 @@ function hasConsent(category = "analytics"): boolean {
   return false;
 }
 
-let clientInstance: PostHog | null = null;
-let initPromise: Promise<PostHog | null> | null = null;
+let clientInstance: PostHogInterface | null = null;
+let initPromise: Promise<PostHogInterface | null> | null = null;
 
 function canUseWindow(): boolean {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
-export function getPostHogClient(): PostHog | null {
+export function getPostHogClient(): PostHogInterface | null {
   if (!canUseWindow()) return null;
   return clientInstance;
 }
@@ -147,7 +89,7 @@ export function getPostHogClient(): PostHog | null {
 export async function initPostHogClient(options?: {
   bootstrapFlags?: Record<string, string | boolean>;
   bootstrapPayloads?: Record<string, unknown>;
-}): Promise<PostHog | null> {
+}): Promise<PostHogInterface | null> {
   if (!canUseWindow()) return null;
   if (clientInstance) return clientInstance;
   if (initPromise) return initPromise;
@@ -177,7 +119,7 @@ export async function initPostHogClient(options?: {
         loaded: (ph) => {
           try {
             if (!canUseWindow()) return;
-            (window as unknown as { posthog?: PostHog }).posthog = ph;
+            window.posthog = ph;
             if (!hasConsent("analytics")) ph.opt_out_capturing();
           } catch {}
         },
@@ -186,7 +128,7 @@ export async function initPostHogClient(options?: {
         respect_dnt: true,
         disable_session_recording: !cfg.sessionRecording,
       });
-      clientInstance = posthog as unknown as PostHog;
+      clientInstance = posthog;
       return clientInstance;
     } catch (err) {
       console.warn("[analytics] init failed", err);

@@ -77,8 +77,8 @@ function getSanitizedUrl(raw: string): string {
 function canCapture(): boolean {
   try {
     if (typeof window === "undefined") return false;
-    const w = window as unknown as { __GHOSTINIT_CONSENT__?: boolean };
-    if (w.__GHOSTINIT_CONSENT__ === false) return false;
+    const consent: unknown = Reflect.get(window, "__GHOSTINIT_CONSENT__");
+    if (consent === false) return false;
     return true;
   } catch {
     return false;

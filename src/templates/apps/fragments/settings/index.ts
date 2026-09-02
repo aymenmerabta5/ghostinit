@@ -1,41 +1,104 @@
-import type { TemplateFile } from "../../../shared.js";
-import { settingsLayout } from "./layout.js";
-import { useSettingsHook } from "./hook.js";
-import { settingsProfileCard } from "./profile-card.js";
-import { settingsPasswordCard } from "./password-card.js";
-import { settingsTwoFactorCard } from "./two-factor-card.js";
-import { settingsDangerZoneCard } from "./danger-card.js";
-import { settingsSessionsCard } from "./sessions-card.js";
-import { settingsPage } from "./page.js";
-import { tanstackSettingsPage, tanstackSettingsPageContent } from "./tanstack-page.js";
+import { file, type TemplateFile } from "../../../shared.js";
+import { settingsLayout, settingsLayoutContent } from "./layout.js";
+import { settingsHookContent, useSettingsHook } from "./hook.js";
+import { settingsProfileCard, settingsProfileCardContent } from "./profile-card.js";
+import { settingsPasswordCard, settingsPasswordCardContent } from "./password-card.js";
+import {
+  settingsPasskeyCard,
+  settingsPasskeyCardContent,
+  settingsPasskeyList,
+  settingsPasskeyListContent,
+} from "./passkey-card.js";
+import {
+  settingsTwoFactorCard,
+  settingsTwoFactorCardContent,
+  settingsTwoFactorHook,
+  settingsTwoFactorHookContent,
+} from "./two-factor-card.js";
+import { settingsDangerZoneCard, settingsDangerZoneCardContent } from "./danger-card.js";
+import {
+  settingsSessionsCard,
+  settingsSessionsCardContent,
+  settingsSessionsList,
+  settingsSessionsListContent,
+} from "./sessions-card.js";
+import { settingsPage, settingsPageContent } from "./page.js";
+import { settingsActionsContent } from "./actions.js";
+import {
+  tanstackSettingsFeatureFiles,
+  tanstackSettingsPage,
+  tanstackSettingsPageContent,
+} from "./tanstack-page.js";
 
 export type RouterType = "next" | "tanstack";
 
 export {
   settingsLayout,
+  settingsLayoutContent,
   useSettingsHook,
   settingsProfileCard,
   settingsPasswordCard,
+  settingsPasskeyCard,
+  settingsPasskeyList,
   settingsTwoFactorCard,
+  settingsTwoFactorHook,
   settingsDangerZoneCard,
   settingsSessionsCard,
+  settingsSessionsList,
   settingsPage,
+  settingsPageContent,
+  settingsHookContent,
+  settingsProfileCardContent,
+  settingsPasswordCardContent,
+  settingsPasskeyCardContent,
+  settingsPasskeyListContent,
+  settingsTwoFactorCardContent,
+  settingsTwoFactorHookContent,
+  settingsDangerZoneCardContent,
+  settingsSessionsCardContent,
+  settingsSessionsListContent,
   tanstackSettingsPage,
   tanstackSettingsPageContent,
+  tanstackSettingsFeatureFiles,
 };
 
-export function settingsFiles(router: RouterType = "next", isConvex = false): TemplateFile[] {
+export function settingsFiles(
+  router: RouterType = "next",
+  isConvex = false,
+  hasIdentityTransport = true,
+  hasBilling = true,
+  hasEmail = true,
+  hasPasskey = !isConvex,
+): TemplateFile[] {
   if (router === "tanstack") {
-    return [tanstackSettingsPage(isConvex)];
+    return [
+      tanstackSettingsPage(isConvex, "monorepo", hasIdentityTransport, hasBilling),
+      ...tanstackSettingsFeatureFiles("monorepo", hasIdentityTransport, hasEmail, hasPasskey),
+    ];
   }
+  const useBetterAuthServerActions = !isConvex;
   return [
-    settingsLayout(),
+    settingsLayout(hasBilling, hasIdentityTransport),
     useSettingsHook(),
-    settingsProfileCard(),
-    settingsPasswordCard(),
-    settingsTwoFactorCard(),
-    settingsSessionsCard(),
-    settingsDangerZoneCard(),
-    settingsPage(),
+    ...(useBetterAuthServerActions || hasIdentityTransport
+      ? [
+          file(
+            "apps/web/src/app/settings/actions.ts",
+            settingsActionsContent("monorepo", hasIdentityTransport, useBetterAuthServerActions),
+          ),
+        ]
+      : []),
+    settingsProfileCard(useBetterAuthServerActions),
+    ...(hasEmail
+      ? [
+          settingsPasswordCard(useBetterAuthServerActions),
+          settingsTwoFactorCard(),
+          settingsTwoFactorHook(),
+        ]
+      : []),
+    ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
+    ...(hasIdentityTransport ? [settingsSessionsCard(true), settingsSessionsList()] : []),
+    settingsDangerZoneCard(hasEmail, useBetterAuthServerActions),
+    settingsPage(hasIdentityTransport, hasEmail, hasPasskey, hasIdentityTransport),
   ];
 }

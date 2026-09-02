@@ -34,10 +34,26 @@ import { pdfComposerFiles } from "./pdf-composer.js";
 import { proxyFiles } from "../../proxy.js";
 import { accessFiles } from "../../access.js";
 import { shellFiles } from "../../shell.js";
+import { integrateAdapterFiles } from "../../adapters/integration.js";
+import { integrateEveSecurityFiles } from "../../eve/security/index.js";
+import { capabilityClientFiles } from "../../apps/capability-clients/index.js";
 
 export interface MonorepoSecrets extends RootSecrets {}
 export interface MonorepoContext {
   dryRun?: boolean;
+}
+
+function withoutClientAnalyticsEnvironment(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .filter((line) => {
+      const name = line.split("=", 1)[0] ?? "";
+      return (
+        !/^(?:NEXT_PUBLIC_|VITE_|EXPO_PUBLIC_)POSTHOG_/.test(name) &&
+        !/^(?:NEXT_PUBLIC_|VITE_|EXPO_PUBLIC_)?ANALYTICS_DISABLED$/.test(name)
+      );
+    })
+    .join("\n");
 }
 
 type Runtime = "node" | "bun";
@@ -63,6 +79,7 @@ export function monorepoFiles(
       apps: (config.apps ?? ["web"]) as AppName[],
       preset,
       cache,
+      deploy: config.deploy ?? "none",
       auth: config.auth,
       api: config.api,
       email: config.email,
@@ -71,6 +88,10 @@ export function monorepoFiles(
       i18n: config.i18n,
       pdf: config.pdf,
       messaging: config.messaging,
+      storage: config.storage,
+      notifications: config.notifications,
+      featureFlags: config.featureFlags,
+      jobs: config.jobs,
     });
 
   const hasEve = Boolean(
@@ -120,22 +141,38 @@ export function monorepoFiles(
         : "postgres")) as DatabaseProvider;
 
   const requestedAuth = hasAddon(addonMap, "auth");
+  const hasFeatureFlags = hasAddon(addonMap, "featureFlags") || hasAddon(addonMap, "posthog");
+  const hasNotifications = hasAddon(addonMap, "notifications");
+  const hasJobs = hasAddon(addonMap, "jobs") || config.jobs === true;
+  const hasMessaging = hasAddon(addonMap, "messaging") || config.messaging === true;
+  const hasStorage = hasAddon(addonMap, "storage") || config.storage === true || hasMessaging;
   const hasAnalytics = hasAddon(addonMap, "analytics");
   const hasEmail = hasAddon(addonMap, "email");
   const requestedApi = hasAddon(addonMap, "api");
+  const hasJobsApi = hasJobs && (config.jobsUserFacingApi ?? (requestedApi && requestedAuth));
   // V1 exposes authenticated `me`, and billing transport requires both API and
   // auth. Resolve implications before passing the map to any composer.
   const hasBilling = effectiveBilling.length > 0 || hasAddon(addonMap, "billing");
-  const hasApi = requestedApi || hasBilling;
-  const hasAuth = requestedAuth || hasApi;
+  const hasApi =
+    requestedApi ||
+    (hasEve && requestedAuth) ||
+    hasBilling ||
+    hasMessaging ||
+    hasStorage ||
+    hasNotifications ||
+    hasFeatureFlags ||
+    hasJobsApi;
+  const hasAuth = requestedAuth || hasBilling || hasMessaging || hasNotifications || hasStorage;
   const compositionAddons: AddonInstallerMap = {
     ...addonMap,
     api: { inUse: hasApi },
     auth: { inUse: hasAuth },
+    analytics: { inUse: hasAnalytics },
+    storage: { inUse: hasStorage },
+    jobsApi: { inUse: hasJobsApi && hasAuth },
   };
   const hasCache = hasAddon(addonMap, "cache") || cache === "redis";
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
-  const hasMessaging = hasAddon(addonMap, "messaging") || config.messaging === true;
   const hasWebEarly = effectiveApps.includes("web" as AppName);
 
   const deploy = (config.deploy ?? "none") as string;
@@ -159,17 +196,41 @@ export function monorepoFiles(
       effectiveDatabase,
       hasAnalytics,
       hasEmail,
+      effectiveApps,
+      hasNotifications,
+      hasCache,
+      hasEve,
     ),
     ...databaseComposerFiles(config.name, runtime, compositionAddons, effectiveDatabase),
     ...(hasAuth ? authComposerFiles(effectiveFramework, compositionAddons, hasEmail) : []),
-    ...(hasApi ? apiComposerFiles(effectiveBilling, hasMessaging, effectiveDatabase) : []),
-    ...uiComposerFiles(),
+    ...(hasApi
+      ? apiComposerFiles(effectiveBilling, hasMessaging, effectiveDatabase, {
+          auth: hasAuth,
+          identity: hasAuth && effectiveDatabase !== "none",
+          notifications: hasNotifications,
+          featureFlags: hasFeatureFlags,
+          jobs: hasJobsApi && hasAuth,
+          storage: hasStorage && hasAuth,
+        })
+      : []),
+    ...uiComposerFiles(effectiveApps, effectiveFramework),
     ...modulesComposerFiles(
       runtime,
       effectiveBilling.length > 0,
       hasMessaging && effectiveDatabase === "postgres",
     ),
     ...appsComposerFiles(runtime, compositionAddons, effectiveFramework, effectiveApps, hasEmail),
+    ...capabilityClientFiles({
+      mode,
+      framework: effectiveFramework,
+      apps: effectiveApps,
+      notifications: hasNotifications,
+      storage: hasStorage,
+      featureFlags: hasFeatureFlags,
+      jobs: hasJobsApi,
+      i18n: hasI18n,
+      requestApplication: hasAuth && effectiveDatabase !== "none",
+    }),
     ...servicesComposerFiles(
       config.name,
       runtime,
@@ -178,6 +239,7 @@ export function monorepoFiles(
       hasI18n,
       effectiveFramework,
       hasEmail,
+      effectiveBilling,
     ),
     ...billingComposerFiles("monorepo", runtime, compositionAddons, effectiveBilling),
     ...(hasCache ? cacheComposerFiles(runtime) : []),
@@ -188,17 +250,33 @@ export function monorepoFiles(
           effectiveApps.includes("desktop"),
           effectiveFramework,
           effectiveApps.includes("web"),
+          hasI18n,
         )
       : []),
     ...(hasMessaging && effectiveDatabase === "postgres" ? realtimePackage() : []),
-    ...(hasMessaging && effectiveDatabase === "postgres" ? storagePackage() : []),
+    ...(hasStorage && effectiveDatabase === "postgres" ? storagePackage() : []),
     ...(hasMessaging
-      ? messagingFilesFor(effectiveFramework, effectiveDatabase, effectiveApps)
+      ? messagingFilesFor(effectiveFramework, effectiveDatabase, effectiveApps, "monorepo", hasI18n)
       : []),
-    ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n) : []),
+    ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n, hasAuth) : []),
     ...accessFiles(mode),
-    ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode) : []),
+    ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode, hasBilling) : []),
   ];
+
+  const integrated = integrateAdapterFiles(all, {
+    mode,
+    database: effectiveDatabase,
+    runtime,
+    capabilities: {
+      identity: hasAuth && hasApi,
+      notifications: hasNotifications,
+      featureFlags: hasFeatureFlags,
+      jobs: hasJobs,
+      jobsApi: hasJobsApi && hasAuth,
+      storage: hasStorage,
+      messaging: hasMessaging,
+    },
+  });
 
   const enrichedAgents = agentsComposerFiles(
     config.name,
@@ -207,8 +285,24 @@ export function monorepoFiles(
     hasI18n,
     effectiveFramework,
     hasEmail,
+    {
+      runtime,
+      database: effectiveDatabase,
+      apps: effectiveApps,
+      auth: hasAuth,
+      api: hasApi,
+      analytics: hasAnalytics,
+      messaging: hasMessaging,
+      storage: hasStorage,
+      notifications: hasNotifications,
+      featureFlags: hasFeatureFlags,
+      jobs: hasJobs,
+      jobsApi: hasJobsApi && hasAuth,
+      pdf: hasPdf,
+      cache: hasCache,
+    },
   );
-  const withoutOldAgents = all.filter(
+  const withoutOldAgents = integrated.filter(
     (f: TemplateFile) =>
       ![
         "AGENTS.md",
@@ -232,22 +326,19 @@ export function monorepoFiles(
   if (!hasAuth) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        f.path.startsWith("apps/desktop/") ||
-        (!f.path.startsWith("packages/auth/") &&
-          !f.path.includes("/auth") &&
-          !f.path.includes("auth-client")),
+        !f.path.startsWith("packages/auth/") &&
+        !f.path.includes("/auth") &&
+        !f.path.includes("auth-client"),
     );
-    // Also strip auth-related app routes that may have been emitted by apps composer
-    // Keep desktop auth routes (they use stub lib/auth) even when hasAuth false
+    // Also strip auth-related app routes that may have been emitted by app composers.
     filteredFiles = filteredFiles.filter(
       (f) =>
-        f.path.startsWith("apps/desktop/") ||
-        (!f.path.includes("apps/web/src/app/(auth)") &&
-          !f.path.includes("apps/web/src/app/auth") &&
-          !f.path.includes("sign-in") &&
-          !f.path.includes("sign-up") &&
-          !f.path.includes("two-factor") &&
-          !f.path.includes("2fa")),
+        !f.path.includes("apps/web/src/app/(auth)") &&
+        !f.path.includes("apps/web/src/app/auth") &&
+        !f.path.includes("sign-in") &&
+        !f.path.includes("sign-up") &&
+        !f.path.includes("two-factor") &&
+        !f.path.includes("2fa"),
     );
   }
   if (!hasAnalytics) {
@@ -272,27 +363,23 @@ export function monorepoFiles(
         !f.path.includes("usePdf"),
     );
   }
-  // Content-based filtering for remaining files that import disabled packages
-  // Desktop is a standalone Electron SPA that ships its own minimal orpc/auth via http://localhost:3000
-  // even when host preset disables @repo/api/@repo/auth. Exempt desktop paths from host-level stripping.
-  const isDesktopPath = (p: string) => p.startsWith("apps/desktop/");
+  // Content-based filtering for remaining files that import disabled packages.
+  // Desktop templates are capability-aware too; they must not bypass package closure.
   if (!hasAuth) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        isDesktopPath(f.path) ||
-        (!f.content.includes('from "@repo/auth"') &&
-          !f.content.includes("from '@repo/auth'") &&
-          !f.content.includes('require("@repo/auth"') &&
-          !f.content.includes("auth-client")),
+        !f.content.includes('from "@repo/auth"') &&
+        !f.content.includes("from '@repo/auth'") &&
+        !f.content.includes('require("@repo/auth"') &&
+        !f.content.includes("auth-client"),
     );
   }
   if (!hasApi) {
     filteredFiles = filteredFiles.filter(
       (f) =>
-        isDesktopPath(f.path) ||
-        (!f.content.includes('from "@repo/api"') &&
-          !f.content.includes("from '@repo/api'") &&
-          !f.content.includes("lib/orpc")),
+        !f.content.includes('from "@repo/api"') &&
+        !f.content.includes("from '@repo/api'") &&
+        !f.content.includes("lib/orpc"),
     );
   }
   if (!hasAnalytics) {
@@ -317,10 +404,8 @@ export function monorepoFiles(
       (f) =>
         !f.path.includes("messaging") &&
         !f.path.includes("realtime") &&
-        !f.path.includes("storage") &&
         !f.path.includes("/ws") &&
         !f.content.includes('from "@repo/realtime"') &&
-        !f.content.includes('from "@repo/storage"') &&
         !f.content.includes("@orpc/server/ws") &&
         !f.content.includes("@orpc/server/crossws") &&
         !f.content.includes("@orpc/client/websocket"),
@@ -332,11 +417,21 @@ export function monorepoFiles(
         !f.path.includes("packages/realtime") &&
         !f.path.includes("packages/storage") &&
         !f.path.includes("/api/ws") &&
-        !f.path.includes("server.ts"),
+        f.path !== "apps/web/server.ts",
     );
   } else if (effectiveDatabase === "postgres") {
     // Postgres messaging does not use convex/messaging.ts
     filteredFiles = filteredFiles.filter((f) => !f.path.includes("convex/messaging.ts"));
+  }
+  if (!hasStorage) {
+    filteredFiles = filteredFiles.filter(
+      (f) =>
+        !f.path.includes("storage") &&
+        !f.content.includes('from "@repo/storage"') &&
+        !f.content.includes("from '@repo/storage'"),
+    );
+  } else if (effectiveDatabase === "convex") {
+    filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/storage/"));
   }
 
   // Strip workspace deps for disabled packages from remaining package.json files
@@ -346,11 +441,10 @@ export function monorepoFiles(
   if (!hasAnalytics) disabledPackages.add("@repo/analytics");
   if (!hasCache) disabledPackages.add("@repo/cache");
   if (!hasPdf) disabledPackages.add("@repo/pdf");
-  if (!hasMessaging) {
+  if (!hasMessaging || effectiveDatabase === "convex") {
     disabledPackages.add("@repo/realtime");
-    disabledPackages.add("@repo/storage");
-  } else if (effectiveDatabase === "convex") {
-    disabledPackages.add("@repo/realtime");
+  }
+  if (!hasStorage || effectiveDatabase === "convex") {
     disabledPackages.add("@repo/storage");
   }
   // billing is handled separately via effectiveBilling, but if no billing selected strip all billing providers
@@ -387,6 +481,22 @@ export function monorepoFiles(
       return f;
     });
   }
+  if (!hasAnalytics) {
+    filteredFiles = filteredFiles.map((entry) =>
+      entry.path === ".env.example" || entry.path === ".env.local"
+        ? { ...entry, content: withoutClientAnalyticsEnvironment(entry.content) }
+        : entry,
+    );
+  }
+
+  filteredFiles = integrateEveSecurityFiles(filteredFiles, {
+    auth: hasAuth,
+    database: effectiveDatabase,
+    eve: hasEve,
+    framework: effectiveFramework,
+    mode,
+    web: hasWeb,
+  });
 
   const tsIdx = filteredFiles.findIndex((f) => f.path === "tsconfig.json");
   if (tsIdx !== -1) {

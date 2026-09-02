@@ -1,4 +1,4 @@
-// @allow-long 320: executable generated-code fixture keeps its isolated in-memory Convex adapter inline
+// @allow-long 884: executable generated-code fixture keeps its isolated in-memory Convex adapter inline
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -49,16 +49,34 @@ function verifyTempRoot(root: string): void {
   }
 }
 
+// Contract stub for Convex codegen surfaces; registration tags below verify the generated definition.
 const generatedApiRuntime = `export const components = { betterAuth: {} };
-export const internal = { auth: {} };
-export const api = {};
+export const internal = { auth: {}, users: { seedFirstAdmin: {} } };
+export const api = {
+  users: {
+    me: {},
+    getCurrentUser: {},
+    list: {},
+    setRoleByAuthId: {},
+    setBannedByAuthId: {},
+    getById: {},
+  },
+  posts: { list: {}, get: {}, create: {}, update: {}, remove: {} },
+};
 `;
 
-const generatedServerRuntime = `export function query(definition) { return definition; }
-export function internalMutation(definition) { return definition; }
+const generatedServerRuntime = `function register(definition, kind, visibility) {
+  return Object.freeze({ ...definition, __kind: kind, __visibility: visibility });
+}
+export function query(definition) { return register(definition, "query", "public"); }
+export function mutation(definition) { return register(definition, "mutation", "public"); }
+export function internalMutation(definition) {
+  return register(definition, "mutation", "internal");
+}
 `;
 
 const generatedDataModelRuntime = `export const DataModel = {};
+export const Doc = {};
 `;
 
 const mappingBehaviorTest = `import { expect, mock, test } from "bun:test";
@@ -73,15 +91,18 @@ interface AuthUser {
   createdAt: number;
   updatedAt: number;
   twoFactorEnabled?: boolean | null;
+  role?: string;
+  banned?: boolean;
 }
 
 interface MappingContext {
   db: MemoryDb;
+  auth: { getUserIdentity: () => Promise<TokenIdentity | null> };
 }
 
 interface UserTriggers {
   onCreate: (ctx: MappingContext, doc: AuthUser) => Promise<void>;
-  onUpdate: (ctx: MappingContext, newDoc: AuthUser, oldDoc: AuthUser) => Promise<void>;
+  onUpdate: (ctx: MappingContext, doc: AuthUser) => Promise<void>;
   onDelete: (ctx: MappingContext, doc: AuthUser) => Promise<void>;
 }
 
@@ -93,60 +114,184 @@ interface IndexBuilder {
   eq: (field: string, value: unknown) => IndexBuilder;
 }
 
-class MemoryDb {
-  readonly rows = new Map<string, Record<string, unknown>>();
-  #nextId = 1;
+interface IndexFilter {
+  field: string;
+  value: unknown;
+}
 
-  query(table: string) {
-    if (table !== "users") throw new Error("Unexpected table " + table);
-    return {
-      withIndex: (index: string, configure: (query: IndexBuilder) => IndexBuilder) => {
-        if (index !== "by_authId") throw new Error("Unexpected index " + index);
-        let authId: unknown;
-        const builder: IndexBuilder = {
-          eq: (field, value) => {
-            if (field !== "authId") throw new Error("Unexpected indexed field " + field);
-            authId = value;
-            return builder;
-          },
-        };
-        configure(builder);
-        return {
-          unique: async () =>
-            [...this.rows.values()].find((row) => row.authId === authId) ?? null,
-        };
-      },
-      order: () => ({ paginate: async () => ({ page: [], isDone: true, continueCursor: "" }) }),
-    };
+interface TokenIdentity {
+  subject: string;
+  tokenIdentifier: string;
+  sessionId: string;
+}
+
+const indexFields = new Map<string, readonly string[]>([
+  ["users:by_authId", ["authId"]],
+  ["users:by_role", ["role"]],
+  ["posts:by_userId", ["userId"]],
+  ["posts:by_userId_createdAt", ["userId", "createdAt"]],
+  ["admin_audit_events:by_targetUserId", ["targetUserId"]],
+  ["admin_audit_events:by_targetAuthId", ["targetAuthId"]],
+  ["identitySessions:by_auth_session", ["authSessionId"]],
+]);
+
+class MemoryDb {
+  readonly #tables = new Map<string, Map<string, Record<string, unknown>>>([
+    ["users", new Map()],
+    ["posts", new Map()],
+    ["admin_audit_events", new Map()],
+    ["identitySessions", new Map()],
+  ]);
+  readonly #nextIds = new Map<string, number>();
+  #clock = 1;
+
+  tableRows(table: string): Map<string, Record<string, unknown>> {
+    const rows = this.#tables.get(table);
+    if (!rows) throw new Error("Unexpected table " + table);
+    return rows;
+  }
+
+  rows(table: string): Record<string, unknown>[] {
+    return [...this.tableRows(table).values()].map((row) => structuredClone(row));
+  }
+
+  query(table: string): MemoryQuery {
+    this.tableRows(table);
+    return new MemoryQuery(this, table);
   }
 
   async insert(table: string, value: Record<string, unknown>): Promise<string> {
-    if (table !== "users") throw new Error("Unexpected table " + table);
-    const id = "users:" + this.#nextId++;
-    this.rows.set(id, { _id: id, _creationTime: Date.now(), ...value });
+    const rows = this.tableRows(table);
+    const next = (this.#nextIds.get(table) ?? 0) + 1;
+    this.#nextIds.set(table, next);
+    const id = table + ":" + next;
+    rows.set(id, { _id: id, _creationTime: this.#clock++, ...structuredClone(value) });
     return id;
   }
 
   async patch(id: string, value: Record<string, unknown>): Promise<void> {
-    const row = this.rows.get(id);
-    if (!row) throw new Error("Missing row " + id);
+    const row = this.findStoredRow(id);
     for (const [key, nextValue] of Object.entries(value)) {
       if (nextValue === undefined) delete row[key];
-      else row[key] = nextValue;
+      else row[key] = structuredClone(nextValue);
     }
   }
 
   async delete(id: string): Promise<void> {
-    this.rows.delete(id);
+    for (const rows of this.#tables.values()) {
+      if (rows.delete(id)) return;
+    }
   }
 
   async get(id: string): Promise<Record<string, unknown> | null> {
-    return this.rows.get(id) ?? null;
+    for (const rows of this.#tables.values()) {
+      const row = rows.get(id);
+      if (row) return structuredClone(row);
+    }
+    return null;
+  }
+
+  private findStoredRow(id: string): Record<string, unknown> {
+    for (const rows of this.#tables.values()) {
+      const row = rows.get(id);
+      if (row) return row;
+    }
+    throw new Error("Missing row " + id);
   }
 }
 
+class MemoryQuery {
+  readonly #filters: IndexFilter[] = [];
+  #direction: "asc" | "desc" = "asc";
+
+  constructor(
+    private readonly db: MemoryDb,
+    private readonly table: string,
+  ) {}
+
+  withIndex(index: string, configure: (query: IndexBuilder) => IndexBuilder): MemoryQuery {
+    const allowedFields = indexFields.get(this.table + ":" + index);
+    if (!allowedFields) throw new Error("Unexpected index " + this.table + ":" + index);
+    const builder: IndexBuilder = {
+      eq: (field, value) => {
+        if (!allowedFields.includes(field)) {
+          throw new Error("Unexpected indexed field " + this.table + ":" + index + ":" + field);
+        }
+        this.#filters.push({ field, value });
+        return builder;
+      },
+    };
+    configure(builder);
+    return this;
+  }
+
+  order(direction: "asc" | "desc"): MemoryQuery {
+    this.#direction = direction;
+    return this;
+  }
+
+  async unique(): Promise<Record<string, unknown> | null> {
+    const rows = this.matchingRows();
+    if (rows.length > 1) throw new Error("Expected unique result");
+    return rows[0] ?? null;
+  }
+
+  async first(): Promise<Record<string, unknown> | null> {
+    return this.matchingRows()[0] ?? null;
+  }
+
+  async collect(): Promise<Record<string, unknown>[]> {
+    return this.matchingRows();
+  }
+
+  async paginate(_options: unknown) {
+    return { page: this.matchingRows(), isDone: true, continueCursor: "" };
+  }
+
+  private matchingRows(): Record<string, unknown>[] {
+    const rows = this.db
+      .rows(this.table)
+      .filter((row) => this.#filters.every((filter) => row[filter.field] === filter.value));
+    return rows.sort((left, right) => {
+      const leftValue = numericSortValue(left);
+      const rightValue = numericSortValue(right);
+      return this.#direction === "desc" ? rightValue - leftValue : leftValue - rightValue;
+    });
+  }
+}
+
+function numericSortValue(row: Record<string, unknown>): number {
+  if (typeof row.createdAt === "number") return row.createdAt;
+  return typeof row._creationTime === "number" ? row._creationTime : 0;
+}
+
 let currentAuthUser: AuthUser | null = null;
+let currentTokenIdentity: TokenIdentity | null = null;
 let capturedTriggers: UserTriggers | undefined;
+
+function validator(kind: string, args: unknown[]) {
+  return { kind, args };
+}
+
+const validators = new Proxy(
+  {},
+  {
+    get: (_target, property) => (...args: unknown[]) => validator(String(property), args),
+  },
+);
+
+function defineTable(fields: Record<string, unknown>) {
+  const indexes: Array<{ name: string; fields: string[] }> = [];
+  const table = {
+    fields,
+    indexes,
+    index: (name: string, indexedFields: string[]) => {
+      indexes.push({ name, fields: indexedFields });
+      return table;
+    },
+  };
+  return table;
+}
 
 mock.module("@convex-dev/better-auth", () => ({
   createClient: (_component: unknown, config?: ClientConfig) => {
@@ -154,9 +299,16 @@ mock.module("@convex-dev/better-auth", () => ({
     return {
       adapter: () => ({}),
       triggersApi: () => ({ onCreate: {}, onUpdate: {}, onDelete: {} }),
-      safeGetAuthUser: async () => currentAuthUser,
+      safeGetAuthUser: async () => {
+        if (!currentTokenIdentity || currentAuthUser?._id !== currentTokenIdentity.subject) {
+          return null;
+        }
+        return currentAuthUser;
+      },
       getAuthUser: async () => {
-        if (!currentAuthUser) throw new Error("Unauthenticated");
+        if (!currentTokenIdentity || currentAuthUser?._id !== currentTokenIdentity.subject) {
+          throw new Error("Unauthenticated");
+        }
         return currentAuthUser;
       },
     };
@@ -171,10 +323,22 @@ mock.module("@convex-dev/better-auth/auth-config", () => ({
 }));
 mock.module("better-auth/minimal", () => ({ betterAuth: () => ({}) }));
 mock.module("better-auth/plugins/admin", () => ({ admin: () => ({}) }));
-mock.module("convex/server", () => ({ paginationOptsValidator: {} }));
+mock.module("better-auth/plugins/two-factor", () => ({ twoFactor: () => ({}) }));
+mock.module("convex/server", () => ({
+  defineSchema: (tables: Record<string, unknown>) => tables,
+  defineTable,
+  paginationOptsValidator: validator("pagination", []),
+}));
 mock.module("convex/values", () => ({
-  ConvexError: class ConvexError extends Error {},
-  v: new Proxy({}, { get: () => () => ({}) }),
+  ConvexError: class ConvexError extends Error {
+    readonly data: { code: string; message: string };
+
+    constructor(data: { code: string; message: string }) {
+      super(data.message);
+      this.data = data;
+    }
+  },
+  v: validators,
 }));
 
 function requireTriggers(): UserTriggers {
@@ -182,91 +346,521 @@ function requireTriggers(): UserTriggers {
   return capturedTriggers;
 }
 
-function requireRow(db: MemoryDb): Record<string, unknown> {
-  const row = [...db.rows.values()][0];
-  if (!row) throw new Error("Expected a mapped local user");
+function findMappedUser(db: MemoryDb, authId: string): Record<string, unknown> | undefined {
+  return db.rows("users").find((candidate) => candidate.authId === authId);
+}
+
+function requireMappedUser(db: MemoryDb, authId: string): Record<string, unknown> {
+  const row = findMappedUser(db, authId);
+  if (!row) throw new Error("Expected mapped local user " + authId);
   return row;
 }
 
-async function callQueryHandler(
-  registeredQuery: unknown,
-  ctx: MappingContext,
-): Promise<unknown> {
-  if (typeof registeredQuery !== "object" || registeredQuery === null) {
-    throw new Error("Expected a registered query object");
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== "string") throw new Error("Expected string " + label);
+  return value;
+}
+
+function readProperty(value: unknown, key: string): unknown {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    throw new Error("Expected object while reading " + key);
   }
-  const handler = Reflect.get(registeredQuery, "handler");
-  if (typeof handler !== "function") throw new Error("Registered query has no handler");
-  return await handler(ctx, {});
+  return Reflect.get(value, key);
+}
+
+async function callFunctionHandler(
+  registeredFunction: unknown,
+  ctx: MappingContext,
+  args: Record<string, unknown> = {},
+): Promise<unknown> {
+  const handler = readProperty(registeredFunction, "handler");
+  if (typeof handler !== "function") throw new Error("Registered function has no handler");
+  return await handler(ctx, args);
+}
+
+async function expectConvexError(promise: Promise<unknown>, code: string): Promise<void> {
+  let caught: unknown;
+  try {
+    await promise;
+  } catch (error) {
+    caught = error;
+  }
+  expect(readProperty(readProperty(caught, "data"), "code")).toBe(code);
+}
+
+function makeAuthUser(
+  id: string,
+  email: string,
+  overrides: Partial<AuthUser> = {},
+): AuthUser {
+  return {
+    _id: id,
+    _creationTime: 1,
+    name: id,
+    email,
+    emailVerified: true,
+    createdAt: 1,
+    updatedAt: 1,
+    ...overrides,
+  };
+}
+
+async function authenticate(user: AuthUser | null, db: MemoryDb): Promise<void> {
+  currentAuthUser = user;
+  currentTokenIdentity = user
+    ? {
+        subject: user._id,
+        tokenIdentifier: "https://issuer.example|" + user._id,
+        sessionId: "session:" + user._id,
+      }
+    : null;
+  if (!user) return;
+  const mapped = findMappedUser(db, user._id);
+  if (!mapped) return;
+  const existing = await db
+    .query("identitySessions")
+    .withIndex("by_auth_session", (query) => query.eq("authSessionId", currentTokenIdentity!.sessionId))
+    .unique();
+  if (existing) return;
+  await db.insert("identitySessions", {
+    authSessionId: currentTokenIdentity.sessionId,
+    userId: mapped._id,
+    authenticatedAt: Date.now(),
+    expiresAt: Date.now() + 60_000,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+}
+
+function mappingContext(db: MemoryDb): MappingContext {
+  return { db, auth: { getUserIdentity: async () => currentTokenIdentity } };
 }
 
 process.env.SITE_URL = "http://localhost:3000";
 process.env.CONVEX_SITE_URL = "https://example.convex.site";
 process.env.BETTER_AUTH_SECRET = "0123456789abcdef0123456789abcdef";
 
+const schemaModule = await import("./convex/schema.ts");
 await import("./convex/auth.ts");
 const users = await import("./convex/users.ts");
+const posts = await import("./convex/posts.ts");
+const generatedApi = await import("./convex/_generated/api.ts");
 
-test("auth triggers map identity fields while local authorization stays app-owned", async () => {
-  const db = new MemoryDb();
-  const ctx = { db };
-  const original: AuthUser = {
-    _id: "auth-user-1",
-    _creationTime: 10,
-    name: "Ada",
-    email: "ada@example.com",
-    emailVerified: false,
-    image: null,
-    createdAt: 10,
-    updatedAt: 10,
-    twoFactorEnabled: null,
-  };
-  currentAuthUser = original;
+test("app-owned Convex users enforce authorization, auditing, and local IDs", async () => {
   const triggers = requireTriggers();
-  await triggers.onCreate(ctx, original);
-  const created = requireRow(db);
-  expect(created.authId).toBe(original._id);
-  expect(created.role).toBe("user");
-  expect(created.emailVerified).toBe(false);
 
-  const localId = String(created._id);
-  await db.patch(localId, {
+  expect(readProperty(users.seedFirstAdmin, "__visibility")).toBe("internal");
+  expect(readProperty(users.seedFirstAdmin, "__kind")).toBe("mutation");
+  expect(readProperty(users.setRoleByAuthId, "__visibility")).toBe("public");
+  const publicUsers = readProperty(generatedApi.api, "users");
+  expect(readProperty(publicUsers, "seedFirstAdmin")).toBeUndefined();
+  const internalUsers = readProperty(generatedApi.internal, "users");
+  expect(readProperty(internalUsers, "seedFirstAdmin")).toBeDefined();
+
+  const schema = schemaModule.default;
+  const usersTable = readProperty(schema, "users");
+  const userFields = readProperty(usersTable, "fields");
+  expect(readProperty(userFields, "authId")).toEqual({ kind: "string", args: [] });
+  expect(readProperty(userFields, "role")).toMatchObject({ kind: "union" });
+  expect(readProperty(userFields, "banned")).toEqual({ kind: "boolean", args: [] });
+  expect(readProperty(usersTable, "indexes")).toEqual([
+    { name: "by_authId", fields: ["authId"] },
+    { name: "by_email", fields: ["email"] },
+    { name: "by_role", fields: ["role"] },
+  ]);
+  const auditTable = readProperty(schema, "admin_audit_events");
+  const auditFields = readProperty(auditTable, "fields");
+  expect(readProperty(auditFields, "actor")).toMatchObject({
+    kind: "union",
+    args: [
+      {
+        kind: "object",
+        args: [
+          {
+            kind: { kind: "literal", args: ["user"] },
+            userId: { kind: "id", args: ["users"] },
+            authId: { kind: "string", args: [] },
+          },
+        ],
+      },
+      { kind: "object", args: [{ kind: { kind: "literal", args: ["bootstrap"] } }] },
+    ],
+  });
+  expect(readProperty(auditFields, "targetAuthId")).toEqual({ kind: "string", args: [] });
+  expect(readProperty(auditFields, "event")).toMatchObject({
+    kind: "union",
+    args: [
+      {
+        kind: "object",
+        args: [{ type: { kind: "literal", args: ["user.role.changed"] } }],
+      },
+      {
+        kind: "object",
+        args: [{ type: { kind: "literal", args: ["user.ban.changed"] } }],
+      },
+    ],
+  });
+  expect(readProperty(auditTable, "indexes")).toEqual([
+    { name: "by_targetUserId", fields: ["targetUserId"] },
+    { name: "by_targetAuthId", fields: ["targetAuthId"] },
+    { name: "by_createdAt", fields: ["createdAt"] },
+  ]);
+  const postsTable = readProperty(schema, "posts");
+  expect(readProperty(postsTable, "indexes")).toContainEqual({
+    name: "by_userId",
+    fields: ["userId"],
+  });
+
+  const db = new MemoryDb();
+  const ctx = mappingContext(db);
+  const adminIdentity = makeAuthUser("auth-admin-1", "admin@example.com", {
+    name: "Bootstrap Admin",
+    role: "user",
+  });
+  await triggers.onCreate(ctx, adminIdentity);
+  const initialAdminMapping = requireMappedUser(db, adminIdentity._id);
+  const adminId = requireString(initialAdminMapping._id, "admin local ID");
+  expect(adminId).toBe("users:1");
+  expect(adminId).not.toBe(adminIdentity._id);
+
+  await triggers.onCreate(ctx, { ...adminIdentity, name: "Updated before bootstrap", updatedAt: 2 });
+  const idempotentAdminMapping = requireMappedUser(db, adminIdentity._id);
+  expect(idempotentAdminMapping._id).toBe(adminId);
+  expect(idempotentAdminMapping.name).toBe("Updated before bootstrap");
+  expect(db.rows("users")).toHaveLength(1);
+
+  await callFunctionHandler(users.seedFirstAdmin, ctx, { authId: adminIdentity._id });
+  expect(requireMappedUser(db, adminIdentity._id).role).toBe("admin");
+  expect(db.rows("admin_audit_events")).toEqual([
+    expect.objectContaining({
+      actor: { kind: "bootstrap" },
+      targetUserId: adminId,
+      targetAuthId: adminIdentity._id,
+      event: { type: "user.role.changed", previousRole: "user", nextRole: "admin" },
+    }),
+  ]);
+
+  const memberIdentity = makeAuthUser("auth-user-1", "member@example.com", {
+    name: "Member",
+  });
+  const targetIdentity = makeAuthUser("auth-user-2", "target@example.com", {
+    name: "Target",
+  });
+  await triggers.onCreate(ctx, memberIdentity);
+  await triggers.onCreate(ctx, targetIdentity);
+  const memberId = requireString(
+    requireMappedUser(db, memberIdentity._id)._id,
+    "member local ID",
+  );
+  const targetId = requireString(
+    requireMappedUser(db, targetIdentity._id)._id,
+    "target local ID",
+  );
+  expect([memberId, targetId]).toEqual(["users:2", "users:3"]);
+  await expectConvexError(
+    callFunctionHandler(users.seedFirstAdmin, ctx, { authId: memberIdentity._id }),
+    "BOOTSTRAP_CLOSED",
+  );
+
+  const bannedBootstrapDb = new MemoryDb();
+  const bannedBootstrapCtx = mappingContext(bannedBootstrapDb);
+  const bannedCandidate = makeAuthUser("auth-banned-bootstrap", "blocked@example.com");
+  await triggers.onCreate(bannedBootstrapCtx, bannedCandidate);
+  const bannedCandidateId = requireString(
+    requireMappedUser(bannedBootstrapDb, bannedCandidate._id)._id,
+    "banned candidate local ID",
+  );
+  await bannedBootstrapDb.patch(bannedCandidateId, { banned: true });
+  await expectConvexError(
+    callFunctionHandler(users.seedFirstAdmin, bannedBootstrapCtx, {
+      authId: bannedCandidate._id,
+    }),
+    "USER_BANNED",
+  );
+  expect(bannedBootstrapDb.rows("admin_audit_events")).toHaveLength(0);
+
+  await authenticate(null, db);
+  expect(await callFunctionHandler(users.me, ctx)).toBeNull();
+  await expectConvexError(callFunctionHandler(users.getCurrentUser, ctx), "UNAUTHENTICATED");
+  await expectConvexError(
+    callFunctionHandler(users.list, ctx, {
+      paginationOpts: { numItems: 20, cursor: null },
+    }),
+    "UNAUTHENTICATED",
+  );
+  await expectConvexError(
+    callFunctionHandler(posts.create, ctx, { title: "Blocked", content: "No identity" }),
+    "UNAUTHENTICATED",
+  );
+
+  await authenticate(makeAuthUser("auth-missing", "missing@example.com"), db);
+  await expectConvexError(callFunctionHandler(users.me, ctx), "AUTH_MAPPING_MISSING");
+
+  await authenticate({ ...memberIdentity, role: "admin", banned: false }, db);
+  expect(currentTokenIdentity).toEqual({
+    subject: memberIdentity._id,
+    tokenIdentifier: "https://issuer.example|" + memberIdentity._id,
+    sessionId: "session:" + memberIdentity._id,
+  });
+  expect(readProperty(currentTokenIdentity, "tokenIdentifier")).not.toBe(memberIdentity._id);
+  await expectConvexError(
+    callFunctionHandler(users.list, ctx, {
+      paginationOpts: { numItems: 20, cursor: null },
+    }),
+    "FORBIDDEN",
+  );
+  await expectConvexError(
+    callFunctionHandler(users.setRoleByAuthId, ctx, {
+      authId: targetIdentity._id,
+      role: "admin",
+    }),
+    "FORBIDDEN",
+  );
+  const postId = requireString(
+    await callFunctionHandler(posts.create, ctx, {
+      title: "  Local ownership  ",
+      content: "Stored under the application user ID",
+    }),
+    "post ID",
+  );
+  const storedPost = await db.get(postId);
+  expect(storedPost).toMatchObject({
+    _id: "posts:1",
+    userId: memberId,
+    title: "Local ownership",
+  });
+  expect(readProperty(storedPost, "userId")).not.toBe(memberIdentity._id);
+
+  await authenticate(targetIdentity, db);
+  await expectConvexError(callFunctionHandler(posts.get, ctx, { id: postId }), "FORBIDDEN");
+  await expectConvexError(
+    callFunctionHandler(posts.list, ctx, {
+      userId: memberId,
+      paginationOpts: { numItems: 20, cursor: null },
+    }),
+    "FORBIDDEN",
+  );
+
+  await authenticate({ ...adminIdentity, role: "user", banned: true }, db);
+  const listedUsers = await callFunctionHandler(users.list, ctx, {
+    paginationOpts: { numItems: 20, cursor: null },
+  });
+  expect(readProperty(listedUsers, "page")).toHaveLength(3);
+  expect(await callFunctionHandler(posts.get, ctx, { id: postId })).toEqual(storedPost);
+  const memberPosts = await callFunctionHandler(posts.list, ctx, {
+    userId: memberId,
+    paginationOpts: { numItems: 20, cursor: null },
+  });
+  expect(readProperty(memberPosts, "page")).toHaveLength(1);
+
+  const auditCountBeforeNoOps = db.rows("admin_audit_events").length;
+  expect(
+    readProperty(
+      await callFunctionHandler(users.setRoleByAuthId, ctx, {
+        authId: adminIdentity._id,
+        role: "admin",
+      }),
+      "_id",
+    ),
+  ).toBe(adminId);
+  expect(
+    readProperty(
+      await callFunctionHandler(users.setBannedByAuthId, ctx, {
+        authId: memberIdentity._id,
+        banned: false,
+      }),
+      "_id",
+    ),
+  ).toBe(memberId);
+  expect(db.rows("admin_audit_events")).toHaveLength(auditCountBeforeNoOps);
+
+  await callFunctionHandler(users.setBannedByAuthId, ctx, {
+    authId: memberIdentity._id,
+    banned: true,
+    reason: "manual review",
+  });
+  await authenticate({ ...memberIdentity, banned: false }, db);
+  await expectConvexError(callFunctionHandler(users.me, ctx), "USER_BANNED");
+  await expectConvexError(
+    callFunctionHandler(posts.create, ctx, { title: "Blocked", content: "Banned locally" }),
+    "USER_BANNED",
+  );
+  await authenticate(adminIdentity, db);
+  await callFunctionHandler(users.setBannedByAuthId, ctx, {
+    authId: memberIdentity._id,
+    banned: false,
+  });
+
+  await callFunctionHandler(users.setRoleByAuthId, ctx, {
+    authId: targetIdentity._id,
+    role: "admin",
+  });
+  await callFunctionHandler(users.setBannedByAuthId, ctx, {
+    authId: targetIdentity._id,
+    banned: true,
+    reason: "security hold",
+  });
+  const updatedTargetIdentity: AuthUser = {
+    ...targetIdentity,
+    name: "Renamed identity",
+    email: "renamed@example.com",
+    emailVerified: false,
+    role: "user",
+    banned: false,
+    updatedAt: 50,
+  };
+  await triggers.onUpdate(ctx, updatedTargetIdentity);
+  const synchronizedTarget = requireMappedUser(db, targetIdentity._id);
+  expect(synchronizedTarget).toMatchObject({
+    _id: targetId,
+    authId: targetIdentity._id,
+    name: "Renamed identity",
+    email: "renamed@example.com",
+    emailVerified: false,
     role: "admin",
     banned: true,
-    banReason: "manual review",
-    banExpires: 123,
+    banReason: "security hold",
   });
-  const updated: AuthUser = {
-    ...original,
-    name: "Ada Lovelace",
-    email: "ada.lovelace@example.com",
-    emailVerified: true,
-    image: "https://example.com/ada.png",
-    twoFactorEnabled: true,
-    updatedAt: 20,
-  };
-  currentAuthUser = updated;
-  await triggers.onUpdate(ctx, updated, original);
-  const synchronized = requireRow(db);
-  expect(synchronized.name).toBe(updated.name);
-  expect(synchronized.email).toBe(updated.email);
-  expect(synchronized.emailVerified).toBe(true);
-  expect(synchronized.twoFactorEnabled).toBe(true);
-  expect(synchronized.role).toBe("admin");
-  expect(synchronized.banned).toBe(true);
-  expect(synchronized.banReason).toBe("manual review");
-  expect(synchronized.banExpires).toBe(123);
 
-  const me = await callQueryHandler(users.me, ctx);
-  expect(me).toEqual(synchronized);
+  await authenticate(updatedTargetIdentity, db);
+  await expectConvexError(callFunctionHandler(users.me, ctx), "USER_BANNED");
+  await expectConvexError(
+    callFunctionHandler(users.setRoleByAuthId, ctx, {
+      authId: memberIdentity._id,
+      role: "admin",
+    }),
+    "USER_BANNED",
+  );
+  await authenticate(adminIdentity, db);
+  await callFunctionHandler(users.setBannedByAuthId, ctx, {
+    authId: targetIdentity._id,
+    banned: false,
+  });
 
-  await triggers.onDelete(ctx, updated);
-  expect(db.rows.size).toBe(0);
+  await authenticate(updatedTargetIdentity, db);
+  const auditCountBeforeRejectedSelfChanges = db.rows("admin_audit_events").length;
+  await expectConvexError(
+    callFunctionHandler(users.setRoleByAuthId, ctx, {
+      authId: targetIdentity._id,
+      role: "user",
+    }),
+    "SELF_DEMOTION",
+  );
+  await expectConvexError(
+    callFunctionHandler(users.setBannedByAuthId, ctx, {
+      authId: targetIdentity._id,
+      banned: true,
+    }),
+    "SELF_BAN",
+  );
+  expect(db.rows("admin_audit_events")).toHaveLength(auditCountBeforeRejectedSelfChanges);
+
+  await authenticate(adminIdentity, db);
+  await callFunctionHandler(users.setRoleByAuthId, ctx, {
+    authId: targetIdentity._id,
+    role: "user",
+  });
+  await expectConvexError(
+    callFunctionHandler(users.setRoleByAuthId, ctx, {
+      authId: adminIdentity._id,
+      role: "user",
+    }),
+    "LAST_ADMIN",
+  );
+  await expectConvexError(
+    callFunctionHandler(users.setBannedByAuthId, ctx, {
+      authId: adminIdentity._id,
+      banned: true,
+    }),
+    "LAST_ADMIN",
+  );
+
+  expect(db.rows("admin_audit_events")).toEqual([
+    expect.objectContaining({
+      actor: { kind: "bootstrap" },
+      targetUserId: adminId,
+      targetAuthId: adminIdentity._id,
+      event: { type: "user.role.changed", previousRole: "user", nextRole: "admin" },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: memberId,
+      targetAuthId: memberIdentity._id,
+      event: {
+        type: "user.ban.changed",
+        previousBanned: false,
+        nextBanned: true,
+        reason: "manual review",
+      },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: memberId,
+      targetAuthId: memberIdentity._id,
+      event: {
+        type: "user.ban.changed",
+        previousBanned: true,
+        nextBanned: false,
+        reason: undefined,
+      },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: targetId,
+      targetAuthId: targetIdentity._id,
+      event: { type: "user.role.changed", previousRole: "user", nextRole: "admin" },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: targetId,
+      targetAuthId: targetIdentity._id,
+      event: {
+        type: "user.ban.changed",
+        previousBanned: false,
+        nextBanned: true,
+        reason: "security hold",
+      },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: targetId,
+      targetAuthId: targetIdentity._id,
+      event: {
+        type: "user.ban.changed",
+        previousBanned: true,
+        nextBanned: false,
+        reason: undefined,
+      },
+    }),
+    expect.objectContaining({
+      actor: { kind: "user", userId: adminId, authId: adminIdentity._id },
+      targetUserId: targetId,
+      targetAuthId: targetIdentity._id,
+      event: { type: "user.role.changed", previousRole: "admin", nextRole: "user" },
+    }),
+  ]);
+
+  await triggers.onDelete(ctx, updatedTargetIdentity);
+  expect(findMappedUser(db, targetIdentity._id)).toBeUndefined();
+  expect(db.rows("users")).toHaveLength(2);
+  await authenticate(updatedTargetIdentity, db);
+  await expectConvexError(callFunctionHandler(users.me, ctx), "AUTH_MAPPING_MISSING");
+  const retainedTargetAudits = await db
+    .query("admin_audit_events")
+    .withIndex("by_targetAuthId", (query) => query.eq("targetAuthId", targetIdentity._id))
+    .collect();
+  expect(retainedTargetAudits).toHaveLength(4);
+  for (const audit of retainedTargetAudits) {
+    expect(audit.targetUserId).toBe(targetId);
+    expect(audit.targetAuthId).toBe(targetIdentity._id);
+    expect(audit.actor).toMatchObject({ authId: adminIdentity._id });
+  }
+  expect(await db.get(postId)).toMatchObject({ userId: memberId });
 });
 `;
 
 describe("generated Convex app-owned user mapping", () => {
-  test("create, update, lookup, and delete preserve local role authority", async () => {
+  test("runtime behavior preserves local authorization and immutable audit identity", async () => {
     const root = mkdtempSync(join(tmpdir(), "ghostinit-convex-user-mapping-"));
     try {
       const files = generateProjectFiles(
@@ -275,7 +869,10 @@ describe("generated Convex app-owned user mapping", () => {
           runtime: "bun",
           version: "0.1.0",
           mode: "single",
-          preset: "saas",
+          preset: "custom",
+          auth: true,
+          api: true,
+          email: false,
           billing: [],
           features: [],
           database: "convex",
@@ -284,7 +881,17 @@ describe("generated Convex app-owned user mapping", () => {
         }),
       );
       const transaction = new FsTransaction(root);
-      for (const path of ["convex/auth.ts", "convex/users.ts", "convex/auth.config.ts"]) {
+      for (const path of [
+        "convex/auth.ts",
+        "convex/users.ts",
+        "convex/posts.ts",
+        "convex/schema.ts",
+        "convex/lib/auth.ts",
+        "convex/auth.config.ts",
+        "convex/schema/identity.ts",
+        "convex/identity/sessions.ts",
+        "convex/identity/shared.ts",
+      ]) {
         const content = files.find((file) => file.path === path)?.content ?? "";
         expect(content, path).not.toBe("");
         await transaction.write(path, content);
@@ -293,7 +900,16 @@ describe("generated Convex app-owned user mapping", () => {
       await transaction.write("convex/_generated/server.ts", generatedServerRuntime);
       await transaction.write("convex/_generated/dataModel.ts", generatedDataModelRuntime);
       await transaction.write("mapping.test.ts", mappingBehaviorTest);
-      expect(transaction.getStagedFiles().map(({ path }) => path)).toContain("mapping.test.ts");
+      expect(transaction.getStagedFiles().map(({ path }) => path)).toEqual(
+        expect.arrayContaining([
+          "convex/auth.ts",
+          "convex/users.ts",
+          "convex/posts.ts",
+          "convex/schema.ts",
+          "convex/lib/auth.ts",
+          "mapping.test.ts",
+        ]),
+      );
       await transaction.commit();
       await runMappingTest(root);
     } finally {

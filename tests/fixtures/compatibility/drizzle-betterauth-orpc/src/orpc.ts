@@ -1,5 +1,5 @@
 import { oc } from "@orpc/contract";
-import { implement, type RouterClient } from "@orpc/server";
+import { implement, os, type RouterClient } from "@orpc/server";
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { OpenAPIGenerator } from "@orpc/openapi";
@@ -23,14 +23,16 @@ export const appContract = {
 
 const implementer = implement(appContract);
 
-export const appRouter = implementer.router({
-  hello: implementer.hello.handler(({ input }) => {
-    return { message: `Hello, ${input.name}!` };
+export const appRouter = os.prefix("/api").router(
+  implementer.router({
+    hello: implementer.hello.handler(({ input }) => {
+      return { message: `Hello, ${input.name}!` };
+    }),
+    toggle: implementer.toggle.handler(({ input }) => {
+      return { enabled: input.enabled };
+    }),
   }),
-  toggle: implementer.toggle.handler(({ input }) => {
-    return { enabled: input.enabled };
-  }),
-});
+);
 
 const link = new RPCLink({
   url: "http://localhost:3000/api/orpc",
@@ -53,7 +55,7 @@ export async function generateOpenAPI(): Promise<unknown> {
       title: "Fixture API",
       version: "1.0.0",
     },
-    servers: [{ url: "http://localhost:3000/api" }],
+    servers: [{ url: "/" }],
   });
 
   return spec;

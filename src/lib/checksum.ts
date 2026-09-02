@@ -67,6 +67,10 @@ const DRIFT_TRACKED_PATHS = new Set([
   "packages/api/src/contract.ts",
   "packages/api/src/router.ts",
   "packages/database/src/schema/index.ts",
+  "src/server/modules/index.ts",
+  "src/server/api/contract.ts",
+  "src/server/api/router.ts",
+  "src/server/db/schema/index.ts",
 ]);
 
 /** True when drift in this file should block `add`/`sync`. */

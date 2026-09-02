@@ -1,4 +1,6 @@
 import { file, type TemplateFile } from "../shared.js";
+import { generatedGitignoreContent } from "../gitignore.js";
+import * as v from "../versions.js";
 
 export function rootTsConfig(): TemplateFile {
   return file(
@@ -11,8 +13,15 @@ export function rootTsConfig(): TemplateFile {
           incremental: true,
           composite: false,
           paths: {
-            "@/*": ["./src/*", "./apps/*/src/*", "./packages/*/src/*"],
-            "@repo/*": ["packages/*/src", "tooling/*/src"],
+            "@/*": ["./src/*"],
+            "@repo/services/application": ["./packages/services/src/application/index.ts"],
+            "@repo/*": ["./packages/*/src", "./tooling/*/src"],
+            "@repo/config": ["./packages/config/src/index.ts"],
+            "@repo/config/server": ["./packages/config/src/server.ts"],
+            "@repo/config/desktop-main": ["./packages/config/src/desktop-main.ts"],
+            "@repo/config/next": ["./packages/config/src/next.ts"],
+            "@repo/config/vite": ["./packages/config/src/vite.ts"],
+            "@repo/config/expo": ["./packages/config/src/expo.ts"],
           },
         },
         exclude: [
@@ -108,65 +117,107 @@ export function dockerCompose(): TemplateFile {
   return file(
     "docker-compose.yml",
     `version: "3.8"
+# Supply interpolation values without injecting the complete application environment:
+# docker compose --env-file .env.local up -d
 services:
   postgres:
-    image: postgres:18.4
+    image: ${v.postgresDocker.image}
     restart: unless-stopped
-    env_file: .env.local
+    stop_grace_period: 30s
     environment:
-      POSTGRES_USER: \${POSTGRES_USER}
-      POSTGRES_DB: \${POSTGRES_DB}
+      POSTGRES_USER: "\${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "\${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: "\${POSTGRES_DB:?POSTGRES_DB is required}"
     ports:
-      - "\${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:\${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18 stores versioned data below /var/lib/postgresql/18/docker.
+      # Mount the parent so upgrades retain the image-managed directory layout.
+      - postgres_data:/var/lib/postgresql
 volumes:
   postgres_data:
 `,
   );
 }
 export function gitignore(): TemplateFile {
+  return file(".gitignore", generatedGitignoreContent());
+}
+export function readme(projectName: string, runtime: string): TemplateFile {
   return file(
-    ".gitignore",
-    `node_modules
-dist
-.next
-.env
-.env.local
-.env.*.local
-.turbo
-.ghostinit/
-.ghostinit-staging/
-.ghostinit.lock
-apps/eve/.eve
-apps/eve/dist
-apps/eve/.env.local
+    "README.md",
+    `# ${projectName}
+Generated with ghostinit. Runtime: ${runtime}
+
+Dependency installs reject package versions published less than ${v.supplyChain.minimumReleaseAgeSeconds} seconds ago. The generated \`bunfig.toml\` has no minimum-release-age exclusions.
 `,
   );
 }
-export function readme(projectName: string, runtime: string): TemplateFile {
-  return file("README.md", `# ${projectName}\nGenerated with ghostinit. Runtime: ${runtime}\n`);
-}
 export function githubWorkflow(runtime: string): TemplateFile {
-  const installCmd = runtime === "bun" ? "bun install" : "npm install";
-  const setupBun =
-    runtime === "bun"
-      ? "      - uses: oven-sh/setup-bun@v2\n        with:\n          bun-version: 1.3.14\n"
-      : "";
+  void runtime;
   return file(
     ".github/workflows/ci.yml",
     `name: CI
 on: [push, pull_request]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-${setupBun}      - run: ${installCmd}
-      - run: ${runtime === "bun" ? "bun run lint" : "npm run lint"}
-      - run: ${runtime === "bun" ? "bun run typecheck" : "npm run typecheck"}
-      - run: ${runtime === "bun" ? "bun run build" : "npm run build"}
-      - run: npx --yes ghostinit check 2>/dev/null || ${runtime === "bun" ? "bun run check" : "npm run check"} || true
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: ${v.runtime.bun}
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Audit dependencies for high-severity vulnerabilities
+        run: bun run audit:dependencies
+      - name: Check repository whitespace
+        run: |
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "$empty_tree" HEAD
+      - name: Check formatting
+        run: bun run format:check
+      - name: Run blocking lint, boundary, and security checks
+        run: bun run lint:all
+      - name: Run generated project tests
+        run: bun run test
+      - name: Build generated project
+        run: bun run build
+      - name: Run pinned architecture checker
+        shell: bash
+        run: |
+          report="$RUNNER_TEMP/ghostinit-architecture-check.json"
+          bunx --bun ghostinit@${v.ghostinitVersion} check --json > "$report"
+          REPORT_PATH="$report" bun -e '
+            const reportPath = process.env.REPORT_PATH;
+            if (!reportPath) throw new Error("architecture report path is missing");
+            const payload = JSON.parse(await Bun.file(reportPath).text());
+            if (
+              payload.$schema !== "https://ghostinit.dev/schemas/json-envelope.schema.json" ||
+              payload.schemaVersion !== 2 ||
+              payload.success !== true ||
+              payload.exitCode !== 0 ||
+              payload.meta?.command !== "check" ||
+              payload.data?.summary?.blockers !== 0 ||
+              payload.data?.summary?.highs !== 0 ||
+              !Array.isArray(payload.data?.findings) ||
+              payload.data.findings.some(
+                (finding) => finding?.severity === "HIGH" || finding?.severity === "BLOCKER"
+              )
+            ) {
+              throw new Error("architecture check returned a failing JSON envelope");
+            }
+          '
+      - name: Verify checks leave no tracked changes
+        run: |
+          git diff --check
+          git diff --exit-code
 `,
   );
 }

@@ -77,6 +77,9 @@ export function createGeneratedProcessEnv(
     NEXT_PUBLIC_APP_URL: url,
     VITE_APP_URL: url,
   };
+  // Playwright refuses to register tests when it inherits a parent test runner's
+  // worker marker. The browser process is a separate runner, not a nested Jest job.
+  delete env.JEST_WORKER_ID;
   assertRequiredEnv(env);
   return env;
 }

@@ -17,4 +17,16 @@ export {
   marketingQuickStartFragment,
   marketingFooterFragment,
 } from "./sections.js";
+export {
+  marketingFeaturesComponentContent,
+  marketingFooterComponentContent,
+  marketingHeroComponentContent,
+  marketingQuickStartComponentContent,
+} from "./components.js";
+export {
+  singleMarketingClosingComponentContent,
+  singleMarketingFeaturesComponentContent,
+  singleMarketingHeroComponentContent,
+  singleMarketingPageContent,
+} from "./single.js";
 export { buildMarketingPageContent } from "./page.js";

@@ -28,7 +28,7 @@
     "entries": {
       "type": "array",
       "items": { "$ref": "#/$defs/entry" },
-      "minItems": 1,
+      "maxItems": 0,
       "uniqueItems": true
     }
   },

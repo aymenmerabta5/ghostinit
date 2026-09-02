@@ -3,6 +3,14 @@
  */
 export type RouterType = "next" | "tanstack";
 
+export interface HeaderNavigationCapabilities {
+  readonly eve?: boolean;
+  readonly notifications?: boolean;
+  readonly storage?: boolean;
+  readonly featureFlags?: boolean;
+  readonly jobs?: boolean;
+}
+
 export const getInitialsFunction = `function getInitials(name?: string | null, email?: string | null): string {
   if (name) {
     const parts = name.trim().split(/\\s+/);

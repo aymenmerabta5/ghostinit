@@ -23,7 +23,7 @@ File: agent/schedules/billing-renewal.md monthly cron for chargily manual recurr
 
 export function scheduleBillingRenewalExample(): TemplateFile {
   return file(
-    "apps/eve/agent/schedules/billing-renewal.example.ts",
+    "apps/eve/examples/schedules/billing-renewal.ts",
     `import { defineSchedule } from "eve/schedules";
 export default defineSchedule({ cron: "0 2 1 * *", markdown: "Monthly billing renewal Chargily checkout-only recurring via DB subscriptions + new checkout edahabia|cib createProduct createPrice createCheckout checkout_url redirect createPaymentLink after_completion_message verifySignature Buffer.from(await req.arrayBuffer()) Buffer.from(await request.arrayBuffer()) REPLACE_WITH_CHARGILY_API_KEY" });
 `,

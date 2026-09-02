@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "project": {
+    "name": "v1-fixture",
+    "runtime": "bun",
+    "version": "0.1.0",
+    "generatedAt": "2026-01-01T00:00:00.000Z",
+    "mode": "monorepo",
+    "preset": "saas",
+    "cache": "none",
+    "deploy": "none",
+    "auth": true,
+    "api": true,
+    "email": true,
+    "analytics": true,
+    "eve": false,
+    "i18n": false,
+    "pdf": false,
+    "messaging": false,
+    "billing": [],
+    "features": [],
+    "database": "postgres",
+    "framework": "nextjs",
+    "apps": ["web"]
+  },
+  "checksums": {
+    "packages/modules/src/index.ts": {
+      "algorithm": "sha256",
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "path": "packages/modules/src/index.ts"
+    }
+  },
+  "generatedBy": "0.1.0",
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "modules": [],
+  "procedures": []
+}

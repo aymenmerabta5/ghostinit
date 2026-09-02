@@ -5,8 +5,8 @@ import type { SubscriptionStatus } from "../interface.js";
 import type { CreateCheckoutInput } from "../interface.js";
 
 export function mapPolarSubscriptionStatus(raw: string | undefined): SubscriptionStatus {
-  if (!raw) return "active";
-  const s = raw.toLowerCase();
+  if (!raw) return "incomplete";
+  const s = raw.trim().toLowerCase();
   switch (s) {
     case "active":
       return "active";
@@ -32,7 +32,8 @@ export function mapPolarSubscriptionStatus(raw: string | undefined): Subscriptio
     case "revoked":
       return "canceled";
     default:
-      return "active";
+      // Open-enum additions are non-entitled until explicitly reviewed.
+      return "incomplete";
   }
 }
 

@@ -7,6 +7,14 @@ import {
 import { envelope, printJson } from "../lib/json.js";
 import type { Logger } from "../lib/logger.js";
 import { COMMANDS } from "./registry.js";
+import {
+  CLI_OPTION_NAMES,
+  COMMAND_NAMES,
+  COMMAND_SPECS,
+  isOptionApplicable,
+  type CliOptionName,
+  type CommandName,
+} from "./spec.js";
 
 export function levenshteinDistance(a: string, b: string): number {
   if (a.length === 0) return b.length;
@@ -124,10 +132,89 @@ export function validateNoExtraPositionals(command: string, positionals: string[
         );
       }
     }
-  } else if (["sync", "status", "check", "doctor", "version", "help"].includes(command)) {
-    if (count > 1) {
+  } else if (
+    [
+      "init",
+      "upgrade",
+      "sync",
+      "status",
+      "check",
+      "doctor",
+      "capabilities",
+      "version",
+      "help",
+    ].includes(command)
+  ) {
+    const allowed = command === "init" ? 2 : 1;
+    if (count > allowed) {
       throw new ValidationError(
-        `Too many arguments for '${command}': expected no arguments but got ${count - 1}`,
+        command === "init"
+          ? `Too many arguments for 'init': expected at most 1 (project name) but got ${count - 1}. Usage: ghostinit init [name]`
+          : `Too many arguments for '${command}': expected no arguments but got ${count - 1}`,
+      );
+    }
+  }
+}
+
+export function getProvidedCliOptions(values: Record<string, unknown>): CliOptionName[] {
+  return CLI_OPTION_NAMES.filter((name) => {
+    const value = values[name];
+    return typeof value === "boolean" ? value : value !== undefined;
+  });
+}
+
+/** Validate both option applicability and arity before any command can run. */
+export function validateCommandInvocation(
+  command: CommandName,
+  values: Record<string, unknown>,
+  positionals: string[],
+): void {
+  const provided = getProvidedCliOptions(values);
+  const inapplicable = provided.filter((option) => !isOptionApplicable(command, option));
+  if (inapplicable.length > 0) {
+    const formatted = inapplicable.map((option) => `--${option}`).join(", ");
+    const createOnly = inapplicable.every(
+      (option) => isOptionApplicable("create", option) && isOptionApplicable("init", option),
+    );
+    if (createOnly) {
+      throw new ValidationError(`${formatted} can only be used with 'create' or 'init' commands`);
+    }
+    const allowed = COMMAND_NAMES.filter((candidate) =>
+      inapplicable.every((option) => isOptionApplicable(candidate, option)),
+    );
+    throw new ValidationError(
+      `${formatted} ${inapplicable.length === 1 ? "is" : "are"} not applicable to '${command}'` +
+        (allowed.length > 0 ? `. Allowed on: ${allowed.join(", ")}` : ""),
+    );
+  }
+
+  const args = positionals.slice(1);
+  const spec = COMMAND_SPECS[command];
+  if (args.length < spec.minPositionals || args.length > spec.maxPositionals) {
+    const expected =
+      spec.minPositionals === spec.maxPositionals
+        ? String(spec.maxPositionals)
+        : `${spec.minPositionals}-${spec.maxPositionals}`;
+    throw new ValidationError(
+      `Invalid arguments for '${command}': expected ${expected}, got ${args.length}. Usage: ghostinit ${spec.usage}`,
+    );
+  }
+
+  // Add has several positional forms and therefore needs one additional row-level
+  // arity check after the table's broad maximum has been applied.
+  if (command === "add") {
+    const [form] = args;
+    const expectedByForm: Record<string, number> = {
+      list: 1,
+      module: 2,
+      "use-case": 3,
+      procedure: 3,
+      action: 3,
+    };
+    const expected = form ? expectedByForm[form] : undefined;
+    if (expected !== undefined && args.length > expected) {
+      throw new ValidationError(
+        `Too many arguments for 'add ${form}': expected ${expected - 1} but got ${args.length - 1}. Usage: ghostinit ${COMMAND_SPECS.add.usage}`,
       );
     }
   }
@@ -147,7 +234,7 @@ export function rejectInvalid(
         exitCode: ExitCode.INVALID_ARGUMENTS,
         error: { message, code: exitCodeName(ExitCode.INVALID_ARGUMENTS) },
         command: String(command),
-        durationMs: Date.now() - start,
+        durationMs: start === 0 ? 0 : Date.now() - start,
       }),
     );
   } else {

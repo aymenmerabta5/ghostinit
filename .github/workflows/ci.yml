@@ -3,22 +3,88 @@ name: CI
 on:
   push:
     branches: [master, develop]
+    tags: ["v*"]
   pull_request:
     branches: [master, develop]
 
 permissions:
   contents: read
 
+concurrency:
+  group: >-
+    ${{ github.ref_type == 'tag' && 'ghostinit-release-tags' || format('ci-{0}', github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
 jobs:
-  check-and-test:
-    runs-on: ubuntu-latest
+  portability:
+    name: Portability (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: 1.4.0
+      - name: Verify committed lock release age
+        run: bun run check:lock-age
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
+      - name: Verify executing Bun matches the version registry
+        run: >-
+          bun -e 'import { runtime } from "./packages/versions/src/index.ts";
+          if (Bun.version !== runtime.bun) throw new Error(`Expected Bun ${runtime.bun}, received ${Bun.version}`);'
+      - name: Check portable source and types
+        run: |
+          bun run check
+          bun run typecheck
+          bun run check:capability-evidence
+      - name: Test installer, supervisors, process-tree, filesystem, and Bun portability
+        run: >-
+          bun test --timeout 120000
+          tests/unit/installer-safety.test.ts
+          tests/unit/deployment-supervisor.test.ts
+          tests/unit/deployment-portability.test.ts
+          tests/unit/deployment-lockfile-guard.test.ts
+          tests/unit/jobs-supervisor-portability.test.ts
+          tests/unit/next-runtime-deployment.test.ts
+          tests/unit/process-tree.test.ts
+          tests/unit/fs.test.ts
+          tests/unit/bun-version-ssot.test.ts
+          tests/unit/supply-chain-install-policy.test.ts
+          tests/unit/dependency-audit-security.test.ts
+          tests/unit/external-readiness-harness.test.ts
+          tests/unit/external-readiness-workflow.test.ts
+      - name: Build CLI for portable package acceptance
+        run: bun run build
+      - name: Test the packed CLI on the runner OS
+        run: bun test --timeout 180000 tests/integration/packed-cli.test.ts
+      - name: Verify portability gates leave no tracked changes
+        run: |
+          git diff --check
+          git diff --exit-code
+
+  check-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version: 1.4.0
+      - name: Verify committed lock release age
+        run: bun run check:lock-age
+      - name: Install frozen dependencies
+        run: bun install --frozen-lockfile
+      - name: Audit dependencies for high-severity vulnerabilities
+        run: bun audit --audit-level=high
       - name: Check lint, format, and source types
         run: bun run check
       - name: Typecheck automation scripts
@@ -27,12 +93,20 @@ jobs:
         run: bun run typecheck
       - name: Check turbo environment manifest
         run: bun run scripts/sync-turbo-env.ts --check
-      - name: Check dependency versions
-        run: bun run check:versions
-      - name: Run host tests
+      - name: Check capability evidence closure
+        run: bun run check:capability-evidence
+      - name: Check dependency versions (fail closed)
+        shell: bash
+        run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/check-versions.log"
+          bun run check:versions 2>&1 | tee "$log"
+          if grep -Fq "Could not validate registry versions for:" "$log"; then
+            echo "Dependency version verification was incomplete." >&2
+            exit 1
+          fi
+      - name: Run host, security, and generated-browser tests
         run: bun run test
-      - name: Install compatibility fixtures
-        run: bun run pretest:fixtures
       - name: Run compatibility fixtures
         run: bun run test:fixtures
       - name: Build CLI
@@ -47,18 +121,48 @@ jobs:
           tests/unit/ci-v2.test.ts
       - name: Test packed CLI artifact
         run: bun test --timeout 100000 tests/integration/packed-cli.test.ts
+      - name: Verify checks leave no tracked changes
+        run: |
+          git diff --check
+          git diff --exit-code
 
   generated-project-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     needs: check-and-test
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: 1.4.0
+      - name: Verify committed lock release age
+        run: bun run check:lock-age
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
       - name: Build CLI
         run: bun run build
+      - name: Reject generated-project allow-failure declarations
+        shell: bash
+        run: |
+          if grep -Eq '^[[:space:]]*expectedFailures[[:space:]]*:' scripts/test-generated.ts; then
+            echo "Generated-project expectedFailures are forbidden in blocking CI." >&2
+            exit 1
+          fi
       - name: Run required generated-project gate
-        run: bun run test:generated
+        run: bun run test:generated -- --all
+      - name: Verify generated gate leaves no tracked changes
+        run: |
+          git diff --check
+          git diff --exit-code
+      - name: Clean generated runner temp
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "${RUNNER_TEMP:-}" ] || [ "$RUNNER_TEMP" = "/" ]; then
+            echo "Refusing unsafe RUNNER_TEMP cleanup." >&2
+            exit 1
+          fi
+          find "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -type d \
+            -name 'ghostinit-generated-*' -exec rm -rf -- {} +

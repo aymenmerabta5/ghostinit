@@ -144,8 +144,11 @@ function normalizeSourceImports(content: string): string {
     .replace(/(export\s+.*\s+from\s+["'])(\.\.?\/[^"']+)\.js(["'])/g, "$1$2$3");
 }
 
-export function secret(): string {
-  const value = randomBytes(48).toString("base64url");
+export function secret(byteLength = 48): string {
+  if (!Number.isInteger(byteLength) || byteLength < 24 || byteLength > 128) {
+    throw new Error("Generated secret byte length is outside safe bounds");
+  }
+  const value = randomBytes(byteLength).toString("base64url");
   if (value.length < 32) {
     throw new Error("Generated secret is shorter than 32 characters");
   }
@@ -160,6 +163,7 @@ export function packageJson(opts: {
   version?: string;
   type?: "module";
   private?: boolean;
+  engines?: Record<string, string>;
   packageManager?: string;
   workspaces?: string[];
   main?: string;
@@ -167,6 +171,7 @@ export function packageJson(opts: {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+  overrides?: Record<string, string>;
   exports?: Record<string, string>;
 }): string {
   const obj: Record<string, unknown> = {
@@ -176,6 +181,7 @@ export function packageJson(opts: {
   if (opts.private) obj.private = true;
   if (opts.type) obj.type = opts.type;
   if (opts.main) obj.main = opts.main;
+  if (opts.engines && Object.keys(opts.engines).length > 0) obj.engines = sortKeys(opts.engines);
   if (opts.packageManager) obj.packageManager = opts.packageManager;
   if (opts.workspaces) obj.workspaces = opts.workspaces;
   obj.scripts = opts.scripts;
@@ -187,6 +193,9 @@ export function packageJson(opts: {
   }
   if (opts.peerDependencies && Object.keys(opts.peerDependencies).length > 0) {
     obj.peerDependencies = sortKeys(normalizeDeps(opts.peerDependencies));
+  }
+  if (opts.overrides && Object.keys(opts.overrides).length > 0) {
+    obj.overrides = sortKeys(normalizeDeps(opts.overrides));
   }
   if (opts.exports && Object.keys(opts.exports).length > 0) {
     obj.exports = opts.exports;
@@ -243,7 +252,7 @@ export function codeScripts(
   const scripts: Record<string, string> = {
     // TanStack apps override this to run the route-tree codegen first.
     typecheck: opts.typecheck ?? "tsc --noEmit",
-    lint: "oxlint .",
+    lint: "oxlint --deny-warnings .",
     format: "oxfmt --write .",
     "format:check": "oxfmt --check .",
   };

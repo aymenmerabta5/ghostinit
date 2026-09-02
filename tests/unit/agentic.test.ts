@@ -1,4 +1,7 @@
 import { describe, it, expect } from "bun:test";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import * as v from "../../packages/versions/src/index.js";
 import { agenticFiles } from "../../src/templates/agentic";
 
 describe("agentic template files", () => {
@@ -77,5 +80,62 @@ describe("agentic template files", () => {
     const paths = files.map((f) => f.path);
     expect(paths).not.toContain("CURSOR.md");
     expect(paths).not.toContain("CURSOR.md");
+  });
+
+  it("pins shadcn to the catalog and never recommends floating or non-Bun installers", () => {
+    const files = agenticFiles("demo");
+    const expectedCommand = `bunx --bun shadcn@${v.ui.shadcn} add`;
+
+    for (const { path, content } of files) {
+      expect(content, path).toContain(expectedCommand);
+      expect(content, path).not.toContain("@latest");
+      expect(content, path).not.toMatch(/\b(?:npm|npx)\b/);
+      const pins = [...content.matchAll(/\bbunx --bun shadcn@([^\s]+) add\b/g)].map(
+        (match) => match[1],
+      );
+      expect(pins.length, path).toBeGreaterThan(0);
+      expect(new Set(pins), path).toEqual(new Set([v.ui.shadcn]));
+    }
+  });
+
+  it("renders stack claims from the version catalog instead of stale literals", () => {
+    const files = agenticFiles("demo");
+    const claims = [
+      `Turborepo ${v.tooling.turbo}`,
+      `Bun ${v.runtime.bun}`,
+      `Next.js ${v.nextStack.next}`,
+      `React ${v.nextStack.react}`,
+      `TS ${v.typescript.typescriptNext}`,
+      `Drizzle ${v.database["drizzle-orm"]}`,
+      v.postgresDocker.image,
+      `Better Auth ${v.auth["better-auth"]}`,
+      `oRPC ${v.orpc["@orpc/server"]}`,
+      `Zod ${v.validation.zod}`,
+      `TanStack Query ${v.tanstack["@tanstack/react-query"]}`,
+      `Form ${v.tanstack["@tanstack/react-form"]}`,
+      `Tailwind ${v.styling.tailwindcss}`,
+      `Base UI ${v.ui["@base-ui/react"]}`,
+      `shadcn CLI ${v.ui.shadcn}`,
+      `oxlint ${v.tooling.oxlint}`,
+      `oxfmt ${v.tooling.oxfmt}`,
+      `eve ${v.eve.eve}`,
+    ];
+    for (const { path, content } of files) {
+      for (const claim of claims) expect(content, `${path}: ${claim}`).toContain(claim);
+    }
+
+    const source = readFileSync(resolve(import.meta.dir, "../../src/templates/agentic.ts"), "utf8");
+    expect(source).not.toContain("shadcn@latest");
+    for (const hardcodedClaim of [
+      /\boRPC \d+\.\d+\.\d+/,
+      /\bZod \d+\.\d+\.\d+/,
+      /\bTanStack Query \d+\.\d+\.\d+/,
+      /\bTailwind \d+\.\d+\.\d+/,
+      /\bBase UI \d+\.\d+\.\d+/,
+      /\bResend \d+\.\d+\.\d+/,
+      /\bPlaywright \d+\.\d+\.\d+/,
+    ]) {
+      expect(source).not.toMatch(hardcodedClaim);
+    }
   });
 });

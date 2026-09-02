@@ -16,10 +16,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
-        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "border border-destructive/50 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -27,7 +27,7 @@ const buttonVariants = cva(
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-11 rounded-md px-8",
-        icon: "size-10",
+        icon: "size-9",
       },
     },
     defaultVariants: {
@@ -71,7 +71,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       data-slot="card"
-      className={cn("rounded-xl border bg-card text-card-foreground shadow-sm", className)}
+      className={cn("rounded-lg border bg-card text-card-foreground", className)}
       {...props}
     />
   ),
@@ -95,7 +95,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttribut
     <h3
       ref={ref}
       data-slot="card-title"
-      className={cn("font-semibold leading-none tracking-tight", className)}
+      className={cn("text-base font-medium leading-none tracking-tight", className)}
       {...props}
     />
   ),
@@ -133,7 +133,7 @@ export const CardAction = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
     <div
       ref={ref}
       data-slot="card-action"
-      className={cn("ml-auto flex items-center gap-2", className)}
+      className={cn("ms-auto flex items-center gap-2", className)}
       {...props}
     />
   ),
@@ -154,9 +154,9 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground shadow-sm hover:bg-primary/80",
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-transparent bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/80",
+        destructive: "border-destructive/50 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground",
         outline: "text-foreground border-input",
       },
     },
@@ -189,7 +189,7 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: "bg-card text-card-foreground border",
-        destructive: "text-destructive bg-card border-destructive/50 dark:border-destructive [&>svg]:text-destructive",
+        destructive: "border-destructive/50 bg-card text-destructive [&>svg]:text-destructive",
       },
     },
     defaultVariants: {

@@ -26,6 +26,8 @@ export function buildSecrets(): RootSecrets {
   return {
     authSecret: secret(),
     postgresPassword: secret(),
+    notificationTokenEncryptionKey: secret(32),
+    eveInternalAuthSecret: secret(32),
   };
 }
 

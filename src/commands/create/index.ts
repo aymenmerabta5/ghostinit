@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { ExitCode, ConflictError, exitCodeName } from "../../lib/errors.js";
-import { projectConfigSchema } from "../../lib/config.js";
 import { envelope, printJson } from "../../lib/json.js";
 import type { GlobalOptions } from "../types.js";
-import { validateProjectName, isValidAddonCombo } from "./validation.js";
+import { validateProjectName } from "./validation.js";
 import { getIsInteractive, promptInteractive } from "./prompts.js";
 import { runProjectInstall } from "./installer.js";
+import { resolveCreateConfig } from "./resolution.js";
+import { publicGenerationPlan } from "../../templates/default.js";
 import type {
   ProjectMode,
   FrameworkName,
@@ -19,7 +20,8 @@ import type {
 } from "../../lib/addons.js";
 
 export async function createCommand(args: string[], options: GlobalOptions): Promise<number> {
-  const start = Date.now();
+  const start = options.dryRun ? null : Date.now();
+  const durationMs = () => (start === null ? 0 : Date.now() - start);
   let name = args[0];
 
   let mode: ProjectMode = (options.mode ?? "monorepo") as ProjectMode;
@@ -32,6 +34,9 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let cache: CacheProvider = (options.cache ?? "none") as CacheProvider;
   let deploy = (options.deploy ?? "none") as import("../../lib/addons.js").DeployTarget;
   let noInstall = options.noInstall;
+  let databaseWasExplicit = Array.isArray(options.rawDatabase)
+    ? options.rawDatabase.length > 0
+    : !!options.rawDatabase;
   // Interactive custom decoded flags lifted to outer scope
   let interactiveCustomAuth: boolean | undefined;
   let interactiveCustomApi: boolean | undefined;
@@ -41,8 +46,12 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
   let interactiveCustomI18n: boolean | undefined;
   let interactiveCustomPdf: boolean | undefined;
   let interactiveCustomMessaging: boolean | undefined;
+  let interactiveCustomStorage: boolean | undefined;
+  let interactiveCustomNotifications: boolean | undefined;
+  let interactiveCustomFeatureFlags: boolean | undefined;
+  let interactiveCustomJobs: boolean | undefined;
 
-  const interactive = getIsInteractive(options);
+  const interactive = options.dryRun ? false : getIsInteractive(options);
 
   if (interactive) {
     const prompted = await promptInteractive(name, {
@@ -55,6 +64,20 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       preset: preset as unknown as string | undefined,
       cache: cache as unknown as string | undefined,
       deploy: deploy as unknown as string | undefined,
+      customFeatures: [
+        ...(options.withAuth ? ["auth"] : []),
+        ...(options.withApi ? ["api"] : []),
+        ...(options.withEmail ? ["email"] : []),
+        ...(options.withAnalytics ? ["analytics"] : []),
+        ...(options.withEve ? ["eve"] : []),
+        ...(options.withI18n ? ["i18n"] : []),
+        ...(options.withPdf ? ["pdf"] : []),
+        ...(options.withMessaging ? ["messaging"] : []),
+        ...(options.withStorage ? ["storage"] : []),
+        ...(options.withNotifications ? ["notifications"] : []),
+        ...(options.featureFlags === "posthog" ? ["featureFlags"] : []),
+        ...(options.withJobs ? ["jobs"] : []),
+      ],
       noInstall,
     });
     if (prompted.cancelled) return prompted.exitCode ?? ExitCode.CANCELLED;
@@ -63,6 +86,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     mode = prompted.mode as unknown as ProjectMode;
     framework = prompted.framework as unknown as FrameworkName;
     database = prompted.database as unknown as DatabaseProvider;
+    databaseWasExplicit = true;
     billing = prompted.billing as unknown as BillingProviderName[];
     let rawFeatures = prompted.features as unknown as string[];
     apps = prompted.apps as unknown as AppName[];
@@ -81,6 +105,10 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
         else if (f === "__custom_i18n") interactiveCustomI18n = true;
         else if (f === "__custom_pdf") interactiveCustomPdf = true;
         else if (f === "__custom_messaging") interactiveCustomMessaging = true;
+        else if (f === "__custom_storage") interactiveCustomStorage = true;
+        else if (f === "__custom_notifications") interactiveCustomNotifications = true;
+        else if (f === "__custom_featureFlags") interactiveCustomFeatureFlags = true;
+        else if (f === "__custom_jobs") interactiveCustomJobs = true;
         else decoded.push(f);
       }
       rawFeatures = decoded;
@@ -92,6 +120,10 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       if (interactiveCustomI18n === undefined) interactiveCustomI18n = false;
       if (interactiveCustomPdf === undefined) interactiveCustomPdf = false;
       if (interactiveCustomMessaging === undefined) interactiveCustomMessaging = false;
+      if (interactiveCustomStorage === undefined) interactiveCustomStorage = false;
+      if (interactiveCustomNotifications === undefined) interactiveCustomNotifications = false;
+      if (interactiveCustomFeatureFlags === undefined) interactiveCustomFeatureFlags = false;
+      if (interactiveCustomJobs === undefined) interactiveCustomJobs = false;
       // Also handle eve/i18n via separate features multiselect when custom (if user selected via features)
       if (rawFeatures.includes("eve" as string)) interactiveCustomEve = true;
       if (rawFeatures.includes("i18n" as string)) interactiveCustomI18n = true;
@@ -106,204 +138,120 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       interactiveCustomMessaging = true;
       rawFeatures = rawFeatures.filter((f) => f !== "__custom_messaging");
     }
+    if (rawFeatures && rawFeatures.includes("__custom_storage")) {
+      interactiveCustomStorage = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_storage");
+    }
+    if (rawFeatures && rawFeatures.includes("__custom_notifications")) {
+      interactiveCustomNotifications = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_notifications");
+    }
+    if (rawFeatures && rawFeatures.includes("__custom_featureFlags")) {
+      interactiveCustomFeatureFlags = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_featureFlags");
+    }
+    if (rawFeatures && rawFeatures.includes("__custom_jobs")) {
+      interactiveCustomJobs = true;
+      rawFeatures = rawFeatures.filter((f) => f !== "__custom_jobs");
+    }
     features = rawFeatures as unknown as FeatureName[];
     // stack shorthand is already mapped to framework/apps inside promptInteractive
     noInstall = prompted.noInstall;
   } else {
     validateProjectName(name ?? "");
-    // Non-interactive: handle stack shorthand and preset defaults for database
-    // If preset is frontend and database not explicitly set via CLI flag, default to none
-    const rawDatabase = (options as unknown as Record<string, unknown>).rawDatabase as
-      | string[]
-      | undefined;
-    const hasExplicitDatabase = rawDatabase && rawDatabase.length > 0;
-    if (preset === "frontend" && !hasExplicitDatabase && database === "postgres") {
-      // frontend preset without explicit --database should be none (minimal)
-      database = "none" as DatabaseProvider;
-    }
   }
 
-  // Derive hasAuth for validation: saas implies auth, frontend implies no auth unless custom with with-auth, api flags handled via preset
-  const hasAuthForCombo =
-    preset === "saas"
-      ? true
-      : preset === "frontend"
-        ? false
-        : preset === "custom"
-          ? (options as unknown as Record<string, unknown>)["with-auth"] === true
-            ? true
-            : false
-          : billing.length > 0
-            ? undefined
-            : undefined;
-  const hasMessagingForCombo =
-    (options as unknown as Record<string, unknown>)["with-messaging"] === true ||
-    interactiveCustomMessaging === true;
-  const combo = isValidAddonCombo({
-    billing: billing as unknown as BillingProviderName[],
-    database,
+  const projectName = name as string;
+  const resolution = resolveCreateConfig({
+    name: projectName,
+    runtime: options.runtime,
     mode,
-    framework: framework as unknown as FrameworkName,
-    apps: apps as unknown as AppName[],
-    preset: preset as unknown as PresetName | undefined,
-    cache: cache as unknown as CacheProvider | undefined,
-    hasAuth: hasAuthForCombo as boolean | undefined,
-    hasMessaging: hasMessagingForCombo,
+    framework,
+    billing,
+    features,
+    database,
+    databaseWasExplicit,
+    apps,
+    preset,
+    cache,
+    deploy,
+    withAuth: interactiveCustomAuth ?? options.withAuth,
+    withApi: interactiveCustomApi ?? options.withApi,
+    withEmail: interactiveCustomEmail ?? options.withEmail,
+    withAnalytics: interactiveCustomAnalytics ?? options.withAnalytics,
+    withEve: interactiveCustomEve ?? options.withEve,
+    withI18n: interactiveCustomI18n ?? options.withI18n,
+    withPdf: interactiveCustomPdf ?? options.withPdf,
+    withMessaging: interactiveCustomMessaging ?? options.withMessaging,
+    withStorage: interactiveCustomStorage ?? options.withStorage,
+    withNotifications: interactiveCustomNotifications ?? options.withNotifications,
+    featureFlags: interactiveCustomFeatureFlags === true ? "posthog" : options.featureFlags,
+    withJobs: interactiveCustomJobs ?? options.withJobs,
   });
-  if (!combo.valid) {
-    const warning = combo.message ?? "Incompatible addon combination";
+  if (!resolution.ok) {
+    const warning = resolution.message;
     options.logger.warn(warning);
     if (options.json) {
       printJson(
         envelope({
           success: false,
           exitCode: ExitCode.INVALID_ARGUMENTS,
-          error: { message: warning, code: exitCodeName(ExitCode.INVALID_ARGUMENTS) },
-          data: { warning, incompatible: true, billing, database, mode, framework, features, apps },
+          error: {
+            message: warning,
+            code: exitCodeName(ExitCode.INVALID_ARGUMENTS),
+            details: {
+              reason: resolution.reason,
+              unsupportedSelections: resolution.unsupportedSelections,
+            },
+          },
+          data: {
+            warning,
+            incompatible: true,
+            reason: resolution.reason,
+            unsupportedSelections: resolution.unsupportedSelections,
+            billing,
+            database,
+            mode,
+            framework,
+            features,
+            apps,
+          },
           command: "create",
-          durationMs: Date.now() - start,
+          durationMs: durationMs(),
         }),
       );
     } else {
       options.logger.error(
-        `${warning}. Choose compatible options (e.g., add postgres for billing).`,
+        resolution.reason === "single-native-server-capabilities-unsupported"
+          ? warning
+          : `${warning}. Choose compatible options (e.g., add postgres for billing).`,
       );
     }
     return ExitCode.INVALID_ARGUMENTS;
   }
 
-  const projectName = name as string;
+  const config = resolution.config;
+  const desiredConfig = resolution.desiredConfig;
+  const resolvedProjectConfig = resolution.resolvedConfig;
+  database = config.database;
+  const effectivePreset = config.preset;
+  const effectiveCache = config.cache;
   const projectRoot = join(options.cwd, projectName);
 
-  // Normalize preset: default to saas for --yes or when no preset supplied (backward compat)
-  let effectivePreset: PresetName = preset ?? "saas";
-  if (!preset && !options.yes) {
-    effectivePreset = "saas";
-  }
-  const effectiveCache: CacheProvider = cache ?? "none";
-
-  // Determine fine-grained flags for custom preset
-  let effectiveAuth: boolean | undefined;
-  let effectiveApi: boolean | undefined;
-  let effectiveEmail: boolean | undefined;
-  let effectiveAnalytics: boolean | undefined;
-  let effectiveEve: boolean | undefined;
-  let effectiveI18n: boolean | undefined;
-  let effectivePdf: boolean | undefined;
-  let effectiveMessaging: boolean | undefined;
-  const withAuthFlag = options.withAuth;
-  const withApiFlag = options.withApi;
-  const withEmailFlag = options.withEmail;
-  const withAnalyticsFlag = options.withAnalytics;
-  const withEveFlag = options.withEve;
-  const withI18nFlag = options.withI18n;
-  const withPdfFlag = (options as unknown as Record<string, unknown>).withPdf as
-    | boolean
-    | undefined;
-  const withMessagingFlag = (options as unknown as Record<string, unknown>).withMessaging as
-    | boolean
-    | undefined;
-
-  if (effectivePreset === "custom") {
-    // Prefer interactive decoded values if present, else CLI with-* flags
-    if (interactiveCustomAuth !== undefined) effectiveAuth = interactiveCustomAuth;
-    else if (withAuthFlag !== undefined) effectiveAuth = withAuthFlag;
-    if (interactiveCustomApi !== undefined) effectiveApi = interactiveCustomApi;
-    else if (withApiFlag !== undefined) effectiveApi = withApiFlag;
-    if (interactiveCustomEmail !== undefined) effectiveEmail = interactiveCustomEmail;
-    else if (withEmailFlag !== undefined) effectiveEmail = withEmailFlag;
-    if (interactiveCustomAnalytics !== undefined) effectiveAnalytics = interactiveCustomAnalytics;
-    else if (withAnalyticsFlag !== undefined) effectiveAnalytics = withAnalyticsFlag;
-    if (interactiveCustomEve !== undefined) effectiveEve = interactiveCustomEve;
-    else if (withEveFlag !== undefined) effectiveEve = withEveFlag;
-    if (interactiveCustomI18n !== undefined) effectiveI18n = interactiveCustomI18n;
-    else if (withI18nFlag !== undefined) effectiveI18n = withI18nFlag;
-    if (interactiveCustomPdf !== undefined) effectivePdf = interactiveCustomPdf;
-    else if (withPdfFlag !== undefined) effectivePdf = withPdfFlag;
-    if (interactiveCustomMessaging !== undefined) effectiveMessaging = interactiveCustomMessaging;
-    else if (withMessagingFlag !== undefined) effectiveMessaging = withMessagingFlag;
-    // For interactive custom, cache comes from the prompts (redis when the cache feature is selected)
-  } else if (effectivePreset === "frontend") {
-    effectiveAuth = false;
-    effectiveApi = false;
-    effectiveEmail = false;
-    effectiveAnalytics = false;
-    effectiveEve = features.includes("eve" as never) || withEveFlag === true;
-    effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
-    effectivePdf = interactiveCustomPdf === true || withPdfFlag === true;
-    effectiveMessaging = interactiveCustomMessaging === true || withMessagingFlag === true;
-  } else if (effectivePreset === "saas") {
-    effectiveAuth = true;
-    effectiveApi = true;
-    effectiveEmail = true;
-    effectiveAnalytics = true;
-    effectiveEve = features.includes("eve" as never) || withEveFlag === true;
-    effectiveI18n = features.includes("i18n" as never) || withI18nFlag === true;
-    effectivePdf = interactiveCustomPdf === true || withPdfFlag === true;
-    effectiveMessaging = interactiveCustomMessaging === true || withMessagingFlag === true;
-  } else {
-    // no preset case already handled as saas via effectivePreset default
-    if (withPdfFlag === true) effectivePdf = true;
-    if (withMessagingFlag === true) effectiveMessaging = true;
-  }
-
-  // Merge with with-* overrides even for saas/frontend (allow --with-cache on frontend)
-  if (withAuthFlag === true) effectiveAuth = true;
-  if (withAuthFlag === false && effectivePreset === "custom") effectiveAuth = false;
-  if (withApiFlag === true) effectiveApi = true;
-  if (withEmailFlag === true) effectiveEmail = true;
-  if (withAnalyticsFlag === true) effectiveAnalytics = true;
-  // with-cache maps to cache=redis in parseCreateArgs; effectiveCache already reflects it
-  if (withEveFlag === true) effectiveEve = true;
-  if (withI18nFlag === true) effectiveI18n = true;
-  if (withPdfFlag === true) effectivePdf = true;
-  if (withPdfFlag === false && effectivePreset === "custom" && interactiveCustomPdf === undefined) {
-    effectivePdf = false;
-  }
-  if (withMessagingFlag === true) effectiveMessaging = true;
-  if (
-    withMessagingFlag === false &&
-    effectivePreset === "custom" &&
-    interactiveCustomMessaging === undefined
-  ) {
-    effectiveMessaging = false;
-  }
-
-  const config = projectConfigSchema.parse({
-    name: projectName,
-    runtime: options.runtime,
-    version: "0.1.0",
-    generatedAt: new Date().toISOString(),
-    mode,
-    framework,
-    billing,
-    features: features.filter((f) => f !== "eve" && f !== "i18n"),
-    database,
-    apps,
-    preset: effectivePreset,
-    cache: effectiveCache,
-    deploy,
-    auth: effectiveAuth,
-    api: effectiveApi,
-    email: effectiveEmail,
-    analytics: effectiveAnalytics,
-    eve: effectiveEve,
-    i18n: effectiveI18n,
-    pdf: effectivePdf,
-    messaging: effectiveMessaging,
-  });
-
-  if (existsSync(projectRoot) && !options.force) {
+  if (!options.dryRun && existsSync(projectRoot) && !options.force) {
     throw new ConflictError(`Target directory already exists: ${projectRoot}`);
   }
 
-  const { filesWritten, installFailed, stagedFiles, totalBytes, isDryRun } =
+  const { filesWritten, installFailed, stagedFiles, totalBytes, isDryRun, plan } =
     await runProjectInstall({
       projectName,
       projectRoot,
       config,
+      desiredConfig,
+      resolvedConfig: resolvedProjectConfig,
       options,
       noInstall,
+      requireAbsentTarget: !options.force,
     });
 
   if (isDryRun) {
@@ -333,9 +281,14 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
             preset: effectivePreset,
             cache: effectiveCache,
             deploy,
+            resolvedConfig: config,
+            resolvedProjectConfig,
+            configHash: plan.projectConfigHash,
+            planHash: plan.planHash,
+            plan: publicGenerationPlan(plan),
           },
           command: "create",
-          durationMs: Date.now() - start,
+          durationMs: durationMs(),
         }),
       );
     } else {
@@ -374,9 +327,20 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
           preset: effectivePreset,
           cache: effectiveCache,
           deploy,
+          resolvedConfig: config,
+          resolvedProjectConfig,
+          configHash: plan.projectConfigHash,
+          planHash: plan.planHash,
         },
+        error: installFailed
+          ? {
+              message:
+                "Project files were generated, but dependency installation or formatting failed",
+              code: exitCodeName(ExitCode.GENERATION_ERROR),
+            }
+          : undefined,
         command: "create",
-        durationMs: Date.now() - start,
+        durationMs: durationMs(),
       }),
     );
   } else if (!options.json) {

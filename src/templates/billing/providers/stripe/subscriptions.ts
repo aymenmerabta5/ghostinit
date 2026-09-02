@@ -1,7 +1,6 @@
 /**
  * Stripe list subscriptions — paginated, handles status filters.
  */
-// @ts-ignore
 import type Stripe from "stripe";
 import type { ListSubscriptionsInput, Subscription } from "../interface.js";
 import { resolveStripeStatusFilter, mapStripeSubscriptionToDomain } from "./mappers.js";
@@ -27,10 +26,7 @@ export async function listStripeSubscriptions(
 
   if (Array.isArray(input.status) && input.status.length > 1) {
     const wanted = new Set(input.status);
-    // vendor untyped: SubscriptionStatus union doesn't include "all" but input may
-    if (!wanted.has("all" as unknown as typeof input.status extends (infer U)[] ? U : never)) {
-      subs = subs.filter((s: Subscription) => wanted.has(s.status));
-    }
+    subs = subs.filter((s: Subscription) => wanted.has(s.status));
   }
   return subs;
 }

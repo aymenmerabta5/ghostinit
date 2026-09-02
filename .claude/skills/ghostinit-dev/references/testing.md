@@ -9,13 +9,17 @@ bun run check
 bun test --timeout 100000 tests/integration tests/unit
 bun test tests/unit/<file>.test.ts --timeout 100000
 bun test tests/integration/<file>.test.ts --timeout 100000
-bun run pretest:fixtures && bun run test:fixtures
+bun run test:fixtures
 bun run test:ci
 ```
 
 Timeout required `--timeout 100000` because integration does heavy generation + bun install checks.
 
 Pretest auto-builds via `package.json` `pretest = bun run build`.
+
+`test:fixtures` runs `scripts/test-fixtures.ts`, which requires the repository-pinned Bun version and
+owns the complete fixture sequence. Do not prepend a separate fixture install;
+the runner frozen-installs each fixture exactly once.
 
 ## Organization
 
@@ -39,11 +43,12 @@ Pretest auto-builds via `package.json` `pretest = bun run build`.
   - billing combinations produce correct env + turbo globalEnv per combo
   - framework variants (next vs tanstack) produce correct vite/next config + outputs
 
-- `tests/fixtures/compatibility/` — real installs compatibility matrices:
-  - `drizzle-betterauth-orpc/` — verifies drizzle + better-auth + oRPC contract-first compat with exact versions from @repo/versions
-  - `next-tailwind-biome/` — Next 16.2.10 + Tailwind 4 + oxlint/oxfmt etc (despite name biome, actually oxlint/oxfmt)
-  - Each fixture has own package.json + separate `bun install` (slow). Must run `pretest:fixtures` cd each fixture bun install then `test:fixtures` bun test fixtures folder.
-  - Skip iteration unless touching oRPC/Drizzle/Next compat because slow + heavy node_modules.
+- `tests/fixtures/compatibility/` — isolated compatibility projects exercised by one bounded runner:
+  - `drizzle-betterauth-orpc/` — exact Drizzle, Better Auth, and oRPC pins. The runner installs, typechecks, runs seven Bun tests across two files, then runs the fixture's explicit runtime probes.
+  - `next-tailwind-biome/` — catalog-pinned Next 16, Tailwind 4, Oxlint, and Oxfmt. The historical directory name remains, but there is no Biome dependency. The runner installs, typechecks, lints, and production-builds it.
+  - `expo-uniwind-rnr/` — Expo, React Native, Uniwind, and Tailwind helpers. The runner installs, typechecks, then runs the Tailwind Variants, animation CSS, and Uniwind probes.
+  - Each fixture has its own `package.json` and `bun.lock`. Run `bun run test:fixtures` once; `scripts/test-fixtures.ts` performs every stage with bounded timeouts.
+  - Skip on narrow iterations unless touching oRPC/Drizzle, Next/Tailwind, or Expo/Uniwind compatibility because the three installs are slow.
 
 ## Architecture Checker in Tests
 
@@ -60,7 +65,7 @@ cd /tmp/gi-test/demo
 cat turbo.json | grep globalEnv -A 80 | head -100    # billing vars present
 cat bunfig.toml                                      # hoist=true
 ls packages/ packages/billing/src/providers/         # stripe + chargily present
-bun install && bun run typecheck && bun run lint
+bun install && bun run typecheck && bun run lint:all
 # variants
 bunx ghostinit create demo2 --yes --no-install --cwd /tmp/gi-test --mode monorepo --framework tanstack-start --database postgres --billing all --features eve
 bunx ghostinit create demo3 --yes --no-install --cwd /tmp/gi-test --mode single --database postgres --billing stripe
@@ -86,13 +91,13 @@ Checklist after generation:
 
 Build script verifies real d.ts >10 bytes not fake `export {}` stub via declarationMap.
 
-`npm pack` via `bun run release` includes `dist/cli.js`, `src/**`, `schemas/project-config.json`, `README`, `LICENSE`. Tarball verification.
+`bun pm pack` via `bun run release` includes the publishable files declared in `package.json`. Inspect the resulting tarball when changing package layout.
 
 ## Fixtures Deep
 
 - `bun.lock` per fixture isolated via host `bunfig.toml` `linker=isolated,hoist=false` hermetic vs generated hoist=true.
-- TS 6.0.3 stable reason tested: TS7 Go port `lib/typescript.js` missing causes Next 16.2.10 to fallback npm install workspace:* fails "Unsupported URL Type workspace:*"
-- oRPC version 1.14.7 stable, `@orpc/next` omitted due to peers conflict 0.27.0 vs 1.14.7 core line, pure RPCHandler route handlers instead.
+- All three fixture manifests target the canonical `runtime.bun` version. The Next fixture pins TypeScript 6.0.3 because Next 16 requires the JavaScript compiler API; the Drizzle/oRPC and Expo fixtures retain TypeScript 7.0.2 coverage. The fixture runner enforces Bun, frozen-installs each manifest, and invokes every fixture's typecheck script.
+- oRPC uses one lockstep catalog line; `@orpc/next` is omitted because its latest 1.14.11 was an accidental deprecated v2 publish, so GhostInit uses pure RPCHandler route handlers instead.
 
 ## Troubleshooting Tests
 

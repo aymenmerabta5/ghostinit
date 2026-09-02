@@ -1,24 +1,28 @@
-// @allow-long 320: exact installed-type fixture keeps generated declarations and cleanup in one auditable boundary
+// @allow-long 460: exact installed-type fixture keeps generated declarations and cleanup in one auditable boundary
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
+import {
+  auth as authVersions,
+  convex as convexVersions,
+  nextStack,
+  runtime,
+  typescript as typescriptVersions,
+  validation,
+} from "../../packages/versions/src/index.js";
 import { projectConfigSchema } from "../../src/lib/config.js";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
+import { minimumReleaseAgeBunfigContent } from "../helpers/bunfig.js";
 import { terminateProcessTree } from "../helpers/process-tree.js";
 
-function nativeBunExecutable(resolved: string): string {
-  if (process.platform !== "win32" || !/\.(?:cmd|bat)$/i.test(resolved)) return resolved;
-  return Bun.which("bun.exe") ?? resolved;
-}
+const REQUIRED_BUN_VERSION = runtime.bun;
 
 async function runCommand(root: string, args: string[], timeoutMs: number): Promise<void> {
-  const bun = Bun.which("bun");
-  if (bun === null) throw new Error("bun executable was not found");
-  const child = spawn(nativeBunExecutable(bun), args, {
+  const child = spawn(process.execPath, args, {
     cwd: root,
     windowsHide: true,
     detached: process.platform !== "win32",
@@ -103,23 +107,46 @@ export type ActionCtx = GenericActionCtx<DataModel>;
 `;
 
 const apiDeclaration = `import type * as auth from "../auth.js";
+import type * as authEmail from "../authEmail.js";
 import type * as users from "../users.js";
-import type { ApiFromModules, FunctionReference } from "convex/server";
+import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
 type EmptyArgs = Record<string, never>;
 type InternalQuery = FunctionReference<"query", "internal", EmptyArgs, unknown>;
 type InternalMutation = FunctionReference<"mutation", "internal", EmptyArgs, unknown>;
+type DeleteSessionMutation = FunctionReference<
+  "mutation",
+  "internal",
+  {
+    input: {
+      model: "session";
+      where?: Array<{
+        connector?: "AND" | "OR";
+        field: "_id";
+        mode?: "sensitive" | "insensitive";
+        operator?: "eq";
+        value: string;
+      }>;
+    };
+    onDeleteHandle?: string;
+  },
+  unknown
+>;
 type AuthAdapter = {
   create: InternalMutation;
   findOne: InternalQuery;
   findMany: InternalQuery;
   updateOne: InternalMutation;
   updateMany: InternalMutation;
-  deleteOne: InternalMutation;
+  deleteOne: DeleteSessionMutation;
   deleteMany: InternalMutation;
 };
-type AppApi = ApiFromModules<{ auth: typeof auth; users: typeof users }>;
-export declare const api: AppApi;
-export declare const internal: AppApi;
+type AppApi = ApiFromModules<{
+  auth: typeof auth;
+  authEmail: typeof authEmail;
+  users: typeof users;
+}>;
+export declare const api: FilterApi<AppApi, FunctionReference<any, "public">>;
+export declare const internal: FilterApi<AppApi, FunctionReference<any, "internal">>;
 export declare const components: {
   betterAuth: {
     adapter: AuthAdapter;
@@ -127,15 +154,39 @@ export declare const components: {
 };
 `;
 
-const requestUserContract = `import type { FunctionReturnType } from "convex/server";
+const requestUserContract = `import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import type { Doc } from "./convex/_generated/dataModel.js";
-import { api } from "./convex/_generated/api.js";
+import { api, internal } from "./convex/_generated/api.js";
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends
   (<Value>() => Value extends Right ? 1 : 2) ? true : false;
 type Assert<Condition extends true> = Condition;
 export type ApiUserIsAppUser = Assert<
   Equal<FunctionReturnType<typeof api.users.me>, Doc<"users"> | null>
+>;
+export type ListedAdminUserIsAppUser = Assert<
+  Equal<FunctionReturnType<typeof api.users.list>["page"][number], Doc<"users">>
+>;
+export type SetRoleUsesClosedLocalAuthority = Assert<
+  Equal<
+    FunctionArgs<typeof api.users.setRoleByAuthId>,
+    { authId: string; role: "user" | "admin" }
+  >
+>;
+export type SetBannedUsesLocalAuthority = Assert<
+  Equal<
+    FunctionArgs<typeof api.users.setBannedByAuthId>,
+    { authId: string; banned: boolean; reason?: string }
+  >
+>;
+export type BootstrapIsNotPublic = Assert<
+  Equal<Extract<"seedFirstAdmin", keyof typeof api.users>, never>
+>;
+export type BootstrapIsInternal = Assert<
+  Equal<
+    typeof internal.users.seedFirstAdmin extends FunctionReference<"mutation", "internal"> ? true : false,
+    true
+  >
 >;
 `;
 
@@ -149,20 +200,32 @@ declare module "@tanstack/react-start/server" {
 }
 declare module "@tanstack/react-router" {
   export function createFileRoute(path: string): (options: {
-    beforeLoad: () => Promise<unknown>;
+    beforeLoad?: (context: {
+      context: { queryClient: unknown };
+      location: { pathname: string };
+    }) => Promise<unknown>;
     component: () => React.JSX.Element;
   }) => unknown;
   export function redirect(options: { to: string }): never;
+  export function Outlet(): React.JSX.Element;
   export function Link(props: {
     to: string;
     className?: string;
     children?: React.ReactNode;
   }): React.JSX.Element;
 }
+declare module "@/lib/protected-route" {
+  export function requireProtectedRoute(queryClient: unknown): Promise<{
+    protectedSession: {
+      user: { role: string | null } | null;
+    };
+  }>;
+}
 `;
 
 describe("generated Convex request-user boundary", () => {
-  test("monorepo and single TanStack Convex auth owners and admin guards typecheck", async () => {
+  test("installed Convex auth owners, admin guards, and Next helper declarations typecheck", async () => {
+    expect(Bun.version).toBe(REQUIRED_BUN_VERSION);
     const root = mkdtempSync(join(tmpdir(), "ghostinit-convex-auth-boundary-"));
     try {
       const transaction = new FsTransaction(root);
@@ -199,12 +262,35 @@ describe("generated Convex request-user boundary", () => {
         const admin = files.find(({ path }) => path === variant.adminPath)?.content ?? "";
         const schema = files.find(({ path }) => path === "convex/schema.ts")?.content ?? "";
         const convexAuth = files.find(({ path }) => path === "convex/auth.ts")?.content ?? "";
+        const convexAuthEmail =
+          files.find(({ path }) => path === "convex/authEmail.ts")?.content ?? "";
         const users = files.find(({ path }) => path === "convex/users.ts")?.content ?? "";
+        const actorBoundary =
+          files.find(({ path }) => path === "convex/lib/auth.ts")?.content ?? "";
+        const posts = files.find(({ path }) => path === "convex/posts.ts")?.content ?? "";
         const authConfig =
           files.find(({ path }) => path === "convex/auth.config.ts")?.content ?? "";
+        const identitySchema =
+          files.find(({ path }) => path === "convex/schema/identity.ts")?.content ?? "";
+        const identitySessions =
+          files.find(({ path }) => path === "convex/identity/sessions.ts")?.content ?? "";
+        const identityShared =
+          files.find(({ path }) => path === "convex/identity/shared.ts")?.content ?? "";
+        const configServerPath =
+          variant.mode === "monorepo" ? "packages/config/src/server.ts" : "src/lib/env/server.ts";
+        const configSchemaPath =
+          variant.mode === "monorepo"
+            ? "packages/config/src/server-schema.ts"
+            : "src/lib/env/server-schema.ts";
+        const configServer = files.find(({ path }) => path === configServerPath)?.content ?? "";
+        const configSchema = files.find(({ path }) => path === configSchemaPath)?.content ?? "";
         expect(auth, variant.mode).toContain("fetchAuthQuery(api.users.me, {})");
-        expect(admin, variant.mode).toContain("getRequestUser()");
-        expect(schema, variant.mode).toContain("authId: v.optional(v.string())");
+        expect(admin, variant.mode).toContain('from "@/lib/protected-route"');
+        expect(admin, variant.mode).toContain("requireProtectedRoute(context.queryClient)");
+        expect(admin, variant.mode).toContain("isAdminRole(result.protectedSession.user.role)");
+        expect(admin, variant.mode).not.toContain("getRequestUser");
+        expect(admin, variant.mode).not.toMatch(/@\/server\/api|createRouterClient|\borpc\b/);
+        expect(schema, variant.mode).toContain("authId: v.string()");
         expect(schema, variant.mode).toContain('.index("by_authId", ["authId"])');
         expect(convexAuth, variant.mode).toContain(
           "const authFunctions: AuthFunctions = internal.auth",
@@ -213,14 +299,36 @@ describe("generated Convex request-user boundary", () => {
         expect(convexAuth, variant.mode).toContain(
           "export const { onCreate, onUpdate, onDelete } = authComponent.triggersApi()",
         );
-        expect(users, variant.mode).toContain('.withIndex("by_authId"');
+        expect(convexAuthEmail, variant.mode).toContain("export const send = internalAction({");
+        expect(actorBoundary, variant.mode).toContain('.withIndex("by_authId"');
+        expect(users, variant.mode).toContain("export const setRoleByAuthId = mutation({");
+        expect(users, variant.mode).toContain("export const setBannedByAuthId = mutation({");
+        expect(users, variant.mode).toContain("await requireAdminActor(ctx)");
+        expect(users, variant.mode).toContain("export const seedFirstAdmin = internalMutation({");
         expect(users, variant.mode).not.toContain("as unknown as");
+        expect(actorBoundary, variant.mode).toContain("authComponent.safeGetAuthUser(ctx)");
+        expect(configServer, variant.mode).toContain("export const env = createEnv");
+        expect(configSchema, variant.mode).toContain("export const serverSchema");
+        expect(actorBoundary, variant.mode).toContain("USER_BANNED");
+        expect(posts, variant.mode).toContain("await requireActor(ctx)");
+        expect(posts, variant.mode).not.toContain("as unknown as");
         await transaction.write(`${variant.fixtureRoot}/${variant.authPath}`, auth);
         await transaction.write(`${variant.fixtureRoot}/${variant.adminPath}`, admin);
         await transaction.write(`${variant.fixtureRoot}/convex/schema.ts`, schema);
         await transaction.write(`${variant.fixtureRoot}/convex/auth.ts`, convexAuth);
+        await transaction.write(`${variant.fixtureRoot}/convex/authEmail.ts`, convexAuthEmail);
         await transaction.write(`${variant.fixtureRoot}/convex/users.ts`, users);
+        await transaction.write(`${variant.fixtureRoot}/convex/lib/auth.ts`, actorBoundary);
+        await transaction.write(`${variant.fixtureRoot}/convex/posts.ts`, posts);
         await transaction.write(`${variant.fixtureRoot}/convex/auth.config.ts`, authConfig);
+        await transaction.write(`${variant.fixtureRoot}/convex/schema/identity.ts`, identitySchema);
+        await transaction.write(
+          `${variant.fixtureRoot}/convex/identity/sessions.ts`,
+          identitySessions,
+        );
+        await transaction.write(`${variant.fixtureRoot}/convex/identity/shared.ts`, identityShared);
+        await transaction.write(`${variant.fixtureRoot}/${configServerPath}`, configServer);
+        await transaction.write(`${variant.fixtureRoot}/${configSchemaPath}`, configSchema);
         await transaction.write(
           `${variant.fixtureRoot}/convex/_generated/api.d.ts`,
           apiDeclaration,
@@ -241,7 +349,62 @@ describe("generated Convex request-user boundary", () => {
           const access =
             files.find(({ path }) => path === "packages/auth/src/access.ts")?.content ?? "";
           await transaction.write(`${variant.fixtureRoot}/packages/auth/src/access.ts`, access);
+        } else {
+          const access = files.find(({ path }) => path === "src/lib/access.ts")?.content ?? "";
+          expect(access).not.toBe("");
+          await transaction.write(`${variant.fixtureRoot}/src/lib/access.ts`, access);
         }
+      }
+      for (const mode of ["monorepo", "single"] as const) {
+        const files = generateProjectFiles(
+          projectConfigSchema.parse({
+            name: "convex-next-auth-portability",
+            runtime: "bun",
+            version: "0.1.0",
+            mode,
+            preset: "saas",
+            billing: [],
+            features: [],
+            database: "convex",
+            framework: "nextjs",
+            apps: ["web"],
+          }),
+        );
+        const authPath =
+          mode === "monorepo" ? "packages/auth/src/server.ts" : "src/server/auth/index.ts";
+        const auth = files.find(({ path }) => path === authPath)?.content ?? "";
+        const apiBootstrap =
+          files.find(({ path }) => path === "convex/_generated/api.d.ts")?.content ?? "";
+        const configServerPath =
+          mode === "monorepo" ? "packages/config/src/server.ts" : "src/lib/env/server.ts";
+        const configSchemaPath =
+          mode === "monorepo"
+            ? "packages/config/src/server-schema.ts"
+            : "src/lib/env/server-schema.ts";
+        const configServer = files.find(({ path }) => path === configServerPath)?.content ?? "";
+        const configSchema = files.find(({ path }) => path === configSchemaPath)?.content ?? "";
+        const fixtureRoot = `next-${mode}`;
+        expect(auth, mode).toContain(
+          'import type { FunctionReference, FunctionReturnType, OptionalRestArgs } from "convex/server"',
+        );
+        expect(auth, mode).toContain(
+          "export const preloadAuthQuery: PreloadAuthQuery = convexAuth.preloadAuthQuery",
+        );
+        expect(auth, mode).toContain(
+          "export const fetchAuthQuery: FetchAuthQuery = convexAuth.fetchAuthQuery",
+        );
+        expect(auth, mode).toContain(
+          "export const fetchAuthMutation: FetchAuthMutation = convexAuth.fetchAuthMutation",
+        );
+        expect(auth, mode).toContain(
+          "export const fetchAuthAction: FetchAuthAction = convexAuth.fetchAuthAction",
+        );
+        expect(auth, mode).not.toContain('from "convex-helpers"');
+        expect(apiBootstrap, mode).not.toBe("");
+        await transaction.write(`${fixtureRoot}/${authPath}`, auth);
+        await transaction.write(`${fixtureRoot}/convex/_generated/api.d.ts`, apiBootstrap);
+        await transaction.write(`${fixtureRoot}/${configServerPath}`, configServer);
+        await transaction.write(`${fixtureRoot}/${configSchemaPath}`, configSchema);
       }
       await transaction.write("framework.d.ts", frameworkDeclarations);
       await transaction.write(
@@ -251,19 +414,22 @@ describe("generated Convex request-user boundary", () => {
             name: "ghostinit-convex-auth-boundary",
             private: true,
             dependencies: {
-              "@convex-dev/better-auth": "0.12.5",
-              "@types/node": "22.20.1",
-              "@types/react": "19.2.18",
-              "better-auth": "1.6.23",
-              convex: "1.42.3",
-              react: "19.1.0",
-              typescript: "6.0.3",
+              "@convex-dev/better-auth": convexVersions["@convex-dev/better-auth"],
+              "@types/node": runtime["@types/node"],
+              "@types/react": nextStack["@types/react"],
+              "better-auth": authVersions["better-auth"],
+              convex: convexVersions.convex,
+              react: nextStack.react,
+              typescript: typescriptVersions.typescript,
+              "@t3-oss/env-core": validation["@t3-oss/env-core"],
+              zod: validation.zod,
             },
           },
           null,
           2,
         ),
       );
+      await transaction.write("bunfig.toml", minimumReleaseAgeBunfigContent());
       await transaction.write(
         "tsconfig.json",
         JSON.stringify(
@@ -274,12 +440,18 @@ describe("generated Convex request-user boundary", () => {
               moduleResolution: "Bundler",
               jsx: "react-jsx",
               strict: true,
+              declaration: true,
               skipLibCheck: true,
               types: ["node", "react"],
               paths: {
                 "@repo/auth": ["./monorepo/packages/auth/src/server.ts"],
                 "@repo/auth/access": ["./monorepo/packages/auth/src/access.ts"],
+                "@repo/kernel": ["./monorepo/packages/kernel/src/admin.ts"],
+                "@repo/config/server": ["./monorepo/packages/config/src/server.ts"],
                 "@/server/auth": ["./single/src/server/auth/index.ts"],
+                "@/lib/access": ["./single/src/lib/access.ts"],
+                "@/lib/kernel": ["./single/src/lib/kernel.ts"],
+                "@/lib/env/server": ["./single/src/lib/env/server.ts"],
               },
             },
             include: [
@@ -287,8 +459,35 @@ describe("generated Convex request-user boundary", () => {
               "monorepo/**/*.tsx",
               "single/**/*.ts",
               "single/**/*.tsx",
+              "next-*/**/*.ts",
               "framework.d.ts",
             ],
+          },
+          null,
+          2,
+        ),
+      );
+      await transaction.write(
+        "tsconfig.declarations.json",
+        JSON.stringify(
+          {
+            compilerOptions: {
+              target: "ES2024",
+              module: "ESNext",
+              moduleResolution: "Bundler",
+              strict: true,
+              skipLibCheck: true,
+              types: ["node", "react"],
+              declaration: true,
+              emitDeclarationOnly: true,
+              rootDir: ".",
+              outDir: "declarations",
+              paths: {
+                "@repo/config/server": ["./next-monorepo/packages/config/src/server.ts"],
+                "@/lib/env/server": ["./next-single/src/lib/env/server.ts"],
+              },
+            },
+            include: ["next-*/**/*.ts"],
           },
           null,
           2,
@@ -304,6 +503,22 @@ describe("generated Convex request-user boundary", () => {
         ["node_modules/typescript/bin/tsc", "--noEmit", "-p", "tsconfig.json"],
         120_000,
       );
+      await runCommand(
+        root,
+        ["node_modules/typescript/bin/tsc", "-p", "tsconfig.declarations.json"],
+        120_000,
+      );
+      for (const declarationPath of [
+        "declarations/next-monorepo/packages/auth/src/server.d.ts",
+        "declarations/next-single/src/server/auth/index.d.ts",
+      ]) {
+        const declaration = await readFile(join(root, declarationPath), "utf8");
+        expect(declaration, declarationPath).toContain("OptionalRestArgs");
+        expect(declaration, declarationPath).not.toContain("convex-helpers");
+        expect(declaration, declarationPath).not.toContain(".bun");
+        expect(declaration, declarationPath).not.toContain(root.replaceAll("\\", "/"));
+        expect(declaration, declarationPath).not.toContain(root);
+      }
     } finally {
       verifyTempRoot(root);
       await rm(root, { recursive: true, force: true });

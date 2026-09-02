@@ -6,6 +6,8 @@ import type { BillingEvent } from "./types.js";
 
 export interface CreateCheckoutInput {
   userId: string;
+  /** Stable application request key used for provider and local idempotency. */
+  requestKey?: string;
   priceId: string;
   successUrl: string;
   failureUrl?: string;
@@ -29,6 +31,8 @@ export interface CreateCheckoutOutput {
 
 export interface CreateCustomerInput {
   email: string;
+  /** Stable actor/provider key for retry-safe remote customer provisioning. */
+  idempotencyKey?: string;
   name?: string;
   phone?: string;
   address?: {
@@ -56,9 +60,22 @@ export interface CreatePortalSessionOutput {
   url: string;
 }
 
+export interface CreatePaymentLinkInput {
+  name: string;
+  items: Array<{ price: string; quantity: number }>;
+  afterCompletionMessage?: string;
+}
+
+export interface CreatePaymentLinkOutput {
+  id: string;
+  url: string;
+}
+
 export interface VerifyWebhookInput {
   rawBody: Buffer;
   signature: string;
+  /** Full normalized request headers for providers such as Polar/Svix. */
+  headers?: Record<string, string>;
 }
 
 export interface VerifyWebhookOutput<TPayload = unknown> {
@@ -86,13 +103,13 @@ export interface CreateLicenseKeyOutput {
 }
 
 export interface IngestUsageEventInput {
-  name: string;
-  organizationId: string;
-  externalCustomerId: string;
-  externalId: string;
-  credits?: number;
+  /** Authenticated application actor. Provider customer/org/event ids are resolved server-side. */
+  actorId: string;
+  /** Durable application-owned usage row id. Replays must reuse this value. */
+  usageRecordId: string;
+  /** Server-derived quantity from the durable usage row, never browser input. */
+  credits: number;
   metadata?: Record<string, unknown>;
-  subscriptionId?: string;
 }
 
 export interface IngestUsageEventOutput {

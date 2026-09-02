@@ -1,182 +1,160 @@
 /**
- * Shared OKLCH design tokens + Tailwind v4 global CSS
- * DARK-FIRST — near-black, high-contrast, terminal-native
- * Palette: bg #09090b (oklch 0.15 0.01 285), card #111113 (0.18 0.01 285), fg #fafafa (0.985), muted #a1a1aa(0.71)/#71717a(0.55)/#52525b(0.44), border rgba(255,255,255,0.08) → 0.27 / 0.14→0.32, accent oklch 0.68 0.17 262 (~#6b7cff), ok #4ac06c, warn #e8a127, danger #ff3b4a
- * Radius: 12px (0.75rem), 8px (sm), 16px (xl)
- * Fonts: DM Sans 400/500/600 + JetBrains Mono 400/500, tracking -0.035em display, mono 11px meta
- * Grain: feTurbulence baseFrequency 0.9 4 octaves opacity 0.035 fixed z-9999
- * Grid: 48px grid with radial mask for hero
- * Deduplicates 95% identical global CSS between Next (app/globals.css) and TanStack (styles/app.css)
- * Both use same tokens: dark is default, light is toggle.
- * After RNR+Uniwind refactor: theme tokens live in @repo/ui/src/theme.css (single source).
- * Web and mobile both @import that file.
+ * Shared dark-first GhostInit design contract.
+ *
+ * `semanticThemeCssContent()` is the only renderer for semantic tokens. Package
+ * mode emits it as `@repo/ui/theme.css`; single mode embeds the same output in
+ * its global stylesheet. App stylesheets only select the platform adapter and
+ * add the appropriate base layer.
  */
 
 export const tailwindImports = `@import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
-@custom-variant light (&:is(.light *));
-`;
+@custom-variant light (&:is(.light *));`;
 
-export const oklchLightTokens = `:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.15 0.01 285);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.01 285);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.01 285);
-  --primary: oklch(0.60 0.19 262);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.01 285);
-  --secondary-foreground: oklch(0.15 0.01 285);
-  --muted: oklch(0.967 0.01 285);
-  --muted-foreground: oklch(0.55 0.014 285);
-  --accent: oklch(0.967 0.01 285);
-  --accent-foreground: oklch(0.15 0.01 285);
-  --destructive: oklch(0.60 0.24 27);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.01 285);
-  --input: oklch(0.92 0.01 285);
-  --ring: oklch(0.60 0.19 262);
-  --success: oklch(0.58 0.14 150);
-  --warning: oklch(0.60 0.13 75);
-  --code: oklch(0.965 0.006 285);
-  --code-foreground: oklch(0.28 0.01 285);
-  --radius: 0.75rem;
-  --chart-1: oklch(0.60 0.19 262);
-  --chart-2: oklch(0.72 0.16 150);
+export const oklchDarkTokens = `:root,
+.dark {
+  --background: oklch(0.09 0.01 264);
+  --foreground: oklch(0.98 0.005 264);
+  --card: oklch(0.13 0.01 264);
+  --card-foreground: oklch(0.98 0.005 264);
+  --popover: oklch(0.13 0.01 264);
+  --popover-foreground: oklch(0.98 0.005 264);
+  --primary: oklch(0.65 0.22 264);
+  --primary-foreground: oklch(0.12 0.02 264);
+  --secondary: oklch(0.18 0.01 264);
+  --secondary-foreground: oklch(0.98 0.005 264);
+  --muted: oklch(0.18 0.01 264);
+  --muted-foreground: oklch(0.65 0.015 264);
+  --accent: oklch(0.18 0.01 264);
+  --accent-foreground: oklch(0.98 0.005 264);
+  --destructive: oklch(0.63 0.22 27);
+  --destructive-foreground: oklch(0.98 0.005 264);
+  --border: oklch(0.22 0.01 264);
+  --input: oklch(0.22 0.01 264);
+  --ring: oklch(0.65 0.22 264);
+  --success: oklch(0.68 0.14 150);
+  --warning: oklch(0.72 0.13 75);
+  --code: oklch(0.12 0.01 264);
+  --code-foreground: oklch(0.78 0.012 264);
+  --radius: 0.5rem;
+  --chart-1: oklch(0.65 0.22 264);
+  --chart-2: oklch(0.68 0.14 186);
   --chart-3: oklch(0.62 0.12 150);
-  --chart-4: oklch(0.76 0.15 75);
-  --chart-5: oklch(0.60 0.18 35);
-  --sidebar: oklch(0.985 0.01 285);
-  --sidebar-foreground: oklch(0.15 0.01 285);
-  --sidebar-primary: oklch(0.60 0.19 262);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.01 285);
-  --sidebar-accent-foreground: oklch(0.15 0.01 285);
-  --sidebar-border: oklch(0.92 0.01 285);
-  --sidebar-ring: oklch(0.60 0.19 262);
+  --chart-4: oklch(0.72 0.13 75);
+  --chart-5: oklch(0.64 0.16 35);
+  --sidebar: oklch(0.11 0.01 264);
+  --sidebar-foreground: oklch(0.98 0.005 264);
+  --sidebar-primary: oklch(0.65 0.22 264);
+  --sidebar-primary-foreground: oklch(0.12 0.02 264);
+  --sidebar-accent: oklch(0.18 0.01 264);
+  --sidebar-accent-foreground: oklch(0.98 0.005 264);
+  --sidebar-border: oklch(0.22 0.01 264);
+  --sidebar-ring: oklch(0.65 0.22 264);
 }`;
 
-export const oklchDarkTokens = `.dark {
-  --background: oklch(0.15 0.01 285);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.18 0.01 285);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.18 0.01 285);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.68 0.17 262);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.21 0.01 285);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.21 0.01 285);
-  --muted-foreground: oklch(0.71 0.013 285);
-  --accent: oklch(0.21 0.01 285);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.63 0.24 27);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.27 0.01 285);
-  --input: oklch(0.32 0.01 285);
-  --ring: oklch(0.68 0.17 262);
-  --success: oklch(0.72 0.16 150);
-  --warning: oklch(0.76 0.15 75);
-  --code: oklch(0.12 0.01 285);
-  --code-foreground: oklch(0.80 0.012 285);
-  --chart-1: oklch(0.68 0.17 262);
-  --chart-2: oklch(0.72 0.16 150);
-  --chart-3: oklch(0.62 0.12 150);
-  --chart-4: oklch(0.76 0.15 75);
-  --chart-5: oklch(0.66 0.18 35);
-  --sidebar: oklch(0.18 0.01 285);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.68 0.17 262);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.21 0.01 285);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.27 0.01 285);
-  --sidebar-ring: oklch(0.68 0.17 262);
+export const oklchLightTokens = `.light {
+  --background: oklch(0.99 0.005 264);
+  --foreground: oklch(0.14 0.01 264);
+  --card: oklch(0.99 0.005 264);
+  --card-foreground: oklch(0.14 0.01 264);
+  --popover: oklch(0.99 0.005 264);
+  --popover-foreground: oklch(0.14 0.01 264);
+  --primary: oklch(0.55 0.22 264);
+  --primary-foreground: oklch(0.99 0.005 264);
+  --secondary: oklch(0.95 0.01 264);
+  --secondary-foreground: oklch(0.14 0.01 264);
+  --muted: oklch(0.95 0.01 264);
+  --muted-foreground: oklch(0.5 0.015 264);
+  --accent: oklch(0.95 0.01 264);
+  --accent-foreground: oklch(0.14 0.01 264);
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.99 0.005 264);
+  --border: oklch(0.92 0.01 264);
+  --input: oklch(0.92 0.01 264);
+  --ring: oklch(0.55 0.22 264);
+  --success: oklch(0.5 0.14 150);
+  --warning: oklch(0.55 0.13 75);
+  --code: oklch(0.96 0.007 264);
+  --code-foreground: oklch(0.25 0.01 264);
+  --radius: 0.5rem;
+  --chart-1: oklch(0.55 0.22 264);
+  --chart-2: oklch(0.62 0.14 186);
+  --chart-3: oklch(0.58 0.12 150);
+  --chart-4: oklch(0.65 0.13 75);
+  --chart-5: oklch(0.58 0.16 35);
+  --sidebar: oklch(0.97 0.007 264);
+  --sidebar-foreground: oklch(0.14 0.01 264);
+  --sidebar-primary: oklch(0.55 0.22 264);
+  --sidebar-primary-foreground: oklch(0.99 0.005 264);
+  --sidebar-accent: oklch(0.95 0.01 264);
+  --sidebar-accent-foreground: oklch(0.14 0.01 264);
+  --sidebar-border: oklch(0.92 0.01 264);
+  --sidebar-ring: oklch(0.55 0.22 264);
 }`;
+
+const colorTokenNames = [
+  "background",
+  "foreground",
+  "card",
+  "card-foreground",
+  "popover",
+  "popover-foreground",
+  "primary",
+  "primary-foreground",
+  "secondary",
+  "secondary-foreground",
+  "muted",
+  "muted-foreground",
+  "accent",
+  "accent-foreground",
+  "destructive",
+  "destructive-foreground",
+  "border",
+  "input",
+  "ring",
+  "success",
+  "warning",
+  "code",
+  "code-foreground",
+  "chart-1",
+  "chart-2",
+  "chart-3",
+  "chart-4",
+  "chart-5",
+  "sidebar",
+  "sidebar-foreground",
+  "sidebar-primary",
+  "sidebar-primary-foreground",
+  "sidebar-accent",
+  "sidebar-accent-foreground",
+  "sidebar-border",
+  "sidebar-ring",
+] as const;
+
+function renderColorMappings(indent: string): string {
+  return colorTokenNames.map((name) => `${indent}--color-${name}: var(--${name});`).join("\n");
+}
 
 export const themeInlineTokens = `@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-code: var(--code);
-  --color-code-foreground: var(--code-foreground);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+${renderColorMappings("  ")}
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --tracking-display: -0.035em;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --tracking-display: -0.025em;
 }`;
 
-// grain overlay: feTurbulence baseFrequency 0.9 numOctaves 4, opacity 0.035, fixed, z-9999
-export const grainOverlayCss = `/* grain — feTurbulence baseFrequency 0.9, 4 octaves, opacity 0.035, fixed, z-9999 */
-.grain-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.035;
-}
-.grain-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  mix-blend-mode: soft-light;
-}`;
-
-// hero grid: 48px grid with radial mask
-export const heroGridCss = `/* hero — 48px grid with radial mask */
-.hero-grid {
-  background-size: 48px 48px;
-  background-image:
-    linear-gradient(to right, var(--border) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 70%, transparent 110%);
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 70%, transparent 110%);
-}
-.display-tight {
-  letter-spacing: -0.035em;
-}
-.text-meta {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
+const uniwindVariantLayer = `@layer theme {
+  :root {
+    @variant light {
+${renderColorMappings("      ")}
+    }
+    @variant dark {
+${renderColorMappings("      ")}
+    }
+  }
 }`;
 
 export const baseLayer = `@layer base {
@@ -184,9 +162,8 @@ export const baseLayer = `@layer base {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-sm text-foreground antialiased;
     font-family: var(--font-sans);
-    font-feature-settings: "ss01" 1, "ss02" 1;
   }
   h1, h2, h3, .display {
     letter-spacing: var(--tracking-display);
@@ -196,10 +173,30 @@ export const baseLayer = `@layer base {
   }
 }`;
 
+/** Render the complete portable token contract for every selected platform. */
+export function semanticThemeCssContent(): string {
+  return `${oklchDarkTokens}
+
+${oklchLightTokens}
+
+${themeInlineTokens}
+
+${uniwindVariantLayer}
+`;
+}
+
+/** Render a flat web stylesheet from the same theme renderer as package mode. */
+export function standaloneWebGlobalCssContent(): string {
+  return `${tailwindImports}
+
+${semanticThemeCssContent()}
+${baseLayer}
+`;
+}
+
 /**
- * Web global.css — single source: imports @repo/ui/theme.css
- * Contains only imports + base layer, tokens live in @repo/ui/theme.css
- * Fonts are loaded per-framework: Next via next/font, TanStack via <link> in __root, Mobile via expo-font
+ * Package-mode web CSS imports the resolved UI theme and adds DOM base roles.
+ * Fonts are system-native; no framework font loader is required.
  */
 export function globalCssContent(): string {
   return `@import "tailwindcss";
@@ -212,10 +209,7 @@ ${baseLayer}
 `;
 }
 
-/**
- * Mobile global.css — Uniwind + Tailwind + single source @repo/ui/theme.css
- * Must be imported in apps/mobile/app/_layout.tsx at top per Uniwind docs.
- */
+/** Native CSS consumes the portable contract without the DOM base layer. */
 export function mobileGlobalCssContent(): string {
   return `@import "tailwindcss";
 @import "uniwind";

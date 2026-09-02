@@ -37,7 +37,7 @@ Each composer `<5 imports` guideline, monorepo/index.ts exceeds but via intentio
 
 Located in `src/templates/shared.ts` (or similar) — helpers return `TemplateFile {path, content}`. `file(path, content)` raw. `packageJson({name, exports, scripts, dependencies, devDependencies})` stringifies package.json with deterministic ordering + workspace:* handling. `tsconfig({include, compilerOptions})` stringifies tsconfig. `codeScripts()` default scripts `{lint, typecheck, ...}`.
 
-Version injection: `import * as v from "./versions.js"` re-export of `@repo/versions`, then e.g., `stripe: "^" + v.billing.stripe`.
+Version injection: `import * as v from "./versions.js"` re-export of `@repo/versions`. Stripe is exact (`stripe: v.billing.stripe`) because its SDK release and `LatestApiVersion` type literal are coupled; ordinary semver-compatible dependencies use `^`.
 
 Internal deps `workspace:*` for `@repo/*`.
 
@@ -50,6 +50,8 @@ Internal deps `workspace:*` for `@repo/*`.
 - - maybe package.ts, turbo.ts, bunfig.ts, lint.ts, env.ts etc each small.
 
 Same pattern for `shared/env/` split 449 LOC → `billing.ts`, `core.ts`, `builders.ts` each <300 etc.
+
+Deployment output is split between `root/deploy.ts` (target selection, Dockerfile, Fly/Vercel bindings, operational health route) and `root/deploy-guides.ts` (BuildKit secret command, health probe, production Compose, and platform guidance). Keep the 30-second Compose/Fly grace aligned with `process-supervisor.ts`'s 20-second graceful plus 5-second forced budget. Docker Eve state must use the explicit named volume in `compose.production.yml`; never replace it with an anonymous Dockerfile `VOLUME`.
 
 Maintain <300 LOC guideline per file with `// @allow-long <LOC>: <reason>` escape if aggregation legit.
 

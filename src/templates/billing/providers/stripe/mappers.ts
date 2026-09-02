@@ -1,11 +1,10 @@
 /**
  * Stripe status mappers + subscription mapper.
  */
-// @ts-ignore
 import type Stripe from "stripe";
 import type { Subscription, SubscriptionStatus } from "../interface.js";
 
-export function mapStripeStatusToDomain(status: string): SubscriptionStatus {
+export function mapStripeStatusToDomain(status?: string): SubscriptionStatus {
   switch (status) {
     case "active":
       return "active";
@@ -26,7 +25,7 @@ export function mapStripeStatusToDomain(status: string): SubscriptionStatus {
     case "ended":
       return "expired";
     default:
-      return "active";
+      return "incomplete";
   }
 }
 
@@ -69,56 +68,48 @@ export function resolveStripeStatusFilter(
   if (inputStatus === "all") return "all";
   if (Array.isArray(inputStatus)) {
     if (inputStatus.length === 0) return undefined;
-    if ((inputStatus as string[]).includes("all")) return "all";
     if (inputStatus.length > 1) return "all";
-    return mapDomainStatusToStripe(inputStatus[0] as SubscriptionStatus | "all");
+    return mapDomainStatusToStripe(inputStatus[0]);
   }
-  return mapDomainStatusToStripe(inputStatus as SubscriptionStatus | "all");
+  return mapDomainStatusToStripe(inputStatus);
 }
 
-type StripeSubscriptionWithLegacy = Stripe.Subscription & {
-  items?: { data?: Stripe.SubscriptionItem[] };
-  current_period_end?: number;
-  trial_end?: number;
-  created?: number;
-};
+type ExpandableId = string | { id: string } | null | undefined;
+
+function expandableId(value: ExpandableId): string | undefined {
+  return typeof value === "string" ? value : value?.id;
+}
+
+function currentPeriodEnd(subscription: Stripe.Subscription): Date | null {
+  const periodEnds = subscription.items.data.map(
+    (item: Stripe.SubscriptionItem) => item.current_period_end,
+  );
+  return periodEnds.length > 0 ? new Date(Math.min(...periodEnds) * 1000) : null;
+}
 
 export function mapStripeSubscriptionToDomain(
   sub: Stripe.Subscription,
   fallbackUserId?: string,
 ): Subscription {
-  // vendor untyped: Stripe Subscription items field optional in older types, but present at runtime
-  const legacy = sub as unknown as StripeSubscriptionWithLegacy;
-  const items = legacy.items?.data as Stripe.SubscriptionItem[] | undefined;
-  const firstItem = items?.[0];
+  const firstItem = sub.items.data[0];
   const priceId = firstItem?.price?.id ?? null;
-  const productId =
-    typeof firstItem?.price?.product === "string"
-      ? (firstItem?.price?.product as string)
-      : ((firstItem?.price?.product as Stripe.Product | undefined)?.id ?? null);
-  const customerId =
-    typeof sub.customer === "string"
-      ? sub.customer
-      : ((sub.customer as Stripe.Customer | null)?.id ?? "");
-  const metaUserId =
-    (sub.metadata as Record<string, string> | null)?.userId ??
-    (sub.metadata as Record<string, string> | null)?.user_id ??
-    fallbackUserId ??
-    "";
+  const productId = expandableId(firstItem?.price?.product) ?? null;
+  const customerId = expandableId(sub.customer) ?? "";
+  const metaUserId = sub.metadata.userId ?? sub.metadata.user_id ?? fallbackUserId ?? "";
 
   return {
     id: sub.id,
-    provider: "stripe" as const,
+    provider: "stripe",
     providerSubscriptionId: sub.id,
     userId: metaUserId,
     status: mapStripeStatusToDomain(sub.status),
-    currentPeriodEnd: legacy.current_period_end ? new Date(legacy.current_period_end * 1000) : null,
-    trialEnd: legacy.trial_end ? new Date(legacy.trial_end * 1000) : null,
+    currentPeriodEnd: currentPeriodEnd(sub),
+    trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
     priceId,
     productId,
-    metadata: sub.metadata as Record<string, unknown> | null,
+    metadata: sub.metadata,
     customerId,
-    createdAt: legacy.created ? new Date(legacy.created * 1000) : undefined,
+    createdAt: new Date(sub.created * 1000),
     updatedAt: undefined,
   };
 }

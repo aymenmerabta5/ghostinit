@@ -2,7 +2,7 @@
 
 ## Existing Frameworks
 
-- `nextjs` (default) — App Router 16.2.10 React 19, Next specific files: `apps/web/src/app/` structure, `next.config.ts`, `next-env.d.ts`, cookie `nextCookies()` from better-auth/next-js, outputs `.next/**`, client env `NEXT_PUBLIC_*`.
+- `nextjs` (default) — catalog-pinned Next 16 + React 19, Next specific files: `apps/web/src/app/` structure, `next.config.ts`, `next-env.d.ts`, cookie `nextCookies()` from better-auth/next-js, outputs `.next/**`, client env `NEXT_PUBLIC_*`.
 - `tanstack-start` — Vite 7 + Nitro 3, `tanstack-*` files: `apps/web/src/routes/`, `router.tsx`, `__root.tsx`, cookie `tanstackStartCookies()` better-auth/tanstack-start, outputs `.vinxi/** .output/** dist/**`, client env `VITE_*`, server fn `createServerFn`, `getRequestHeaders`, Vite + @vitejs/plugin-react + @tailwindcss/vite.
 
 DRY via fragments `src/templates/apps/fragments/` each file <150 LOC (guideline), shim barrels re-export split folder for backward compat.
@@ -103,7 +103,7 @@ Similarly `auth-composer.ts` handles `authPackage(framework)`.
 
 Already covered: `.next/** .vinxi/** .output/** dist/** .vercel/**` in `root.ts` `turbo()` outputs. If your framework emits different out dir (e.g., `.myframework/**`), add there + root `turbo.json`.
 
-7. Fragments Extraction Triggers (from ARCHITECTURE.md):
+7. Fragments Extraction Triggers (from `AGENTS.md#architecture`):
 
 - `apps/tanstack-*` file approaching 300 LOC guideline (host guideline, escape via `// @allow-long` if legit)
 - Duplication across Next/TanStack >30% lines
@@ -118,12 +118,12 @@ History: Yellow #3 — extracted forgot-password 66 LOC, reset-password 80 LOC, 
 ```bash
 bun run build && bun run check
 mkdir /tmp/gi-test && bunx ghostinit create demo --framework myframework --yes --no-install --cwd /tmp/gi-test
-cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint
+cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint:all
 # check turbo.json globalEnv, bunfig.toml hoist=true, architecture checker passes
 bun run build && node ../../dist/cli.js check inside generated? Or ghostinit check.
 ```
 
-9. Docs sync same PR: AGENTS.md availableFrameworks list + ARCHITECTURE.md framework matrix + README stack + CONTRIBUTING how-to + skills/ghostinit-use/references/frameworks.md chooser + skills/ghostinit-dev/references/framework.md this file.
+9. Docs sync same PR: `AGENTS.md#architecture` framework matrix + README stack + CONTRIBUTING how-to + `evidence/compatibility/v1-to-v2.json` and its schema when the CLI/migration mapping changes + skills/ghostinit-use/references/frameworks.md chooser + skills/ghostinit-dev/references/framework.md this file. Update `DESIGN.md` and the applicable frontend task record when the UI adapter contract changes.
 
 ## DRY Tips
 

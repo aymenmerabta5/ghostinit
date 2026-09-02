@@ -1,6 +1,12 @@
 // @allow-long 450: preset-first wizard with branching saas/frontend/custom reads best as one sequence
 import { ExitCode } from "../../lib/errors.js";
 import {
+  electron as electronVersions,
+  expo as expoVersions,
+  nextStack,
+  postgresDocker,
+} from "../../../packages/versions/src/index.js";
+import {
   isInteractiveMode,
   normalizeAppsSelection,
   normalizeBillingSelection,
@@ -10,6 +16,11 @@ import {
 } from "../../lib/interactive.js";
 import type { GlobalOptions } from "../types.js";
 import { validateProjectName } from "./validation.js";
+
+const NEXT_LABEL = `Next.js ${nextStack.next}`;
+const EXPO_LABEL = `Expo SDK ${expoVersions.expo.split(".")[0]}`;
+const ELECTRON_LABEL = `Electron ${electronVersions.electron.split(".")[0]}`;
+const POSTGRES_LABEL = postgresDocker.image.replace("postgres:", "PG ");
 
 class CancelledError extends Error {
   constructor() {
@@ -64,15 +75,13 @@ export async function promptInteractive(
     preset?: string;
     cache?: string;
     deploy?: string;
+    customFeatures?: string[];
     noInstall: boolean;
   },
 ): Promise<PromptResult> {
-  const clackModule = (await import("@clack/prompts")) as unknown as Record<string, unknown> & {
-    intro: unknown;
-  };
-  const p =
-    (clackModule.default as typeof import("@clack/prompts") | undefined) ??
-    (clackModule as unknown as typeof import("@clack/prompts"));
+  // Clack 1.x is ESM-only. Keep the import lazy so non-interactive commands do
+  // not initialize terminal prompt machinery.
+  const p = await import("@clack/prompts");
 
   p.intro("GhostInit v0.1 — create your project");
 
@@ -229,13 +238,13 @@ export async function promptInteractive(
               message: "Stack?",
               initialValue: "nextjs",
               options: [
-                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC — Web" },
+                { value: "nextjs", label: "Next.js", hint: `${NEXT_LABEL} App Router RSC — Web` },
                 {
                   value: "tanstack-start",
                   label: "TanStack Start",
                   hint: "Vite + file-based router — Web",
                 },
-                { value: "expo", label: "Expo", hint: "SDK 52 Router — Mobile" },
+                { value: "expo", label: "Expo", hint: `${EXPO_LABEL} Router — Mobile` },
                 {
                   value: "both",
                   label: "Web + Mobile",
@@ -250,8 +259,12 @@ export async function promptInteractive(
               required: false,
               options: [
                 { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
-                { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
-                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
+                { value: "mobile", label: "Mobile", hint: `${EXPO_LABEL} Router + SecureStore` },
+                {
+                  value: "desktop",
+                  label: "Desktop",
+                  hint: `${ELECTRON_LABEL} + TanStack Router SPA`,
+                },
               ],
             }),
           deploy: () =>
@@ -263,10 +276,14 @@ export async function promptInteractive(
                 {
                   value: "docker",
                   label: "Docker",
-                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                  hint: "Dockerfile + production Compose (exact Bun image)",
                 },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
-                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
+                {
+                  value: "vercel",
+                  label: "Vercel",
+                  hint: "exact Bun build; managed function runtime",
+                },
               ],
             }),
           install: () =>
@@ -307,7 +324,7 @@ export async function promptInteractive(
               message: "Frontend framework?",
               initialValue: initial.framework,
               options: [
-                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC" },
+                { value: "nextjs", label: "Next.js", hint: `${NEXT_LABEL} App Router RSC` },
                 {
                   value: "tanstack-start",
                   label: "TanStack Start",
@@ -320,7 +337,11 @@ export async function promptInteractive(
               message: "Database provider?",
               initialValue: initial.database === "none" ? "postgres" : initial.database,
               options: [
-                { value: "postgres", label: "PostgreSQL", hint: "Drizzle + PG 18.4 (default)" },
+                {
+                  value: "postgres",
+                  label: "PostgreSQL",
+                  hint: `Drizzle + ${POSTGRES_LABEL} (default)`,
+                },
                 { value: "convex", label: "Convex", hint: "Realtime + serverless" },
               ],
             }),
@@ -348,8 +369,12 @@ export async function promptInteractive(
               required: false,
               options: [
                 { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
-                { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
-                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
+                { value: "mobile", label: "Mobile", hint: `${EXPO_LABEL} Router + SecureStore` },
+                {
+                  value: "desktop",
+                  label: "Desktop",
+                  hint: `${ELECTRON_LABEL} + TanStack Router SPA`,
+                },
               ],
             }),
           features: () =>
@@ -370,6 +395,26 @@ export async function promptInteractive(
                   label: "Messaging",
                   hint: "DM + files + realtime (WS for postgres, Convex native)",
                 },
+                {
+                  value: "storage",
+                  label: "Storage",
+                  hint: "actor-owned uploads (local/S3 for postgres, Convex native)",
+                },
+                {
+                  value: "notifications",
+                  label: "Notifications",
+                  hint: "persistent inbox + Expo push registration",
+                },
+                {
+                  value: "featureFlags",
+                  label: "Remote flags",
+                  hint: "PostHog evaluation through the typed API",
+                },
+                {
+                  value: "jobs",
+                  label: "Background jobs",
+                  hint: "actor-owned runs + worker scheduler",
+                },
               ],
             }),
           deploy: () =>
@@ -381,10 +426,14 @@ export async function promptInteractive(
                 {
                   value: "docker",
                   label: "Docker",
-                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                  hint: "Dockerfile + production Compose (exact Bun image)",
                 },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
-                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
+                {
+                  value: "vercel",
+                  label: "Vercel",
+                  hint: "exact Bun build; managed function runtime",
+                },
               ],
             }),
           install: () =>
@@ -418,7 +467,7 @@ export async function promptInteractive(
               message: "Frontend framework?",
               initialValue: initial.framework,
               options: [
-                { value: "nextjs", label: "Next.js", hint: "App Router 16.2.10 RSC" },
+                { value: "nextjs", label: "Next.js", hint: `${NEXT_LABEL} App Router RSC` },
                 {
                   value: "tanstack-start",
                   label: "TanStack Start",
@@ -431,7 +480,7 @@ export async function promptInteractive(
               message: "Database provider?",
               initialValue: initial.database,
               options: [
-                { value: "postgres", label: "PostgreSQL", hint: "Drizzle + PG 18.4" },
+                { value: "postgres", label: "PostgreSQL", hint: `Drizzle + ${POSTGRES_LABEL}` },
                 { value: "convex", label: "Convex", hint: "Realtime + serverless" },
                 { value: "none", label: "None", hint: "No database (blocks Auth/Billing)" },
               ],
@@ -443,14 +492,18 @@ export async function promptInteractive(
               required: false,
               options: [
                 { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
-                { value: "mobile", label: "Mobile", hint: "Expo SDK 54 Router + SecureStore" },
-                { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
+                { value: "mobile", label: "Mobile", hint: `${EXPO_LABEL} Router + SecureStore` },
+                {
+                  value: "desktop",
+                  label: "Desktop",
+                  hint: `${ELECTRON_LABEL} + TanStack Router SPA`,
+                },
               ],
             }),
           customFeatures: () =>
             p.multiselect({
               message: "Addons — pick any (space to select)",
-              initialValues: [],
+              initialValues: initial.customFeatures ?? [],
               required: false,
               options: [
                 { value: "auth", label: "Authentication", hint: "Better Auth + 2FA (requires DB)" },
@@ -469,6 +522,26 @@ export async function promptInteractive(
                   value: "messaging",
                   label: "Messaging",
                   hint: "DM + files + realtime (WS for postgres, Convex native)",
+                },
+                {
+                  value: "storage",
+                  label: "Storage",
+                  hint: "actor-owned uploads (local/S3 for postgres, Convex native)",
+                },
+                {
+                  value: "notifications",
+                  label: "Notifications",
+                  hint: "persistent inbox + Expo push registration",
+                },
+                {
+                  value: "featureFlags",
+                  label: "Remote flags",
+                  hint: "PostHog evaluation through the typed API",
+                },
+                {
+                  value: "jobs",
+                  label: "Background jobs",
+                  hint: "actor-owned runs + worker scheduler",
                 },
               ],
             }),
@@ -494,10 +567,14 @@ export async function promptInteractive(
                 {
                   value: "docker",
                   label: "Docker",
-                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                  hint: "Dockerfile + production Compose (exact Bun image)",
                 },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
-                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
+                {
+                  value: "vercel",
+                  label: "Vercel",
+                  hint: "exact Bun build; managed function runtime",
+                },
               ],
             }),
           install: () =>
@@ -619,10 +696,26 @@ export async function promptInteractive(
     const rawSaasFeatures = (group.features as string[]) ?? [];
     const hasPdfSaas = rawSaasFeatures.includes("pdf");
     const hasMessagingSaas = rawSaasFeatures.includes("messaging");
-    const filteredSaasFeatures = rawSaasFeatures.filter((f) => f !== "pdf" && f !== "messaging");
+    const hasStorageSaas = rawSaasFeatures.includes("storage");
+    const hasNotificationsSaas = rawSaasFeatures.includes("notifications");
+    const hasFeatureFlagsSaas = rawSaasFeatures.includes("featureFlags");
+    const hasJobsSaas = rawSaasFeatures.includes("jobs");
+    const filteredSaasFeatures = rawSaasFeatures.filter(
+      (f) =>
+        f !== "pdf" &&
+        f !== "messaging" &&
+        f !== "storage" &&
+        f !== "notifications" &&
+        f !== "featureFlags" &&
+        f !== "jobs",
+    );
     features = normalizeFeaturesSelection(filteredSaasFeatures);
     if (hasPdfSaas) features = [...features, "__custom_pdf"];
     if (hasMessagingSaas) features = [...features, "__custom_messaging"];
+    if (hasStorageSaas) features = [...features, "__custom_storage"];
+    if (hasNotificationsSaas) features = [...features, "__custom_notifications"];
+    if (hasFeatureFlagsSaas) features = [...features, "__custom_featureFlags"];
+    if (hasJobsSaas) features = [...features, "__custom_jobs"];
     apps = normalizeAppsSelection((group.apps as string[]) ?? initial.apps ?? ["web"]);
     cache = "none";
   } else {

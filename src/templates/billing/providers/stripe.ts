@@ -2,11 +2,11 @@
  * Stripe provider barrel — composes split modules for <300 compliance.
  * Original monolith 433 lines now <200 barrel + submodules.
  *
- * Context7 /stripe/stripe-node v19.1.0 basil
- * Stripe(SECRET, {apiVersion:'2025-03-31.basil'}) checkout.sessions.create line_items mode subscription
+ * Stripe Node v22.5.0 / API 2026-07-29.dahlia.
+ * Stripe(SECRET, {apiVersion:'2026-07-29.dahlia'}) checkout.sessions.create line_items mode subscription
  *   automatic_tax success_url cancel_url expand subscription expand[]=subscription
  * billingPortal.sessions.create customer return_url flow_data subscription_update deep-link
- * webhooks.constructEvent rawBody Buffer sig secret stripe-signature Buffer.from(await req.arrayBuffer())
+ * webhooks.constructEventAsync rawBody Buffer sig secret stripe-signature Buffer.from(await req.arrayBuffer())
  *   NOT req.json() else 403 Webhook Error events checkout.session.completed invoice.paid vs payment_succeeded
  *   subscription updated/deleted customer.subscription.updated customer.subscription.deleted lifecycle broader narrower
  * subscriptions.list customer status active|all|past_due filter
