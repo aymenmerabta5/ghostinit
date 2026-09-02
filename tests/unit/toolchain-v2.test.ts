@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { normalizeEmbeddedTemplateSource } from "../../scripts/embed-template-sources.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runtime, typescript as typescriptVersions } from "../../packages/versions/src/index.js";
@@ -6,6 +7,9 @@ import { runtime, typescript as typescriptVersions } from "../../packages/versio
 const root = resolve(import.meta.dir, "../..");
 
 describe("exact V2 host toolchain", () => {
+  test("embeds template source independently of checkout line endings", () => {
+    expect(normalizeEmbeddedTemplateSource("one\r\ntwo\rthree\n")).toBe("one\ntwo\nthree\n");
+  });
   test("pins package manager, compiler, and Bun types", () => {
     const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
       packageManager: string;
