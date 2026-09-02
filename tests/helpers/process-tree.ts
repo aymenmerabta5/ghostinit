@@ -1,5 +1,9 @@
-// @allow-long 550: cross-platform discovery, termination, and verification stay together so cleanup cannot fail open
+// @allow-long 551: cross-platform discovery, termination, and verification stay together so cleanup cannot fail open
 import { spawn, type ChildProcess } from "node:child_process";
+import {
+  listPosixProcessGroupMembers,
+  sendPosixProcessGroupSignal,
+} from "../../src/lib/posix-process-groups.js";
 
 export interface TaskkillOutcome {
   status: number | null;
@@ -222,10 +226,21 @@ async function waitForExit(child: ChildProcess, timeoutMs: number): Promise<bool
 
 function processGroupExists(pid: number): boolean {
   try {
-    process.kill(-pid, 0);
-    return true;
-  } catch {
-    return false;
+    return listPosixProcessGroupMembers(pid).length > 0;
+  } catch (error) {
+    throw new ProcessTreeTerminationError(
+      `POSIX process group ${pid} could not be verified: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function signalPosixProcessGroup(pid: number, signal: NodeJS.Signals): void {
+  try {
+    sendPosixProcessGroupSignal(pid, signal);
+  } catch (error) {
+    throw new ProcessTreeTerminationError(
+      `POSIX process group ${pid} could not receive ${signal}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -506,26 +521,12 @@ async function terminatePosixGroup(child: ChildProcess, rootPid: number): Promis
     return;
   }
 
-  try {
-    process.kill(-rootPid, "SIGTERM");
-  } catch (error) {
-    throw new ProcessTreeTerminationError(
-      `POSIX process group ${rootPid} could not receive SIGTERM: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  signalPosixProcessGroup(rootPid, "SIGTERM");
   const childExitedAfterTerm = await waitForExit(child, 2_000);
   const groupExitedAfterTerm = await waitForProcessGroupExit(rootPid, 2_000);
   if (childExitedAfterTerm && groupExitedAfterTerm) return;
 
-  try {
-    process.kill(-rootPid, "SIGKILL");
-  } catch (error) {
-    if (processGroupExists(rootPid)) {
-      throw new ProcessTreeTerminationError(
-        `POSIX process group ${rootPid} could not receive SIGKILL: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
+  signalPosixProcessGroup(rootPid, "SIGKILL");
   const childExitedAfterKill = await waitForExit(child, 5_000);
   const groupExitedAfterKill = await waitForProcessGroupExit(rootPid, 5_000);
   if (!childExitedAfterKill || !groupExitedAfterKill) {
