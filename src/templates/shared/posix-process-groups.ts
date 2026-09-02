@@ -44,7 +44,7 @@ function linuxProcessGroupIds(groupPid) {
     const candidateGroup = Number.parseInt(fields[2] || "", 10);
     if (
       close < 0 || fields.length < 3 || !Number.isSafeInteger(pid) || pid <= 0 ||
-      !Number.isSafeInteger(candidateGroup) || candidateGroup <= 0
+      !Number.isSafeInteger(candidateGroup) || candidateGroup < 0
     ) {
       throw new Error("Linux exposed a malformed /proc process stat record");
     }

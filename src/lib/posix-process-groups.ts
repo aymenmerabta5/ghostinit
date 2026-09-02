@@ -114,7 +114,7 @@ function linuxStatIdentity(stat: string): { readonly pid: number; readonly group
     !Number.isSafeInteger(pid) ||
     pid <= 0 ||
     !Number.isSafeInteger(groupId) ||
-    groupId <= 0
+    groupId < 0
   ) {
     throw new PosixProcessGroupError("Linux exposed a malformed /proc process stat record");
   }

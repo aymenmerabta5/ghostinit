@@ -18,6 +18,7 @@ type GroupExists = (groupPid: number) => boolean;
 function generatedProcessGroupProtocol(
   signal: (target: number, signal: NodeJS.Signals) => unknown,
   inspect: () => unknown = () => ({ error: null, status: 0, signal: null, stdout: "" }),
+  options: { platform?: NodeJS.Platform; linuxStats?: readonly string[] } = {},
 ): { readonly exists: GroupExists; readonly signal: SignalGroup } {
   const source = posixProcessGroupHelpersContent({
     label: "Injected",
@@ -26,8 +27,24 @@ function generatedProcessGroupProtocol(
   return new Function(
     "process",
     "spawnSync",
+    "readdirSync",
+    "readFileSync",
     `${source}\nreturn { exists: processGroupExists, signal: signalProcessGroup };`,
-  )({ platform: "darwin", env: {}, kill: signal }, inspect) as {
+  )(
+    { platform: options.platform ?? "darwin", env: {}, kill: signal },
+    inspect,
+    () =>
+      (options.linuxStats ?? []).map((stat) => ({
+        name: stat.slice(0, stat.indexOf(" ")),
+        isDirectory: () => true,
+      })),
+    (path: string) => {
+      const pid = /\/proc\/(\d+)\/stat$/.exec(path)?.[1];
+      const stat = (options.linuxStats ?? []).find((candidate) => candidate.startsWith(`${pid} `));
+      if (!stat) throw Object.assign(new Error("process disappeared"), { code: "ENOENT" });
+      return stat;
+    },
+  ) as {
     readonly exists: GroupExists;
     readonly signal: SignalGroup;
   };
@@ -38,6 +55,7 @@ describe("fail-closed POSIX process groups", () => {
     const members = listPosixProcessGroupMembers(41, {
       platform: "linux",
       linuxProcessStats: () => [
+        "2 (kthreadd) S 0 0 0 0 -1 0",
         "41 (bun) S 1 41 41 0 -1 0",
         "42 (worker with spaces) S 41 41 41 0 -1 0",
         "43 (other) S 1 43 43 0 -1 0",
@@ -134,6 +152,12 @@ describe("fail-closed POSIX process groups", () => {
         }),
       ).exists(111),
     ).toThrow("EPERM");
+    expect(
+      generatedProcessGroupProtocol(() => undefined, undefined, {
+        platform: "linux",
+        linuxStats: ["2 (kthreadd) S 0 0 0 0 -1 0", "111 (bun) S 1 111 111 0 -1 0"],
+      }).exists(111),
+    ).toBe(true);
 
     for (const source of [
       startPostgresJobsSupervisorContent("single"),
