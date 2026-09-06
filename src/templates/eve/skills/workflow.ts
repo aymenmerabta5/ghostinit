@@ -9,7 +9,7 @@ description: Use when user needs to scaffold GhostInit DDD modules, use-cases, p
 # GhostInit Workflow
 ## Steps
 1. Create project: ghostinit create <name> --cwd <parent-directory> --no-install --force --json
-2. Env: review the generated .env.local vendor placeholders without copying over its self-issued secrets, then run bun install, docker compose --env-file .env.local up -d, and bun run db:generate/migrate/dev
+2. Env: review the generated .env.local vendor placeholders without copying over its self-issued secrets, then run bun run install:bootstrap, docker compose --env-file .env.local up -d, and bun run db:generate/migrate/dev
 3. Scaffold module: ghostinit add module <name> --json
 4. Add use-case: ghostinit add use-case <module> <name> --kind command|query
 5. Add procedure: ghostinit add procedure <module> <name>

@@ -11,7 +11,7 @@ function compositionContent(): string {
 import { auth } from "@repo/auth";
 import { adminAuditEvents, db } from "@repo/database";
 import { logger } from "@repo/observability";
-import * as admin from "../../admin/index.js";
+import * as admin from "../../admin/index";
 
 export function createAdminServiceForRequest(headers: Headers): admin.AdminService {
   const identity = admin.createBetterAuthAdminIdentityPort(auth, headers);

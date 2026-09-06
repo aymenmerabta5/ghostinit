@@ -88,7 +88,7 @@ function pdfPackageFiles(mode: PdfMode, hasWeb: boolean): TemplateFile[] {
 export * from "./lib/qr.js";
  export * from "./lib/render.js";
 export { registerPdfFonts, type PdfFontSources } from "./lib/fonts.js";
-export { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign, type PdfLocale, type PdfMessageKey } from "./lib/locale.js";
+export { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign, pdfTextDirection, type PdfLocale, type PdfMessageKey } from "./lib/locale.js";
 export * from "./templates/invoice.js";
 export * from "./templates/certificate.js";
 export * from "./templates/agreement.js";
@@ -164,6 +164,11 @@ replace it with a shared transactional admission adapter before scaling. The
 capability resolver rejects Vercel because a serverless fleet cannot enforce
 these limits globally. Do not replace the route with an unbounded
 \`request.json()\` handler.
+
+Use \`renderPdfToBuffer\` for server rendering. It admits at most two calls,
+serializes font setup and rendering, and reloads local font faces for each
+document so Arabic shaping state cannot leak between requests. A full renderer
+returns \`PdfRenderBusyError\`, mapped by the HTTP route to a retryable 429.
 
 ## Client (web)
 \`\`\`ts
@@ -436,6 +441,7 @@ function admitPdfRender(actorId: string): () => void {
 }
 
 function safePdfError(error: unknown): { status: number; message: string } {
+  if (error instanceof PdfRenderBusyError) return { status: 429, message: error.message };
   if (error instanceof PdfRequestError) return { status: error.status, message: error.message };
   console.error("[pdf] generation failed", { error: error instanceof Error ? error.name : "UnknownError" });
   return { status: 500, message: "PDF generation failed" };
@@ -443,11 +449,10 @@ function safePdfError(error: unknown): { status: number; message: string } {
 
 function pdfRouteNextContent(importPrefix: string, apiPrefix: string): string {
   return `import { NextRequest, NextResponse } from "next/server";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import type { ComponentType } from "react";
 import { createContext } from "${apiPrefix}";
-import { InvoiceTemplate, CertificateTemplate, AgreementTemplate, registerPdfFonts } from "${importPrefix}";
+import { InvoiceTemplate, CertificateTemplate, AgreementTemplate, renderPdfToBuffer, PdfRenderBusyError } from "${importPrefix}";
 
 ${PDF_ROUTE_GUARDS}
 
@@ -459,10 +464,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const actorId = await resolvePdfActor(req.headers);
     release = admitPdfRender(actorId);
     const body = await readPdfRequest(req);
-    registerPdfFonts();
     const Comp = templates[body.template] as ComponentType<{ data: unknown; locale?: string }>;
-    const render = renderToBuffer(
-      createElement(Comp, { data: body.data, locale: body.locale }) as Parameters<typeof renderToBuffer>[0],
+    const render = renderPdfToBuffer(
+      createElement(Comp, { data: body.data, locale: body.locale }),
     );
     let buffer: Awaited<typeof render>;
     try {
@@ -498,7 +502,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
 function pdfServerTanstackContent(importPrefix: string, apiPrefix: string): string {
   return `import "server-only";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { createElement } from "react";
 import type { ComponentType } from "react";
 import { createContext } from "${apiPrefix}";
@@ -506,7 +509,8 @@ import {
   InvoiceTemplate,
   CertificateTemplate,
   AgreementTemplate,
-  registerPdfFonts,
+  renderPdfToBuffer,
+  PdfRenderBusyError,
   type PdfFontSources,
 } from "${importPrefix}";
 import sansFont from "dejavu-fonts-ttf/ttf/DejaVuSans.ttf?inline";
@@ -530,10 +534,10 @@ export async function handlePdfRequest(request: Request): Promise<Response> {
     const actorId = await resolvePdfActor(request.headers);
     release = admitPdfRender(actorId);
     const body = await readPdfRequest(request);
-    registerPdfFonts(embeddedPdfFontSources);
     const Comp = templates[body.template] as ComponentType<{ data: unknown; locale?: string }>;
-    const render = renderToBuffer(
-      createElement(Comp, { data: body.data, locale: body.locale }) as Parameters<typeof renderToBuffer>[0],
+    const render = renderPdfToBuffer(
+      createElement(Comp, { data: body.data, locale: body.locale }),
+      embeddedPdfFontSources,
     );
     let buffer: Awaited<typeof render>;
     try {

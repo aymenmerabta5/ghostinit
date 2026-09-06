@@ -185,6 +185,11 @@ ${i18nState}${routerState}
     finally { setLoading(false); }
   }, []);
 ${initialRefresh}
+  async function runAction(action: () => Promise<void>): Promise<void> {
+    setError(null);
+    try { await action(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : ${options.i18n ? 't("unavailable")' : '"Notification action failed"'}); }
+  }
   async function openNotification(item: NotificationItem): Promise<void> {
     const destination = resolveNotificationDestination(item.href);
     if (!destination) return;
@@ -207,7 +212,7 @@ ${navigate}
     {error ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     <section aria-label=${options.i18n ? '{t("title")}' : '"Notifications"'} className="flex flex-col gap-2">{loading ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? <Empty><EmptyHeader><EmptyTitle>${label("empty", "No notifications yet.")}</EmptyTitle><EmptyDescription>${label("description", "Account-owned inbox shared across your apps.")}</EmptyDescription></EmptyHeader></Empty> : items.map((item) => {
       const destination = resolveNotificationDestination(item.href);
-      return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex gap-2">{destination ? <Button type="button" size="sm" variant="outline" onClick={() => void openNotification(item)}>${label("open", "Open")}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={item.readAt !== null} onClick={async () => { await markNotificationRead(item.id); await refresh(); }}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>})}</section>
+      return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex gap-2">{destination ? <Button type="button" size="sm" variant="outline" onClick={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={item.readAt !== null} onClick={() => void runAction(async () => { await markNotificationRead(item.id); await refresh(); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>})}</section>
   </main>;
 }
 `;
@@ -247,6 +252,11 @@ ${i18nState}  const router = useRouter();
     finally { setLoading(false); }
   }, []);
   React.useEffect(() => { void refresh(); }, [refresh]);
+  async function runAction(action: () => Promise<void>): Promise<void> {
+    setError(null);
+    try { await action(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : ${options.i18n ? 't("unavailable")' : '"Notification action failed"'}); }
+  }
   async function openNotification(item: NotificationItem): Promise<void> {
     const destination = resolveNotificationDestination(item.href);
     if (!destination) return;
@@ -255,9 +265,9 @@ ${i18nState}  const router = useRouter();
   }
   return <ScrollView className="flex-1 bg-background"><View className="gap-4 p-5">
     <Text className="text-2xl font-bold">${label("title", "Notifications")}</Text>
-    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={title} onChangeText={setTitle} placeholder=${options.i18n ? '{t("titleLabel")}' : '"Title"'} maxLength={160} /><Input className="min-h-24 py-3" value={body} onChangeText={setBody} placeholder=${options.i18n ? '{t("bodyLabel")}' : '"Body"'} multiline maxLength={2000} /><Button onPress={async () => { try { await publishSelfNotification({ title, body }); await refresh(); } catch (cause) { setError(cause instanceof Error ? cause.message : ${options.i18n ? 't("createError")' : '"Create failed"'}); } }}>${label("create", "Create notification")}</Button>{Platform.OS === "ios" || Platform.OS === "android" ? <Button variant="outline" onPress={async () => { const platform = Platform.OS; if (platform !== "ios" && platform !== "android") return; const token = await push.requestPermission(); if (token) await registerNotificationDevice(platform, token); }}>${label("enablePush", "Enable push notifications")}</Button> : null}</CardContent></Card>
+    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={title} onChangeText={setTitle} placeholder=${options.i18n ? '{t("titleLabel")}' : '"Title"'} maxLength={160} /><Input className="min-h-24 py-3" value={body} onChangeText={setBody} placeholder=${options.i18n ? '{t("bodyLabel")}' : '"Body"'} multiline maxLength={2000} /><Button onPress={async () => { try { await publishSelfNotification({ title, body }); await refresh(); } catch (cause) { setError(cause instanceof Error ? cause.message : ${options.i18n ? 't("createError")' : '"Create failed"'}); } }}>${label("create", "Create notification")}</Button>{Platform.OS === "ios" || Platform.OS === "android" ? <Button variant="outline" onPress={() => void runAction(async () => { const platform = Platform.OS; if (platform !== "ios" && platform !== "android") return; const token = await push.requestPermission(); if (token) await registerNotificationDevice(platform, token); })}>${label("enablePush", "Enable push notifications")}</Button> : null}</CardContent></Card>
     {error ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {loading ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? <Card><CardHeader><CardTitle>${label("empty", "No notifications yet.")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader></Card> : items.map((item) => { const destination = resolveNotificationDestination(item.href); return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex-row gap-2">{destination ? <Button size="sm" variant="outline" onPress={() => void openNotification(item)}>${label("open", "Open")}</Button> : null}<Button size="sm" variant="outline" disabled={item.readAt !== null} onPress={async () => { await markNotificationRead(item.id); await refresh(); }}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>; })}
+    {loading ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? <Card><CardHeader><CardTitle>${label("empty", "No notifications yet.")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader></Card> : items.map((item) => { const destination = resolveNotificationDestination(item.href); return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex-row gap-2">{destination ? <Button size="sm" variant="outline" onPress={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button size="sm" variant="outline" disabled={item.readAt !== null} onPress={() => void runAction(async () => { await markNotificationRead(item.id); await refresh(); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>; })}
   </View></ScrollView>;
 }
 `;

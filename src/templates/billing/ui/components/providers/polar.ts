@@ -14,10 +14,11 @@ import { useBillingPage } from "${hookImportPath}";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { PolarBenefits } from "./polar-benefits";
 import { PolarSubscriptions } from "./polar-subscriptions";
+import { BillingInvoices } from "../billing-invoices";
 
 export function PolarPanel(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
-  const { subscriptions, subsLoading, isCheckoutLoading, licenseKey, usageEvents, handleCheckout, handlePortal, copyText } = useBillingPage();
+  const { subscriptions, invoices, subsLoading, isCheckoutLoading, licenseKey, usageEvents, handleCheckout, handlePortal, copyText } = useBillingPage();
   const polarSubscriptions = subscriptions.filter((subscription) => subscription.provider === "polar");
   return (
     <Card>
@@ -27,6 +28,7 @@ export function PolarPanel(): React.JSX.Element {
         <PolarBenefits licenseKey={licenseKey} usageEvents={usageEvents} copyText={copyText} />
         <Separator />
         <PolarSubscriptions subscriptions={polarSubscriptions} loading={subsLoading} />
+        <BillingInvoices invoices={invoices.filter((invoice) => invoice.provider === "polar")} />
       </CardContent>
       <CardFooter className="text-xs text-muted-foreground"><p className="max-w-[75ch]">{t("polarFlowDescription")}</p></CardFooter>
     </Card>

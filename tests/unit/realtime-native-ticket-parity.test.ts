@@ -1,4 +1,4 @@
-// @allow-long 345: cross-target ticket generation and executable client/server probes share one fixture
+// @allow-long 390: cross-target ticket generation and executable client/server probes share one fixture
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
@@ -229,8 +229,8 @@ describe("ticket-authenticated realtime parity", () => {
     ).toBe(false);
   });
 
-  for (const target of ["mobile", "desktop"] as const) {
-    test(`${target} executes the generated typed ticket client and preserves polling fallback`, async () => {
+  test("executes native typed ticket clients with typing, transport status, and polling fallback", async () => {
+    for (const target of ["mobile", "desktop"] as const) {
       const files = generate("monorepo", "nextjs", ["web", target]);
       const path =
         target === "mobile"
@@ -269,13 +269,23 @@ describe("ticket-authenticated realtime parity", () => {
         timestamp: Date.now(),
       };
       let ticketCalls = 0;
+      let unavailable = false;
+      const typingCalls: unknown[] = [];
+      let finishEvents!: () => void;
+      const eventsFinished = new Promise<void>((resolve) => {
+        finishEvents = resolve;
+      });
       const websocketClient = {
         messaging: {
           subscribe: async () =>
             (async function* events() {
               yield event;
+              await eventsFinished;
             })(),
-          sendTyping: async () => ({ ok: true }),
+          sendTyping: async (input: unknown) => {
+            typingCalls.push(input);
+            return { ok: true };
+          },
         },
       };
       const moduleFactory = new Function(
@@ -286,13 +296,14 @@ describe("ticket-authenticated realtime parity", () => {
         "env",
         "window",
         "WebSocket",
-        `${executableModule(source)}; return { subscribeRealtime };`,
+        `${executableModule(source)}; return { subscribeRealtime, sendTypingRealtime };`,
       ) as (...args: unknown[]) => {
         subscribeRealtime(
           conversationId: string,
           handler: (value: typeof event) => void,
           status: (connected: boolean) => void,
         ): () => void;
+        sendTypingRealtime(conversationId: string, isTyping: boolean): void;
       };
       const runtime = moduleFactory(
         () => websocketClient,
@@ -304,6 +315,7 @@ describe("ticket-authenticated realtime parity", () => {
           messaging: {
             createWebsocketTicket: async () => {
               ticketCalls += 1;
+              if (unavailable) throw new ProbeORPCError("SERVICE_UNAVAILABLE");
               return { ticket: "t".repeat(43), expiresAt: new Date(Date.now() + 30_000) };
             },
           },
@@ -323,6 +335,10 @@ describe("ticket-authenticated realtime parity", () => {
         });
       });
       await expect(received).resolves.toEqual(event);
+      runtime.sendTypingRealtime("conversation-1", true);
+      for (let iteration = 0; iteration < 8; iteration += 1) await Promise.resolve();
+      expect(typingCalls).toEqual([{ conversationId: "conversation-1", isTyping: true }]);
+      finishEvents();
       unsubscribe();
       expect(ticketCalls).toBe(1);
       expect(sockets).toEqual([
@@ -333,6 +349,22 @@ describe("ticket-authenticated realtime parity", () => {
       ]);
       expect(statuses).toContain(false);
       expect(statuses).toContain(true);
+      unavailable = true;
+      const fallbackStatuses: boolean[] = [];
+      const stopFallback = runtime.subscribeRealtime(
+        "conversation-2",
+        () => {
+          throw new Error("Unavailable transport must not deliver events");
+        },
+        (connected) => {
+          fallbackStatuses.push(connected);
+        },
+      );
+      for (let iteration = 0; iteration < 12; iteration += 1) await Promise.resolve();
+      stopFallback();
+      expect(ticketCalls).toBe(2);
+      expect(sockets).toHaveLength(1);
+      expect(fallbackStatuses).toEqual([false]);
       expect(source).toContain("MAX_NATIVE_REALTIME_SUBSCRIPTIONS = 32");
       expect(source).not.toContain("?ticket=");
       const adapterPath =
@@ -342,8 +374,8 @@ describe("ticket-authenticated realtime parity", () => {
       expect(read(files, adapterPath)).toContain(
         'refetchInterval: transport === "polling" ? 5_000 : false',
       );
-    });
-  }
+    }
+  });
 
   test("single native output fails closed to polling instead of inventing a backend host", () => {
     for (const target of ["mobile", "desktop"] as const) {

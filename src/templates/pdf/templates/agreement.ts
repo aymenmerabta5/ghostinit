@@ -1,6 +1,6 @@
 export function agreementTemplateContent(): string {
   return `import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
-import { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign } from "../lib/locale";
+import { normalizePdfLocale, pdfLocaleTag, pdfMessage, pdfRowDirection, pdfTextAlign, pdfTextDirection } from "../lib/locale";
 
 const COLORS = { headerBg: "#0f172a", accent: "#d97706", cardBg: "#fafaf9", cardBorder: "#e7e5e4", textPrimary: "#1c1917", textMuted: "#78716c", divider: "#e7e5e4", white: "#ffffff" };
 
@@ -9,6 +9,10 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingHorizontal: 36, paddingTop: 12, paddingBottom: 6, borderBottomWidth: 2, borderBottomColor: COLORS.accent },
   title: { fontFamily: "DejaVu Serif Bold", fontSize: 16, color: "#0f172a", textTransform: "uppercase", letterSpacing: 1.2 },
   subtitle: { fontFamily: "DejaVu Serif", fontSize: 9, color: "#57534e", letterSpacing: 0.5 },
+  arabicDisplay: { fontFamily: "DejaVu Sans", letterSpacing: 0, textTransform: "none" },
+  dateItem: { flex: 1, minWidth: 0, alignItems: "center" },
+  dateLabel: { width: "100%", textAlign: "center", color: COLORS.textMuted, fontSize: 8 },
+  dateValue: { width: "100%", textAlign: "center", fontFamily: "DejaVu Serif Bold", fontSize: 11 },
   body: { paddingHorizontal: 36, paddingVertical: 8 },
   partiesRow: { flexDirection: "row", justifyContent: "space-between", gap: 12, marginBottom: 10 },
   partyCard: { flex: 1, backgroundColor: COLORS.cardBg, borderRadius: 6, padding: 8, borderWidth: 1, borderColor: COLORS.cardBorder },
@@ -50,7 +54,7 @@ export function AgreementTemplate({ data, locale = "en" }: { data: AgreementData
       <Page size="A4" orientation="landscape" style={[styles.page, { textAlign: pdfTextAlign(resolvedLocale) }]}>
         <View style={[styles.topBar, { flexDirection: pdfRowDirection(resolvedLocale) }]}>
           {data.logoUrl ? <Image src={data.logoUrl} style={{ width: 36, height: 36, objectFit: "contain" }} /> : <View style={{ width: 36 }} />}
-          <View style={{ alignItems: "center", flex: 1 }}><Text style={styles.subtitle}>{data.subtitle ?? "ghostinit"}</Text><Text style={styles.title}>{data.title}</Text></View>
+          <View style={{ alignItems: "center", flex: 1, minWidth: 0 }}><Text style={[styles.subtitle, resolvedLocale === "ar" ? styles.arabicDisplay : {}]}>{data.subtitle ?? "ghostinit"}</Text><Text style={[styles.title, resolvedLocale === "ar" ? styles.arabicDisplay : {}]}>{data.title}</Text></View>
           <View style={{ width: 36 }} />
         </View>
         <View style={styles.body}>
@@ -67,8 +71,8 @@ export function AgreementTemplate({ data, locale = "en" }: { data: AgreementData
           </View>
           <View style={styles.details}>
             <View style={{ flexDirection: pdfRowDirection(resolvedLocale), justifyContent: "center", gap: 24, marginBottom: 8 }}>
-              <View style={{ alignItems: "center" }}><Text style={styles.label}>{message("effective")}</Text><Text style={{ fontFamily: "DejaVu Serif Bold", fontSize: 11 }}>{formatDate(data.effectiveDate)}</Text></View>
-              {data.expiryDate ? <View style={{ alignItems: "center" }}><Text style={styles.label}>{message("expiry")}</Text><Text style={{ fontFamily: "DejaVu Serif Bold", fontSize: 11 }}>{formatDate(data.expiryDate)}</Text></View> : null}
+              <View style={styles.dateItem}><Text style={styles.dateLabel}>{message("effective")}</Text><Text style={[styles.dateValue, resolvedLocale === "ar" ? styles.arabicDisplay : {}, { direction: pdfTextDirection(resolvedLocale) }]}>{formatDate(data.effectiveDate)}</Text></View>
+              {data.expiryDate ? <View style={styles.dateItem}><Text style={styles.dateLabel}>{message("expiry")}</Text><Text style={[styles.dateValue, resolvedLocale === "ar" ? styles.arabicDisplay : {}, { direction: pdfTextDirection(resolvedLocale) }]}>{formatDate(data.expiryDate)}</Text></View> : null}
             </View>
             {data.terms && data.terms.length > 0 ? <View style={{ marginTop: 6 }}>{data.terms.map((t, i) => <Text key={i} style={{ fontSize: 8, marginBottom: 2 }}>• {t}</Text>)}</View> : null}
             {data.notes ? <Text style={{ fontSize: 8, color: COLORS.textMuted, marginTop: 6 }}>{data.notes}</Text> : null}
@@ -84,7 +88,7 @@ export function AgreementTemplate({ data, locale = "en" }: { data: AgreementData
             {data.qrCodeDataUrl ? <Image src={data.qrCodeDataUrl} style={{ width: 36, height: 36 }} /> : null}
             <View><Text style={{ fontFamily: "DejaVu Sans Bold", fontSize: 9 }}>{data.verificationCode ?? ""}</Text>{data.verificationUrl ? <Text style={{ fontSize: 7, color: COLORS.textMuted }}>{data.verificationUrl}</Text> : null}</View>
           </View>
-          <Text style={{ fontSize: 7, color: COLORS.textMuted }}>{formatDate(new Date())} • GhostInit PDF</Text>
+          <Text style={{ fontSize: 7, color: COLORS.textMuted, direction: pdfTextDirection(resolvedLocale) }}>{formatDate(new Date())} • GhostInit PDF</Text>
         </View>
       </Page>
     </Document>

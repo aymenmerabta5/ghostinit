@@ -80,6 +80,7 @@ export const AR_MESSAGES = {
     windowMaximize: "تكبير",
     windowClose: "إغلاق",
     updatesChecking: "جارٍ التحقق…",
+    updatesAvailable: "تحديث متاح",
     updatesCurrent: "محدّث",
     updatesError: "تعذّر التحقق من التحديثات",
     updatesCheck: "التحقق من التحديثات",
@@ -1088,6 +1089,20 @@ export const AR_MESSAGES = {
     manifestDescription: "نظامك الأحادي المعياري المنظم.",
   },
   billing: {
+    checkoutReturnTitle: "العودة من صفحة الدفع",
+    checkoutReturnDescription:
+      "يؤكد مزود الدفع النتيجة. راجع صفحة الفوترة للاطلاع على آخر حالة للدفع والاشتراك.",
+    checkoutCancelledTitle: "تم إلغاء إتمام الدفع",
+    checkoutCancelledDescription:
+      "عدت دون إكمال عملية الدفع هذه. تعرض صفحة الفوترة آخر حالة مؤكدة لحسابك.",
+    backToBilling: "العودة إلى الفوترة",
+    paddleCheckoutLoading: "جارٍ فتح الدفع الآمن…",
+    paddleCheckoutReady: "أكمل الدفع في نافذة الدفع الآمنة.",
+    paddleCheckoutUnavailable: "الدفع غير متاح بعد. عد إلى الفوترة أو تواصل مع الدعم.",
+    paddleCheckoutInvalid: "رابط الدفع هذا غير صالح. ابدأ عملية دفع جديدة من صفحة الفوترة.",
+    paddleCheckoutError: "تعذر فتح الدفع. أعد تحميل الصفحة للمحاولة مجددًا.",
+    paddleCheckoutReturning: "جارٍ العودة إلى الفوترة لعرض آخر حالة مؤكدة…",
+    retryCheckout: "إعادة تحميل الدفع",
     title: "الفوترة",
     description:
       "أدر الاشتراكات وعمليات الدفع والفواتير وبوابات العملاء والتراخيص والاستخدام عبر مزوّديك المحددين.",
@@ -1154,7 +1169,7 @@ export const AR_MESSAGES = {
     providerPolar: "Polar",
     algeriaMarketTitle: "السوق الجزائرية — EDAHABIA/CIB فقط",
     algeriaMarketDescription:
-      "تخدم Chargily السوق الجزائرية بالدفع عبر EDAHABIA/CIB. يعمل التكامل على الخادم فقط ولا يوفّر بوابة عميل، وتنسّق مهمة billing-renewal الشهرية الدفعات المتكررة.",
+      "تخدم Chargily السوق الجزائرية بالدفع عبر EDAHABIA/CIB. لا توفر بوابة عميل أو خصمًا دوريًا تلقائيًا؛ ويتطلب التجديد عملية دفع جديدة يوافق عليها العميل.",
     dualMarketTitle: "تغطية جزائرية وعالمية",
     dualMarketDescription:
       "تمت تهيئة Chargily مع مزوّدين عالميين ({providers}). وجّه العملاء الجزائريين إلى دفع EDAHABIA/CIB للاستفادة من وسائل الدفع المحلية.",
@@ -1165,7 +1180,7 @@ export const AR_MESSAGES = {
       "أبقِ حزمة Chargily على الخادم. تتحقق الويب هوكات من جسم الطلب الخام وترويسة التوقيع قبل المعالجة.",
     paymentMethod: "وسيلة الدفع",
     checkoutUrl: "رابط الدفع",
-    manualRenewal: "مهمة billing-renewal الشهرية",
+    manualRenewal: "عملية دفع جديدة للتجديد اليدوي",
     chargilyFlowDescription:
       "أنشئ المنتجات والأسعار على الخادم، ثم أنشئ عملية الدفع بوسيلة دفع وروابط عودة متحقق منها، وبعدها أعد التوجيه إلى رابط المزوّد.",
     merchantOfRecordTitle: "إدارة التاجر المسجل",

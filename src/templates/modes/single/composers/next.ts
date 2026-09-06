@@ -138,6 +138,7 @@ export function buildNextFiles(
   const hasAdminApi = hasApi && hasAuth && !isNone;
   const hasBilling = effectiveBilling.length > 0;
   const hasPdf = hasAddon(addonMap, "pdf");
+  const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const apiCapabilities = {
     auth: hasAuth,
     identity: hasApi && hasAuth && !isNone,
@@ -176,10 +177,23 @@ export function buildNextFiles(
         hasAuth,
         isNone,
         hasAddon(addonMap, "storage") && !isNone,
+        hasCloudflare,
       ),
     ),
   );
-  files.push(file("next.config.ts", singleNextConfigContent(hasEve, hasI18n, hasPdf)));
+  files.push(
+    file(
+      "next.config.ts",
+      singleNextConfigContent(
+        hasEve,
+        hasI18n,
+        hasPdf,
+        hasCloudflare,
+        isConvex,
+        effectiveBilling.includes("paddle"),
+      ),
+    ),
+  );
   files.push(file("tsconfig.json", singleTsConfigContent()));
   files.push(file("postcss.config.mjs", singlePostCss()));
   files.push(file("src/app/globals.css", singleGlobalsCss()));
@@ -213,14 +227,16 @@ export function buildNextFiles(
       ),
     );
     files.push(file("src/components/auth/sign-up-form.tsx", signUpFormSingleContent(hasEmail)));
-    files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle(hasBilling)));
+    files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle(hasBilling, isConvex)));
   }
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
   files.push(file("src/app/error.tsx", singleErrorPage()));
   files.push(file("src/app/loading.tsx", singleLoadingPage()));
   if (hasAuth && hasEmail) files.push(file("src/app/2fa/page.tsx", singleTwoFactorPageContent()));
   if (hasEve) files.push(file("src/app/agent/page.tsx", singleAgentPageContent()));
-  if (hasAuth) files.push(file("src/app/api/auth/[...all]/route.ts", singleAuthRouteContent()));
+  if (hasAuth) {
+    files.push(file("src/app/api/auth/[...all]/route.ts", singleAuthRouteContent(hasCloudflare)));
+  }
   if (hasApi) {
     files.push(file("src/app/api/rpc/[...path]/route.ts", singleOrpcRouteContent()));
     files.push(file("src/app/api/[...path]/route.ts", singleOpenApiOperationsRouteContent()));
@@ -515,7 +531,7 @@ export function buildNextFiles(
   if (hasAnalytics) {
     files.push(
       ...(analyticsFiles(
-        { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+        { mode: "single", runtime, deploy: hasCloudflare ? "cloudflare" : "none" },
         runtime,
       ) as TemplateFile[]),
     );

@@ -203,11 +203,14 @@ describe("generated PDF admission boundary", () => {
       async () => convexActor,
       async () => (convexRevoked ? null : { authenticatedAt: new Date() }),
     );
-    expect((await convexApplication(new Headers())).principal?.userId).toBe("convex-user");
+    expect((await convexApplication(new Headers())).principal).toBeNull();
+    expect(convexUrl).toBeUndefined();
+    const convexHeaders = new Headers({ cookie: "better-auth.session_token=fixture-session" });
+    expect((await convexApplication(convexHeaders)).principal?.userId).toBe("convex-user");
     expect(convexUrl?.searchParams.get("disableCookieCache")).toBe("true");
     expect(convexUrl?.searchParams.get("disableRefresh")).toBe("true");
     convexRevoked = true;
-    expect((await convexApplication(new Headers())).principal).toBeNull();
+    expect((await convexApplication(convexHeaders)).principal).toBeNull();
   });
 
   test("uses the authoritative shared session boundary across the generated database matrix", () => {
@@ -294,7 +297,9 @@ describe("generated PDF admission boundary", () => {
         mode === "monorepo" ? "packages/pdf/src/lib/render.ts" : "src/server/pdf/src/lib/render.ts";
       const render = files.find((file) => file.path === path)?.content ?? "";
       expect(render, path).toContain('import type { ReactElement } from "react"');
-      expect(render, path).toContain("renderPdfToBuffer(element: ReactElement)");
+      expect(render, path).toContain(
+        "renderPdfToBuffer(element: ReactElement, sources?: PdfFontSources)",
+      );
       expect(render, path).not.toContain('import { createElement } from "react"');
       expect(render, path).not.toContain("React.createElement");
       expect(parseSync(path, render).errors).toEqual([]);
@@ -384,10 +389,12 @@ describe("generated PDF admission boundary", () => {
         );
         if (framework === "tanstack-start") {
           expect(implementation.match(/\.ttf\?inline/g)).toHaveLength(4);
-          expect(implementation).toContain("registerPdfFonts(embeddedPdfFontSources)");
+          expect(implementation).toContain("embeddedPdfFontSources,");
         } else {
-          expect(implementation).toContain("registerPdfFonts();");
+          expect(implementation).not.toContain("embeddedPdfFontSources");
         }
+        expect(implementation).toContain("const render = renderPdfToBuffer(");
+        expect(implementation).toContain("error instanceof PdfRenderBusyError");
         expect(implementation).not.toContain("request.json()");
         expect(implementation).not.toContain("req.json()");
         expect(implementation).not.toContain("e instanceof Error ? e.message");

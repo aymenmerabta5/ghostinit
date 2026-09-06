@@ -14,6 +14,7 @@ import {
   expoNotFoundContent,
 } from "./fragments/expo/dashboard.js";
 import { expoBillingContent } from "./fragments/expo/billing.js";
+import { billingMoneyFile } from "../billing/ui/money.js";
 import {
   expoFullSettingsContent,
   expoEmailFlowFiles,
@@ -148,6 +149,7 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
   }
   if (capabilities.hasBilling) {
     files.push(
+      billingMoneyFile("apps/mobile/src"),
       file(
         "apps/mobile/app/billing.tsx",
         expoBillingContent("monorepo", selectedBilling, capabilities.hasI18n),

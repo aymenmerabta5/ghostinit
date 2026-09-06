@@ -89,7 +89,7 @@ describe("production deployment portability", () => {
     expect(vercelBunRuntimeSelector(runtime.bun)).toBe("1.4.x");
     expect(vercel).toMatchObject({
       bunVersion: "1.4.x",
-      installCommand: `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} install --frozen-lockfile`,
+      installCommand: `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} run audit:lock && bunx bun@${runtime.bun} install --frozen-lockfile`,
       buildCommand: `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} scripts/build-deployment.mjs`,
     });
     const guide = content(files, "docs/VERCEL_DEPLOYMENT.md");

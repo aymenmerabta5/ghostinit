@@ -199,8 +199,18 @@ describe("GenerationPlan client surface evidence", () => {
     }
     expect(route?.provenance.artifacts).toEqual(expect.arrayContaining(["acceptance", "route"]));
     expect(route?.provenance.acceptance).toEqual(
-      expect.arrayContaining(["billing.payment-link.v1", "billing.portal.v1"]),
+      expect.arrayContaining([
+        "billing.checkout.v1",
+        "billing.invoices.v1",
+        "billing.portal.v1",
+        "billing.subscriptions.v1",
+      ]),
     );
+    expect(
+      plan.files
+        .filter(({ provenance }) => provenance.capability === "billing")
+        .flatMap(({ provenance }) => provenance.acceptance),
+    ).not.toContain("billing.payment-link.v1");
     expect(adapter?.provenance.artifacts).toContain("adapter");
   });
 

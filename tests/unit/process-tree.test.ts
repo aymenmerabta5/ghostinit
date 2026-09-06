@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { spawn, spawnSync } from "node:child_process";
+import { copyFileSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join, relative, sep } from "node:path";
 import {
   assertTaskkillCompletedForCapturedProcesses,
   assertSuccessfulTaskkill,
   captureWindowsProcessIdentity,
   isCapturedWindowsProcessLive,
   parseWindowsProcessQuery,
+  resolveWindowsSystemExecutable,
   terminateProcessTree,
   type CapturedCommandOutcome,
   type TaskkillOutcome,
@@ -59,6 +63,49 @@ function isAlive(pid: number): boolean {
 }
 
 describe("process-tree cleanup", () => {
+  test("resolves Windows cleanup tools from canonical System32 despite cwd and PATH shadows", () => {
+    if (process.platform !== "win32") return;
+    const root = mkdtempSync(join(tmpdir(), "ghostinit-system-tool-shadow-"));
+    const originalCwd = process.cwd();
+    const originalPath = process.env.PATH;
+    try {
+      const harmlessExecutable = join(process.env.SystemRoot!, "System32", "where.exe");
+      const fakeTaskkill = join(root, "taskkill.exe");
+      const fakePowerShell = join(root, "powershell.exe");
+      copyFileSync(harmlessExecutable, fakeTaskkill);
+      copyFileSync(harmlessExecutable, fakePowerShell);
+      process.chdir(root);
+      process.env.PATH = `${root};${originalPath ?? ""}`;
+      const shadowed = spawnSync("taskkill", ["where.exe"], {
+        cwd: root,
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      });
+      expect(shadowed.status).toBe(0);
+      expect(shadowed.stdout.toLowerCase()).toContain("system32\\where.exe");
+
+      const system32 = realpathSync(join(process.env.SystemRoot!, "System32"));
+      for (const executable of ["taskkill", "powershell"] as const) {
+        const resolved = resolveWindowsSystemExecutable(executable);
+        const descendant = relative(system32, resolved);
+        expect(isAbsolute(resolved), executable).toBe(true);
+        expect(
+          descendant !== ".." && !descendant.startsWith(".." + sep) && !isAbsolute(descendant),
+          executable,
+        ).toBe(true);
+        expect(resolved.toLowerCase(), executable).not.toBe(
+          (executable === "taskkill" ? fakeTaskkill : fakePowerShell).toLowerCase(),
+        );
+      }
+    } finally {
+      process.chdir(originalCwd);
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("accepts only a successful taskkill outcome", () => {
     expect(() => assertSuccessfulTaskkill(1234, outcome())).not.toThrow();
     expect(() => assertSuccessfulTaskkill(1234, outcome({ status: 1, stderr: "denied" }))).toThrow(

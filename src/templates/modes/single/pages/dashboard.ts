@@ -1,11 +1,11 @@
-export function dashboardPageSingle(hasBilling = true): string {
+export function dashboardPageSingle(hasBilling = true, isConvex = false): string {
   return [
     "import * as React from 'react';",
     "import { Suspense } from 'react';",
-    "import { headers } from 'next/headers';",
+    ...(isConvex ? [] : ["import { headers } from 'next/headers';"]),
     "import { redirect } from 'next/navigation';",
     "import Link from 'next/link';",
-    "import { auth } from '@/server/auth';",
+    "import { getRequestUser } from '@/server/auth';",
     "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
     "import { Badge } from '@/components/ui/badge';",
     "import { Button } from '@/components/ui/button';",
@@ -14,7 +14,8 @@ export function dashboardPageSingle(hasBilling = true): string {
     "import { getSurfaceTranslations } from '@/lib/translations.server';",
     "",
     "async function DashboardContent(): Promise<React.JSX.Element> {",
-    "  const session = await auth.api.getSession({ headers: await headers() });",
+    `  const user = await getRequestUser(${isConvex ? "" : "await headers()"});`,
+    "  const session = user ? { user } : null;",
     "  if (!session?.user) redirect('/sign-in');",
     "  const t = await getSurfaceTranslations('dashboard');",
     "  return (",

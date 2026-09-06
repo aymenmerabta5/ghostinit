@@ -28,6 +28,8 @@ const postgresJobsMessaging: DeploymentProfile = {
   messaging: true,
   jobs: true,
   storage: false,
+  notifications: false,
+  cache: false,
 };
 
 const vercelBunSelector = `${toolchainRuntime.bun.split(".").slice(0, 2).join(".")}.x`;
@@ -373,7 +375,7 @@ describe("jobs and messaging deployment integration", () => {
     ) as Record<string, string | null>;
 
     expect(monorepo.installCommand).toBe(
-      `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} install --frozen-lockfile`,
+      `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} run audit:lock && bunx bun@${toolchainRuntime.bun} install --frozen-lockfile`,
     );
     expect(monorepo.buildCommand).toBe(
       `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} scripts/build-deployment.mjs`,

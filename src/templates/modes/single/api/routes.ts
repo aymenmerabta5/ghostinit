@@ -1,4 +1,5 @@
 import { authRouteBoundaryCode } from "../../../apps/fragments/api/auth-boundary.js";
+import { standardApiRequestCode } from "../../../apps/fragments/api/http-request.js";
 import { nextOpenApiOperationsRouteContent } from "../../../apps/fragments/api/openapi.js";
 import { orpcRequestSecurityContent } from "../../../api/request-security.js";
 import { MAX_ORPC_BODY_BYTES } from "../../../api/body-limits.js";
@@ -7,11 +8,11 @@ export function singleOrpcRequestSecurityContent(): string {
   return orpcRequestSecurityContent();
 }
 
-export function singleAuthRouteContent(): string {
+export function singleAuthRouteContent(trustedCloudflareRuntime = false): string {
   return [
     'import { auth } from "@/server/auth";',
     "",
-    authRouteBoundaryCode,
+    authRouteBoundaryCode(trustedCloudflareRuntime),
     "",
     'const allowedAuthMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);',
     "",
@@ -21,7 +22,9 @@ export function singleAuthRouteContent(): string {
     "  }",
     "  const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);",
     "  if (directPrivilegedRejection) return directPrivilegedRejection;",
-    "  return auth.handler(request);",
+    "  const preparedAuthRequest = prepareAuthRequestForRuntime(request);",
+    "  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;",
+    "  return auth.handler(preparedAuthRequest.request);",
     "}",
     "",
     "export const GET = handle;",
@@ -97,6 +100,8 @@ export function singleOrpcRouteContent(): string {
     "  };",
     "}",
     "",
+    standardApiRequestCode,
+    "",
     "const rpcHandler = new RPCHandler(appRouter, { plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })] });",
     "",
     "async function handle(request: NextRequest): Promise<Response> {",
@@ -117,7 +122,7 @@ export function singleOrpcRouteContent(): string {
     "  }",
     "",
     "  try {",
-    '    const rpcResult = await rpcHandler.handle(request, { prefix: "/api/rpc", context });',
+    '    const rpcResult = await rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context });',
     "    if (rpcResult.matched) {",
     "      const response = applyApiContextResponseHeaders(rpcResult.response, context);",
     '      response.headers.set("X-Content-Type-Options", "nosniff");',

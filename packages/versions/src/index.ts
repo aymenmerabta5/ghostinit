@@ -131,6 +131,19 @@ export const tanstackStart = {
   "@vitejs/plugin-react": "5.2.0",
   nitro: "3.0.260610-beta",
   "@tailwindcss/vite": "4.3.3",
+  "vite-tsconfig-paths": "6.1.1",
+} as const;
+
+/**
+ * Cloudflare Worker deployment tooling. These are the newest stable releases
+ * admitted by the repository's seven-day release-age snapshot.
+ */
+export const cloudflare = {
+  "@opennextjs/cloudflare": "1.20.2",
+  "@opennextjs/aws": "4.1.0",
+  "@cloudflare/vite-plugin": "1.53.1",
+  dotenv: "17.4.2",
+  wrangler: "4.125.0",
 } as const;
 
 export const styling = {
@@ -324,6 +337,7 @@ export const catalog = {
   ...validation,
   ...tanstack,
   ...tanstackStart,
+  ...cloudflare,
   ...styling,
   ...ui,
   ...tooling,

@@ -30,7 +30,7 @@ function aggProvider(files: any[], name: string) {
     .join("\n");
 }
 
-describe("paddle billing provider — full E2E Context7 verified", () => {
+describe("Paddle provider generation contract", () => {
   it("paddle.ts provider file exists in generated monorepo billing", () => {
     const files = billingFiles({ mode: "monorepo", runtime: "bun" } as any, "bun");
     const paddle = files.find((f) => f.path === "packages/billing/src/providers/paddle.ts");
@@ -144,7 +144,7 @@ describe("paddle billing provider — full E2E Context7 verified", () => {
     expect(example).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
   });
 
-  it(".env.local contains real generated secrets via secret() for billing — gitignored", () => {
+  it("gitignored local env preserves explicitly supplied billing fixture values", () => {
     const files = rootFiles("demo", secrets, { dryRun: false });
     const local = files.find((f) => f.path === ".env.local")?.content ?? "";
     expect(local).toContain("PADDLE_API_KEY=");

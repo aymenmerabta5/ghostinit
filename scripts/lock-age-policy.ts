@@ -19,7 +19,7 @@ const SEMVER =
 const LOCKED_REGISTRY_PACKAGE_PATTERN = new RegExp("^(.+)@(" + SEMVER + ")$");
 const SHA512_INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 
-function isSha512Integrity(value: unknown): value is string {
+export function isSha512Integrity(value: unknown): value is string {
   if (typeof value !== "string" || !SHA512_INTEGRITY_PATTERN.test(value)) return false;
   const encoded = value.slice("sha512-".length);
   const decoded = Buffer.from(encoded, "base64");
@@ -31,6 +31,7 @@ export interface LockedPin {
   key: string;
   package: string;
   version: string;
+  integrity: string;
 }
 
 export interface CollectedLockedPins {
@@ -154,7 +155,7 @@ export function lockedRegistryPinsFromText(lockfile: string, content: string): C
       );
       continue;
     }
-    pins.push({ lockfile, key, package: match[1], version: match[2] });
+    pins.push({ lockfile, key, package: match[1], version: match[2], integrity });
   }
   return { lockfiles: [lockfile], pins, failures };
 }

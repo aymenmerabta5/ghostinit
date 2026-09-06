@@ -35,7 +35,7 @@ export type DatabaseProvider = (typeof DATABASE_PROVIDERS)[number];
 export const CACHE_PROVIDERS = ["redis", "none"] as const;
 export type CacheProvider = (typeof CACHE_PROVIDERS)[number];
 
-export const DEPLOY_TARGETS = ["vercel", "fly", "docker", "none"] as const;
+export const DEPLOY_TARGETS = ["vercel", "fly", "docker", "cloudflare", "none"] as const;
 export type DeployTarget = (typeof DEPLOY_TARGETS)[number];
 
 export const EXECUTION_RUNTIMES = ["bun", "node"] as const;

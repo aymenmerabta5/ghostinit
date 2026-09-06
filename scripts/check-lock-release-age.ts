@@ -6,12 +6,17 @@ import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtime, supplyChain } from "../packages/versions/src/index.js";
-import { collectRepositoryLockedPins, releaseAgeWindow } from "./lock-age-policy.js";
+import {
+  collectRepositoryLockedPins,
+  isSha512Integrity,
+  releaseAgeWindow,
+} from "./lock-age-policy.js";
 
 interface LockedReleaseEvidence {
   package: string;
   version: string;
   publishedAt: string;
+  integrity: string;
 }
 
 interface PreflightEvidence {
@@ -84,7 +89,7 @@ export function lockAgePreflight(
     };
   }
 
-  if (evidence.schemaVersion !== 2) failures.push("dependency evidence schemaVersion must be 2");
+  if (evidence.schemaVersion !== 3) failures.push("dependency evidence schemaVersion must be 3");
   if (evidence.registry !== "https://registry.npmjs.org") {
     failures.push("dependency evidence registry must be the public npm registry");
   }
@@ -129,12 +134,13 @@ export function lockAgePreflight(
         !entry ||
         typeof entry !== "object" ||
         Array.isArray(entry) ||
-        Object.keys(entry).sort().join(",") !== "package,publishedAt,version" ||
+        Object.keys(entry).sort().join(",") !== "integrity,package,publishedAt,version" ||
         typeof entry.package !== "string" ||
         entry.package.length === 0 ||
         typeof entry.version !== "string" ||
         entry.version.length === 0 ||
-        typeof entry.publishedAt !== "string"
+        typeof entry.publishedAt !== "string" ||
+        !isSha512Integrity(entry.integrity)
       ) {
         failures.push("dependency evidence contains a malformed locked release");
         continue;
@@ -156,8 +162,20 @@ export function lockAgePreflight(
     }
   }
 
-  for (const key of current.keys()) {
-    if (!recorded.has(key)) failures.push("dependency evidence is missing locked release " + key);
+  for (const pin of locks.pins) {
+    const key = pin.package + "@" + pin.version;
+    const release = recorded.get(key);
+    if (!release) {
+      failures.push("dependency evidence is missing locked release " + key);
+    } else if (release.integrity !== pin.integrity) {
+      failures.push(
+        pin.lockfile +
+          ":" +
+          pin.key +
+          ": locked integrity differs from reviewed evidence for " +
+          key,
+      );
+    }
   }
   for (const key of recorded.keys()) {
     if (!current.has(key))

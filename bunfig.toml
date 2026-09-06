@@ -3,6 +3,8 @@
 # See src/templates/root.ts bunfig() comment
 
 [install]
+# Lock and integrity evidence are reviewed against this exact public registry.
+registry = "https://registry.npmjs.org/"
 # Explicit linker strategy per Bun best practices (Context7: /oven-sh/bun docs/pm/isolated-installs.mdx)
 # isolated = each package gets its own node_modules, hermetic workspace behavior
 linker = "isolated"

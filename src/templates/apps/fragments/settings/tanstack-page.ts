@@ -99,7 +99,7 @@ export function tanstackSettingsPageContent(
     ? '<Button variant="outline" size="sm" render={<Link to="/settings/workspace" />} nativeButton={false}>{t("workspace")}</Button>'
     : "";
   return `import type * as React from "react";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 ${requestUserImports(isConvex, mode)}
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,9 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage(): React.JSX.Element {
+  const location = useLocation();
   const t = useSurfaceTranslations("settings");
+  if (location.pathname !== "/settings" && location.pathname !== "/settings/") return <Outlet />;
   return <main className="min-h-screen bg-background p-6 md:p-8">
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <div className="flex flex-col gap-2"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("description")}</p></div>

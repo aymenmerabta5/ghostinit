@@ -128,15 +128,19 @@ describe("compatibility fixture runner plan", () => {
     }
   });
 
-  test("awaits shared, verified process-tree cleanup before timeout or signal settlement", () => {
+  test("awaits shared supervision before every stage or signal settlement", () => {
     const source = readFileSync(resolve(import.meta.dir, "../../scripts/test-fixtures.ts"), "utf8");
 
     expect(source).toContain(
-      'import { terminateProcessTree } from "../tests/helpers/process-tree.js"',
+      'import { runSupervisedCommand } from "../src/commands/create/installer.js"',
     );
-    expect(source).toContain("await ensureProcessTreeTerminated(child)");
-    expect(source).toContain(".finally(() => finish(false))");
-    expect(source).toContain("if (timedOut) return");
+    expect(source).toContain("const completion = runSupervisedCommand({");
+    expect(source).toContain("await cancelActiveFixtureStage(signal)");
+    expect(source).toContain("return operation?.completion");
+    expect(source).toContain("abortSignal: controller.signal");
+    expect(source).toContain("if (terminationRequested || !cleanupWasVerified) controller.abort");
+    expect(source).toContain("result.cleanupVerified &&");
+    expect(source).not.toContain("spawn(");
     expect(source).toContain('process.on("SIGINT"');
     expect(source).toContain('process.on("SIGTERM"');
     expect(source).toContain("process.exit(exitCode)");

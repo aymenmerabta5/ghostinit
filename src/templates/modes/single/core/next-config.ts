@@ -4,11 +4,21 @@ import {
   posthogRewritesBlock,
 } from "../../../apps/fragments/core/security.js";
 
-export function singleNextConfigContent(hasEve: boolean, hasI18n = false, hasPdf = false): string {
-  const headers = nextConfigHeadersFunction();
+export function singleNextConfigContent(
+  hasEve: boolean,
+  hasI18n = false,
+  hasPdf = false,
+  hasCloudflare = false,
+  hasConvex = false,
+  hasPaddle = false,
+): string {
+  const headers = nextConfigHeadersFunction(hasConvex, hasPaddle);
   const rewrites = posthogRewritesBlock();
   const imports = [
     "import type { NextConfig } from 'next';",
+    ...(hasCloudflare
+      ? ["import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';"]
+      : []),
     ...(hasEve ? ["import { withEve, type EveNextConfigFunction } from 'eve/next';"] : []),
     ...(hasI18n ? ["import createNextIntlPlugin from 'next-intl/plugin';"] : []),
   ];
@@ -37,8 +47,11 @@ export function singleNextConfigContent(hasEve: boolean, hasI18n = false, hasPdf
   return [
     ...imports,
     "",
+    ...(hasCloudflare
+      ? ['if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();', ""]
+      : []),
     "const config: NextConfig = {",
-    cacheComponentsConfigBlock,
+    cacheComponentsConfigBlock(hasCloudflare),
     "  reactStrictMode: true,",
     "  poweredByHeader: false,",
     ...(hasPdf

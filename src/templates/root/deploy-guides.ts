@@ -5,7 +5,7 @@ export const DEPLOY_HEALTH_PATH = "/api/health";
 export const DEPLOY_LOCKFILE_GUARD_PATH = "scripts/require-bun-lock.mjs";
 
 export function deploymentLockfileGuardContent(expectedBunVersion: string): string {
-  const guidance = `Deployment requires a regular root bun.lock; run bun install using Bun ${expectedBunVersion} before Vercel, Docker, or Fly.`;
+  const guidance = `Deployment requires a verified regular root bun.lock; run bun run install:bootstrap using Bun ${expectedBunVersion} in fresh --no-install output before Vercel, Docker, Fly, or Cloudflare.`;
   return `import { lstatSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -129,7 +129,7 @@ Replace every required \`REPLACE_WITH_*\` value before building; schema
 validation intentionally fails closed for selected providers such as Redis.
 
 The build also requires a regular root \`bun.lock\`. If this project was created
-with \`--no-install\`, run \`bun install\` using Bun \`${expectedBunVersion}\` before
+  with \`--no-install\`, run \`bun run install:bootstrap\` using Bun \`${expectedBunVersion}\` before
 building. The Dockerfile checks this before its frozen install and rejects a
 missing lock, directory, or symbolic link with corrective guidance.
 Both container installs read the generated \`bunfig.toml\`, enforcing a
@@ -177,7 +177,7 @@ Replace every required \`REPLACE_WITH_*\` value before deploying; selected
 provider schemas intentionally fail closed when configuration is incomplete.
 
 Fly uses the generated Dockerfile and requires a regular root \`bun.lock\`.
-After \`--no-install\`, run \`bun install\` using Bun \`${expectedBunVersion}\` before
+After \`--no-install\`, run \`bun run install:bootstrap\` using Bun \`${expectedBunVersion}\` before
 \`fly deploy\`; the image build fails before dependency installation otherwise.
 The generated \`bunfig.toml\` applies the ${v.supplyChain.minimumReleaseAgeSeconds}-second
 minimum package age to both image installs with no exclusions.
@@ -210,7 +210,7 @@ Vercel deployment requires a regular root \`bun.lock\`. Both commands first run
 \`${DEPLOY_LOCKFILE_GUARD_PATH}\` through that exact toolchain, so a missing,
 non-regular, or symbolic-link lock fails before project dependency resolution or
 application build. If this project was created with \`--no-install\`, run
-\`bun install\` using Bun \`${exactBun}\` before deploying.
+\`bun run install:bootstrap\` using Bun \`${exactBun}\` before deploying.
 That install reads the generated \`bunfig.toml\` and enforces a
 ${v.supplyChain.minimumReleaseAgeSeconds}-second minimum package age with no exclusions.
 

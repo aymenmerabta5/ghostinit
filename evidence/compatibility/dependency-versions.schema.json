@@ -20,7 +20,7 @@
     "pins"
   ],
   "properties": {
-    "schemaVersion": { "const": 2 },
+    "schemaVersion": { "const": 3 },
     "auditedAt": { "type": "string", "format": "date-time" },
     "asOf": { "type": "string", "format": "date" },
     "registry": { "const": "https://registry.npmjs.org" },
@@ -131,11 +131,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["package", "version", "publishedAt"],
+        "required": ["package", "version", "publishedAt", "integrity"],
         "properties": {
           "package": { "type": "string", "minLength": 1 },
           "version": { "type": "string", "pattern": "^\\d" },
-          "publishedAt": { "type": "string", "format": "date-time" }
+          "publishedAt": { "type": "string", "format": "date-time" },
+          "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" }
         }
       }
     },

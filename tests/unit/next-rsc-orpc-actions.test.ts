@@ -278,7 +278,20 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         const pdfClient = content(files, pdfClientPath);
         expect(pdfClient).toContain('"/api/pdf"');
         expect(pdfClient).toContain('credentials: "include"');
-        expect(content(files, `${root}src/app/api/pdf/route.ts`)).toContain("renderToBuffer");
+        const pdfRoot = mode === "monorepo" ? "packages/pdf/src" : "src/server/pdf/src";
+        const pdfModule = mode === "monorepo" ? "@repo/pdf" : "@/server/pdf/src";
+        const pdfRoute = content(files, `${root}src/app/api/pdf/route.ts`);
+        expect(pdfRoute).toContain(`renderPdfToBuffer, PdfRenderBusyError } from "${pdfModule}"`);
+        expect(pdfRoute).toContain("const render = renderPdfToBuffer(");
+        expect(content(files, `${pdfRoot}/index.ts`)).toMatch(
+          /export\s+(?:\*|\{[^}]*\brenderPdfToBuffer\b[^}]*\})\s+from "\.\/lib\/render(?:\.js)?";/,
+        );
+        const pdfRenderer = content(files, `${pdfRoot}/lib/render.ts`);
+        expect(pdfRenderer).toContain('import { Font, renderToBuffer } from "@react-pdf/renderer"');
+        expect(pdfRenderer).toContain("export async function renderPdfToBuffer(");
+        expect(pdfRenderer).toMatch(
+          /await previous;\s+preparePdfFonts\(sources\);\s+const buf = await renderToBuffer\(/,
+        );
 
         const agentPage = content(files, `${root}src/app/agent/page.tsx`);
         expect(agentPage).toContain('useEveAgent({ host: "/api/agent" })');

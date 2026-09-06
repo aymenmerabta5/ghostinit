@@ -6,13 +6,14 @@ import { billingFiles as legacyBillingUiFiles } from "../../src/templates/apps/f
 import { singleBillingApiFiles } from "../../src/templates/modes/single/api/billing.js";
 import { requestApplicationFiles } from "../../src/templates/services/application.js";
 import { billingServiceFiles } from "../../src/templates/services/billing.js";
+import type { BillingProvider } from "../../src/domain/project/choices.js";
 
 interface PortalError extends Error {
   code: "NOT_SUPPORTED" | "CUSTOMER_NOT_FOUND" | "PORTAL_FAILED";
 }
 
 type PortalService = (
-  input: { actorId: string; provider: "stripe"; returnUrl: string; customerId?: string },
+  input: { actorId: string; provider: BillingProvider; returnUrl: string; customerId?: string },
   deps: {
     billingProvider: { createPortalSession?: (input: unknown) => Promise<{ url: string }> };
     customerRepository: {
@@ -40,8 +41,8 @@ return createPortalSessionService;`,
 }
 
 describe("billing portal ownership", () => {
-  for (const mode of ["monorepo", "single"] as const) {
-    it(`${mode} resolves the vendor customer id from the authenticated actor`, async () => {
+  it("resolves the vendor customer id from authenticated actors in both packaging modes", async () => {
+    for (const mode of ["monorepo", "single"] as const) {
       const service = loadPortalService(mode);
       const repositoryCalls: unknown[] = [];
       const providerCalls: unknown[] = [];
@@ -77,6 +78,32 @@ describe("billing portal ownership", () => {
         },
       ]);
       expect(result).toEqual({ ok: true, value: { url: "https://billing.example.test/session" } });
+    }
+  });
+
+  for (const mode of ["monorepo", "single"] as const) {
+    it(`${mode} enforces domain provider support even when an adapter advertises a portal`, async () => {
+      const calls: string[] = [];
+      const result = await loadPortalService(mode)(
+        { actorId: "actor_1", provider: "chargily", returnUrl: "https://app.example.test" },
+        {
+          billingProvider: {
+            async createPortalSession() {
+              calls.push("provider");
+              return { url: "https://unexpected.example" };
+            },
+          },
+          customerRepository: {
+            async findProviderCustomerId() {
+              calls.push("customer");
+              return "customer";
+            },
+          },
+        },
+      );
+      expect(calls).toEqual([]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("NOT_SUPPORTED");
     });
 
     it(`${mode} fails closed when no owned customer exists`, async () => {

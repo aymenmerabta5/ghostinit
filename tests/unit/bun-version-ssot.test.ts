@@ -56,16 +56,23 @@ describe("Bun version single source of truth", () => {
   test("production, scripts, and tests import the canonical version instead of re-authoring it", () => {
     const escapedVersion = runtime.bun.replaceAll(".", "\\.");
     const rawVersion = new RegExp(`["']${escapedVersion}["']`);
+    // This committed compatibility fixture is generated output, not a second
+    // authored source. Its separate byte-for-byte contract binds it to
+    // dependencyAuditScriptContent(), which interpolates the canonical version.
+    const generatedFixture =
+      "tests/fixtures/compatibility/expo-uniwind-rnr/scripts/audit-dependencies.ts";
     const offenders = ["src", "scripts", "tests"]
       .flatMap((directory) => collectTypeScriptFiles(resolve(root, directory)))
       .flatMap((path) =>
-        readFileSync(path, "utf8")
-          .split(/\r?\n/)
-          .flatMap((line, index) =>
-            rawVersion.test(line)
-              ? [`${relative(root, path).replaceAll("\\", "/")}:${index + 1}`]
-              : [],
-          ),
+        relative(root, path).replaceAll("\\", "/") === generatedFixture
+          ? []
+          : readFileSync(path, "utf8")
+              .split(/\r?\n/)
+              .flatMap((line, index) =>
+                rawVersion.test(line)
+                  ? [`${relative(root, path).replaceAll("\\", "/")}:${index + 1}`]
+                  : [],
+              ),
       );
     expect(offenders).toEqual([]);
 

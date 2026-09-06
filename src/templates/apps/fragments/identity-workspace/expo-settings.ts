@@ -46,6 +46,7 @@ ${i18n.hookLine}
   const queryClient = useQueryClient();
   const { data: session, isPending: sessionPending, refetch } = authClient.useSession();
   const user = session?.user;
+  const applicationIdentity = useQuery(orpc.me.queryOptions({ enabled: Boolean(user) }));
   const currentSessionId = session?.session?.id;
   const [name, setName] = React.useState(user?.name ?? "");
 ${credentialState}
@@ -85,7 +86,7 @@ ${
 
   return <ScrollView className="flex-1 bg-background" contentInsetAdjustmentBehavior="automatic"><View className="w-full max-w-[760px] self-center gap-5 p-5">
     <View className="gap-1"><Text className="text-xs font-semibold uppercase tracking-widest text-primary">${i18n.child("native.kicker", "Account control")}</Text><Text className="text-3xl font-bold tracking-tight">${i18n.child("title", "Settings")}</Text><Text className="text-sm text-muted-foreground">${i18n.child("description", "Profile, credentials, two-factor security, and active sessions.")}</Text></View>
-    <View className="flex-row flex-wrap gap-2"><Link href="/workspace" asChild><Button variant="outline"><Text>${i18n.child("native.organizations", "Organizations & teams")}</Text></Button></Link>{user.role === "admin" || user.role === "superAdmin" ? <Link href="/admin" asChild><Button variant="outline"><Text>${i18n.child("admin", "Admin")}</Text></Button></Link> : null}</View>
+    <View className="flex-row flex-wrap gap-2"><Link href="/workspace" asChild><Button variant="outline"><Text>${i18n.child("native.organizations", "Organizations & teams")}</Text></Button></Link>{applicationIdentity.data?.user?.role === "admin" || applicationIdentity.data?.user?.role === "superAdmin" ? <Link href="/admin" asChild><Button variant="outline"><Text>${i18n.child("admin", "Admin")}</Text></Button></Link> : null}</View>
     {error ? <Alert accessibilityRole="alert" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
     {status ? <Alert accessibilityRole="alert"><AlertDescription>{status}</AlertDescription></Alert> : null}
 

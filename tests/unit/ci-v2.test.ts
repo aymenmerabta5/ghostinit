@@ -18,6 +18,7 @@ type Workflow = {
     "cancel-in-progress": boolean | string;
   };
   permissions?: Record<string, string>;
+  env?: Record<string, string>;
   on: {
     push?: { branches: string[]; tags?: string[] };
     pull_request?: { branches: string[] };
@@ -30,6 +31,7 @@ type Workflow = {
       "continue-on-error"?: boolean;
       "runs-on"?: string;
       "timeout-minutes"?: number;
+      env?: Record<string, string>;
       strategy?: {
         "fail-fast"?: boolean;
         matrix?: { os?: string[] };
@@ -136,7 +138,37 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
   }
   // The fixture runner owns its installs; the removed lifecycle hook must not double-install.
   expect(checkRuns.some((run) => run.includes("bun run pretest:fixtures"))).toBe(false);
+  expect(ci.jobs["generated-project-smoke"]["timeout-minutes"]).toBe(360);
   expect(normalizedRuns("generated-project-smoke")).toContain("bun run test:generated -- --all");
+  const cloudflarePortability = ci.jobs["cloudflare-portability"];
+  expect(cloudflarePortability.name).toBe("Cloudflare Workers (${{ matrix.os }})");
+  expect(cloudflarePortability["runs-on"]).toBe("${{ matrix.os }}");
+  expect(cloudflarePortability["timeout-minutes"]).toBe(150);
+  expect(cloudflarePortability.strategy).toEqual({
+    "fail-fast": false,
+    matrix: { os: ["windows-latest", "macos-latest"] },
+  });
+  const cloudflarePortabilityRuns = normalizedRuns("cloudflare-portability");
+  for (const required of [
+    "bun run check:lock-age",
+    "bun install --frozen-lockfile",
+    "bun run build",
+    "bun run test:generated -- --only cloudflare-next-single,cloudflare-tanstack-single",
+    "git diff --check",
+    "git diff --exit-code",
+  ]) {
+    expect(
+      cloudflarePortabilityRuns.some((run) => run.includes(required)),
+      required,
+    ).toBe(true);
+  }
+  const cloudflareCleanup = cloudflarePortability.steps.find(
+    ({ name }) => name === "Clean generated runner temp",
+  );
+  expect(cloudflareCleanup?.if).toBe("always()");
+  expect(cloudflareCleanup?.shell).toBe("bash");
+  expect(cloudflareCleanup?.run).toContain('[ "$RUNNER_TEMP" = "/" ]');
+  expect(cloudflareCleanup?.run).toContain("-name 'ghostinit-generated-*'");
 
   const portability = ci.jobs.portability;
   expect(portability.name).toBe("Portability (${{ matrix.os }})");
@@ -152,6 +184,8 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
     "Bun.version !== runtime.bun",
     "bun run check",
     "tests/unit/installer-safety.test.ts",
+    "tests/unit/generated-runner-containment.test.ts",
+    "tests/unit/one-shot-runner-containment.test.ts",
     "tests/unit/deployment-supervisor.test.ts",
     "tests/unit/deployment-portability.test.ts",
     "tests/unit/deployment-lockfile-guard.test.ts",
@@ -159,6 +193,14 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
     "tests/unit/next-runtime-deployment.test.ts",
     "tests/unit/posix-process-groups.test.ts",
     "tests/unit/process-tree.test.ts",
+    "tests/unit/e2e-runtime-evidence.test.ts",
+    "tests/unit/temporary-workspace.test.ts",
+    "tests/unit/worker-preview-readiness.test.ts",
+    "tests/unit/worker-preview-stop.test.ts",
+    "tests/unit/cloudflare-preview-config.test.ts",
+    "tests/unit/cloudflare-secret-ownership.test.ts",
+    "tests/unit/cloudflare-wrapper-lifecycle.test.ts",
+    "tests/unit/cloudflare-opennext-source-preservation.test.ts",
     "tests/unit/fs.test.ts",
     "tests/unit/bun-version-ssot.test.ts",
     "tests/unit/supply-chain-install-policy.test.ts",
@@ -339,6 +381,7 @@ test("package CI and release scripts run each expensive gate once with Bun", () 
   );
   expect(pkg.scripts["pretest:fixtures"]).toBeUndefined();
   expect(pkg.scripts["test:fixtures"]).toBe("bun run scripts/test-fixtures.ts");
+  expect(pkg.scripts["test:workers"]).toBe("bun run scripts/test-generated.ts --workers");
   expect(pkg.scripts["test:ci"]).toBe(
     "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
   );
@@ -360,23 +403,51 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
     const next = source.indexOf("\n  {", start + 1);
     return source.slice(start, next === -1 ? source.length : next);
   };
+  const runtimeProbeStart = source.indexOf("export const CONVEX_WORKER_RUNTIME_PROBES");
+  const runtimeProbeEnd = source.indexOf(
+    "] as const satisfies readonly WorkerRuntimeProbe[];",
+    runtimeProbeStart,
+  );
+  expect(runtimeProbeStart).toBeGreaterThanOrEqual(0);
+  expect(runtimeProbeEnd).toBeGreaterThan(runtimeProbeStart);
+  const runtimeProbeSource = source.slice(runtimeProbeStart, runtimeProbeEnd);
 
   expect(source).toContain("const REQUIRED_BUN_VERSION = runtime.bun");
   expect(source).toContain("Bun.version !== REQUIRED_BUN_VERSION");
   expect(source).toContain("const BUN_EXECUTABLE = process.execPath");
-  expect(source).toContain("spawn(cmd, args");
+  expect(source).toContain("const completion = runSupervisedCommand({");
+  const commandRunner = source.slice(
+    source.indexOf("export function run("),
+    source.indexOf("function validateArchitectureResult("),
+  );
+  expect(commandRunner).not.toContain("spawn(");
+  expect(commandRunner).not.toContain("activeChild =");
+  expect(commandRunner).toContain("abortSignal: controller.signal");
+  expect(commandRunner).toContain("signalSource: new EventEmitter()");
+  expect(commandRunner).toContain("if (terminationRequested) controller.abort");
+  expect(commandRunner).toContain("if (!result.cleanupVerified) workspaceCleanupSafe = false");
   expect(source).toContain("shell: false");
   expect(source).not.toContain("shell: true");
   expect(source).not.toContain("execFileSync");
-  expect(source).toContain("child.stdout?.pipe(process.stdout");
-  expect(source).toContain("child.stderr?.pipe(process.stderr");
+  expect(source).toContain("if (!options.redact?.length) process.stdout.write(data)");
+  expect(source).toContain("if (!options.redact?.length) process.stderr.write(data)");
   expect(source).toContain("MAX_CAPTURE_CHARS");
-  expect(source).toContain(
-    'import { terminateProcessTree } from "../tests/helpers/process-tree.js"',
-  );
-  expect(source).toContain("await ensureProcessTreeTerminated(child)");
+  expect(source).toContain('} from "../tests/helpers/process-tree.js"');
+  expect(source).toContain("await stopWorkerPreview(child)");
+  expect(source).toContain("captured = await captureWindowsProcessTree(child)");
+  expect(source).toContain("await assertProcessTreeExited(child, captured)");
+  expect(source).toContain("previewStops.get(child)");
   expect(source).toContain("cleanupVerified: boolean");
-  expect(source).toContain("if (timedOut) return");
+  expect(commandRunner).toContain("result.cleanupVerified &&");
+  expect(commandRunner).toContain("!result.timedOut &&");
+  const signalHandler = source.slice(
+    source.indexOf("const terminateForSignal = async"),
+    source.indexOf("const onSigint = (): void => void terminateForSignal"),
+  );
+  expect(signalHandler).toContain("const command = cancelActiveRun(signal)");
+  expect(signalHandler.indexOf("const result = await command")).toBeLessThan(
+    signalHandler.indexOf("await activeWorkerBindings.restore(cleanupVerified)"),
+  );
   expect(source).toContain('process.on("SIGINT", onSigint)');
   expect(source).toContain('process.on("SIGTERM", onSigterm)');
   expect(source).not.toContain("spawnSync");
@@ -403,6 +474,10 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
     "single-expo-frontend",
     "single-electron-frontend",
     "maximal-multi-app",
+    "cloudflare-next-monorepo",
+    "cloudflare-next-single",
+    "cloudflare-tanstack-monorepo",
+    "cloudflare-tanstack-single",
   ]) {
     expect(source).toContain(`id: "${corner}"`);
   }
@@ -423,28 +498,196 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
   expect(cornerSource("maximal-multi-app")).toContain(
     'nativePackageRoots: ["apps/mobile", "apps/desktop"]',
   );
-  expect(source).toContain('await run(BUN_EXECUTABLE, ["install"], directory)');
-  expect(source).toContain('await run(BUN_EXECUTABLE, ["run", "audit:dependencies"], directory)');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--database",\n      "convex"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--billing",\n      "all"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-i18n"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-messaging"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-notifications"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--feature-flags",\n      "posthog"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-jobs"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--cache",\n      "redis"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain(
+    'artifactRoot: ".wrangler/ghostinit-dry-run"',
+  );
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('previewHostFlag: "--ip"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain(
+    'convexPublicEnvKey: "NEXT_PUBLIC_CONVEX_URL"',
+  );
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"/api/rpc/health"');
+  expect(cornerSource("cloudflare-next-monorepo")).toContain('"wss://fixture-worker.convex.site"');
+  for (const id of ["cloudflare-next-monorepo", "cloudflare-tanstack-monorepo"]) {
+    const corner = cornerSource(id);
+    for (const expected of [
+      '"--database",\n      "convex"',
+      '"--billing",\n      "all"',
+      '"--with-i18n"',
+      '"--with-messaging"',
+      '"--with-notifications"',
+      '"--feature-flags",\n      "posthog"',
+      '"--with-jobs"',
+      '"--cache",\n      "redis"',
+    ]) {
+      expect(corner, `${id}: ${expected}`).toContain(expected);
+    }
+    expect(corner).toContain('"--apps",\n      "web,mobile,desktop"');
+    expect(corner).toContain('nativePackageRoots: ["apps/mobile", "apps/desktop"]');
+    expect(corner).toContain(
+      'nativeArtifactRoots: ["apps/mobile/dist", "apps/desktop/dist/renderer"]',
+    );
+    expect(corner).toContain(
+      'nativeArtifactFiles: ["apps/desktop/dist/main.js", "apps/desktop/dist/preload.cjs"]',
+    );
+    expect(corner).toContain("runtimeProbes: CONVEX_WORKER_RUNTIME_PROBES");
+  }
+  for (const path of [
+    "/api/webhooks/stripe",
+    "/api/webhooks/chargily",
+    "/api/webhooks/paddle",
+    "/api/webhooks/polar",
+    "/api/auth/admin/list-users",
+  ]) {
+    expect(runtimeProbeSource, path).toContain(`path: "${path}"`);
+  }
+  expect(cornerSource("cloudflare-next-single")).toContain('"--database",\n      "none"');
+  expect(cornerSource("cloudflare-next-single")).toContain('"--runtime",\n      "node"');
+  expect(cornerSource("cloudflare-next-single")).toContain('"--with-api"');
+  expect(cornerSource("cloudflare-next-single")).toContain('"/api/rpc/health"');
+  expect(cornerSource("cloudflare-next-single")).toContain(
+    'artifactRoot: ".wrangler/ghostinit-dry-run"',
+  );
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain(
+    '"--framework",\n      "tanstack-start"',
+  );
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain(
+    'artifactRoot: ".wrangler/ghostinit-dry-run"',
+  );
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain('previewHostFlag: "--host"');
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain(
+    'convexPublicEnvKey: "VITE_CONVEX_URL"',
+  );
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain('"/api/rpc/health"');
+  expect(cornerSource("cloudflare-tanstack-monorepo")).toContain(
+    '"wss://fixture-worker.convex.cloud"',
+  );
+  expect(cornerSource("cloudflare-tanstack-single")).toContain('"--mode",\n      "single"');
+  expect(cornerSource("cloudflare-tanstack-single")).toContain('"--runtime",\n      "node"');
+  expect(cornerSource("cloudflare-tanstack-single")).toContain('"--with-api"');
+  expect(cornerSource("cloudflare-tanstack-single")).toContain('"/api/rpc/health"');
+  expect(cornerSource("cloudflare-tanstack-single")).toContain(
+    'artifactRoot: ".wrangler/ghostinit-dry-run"',
+  );
+  expect(source).toContain('if (argv.includes("--workers")) return { ids: WORKER_CORNERS, keep }');
+  expect(source).toContain("if (selectorCount > 1)");
+  expect(source).toContain("Use only one generated-corner selector");
+  expect(source).toContain("--only requires at least one non-empty corner id");
+  expect(source).toContain(
+    "const WORKER_CORNERS = CORNERS.filter(({ worker }) => worker !== undefined)",
+  );
+  expect(source).toContain('await run(BUN_EXECUTABLE, ["run", "install:bootstrap"], directory)');
+  expect(source).not.toContain(
+    'await run(BUN_EXECUTABLE, ["run", "audit:dependencies"], directory)',
+  );
   expect(source).toContain('for (const step of ["format", "format:check"] as const)');
   expect(source).toContain('for (const step of ["typecheck", "lint:all", "test"] as const)');
   expect(source).toContain('for (const step of ["typecheck", "lint", "test"] as const)');
   expect(source).not.toContain("passWithNoTests");
   expect(source).toContain("await verifyAuthDeclarations(directory)");
+  expect(source).toContain('["run", "build"]');
+  expect(source).toContain("verifyWorkerArtifactDoesNotContain(");
+  expect(source).toContain('["run", "cloudflare:dry-run"]');
+  expect(source).toContain("await verifyWorkerRuntime(directory, corner.worker)");
+  expect(source).toContain("GHOSTINIT_WORKER_TEST_SECRET: syntheticServerOnlyValue");
+  expect(source).toContain('GHOSTINIT_WORKER_SECURITY_TEST: "1"');
+  expect(source).toContain("/^(?:HTTPS?|ALL)_PROXY$/i.test(key)");
+  expect(source).toContain('resolve(directory, ".dev.vars")');
+  expect(source).toContain('resolve(appRoot, ".dev.vars")');
+  expect(source).toContain("const devVarInputs = devVarPaths.map((path) => {");
+  expect(source).toContain("variables: parseGeneratedDevVarsContent(original)");
+  expect(source).toContain("Cloudflare root and app .dev.vars files have drifted");
+  expect(source).toContain("await stageWorkerBindingFiles(directory, replacements)");
+  expect(source).toContain(
+    "pendingWorkerBindings = prepareWorkerFixtureBindings(directory, corner.worker)",
+  );
+  expect(source).toContain("activeWorkerBindings = await pendingWorkerBindings");
+  expect(source).toContain("activeWorkerBindings.capabilityFixtures");
+  expect(source).toContain("await activeWorkerBindings.restore(bindingCleanupSafe)");
+  expect(source).toContain("await activeWorkerBindings.restore(cleanupVerified)");
+  expect(source).toContain(
+    'const previewVariables = parseGeneratedDevVars(resolve(appRoot, ".dev.vars"))',
+  );
+  expect(source).not.toContain("prepareWorkerPosthogFixture(");
+  expect(source).toContain("const admittedBuildVariables = Object.fromEntries(");
+  expect(source).toContain("const generatedCiBuildKeys = new Set([");
+  expect(source).toContain("generatedCiBuildKeys.has(key)");
+  expect(source).toContain('value.includes("REPLACE_WITH_")');
+  expect(source).toContain("syntheticWorkerCapabilityFixtures()");
+  expect(source).toContain('result.CONVEX_DEPLOYMENT = "dev:fixture-worker"');
+  expect(source).toContain("result.CONVEX_URL = convexUrl");
+  expect(source).toContain('result.CONVEX_SITE_URL = "https://fixture-worker.convex.site"');
+  expect(source).toContain("credentialSafeHostEnvironment()");
+  expect(source).toContain("if (credentialName.test(key)) delete environment[key]");
+  expect(source).toContain("...buildVariables");
+  expect(source).toContain("redact: buildEnvironment.serverOnlyValues");
+  expect(source).toContain("worker.previewHostFlag");
+  expect(source).not.toContain('"wrangler", "dev"');
+  expect(source).toContain("await assertLoopbackPortUnowned(port)");
+  const runtimeStartup = source.slice(
+    source.indexOf("const port = await reserveLoopbackPort()"),
+    source.indexOf(
+      "activeChild = child",
+      source.indexOf("const port = await reserveLoopbackPort()"),
+    ),
+  );
+  expect(runtimeStartup.indexOf("if (terminationRequested)")).toBeGreaterThan(
+    runtimeStartup.indexOf("await assertLoopbackPortUnowned(port)"),
+  );
+  expect(runtimeStartup.indexOf("if (terminationRequested)")).toBeLessThan(
+    runtimeStartup.indexOf("child = spawn("),
+  );
+  expect(source).toContain("new WorkerPreviewReadiness(port)");
+  expect(source).toContain('previewReadiness.consume("stdout", data)');
+  expect(source).toContain('previewReadiness.consume("stderr", data)');
+  expect(source).toContain("previewReadiness.isReady()");
+  expect(source).not.toContain("previewReportedListening(runtimeOutput, port)");
+  expect(source).toContain("post-start health/security stability recheck");
+  expect(source).toContain("await assertWorkerRuntimeProbeResponse(response, probe)");
+  expect(source).toContain("response.status !== probe.status");
+  expect(source).toContain("(await response.text()) !== probe.body");
+  expect(runtimeProbeSource).toContain(
+    '"cache-control": "private, no-cache, no-store, max-age=0, must-revalidate"',
+  );
+  expect(source).toContain('response.headers.get("x-frame-options") === "DENY"');
+  expect(source).toContain("!csp.includes(\"'unsafe-eval'\")");
+  expect(source).toContain('csp.includes("https://fonts.googleapis.com")');
+  expect(source).toContain('csp.includes("https://fonts.gstatic.com")');
+  expect(source).toContain('!csp.includes("*.convex.")');
+  expect(source).toContain('const smokePaths = worker.smokePaths ?? ["/", "/api/health"]');
+  expect(source).toContain('response.headers.get("content-type")?.includes("application/json")');
+  expect(source).toContain('redirect: "manual"');
+  expect(source).toContain("if (next.origin !== origin)");
+  expect(source).toContain('payload.json.status === "ok"');
+  expect(source).toContain('payload.status === "ok"');
+  expect(source).toContain("await stopWorkerPreview(child)");
+  expect(source).toContain("return { ok: ok && cleanupVerified, detail, cleanupVerified }");
   const orderedStages = [
     "const generation = await run(",
-    'const install = await run(BUN_EXECUTABLE, ["install"], directory)',
-    'const audit = await run(BUN_EXECUTABLE, ["run", "audit:dependencies"], directory)',
+    'const install = await run(BUN_EXECUTABLE, ["run", "install:bootstrap"], directory)',
     'for (const step of ["format", "format:check"] as const)',
     "const architectureRun = await run(",
     'for (const step of ["typecheck", "lint:all", "test"] as const)',
     "const authDeclarations = await verifyAuthDeclarations(directory)",
+    "pendingWorkerBindings = prepareWorkerFixtureBindings(directory, corner.worker)",
+    "const workerBuild = await run(",
+    "const workerScan = verifyWorkerArtifactDoesNotContain(",
+    "const workerDryRun = await run(",
+    "const workerRuntime = await verifyWorkerRuntime(directory, corner.worker)",
   ];
   const stageIndexes = orderedStages.map((marker) => source.indexOf(marker));
   expect(stageIndexes.every((index) => index >= 0)).toBe(true);
   for (let index = 1; index < stageIndexes.length; index += 1) {
     expect(stageIndexes[index], orderedStages[index]).toBeGreaterThan(stageIndexes[index - 1]);
   }
-  const formattingStage = source.slice(stageIndexes[3], stageIndexes[4]);
+  const formattingStage = source.slice(stageIndexes[2], stageIndexes[3]);
   expect(formattingStage).toContain("cleanupCorner(directory, keep)");
   expect(formattingStage).toContain("continue cornerLoop");
   expect(source).toContain('["x", "--no-install", "tsc"');
@@ -495,7 +738,7 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
     expect(source).toContain(`createProject("${project}"`);
   }
   expect(source.match(/await installAndVerify\(/g)).toHaveLength(6);
-  expect(source).toContain('["run", "audit:dependencies"]');
+  expect(source).not.toContain('["run", "audit:dependencies"]');
   expect(source).toContain('["run", "format"]');
   expect(source).toContain('["run", "format:check"]');
   expect(source).toContain('["run", "typecheck"]');
@@ -504,10 +747,6 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
     /const typecheck = await runCommand\(\s*BUN_EXECUTABLE,\s*\["run", "typecheck"\],\s*projectRoot,\s*STATIC_GATE_TIMEOUT_MS,\s*\);/,
   );
   expect(source).toContain("expectCommandOk(typecheck, `${label}: typecheck`)");
-  expect(source).toMatch(
-    /const audit = await runCommand\(\s*BUN_EXECUTABLE,\s*\["run", "audit:dependencies"\],\s*projectRoot,\s*STATIC_GATE_TIMEOUT_MS,\s*\);/,
-  );
-  expect(source).toContain("expectCommandOk(audit, `${label}: dependency audit`)");
   expect(source).toMatch(
     /const build = await runCommand\(\s*BUN_EXECUTABLE,\s*\["run", "build"\],\s*projectRoot,\s*BUILD_TIMEOUT_MS,\s*production\.environment,\s*\);/,
   );
@@ -545,8 +784,9 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
   expect(source).toContain("Denied by marker");
   expect(source).toContain('rejectedOutput.replaceAll("\\\\", "/")');
   expect(source).toContain("toContain(expectedImporter)");
-  const acceptedInstall = source.indexOf("expectCommandOk(install, `${label}: bun install`)");
-  const acceptedAudit = source.indexOf("expectCommandOk(audit, `${label}: dependency audit`)");
+  const acceptedInstall = source.indexOf(
+    "expectCommandOk(install, `${label}: verified dependency bootstrap`)",
+  );
   const acceptedFormat = source.indexOf("expectCommandOk(format, `${label}: format:check`)");
   const acceptedTypecheck = source.indexOf("expectCommandOk(typecheck, `${label}: typecheck`)");
   const acceptedLint = source.indexOf("expectCommandOk(lintAll, `${label}: lint:all`)");
@@ -555,8 +795,7 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
   const runtimeProbe = source.indexOf("await probeProductionOutput(projectRoot");
   const clientCanary = source.indexOf('writeFileSync(clientEntry, `import "server-only";');
   expect(acceptedInstall).toBeGreaterThan(-1);
-  expect(acceptedAudit).toBeGreaterThan(acceptedInstall);
-  expect(acceptedFormat).toBeGreaterThan(acceptedAudit);
+  expect(acceptedFormat).toBeGreaterThan(acceptedInstall);
   expect(acceptedTypecheck).toBeGreaterThan(acceptedFormat);
   expect(acceptedLint).toBeGreaterThan(acceptedTypecheck);
   expect(acceptedBuild).toBeGreaterThan(acceptedLint);
@@ -566,10 +805,26 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
     /const rejectedBuild = await runCommand\([\s\S]*?BUILD_TIMEOUT_MS,[\s\S]*?production\.environment,[\s\S]*?\);/,
   );
   expect(source).toContain("terminateTrackedProcesses()");
+  expect(source).toContain("await assertLoopbackPortUnowned(production.port)");
+  expect(source).toContain("const stableHealth = await waitForHealthyHttp(");
+  expect(source).toContain("health route returned a stale or cached stability payload");
   expect(processSource).toContain('detached: process.platform !== "win32"');
-  expect(processSource).toContain('spawnSync("taskkill"');
-  expect(processSource).toContain('process.kill(-pid, "SIGTERM")');
-  expect(processSource).toContain('process.kill(-pid, "SIGKILL")');
+  expect(processSource).toContain("terminateProcessTree as terminateVerifiedProcessTree");
+  expect(processSource).toContain("await terminateVerifiedProcessTree(child)");
+  expect(processSource).toContain("const completion = runSupervisedCommand({");
+  expect(processSource).toContain("activeCommands.set(controller, completion)");
+  expect(processSource).toContain('controller.abort("SIGTERM")');
+  expect(processSource).toContain("if (unverifiedCommandCleanup) throw unverifiedCommandCleanup");
+  const commandSource = processSource.slice(
+    processSource.indexOf("export function runCommand("),
+    processSource.indexOf("export function terminateTrackedProcesses("),
+  );
+  expect(commandSource).not.toContain("spawnTracked(");
+  expect(commandSource).not.toContain("activeChildren");
+  expect(processSource).toContain("productionListenerOwnedByProcessTree(running.child, port)");
+  expect(processSource).toContain("isExactHealthPayload(payload)");
+  expect(processSource).toContain("Public build artifact contains an unscannable symbolic link");
+  expect(processSource).toContain("Public build artifact contains an unsupported special entry");
 });
 
 test("version verification fails closed and enforces the release version", () => {
@@ -626,6 +881,9 @@ test("generated workflow is immutable, least-privilege, frozen, and blocking", (
     "bun-version": runtime.bun,
   });
   expect(runs).toContain("bun install --frozen-lockfile");
+  expect(runs.indexOf("bun run audit:lock")).toBeLessThan(
+    runs.indexOf("bun install --frozen-lockfile"),
+  );
   expect(runs).toContain("bun run audit:dependencies");
   expect(runs).toContain("bun run format:check");
   expect(runs).toContain("bun run lint:all");
@@ -637,4 +895,52 @@ test("generated workflow is immutable, least-privilege, frozen, and blocking", (
   expect(runs.some((run) => run.includes("JSON.parse"))).toBe(true);
   expect(runs.some((run) => run.includes("payload.success !== true"))).toBe(true);
   expect(rendered).not.toContain("continue-on-error");
+
+  const workerRendered = githubWorkflow("bun", "cloudflare", {
+    database: "convex",
+    framework: "nextjs",
+    auth: true,
+    notifications: true,
+    cache: true,
+    apps: ["web", "mobile", "desktop"],
+    messaging: true,
+  }).content;
+  const workerWorkflow = Bun.YAML.parse(workerRendered) as Workflow;
+  const workerSteps = workerWorkflow.jobs.build.steps;
+  const workerRuns = workerSteps
+    .map(({ run }) => run)
+    .filter((run): run is string => typeof run === "string");
+  const workerBuildSteps = workerSteps.filter(({ run }) => run === "bun run build");
+  expect(workerWorkflow.env).toBeUndefined();
+  expect(workerWorkflow.jobs.build.env).toBeUndefined();
+  expect(workerRendered).not.toContain("${{ secrets.");
+  expect(workerBuildSteps).toHaveLength(1);
+  expect(workerBuildSteps[0]?.env).toEqual({
+    SITE_URL: "https://ghostinit-ci.example.test",
+    NEXT_PUBLIC_APP_URL: "https://ghostinit-ci.example.test",
+    CONVEX_DEPLOYMENT: "dev:fixture-worker",
+    CONVEX_URL: "https://fixture-worker.convex.cloud",
+    CONVEX_SITE_URL: "https://fixture-worker.convex.site",
+    NEXT_PUBLIC_CONVEX_URL: "https://fixture-worker.convex.cloud",
+    BETTER_AUTH_SECRET:
+      "ghostinit-ci-only-not-a-production-secret-${{ github.run_id }}-${{ github.run_attempt }}",
+    BETTER_AUTH_URL: "https://ghostinit-ci.example.test",
+    NOTIFICATION_TOKEN_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    UPSTASH_REDIS_REST_URL: "https://redis.example.test",
+    UPSTASH_REDIS_REST_TOKEN: "ghostinit-ci-only-${{ github.run_id }}-${{ github.run_attempt }}",
+    EXPO_PUBLIC_APP_URL: "https://ghostinit-ci.example.test",
+    EXPO_PUBLIC_API_URL: "https://ghostinit-ci.example.test",
+    EXPO_PUBLIC_CONVEX_URL: "https://fixture-worker.convex.cloud",
+    EXPO_PUBLIC_WS_URL: "wss://ghostinit-ci.example.test/api/realtime",
+    DESKTOP_API_URL: "https://ghostinit-ci.example.test",
+    VITE_APP_URL: "https://ghostinit-ci.example.test",
+    VITE_API_URL: "https://ghostinit-ci.example.test",
+    VITE_CONVEX_URL: "https://fixture-worker.convex.cloud",
+    VITE_WS_URL: "wss://ghostinit-ci.example.test/api/realtime",
+  });
+  expect(workerRuns.filter((run) => run === "bun run build")).toHaveLength(1);
+  expect(workerRuns).not.toContain("bun run cloudflare:dry-run");
+  expect(workerRuns.indexOf("bun run audit:lock")).toBeLessThan(
+    workerRuns.indexOf("bun install --frozen-lockfile"),
+  );
 });

@@ -164,6 +164,12 @@ describe("cache-enabled production E2E configuration", () => {
     expect(harness).toContain("await expectPostgresAuthenticationFailureIsFatal");
     expect(harness).toContain("await isolatedPostgres?.close()");
     expect(harness).toContain("...options.environmentOverrides");
+    expect(harness.match(/stockNextLoopback: true/g)).toHaveLength(4);
+    const bindIndex = harness.indexOf("await configureNextLoopbackStart(projectRoot)");
+    const installIndex = harness.indexOf("const install = await runCommand(");
+    expect(bindIndex).toBeGreaterThanOrEqual(0);
+    expect(installIndex).toBeGreaterThanOrEqual(0);
+    expect(bindIndex).toBeLessThan(installIndex);
     expect(harness).toMatch(/BUILD_TIMEOUT_MS,\s*production\.environment/);
     expect(harness).toContain("probeProductionOutput(projectRoot, label, production, options)");
     expect(harness).toMatch(

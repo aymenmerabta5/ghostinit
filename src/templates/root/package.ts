@@ -11,6 +11,7 @@ import {
   usesCustomNextServer,
   type DeploymentProfile,
 } from "./deploy.js";
+import { OPENNEXT_AWS_WINDOWS_PATCH_KEY, OPENNEXT_AWS_WINDOWS_PATCH_PATH } from "./cloudflare.js";
 import { hasHostedWebEve } from "./eve-lifecycle.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
@@ -37,7 +38,9 @@ export function rootPackageJson(
   const database = profile?.database ?? (isConvex ? "convex" : "postgres");
   const hasJobs = profile?.jobs === true;
   const hasWeb = (profile?.apps ?? ["web"]).includes("web");
+  const hasMobile = (profile?.apps ?? []).includes("mobile");
   const hasEve = profile?.eve === true;
+  const isCloudflare = addonMap ? hasAddon(addonMap as AddonInstallerMap, "cloudflare") : false;
   const hostedEve = hasHostedWebEve(profile);
   const webStart = usesCustomNextServer(profile)
     ? runtime === "bun"
@@ -74,6 +77,26 @@ export function rootPackageJson(
     "install:cmd": installCmd,
   };
 
+  if (isCloudflare && hasWeb) {
+    // Cloudflare's ordinary build must produce the audited Worker artifact,
+    // not an unscanned framework-only bundle. Retain selected native client
+    // builds without letting Turbo invoke the web package a second time.
+    const hasNativeApps = (profile?.apps ?? []).some(
+      (app) => app === "mobile" || app === "desktop",
+    );
+    baseScripts.dev = hasNativeApps ? "bun scripts/cloudflare-workspace.mjs dev" : "turbo run dev";
+    baseScripts.build = hasNativeApps
+      ? "bun run build:worker && bun run build:native"
+      : "bun run build:worker";
+    if (hasNativeApps) baseScripts["build:native"] = "bun scripts/cloudflare-workspace.mjs build";
+    baseScripts.start = "bun run preview";
+    baseScripts["build:worker"] = "bun run --cwd apps/web build:worker";
+    baseScripts.preview = "bun run --cwd apps/web preview";
+    baseScripts.deploy = "bun run --cwd apps/web deploy";
+    baseScripts["cloudflare:dry-run"] = "bun run --cwd apps/web cloudflare:dry-run";
+    baseScripts["cf-typegen"] = "bun run --cwd apps/web cf-typegen";
+  }
+
   if (hasEve) {
     baseScripts["eve:build"] = "bun --env-file=.env.local run --cwd apps/eve build";
     baseScripts["eve:dev"] = "bun --env-file=.env.local run --cwd apps/eve dev:diagnostic";
@@ -96,7 +119,7 @@ export function rootPackageJson(
     baseScripts["start:production"] = "bun scripts/start-production.mjs";
   }
 
-  const scripts = isConvex
+  const scripts: Record<string, string> = isConvex
     ? {
         ...baseScripts,
         "convex:dev": "convex dev",
@@ -110,6 +133,13 @@ export function rootPackageJson(
         "db:migrate": "turbo run db:migrate",
         "db:push": "turbo run db:push",
       };
+  if (isCloudflare && isConvex) {
+    scripts["convex:bootstrap"] = "bun scripts/cloudflare-convex.mjs bootstrap";
+    scripts["convex:dev"] = "bun scripts/cloudflare-convex.mjs dev";
+    scripts["convex:deploy"] = "bun scripts/cloudflare-convex.mjs deploy";
+    scripts["convex:codegen"] = "bun scripts/cloudflare-convex.mjs codegen";
+    scripts["convex:dev:once"] = "bun scripts/cloudflare-convex.mjs dev -- --once";
+  }
 
   const content = packageJson({
     name: projectName,
@@ -127,6 +157,7 @@ export function rootPackageJson(
           "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
           ...(hasAuth
             ? {
+                ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
                 "@repo/auth": "workspace:*",
                 "better-auth": `^${v.auth["better-auth"]}`,
               }
@@ -134,8 +165,13 @@ export function rootPackageJson(
         }
       : {},
     overrides: hasPdf ? { pdfkit: v.pdf.pdfkit } : undefined,
+    patchedDependencies:
+      isCloudflare && profile?.framework === "nextjs"
+        ? { [OPENNEXT_AWS_WINDOWS_PATCH_KEY]: OPENNEXT_AWS_WINDOWS_PATCH_PATH }
+        : undefined,
     devDependencies: {
       "bun-types": `^${v.runtime.bun}`,
+      ...(isCloudflare ? { dotenv: `^${v.cloudflare.dotenv}` } : {}),
       ...(isConvex ? { convex: `^${v.convex.convex}` } : {}),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
@@ -153,6 +189,7 @@ export function bunfig(): TemplateFile {
     "bunfig.toml",
     `[install]
 hoist = true
+registry = "https://registry.npmjs.org/"
 minimumReleaseAge = ${v.supplyChain.minimumReleaseAgeSeconds}
 minimumReleaseAgeExcludes = []
 

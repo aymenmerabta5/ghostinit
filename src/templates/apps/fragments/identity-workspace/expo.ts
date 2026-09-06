@@ -155,7 +155,10 @@ ${i18n.hookLine}
 ${localizedRole}
   const queryClient = useQueryClient();
   const { data: session, isPending: sessionPending } = authClient.useSession();
-  const role = typeof session?.user?.role === "string" ? session.user.role : "user";
+  const applicationIdentity = useQuery(
+    orpc.me.queryOptions({ enabled: Boolean(session?.user) }),
+  );
+  const role = applicationIdentity.data?.user?.role ?? "user";
   const isAdmin = role === "admin" || role === "superAdmin";
   const [search, setSearch] = React.useState("");
   const [name, setName] = React.useState("");
@@ -172,7 +175,7 @@ ${localizedRole}
   const pending = createUser.isPending || changeRole.isPending || setBanned.isPending;
   async function run(action: () => Promise<unknown>): Promise<void> { setError(null); try { await action(); } ${hasI18n ? "catch {" : "catch (cause) {"} setError(${hasI18n ? i18n.value("native.operationError", "Admin operation failed") : 'cause instanceof Error ? cause.message : "Admin operation failed"'}); } }
 
-  if (sessionPending) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator /></View>;
+  if (sessionPending || (Boolean(session?.user) && applicationIdentity.isPending)) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator /></View>;
   if (!isAdmin) return <View className="flex-1 items-center justify-center gap-3 bg-background p-6"><Text className="text-2xl font-bold">${i18n.child("native.accessRequired", "Admin access required")}</Text><Text className="text-center text-sm text-muted-foreground">${i18n.child("native.accessDescription", "The server session does not grant an administrative role.")}</Text></View>;
 
   return <ScrollView className="flex-1 bg-background" contentInsetAdjustmentBehavior="automatic"><View className="w-full max-w-[960px] self-center gap-5 p-5">

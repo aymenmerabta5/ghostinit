@@ -71,6 +71,7 @@ export function assertClientSurfaceCoverage(
         capability,
         target: app.target,
         database: config.backend === false ? "none" : config.backend.database,
+        billingProviders: config.capabilities.billing.providers,
       });
       if (binding.status !== "supported") {
         throw new GenerationPlanError(

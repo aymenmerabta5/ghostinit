@@ -35,7 +35,7 @@ function content(files: ReadonlyArray<{ path: string; content: string }>, path: 
 
 function boundaryFunctions(): BoundaryFunctions {
   const transpiler = new Bun.Transpiler({ loader: "ts" });
-  const executableBoundary = transpiler.transformSync(authRouteBoundaryCode);
+  const executableBoundary = transpiler.transformSync(authRouteBoundaryCode(false));
   const factory = new Function(
     `${executableBoundary}\nreturn { normalizedAuthPath, rejectDirectPrivilegedAuthRequest };`,
   ) as () => BoundaryFunctions;
@@ -86,7 +86,9 @@ describe("generated privileged auth mutation boundary", () => {
         new Request(`https://example.test${path}`, { method: "POST" }),
       );
       expect(response?.status, path).toBe(404);
-      expect(response?.headers.get("cache-control"), path).toBe("private, no-store");
+      expect(response?.headers.get("cache-control"), path).toBe(
+        "private, no-cache, no-store, max-age=0, must-revalidate",
+      );
     }
 
     const safeOrganizationReads = [
@@ -150,10 +152,10 @@ describe("generated privileged auth mutation boundary", () => {
             mode === "monorepo"
               ? framework === "nextjs"
                 ? "apps/web/src/app/api/auth/[...all]/route.ts"
-                : "apps/web/src/routes/api/auth/$splat.ts"
+                : "apps/web/src/routes/api/auth/$.ts"
               : framework === "nextjs"
                 ? "src/app/api/auth/[...all]/route.ts"
-                : "src/routes/api/auth/$splat.ts";
+                : "src/routes/api/auth/$.ts";
           const route = content(files, path);
           const guardedHandler =
             framework === "tanstack-start"
@@ -189,10 +191,12 @@ describe("generated privileged auth mutation boundary", () => {
           const rejection = guardedHandler.indexOf(
             "const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request)",
           );
-          const delegation = guardedHandler.indexOf("auth.handler(request)");
+          const preparation = guardedHandler.indexOf("prepareAuthRequestForRuntime(request)");
+          const delegation = guardedHandler.indexOf("auth.handler(preparedAuthRequest.request)");
 
           expect(rejection, label).toBeGreaterThan(-1);
-          expect(delegation, label).toBeGreaterThan(rejection);
+          expect(preparation, label).toBeGreaterThan(rejection);
+          expect(delegation, label).toBeGreaterThan(preparation);
           expect(guardedHandler, label).toContain('pathname.startsWith("/api/auth/admin/")');
           expect(guardedHandler, label).toContain('pathname.startsWith("/api/auth/organization/")');
           expect(guardedHandler, label).toContain('"/api/auth/organization/list-members"');

@@ -9,6 +9,7 @@ import {
 import type { AddonInstallerMap, ProjectMode } from "../../lib/addons.js";
 import * as v from "../versions.js";
 import * as c from "./all.js";
+import { workerAnalyticsGuide, workerPosthogServerContent } from "./server-worker.js";
 
 type Runtime = "node" | "bun";
 const jsVer = v.analytics["posthog-js"];
@@ -87,6 +88,7 @@ function monorepoList(
   runtime: Runtime,
   testCmd: string,
   framework: AnalyticsFramework,
+  worker: boolean,
 ): TemplateFile[] {
   return [
     file(
@@ -197,14 +199,17 @@ describe("@repo/analytics/server barrel", () => {
     file("packages/analytics/src/server/index.ts", c.monorepoServerIndexContent()),
     file(
       "packages/analytics/src/server/posthog-server.ts",
-      c.serverPosthogServerContent("monorepo"),
+      worker ? workerPosthogServerContent("monorepo") : c.serverPosthogServerContent("monorepo"),
     ),
     file("packages/analytics/src/server/utils.ts", c.serverUtilsContent("monorepo")),
     file("packages/analytics/src/server/bootstrap.ts", c.serverBootstrapContent("monorepo")),
-    file("packages/analytics/src/integrations/auth.ts", c.integrationsAuthContent("monorepo")),
+    file(
+      "packages/analytics/src/integrations/auth.ts",
+      c.integrationsAuthContent("monorepo", worker),
+    ),
     file(
       "packages/analytics/src/integrations/billing.ts",
-      c.integrationsBillingContent("monorepo"),
+      c.integrationsBillingContent("monorepo", worker),
     ),
     file("packages/analytics/src/testing/mocks.ts", c.testingMocksContent("monorepo")),
     file("packages/analytics/src/proxy/README.md", c.proxyReadmeContent()),
@@ -213,20 +218,30 @@ describe("@repo/analytics/server barrel", () => {
   ];
 }
 
-function singleList(_mode: ProjectMode, framework: AnalyticsFramework): TemplateFile[] {
+function singleList(
+  _mode: ProjectMode,
+  framework: AnalyticsFramework,
+  worker: boolean,
+): TemplateFile[] {
   return [
     file("src/server/analytics/config.ts", c.configContent("single")),
     file("src/server/analytics/types.ts", c.typesContent("single")),
     file("src/server/analytics/shared/events.ts", c.sharedEventsContent("single")),
     file("src/server/analytics/shared/properties.ts", c.sharedPropertiesContent("single")),
     file("src/server/analytics/shared/consent.ts", c.sharedConsentContent("single")),
-    file("src/server/analytics/posthog-server.ts", c.serverPosthogServerContent("single")),
+    file(
+      "src/server/analytics/posthog-server.ts",
+      worker ? workerPosthogServerContent("single") : c.serverPosthogServerContent("single"),
+    ),
     file("src/server/analytics/utils.ts", c.serverUtilsContent("single")),
     file("src/server/analytics/bootstrap.ts", c.serverBootstrapContent("single")),
     file("src/server/analytics/index.ts", c.singleRootIndexContent()),
     file("src/server/analytics/testing/mocks.ts", c.testingMocksContent("single")),
-    file("src/server/analytics/integrations/auth.ts", c.integrationsAuthContent("single")),
-    file("src/server/analytics/integrations/billing.ts", c.integrationsBillingContent("single")),
+    file("src/server/analytics/integrations/auth.ts", c.integrationsAuthContent("single", worker)),
+    file(
+      "src/server/analytics/integrations/billing.ts",
+      c.integrationsBillingContent("single", worker),
+    ),
     file("src/lib/analytics-config.ts", c.clientConfigContent("single", framework)),
     file("src/lib/analytics.ts", c.singleLibAnalyticsContent()),
     file("src/components/analytics/posthog-context.tsx", c.postHogContextContent()),
@@ -260,10 +275,12 @@ export function analyticsFiles(
   const testCmd =
     "bun test tests/barrel.test.ts && bun --conditions=react-server test --preload ../../scripts/test-env.ts tests/server-barrel.test.ts";
   const framework = readFramework(modeOrOpts);
+  const worker = typeof modeOrOpts === "object" && modeOrOpts?.deploy === "cloudflare";
   const files =
     mode === "monorepo"
-      ? monorepoList(mode, runtime, testCmd, framework)
-      : singleList(mode, framework);
+      ? monorepoList(mode, runtime, testCmd, framework, worker)
+      : singleList(mode, framework, worker);
+  if (worker) files.push(file("docs/CLOUDFLARE_ANALYTICS.md", workerAnalyticsGuide(mode)));
   files.sort((a, b) => a.path.localeCompare(b.path));
   return mergeFiles(files);
 }

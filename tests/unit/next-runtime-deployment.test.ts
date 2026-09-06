@@ -67,7 +67,7 @@ describe("Next deployment runtime commands", () => {
             : { dev: "next dev", build: "next build", start: "next start" },
         );
         expect(vercel.installCommand).toBe(
-          `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} install --frozen-lockfile`,
+          `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} run audit:lock && bunx bun@${toolchainRuntime.bun} install --frozen-lockfile`,
         );
         expect(vercel.buildCommand).toBe(
           `bunx bun@${toolchainRuntime.bun} scripts/require-bun-lock.mjs && bunx bun@${toolchainRuntime.bun} ${

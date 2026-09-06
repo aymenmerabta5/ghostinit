@@ -88,10 +88,19 @@ export function createConvexNotificationAdapter(executor: ConvexNotificationExec
     },
     async registerDeviceOwned(input) {
       assertNotificationTokenFingerprint(input.pushToken, input.tokenFingerprint);
-      const result = await executor.registerDevice({
-        platform: input.platform,
-        pushToken: input.pushToken,
-      });
+      let result: Awaited<ReturnType<ConvexNotificationExecutor["registerDevice"]>>;
+      try {
+        result = await executor.registerDevice({
+          platform: input.platform,
+          pushToken: input.pushToken,
+        });
+      } catch (error) {
+        const data = error && typeof error === "object" ? Reflect.get(error, "data") : null;
+        if (data && typeof data === "object" && Reflect.get(data, "code") === "DEVICE_OWNED_BY_OTHER_ACTOR") {
+          return { kind: "owned-by-other-actor" as const };
+        }
+        throw error;
+      }
       if (result.value.userId !== input.userId) return { kind: "owned-by-other-actor" as const };
       if (result.value.tokenFingerprint !== input.tokenFingerprint) {
         throw new Error("Convex notification token boundary mismatch");

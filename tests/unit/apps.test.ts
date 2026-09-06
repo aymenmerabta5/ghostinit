@@ -8,7 +8,9 @@ describe("apps/api template files", () => {
       files.find((f) => f.path === "apps/web/src/app/api/rpc/[...path]/route.ts")?.content ?? "";
     expect(route).toContain("const rpcHandler = new RPCHandler(appRouter,");
     expect(route).toContain("new BodyLimitPlugin");
-    expect(route).toContain('rpcHandler.handle(request, { prefix: "/api/rpc", context })');
+    expect(route).toContain(
+      'rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context })',
+    );
     expect(route).not.toContain("OpenAPIHandler");
     expect(route).not.toContain("as unknown as");
     expect(route).not.toContain('prefix: "/api/api"');
@@ -19,7 +21,9 @@ describe("apps/api template files", () => {
     const operations =
       files.find((file) => file.path === "apps/web/src/app/api/[...path]/route.ts")?.content ?? "";
     expect(operations).toContain("const openApiHandler = new OpenAPIHandler(appRouter,");
-    expect(operations).toContain("openApiHandler.handle(request, { context })");
+    expect(operations).toContain(
+      "openApiHandler.handle(toStandardApiRequest(request), { context })",
+    );
     expect(operations).not.toContain('prefix: "/api/rpc"');
     expect(files.some((f) => f.path === "apps/web/src/app/api/health/route.ts")).toBe(true);
     expect(files.some((f) => f.path === "apps/web/src/app/api/openapi/route.ts")).toBe(true);

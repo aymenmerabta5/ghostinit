@@ -1,6 +1,6 @@
 // @allow-long 580: one bounded cross-platform harness owns two generated targets, server readiness, browser interaction, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
@@ -12,6 +12,7 @@ import { FsTransaction } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
 import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwright-cli.js";
+import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
 import { ProcessTreeTerminationError, terminateProcessTree } from "../helpers/process-tree.js";
 
 interface RunningServer {
@@ -455,7 +456,7 @@ async function runStage(label: string, operation: () => Promise<void>): Promise<
 
 function verifyTempRoot(root: string): void {
   const absoluteRoot = resolve(root);
-  const relativeToTemp = relative(resolve(tmpdir()), absoluteRoot);
+  const relativeToTemp = relative(realpathSync.native(tmpdir()), absoluteRoot);
   if (
     relativeToTemp === "" ||
     relativeToTemp.startsWith("..") ||
@@ -498,8 +499,8 @@ describe("generated web primitive interactions", () => {
   test("Next monorepo and single TanStack primitives share the interaction contract", async () => {
     expect(Bun.version).toBe(REQUIRED_BUN_VERSION);
     const roots = [
-      mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
-      mkdtempSync(join(tmpdir(), "ghostinit-web-primitives-")),
+      createTemporaryWorkspace("ghostinit-web-primitives-"),
+      createTemporaryWorkspace("ghostinit-web-primitives-"),
     ];
     const targets: BrowserTarget[] = [];
     const servers = new Map<string, RunningServer>();
@@ -528,8 +529,8 @@ describe("generated web primitive interactions", () => {
       // Serial installs avoid shared-cache and isolated-linker contention on
       // Windows. The first clean target warms Bun's cache for the second.
       for (const target of targets) {
-        await runStage(`${target.kind} bun install`, () =>
-          runBun(target.root, ["install"], target.env),
+        await runStage(`${target.kind} verified dependency bootstrap`, () =>
+          runBun(target.root, ["run", "install:bootstrap"], target.env),
         );
       }
       expect(

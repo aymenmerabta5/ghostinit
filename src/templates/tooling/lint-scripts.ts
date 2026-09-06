@@ -339,7 +339,7 @@ function main(){
       const request=read(nextRequest);
       const switcher=read(path.join(root,"components","locale-switcher.tsx"));
       const header=headerParts(root);
-      const proxy=read(path.join(root,"proxy.ts"));
+      const proxy=read(path.join(root,"proxy.ts"))||read(path.join(root,"middleware.ts"));
       for(const token of ["NextIntlClientProvider","getLocale","getMessages","lang=","dir="]) requireText(layout,token,"Next root layout",violations);
       for(const token of ["localeCookieName","accept-language","cookies()","headers()"]) requireText(request,token,"Next request config",violations);
       requireText(routing,'localePrefix: "never"',"Next routing config",violations);

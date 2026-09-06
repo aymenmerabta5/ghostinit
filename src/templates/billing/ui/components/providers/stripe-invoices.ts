@@ -4,11 +4,13 @@ import type * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useSurfaceTranslations } from "@/lib/translations";
+import { useSurfaceLocale, useSurfaceTranslations } from "@/lib/translations";
+import { formatBillingInvoiceAmount } from "@/lib/billing-money";
 import type { Inv } from "${hookImportPath}";
 
 export function StripeInvoices({ invoices }: { invoices: Inv[] }): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
+  const locale = useSurfaceLocale();
   return (
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-medium">{t("invoices")}</h3>
@@ -26,7 +28,7 @@ export function StripeInvoices({ invoices }: { invoices: Inv[] }): React.JSX.Ele
             <TableBody>
               {invoices.map((invoice) => (
                 <TableRow key={invoice.id}>
-                  <TableCell>{invoice.currency?.toUpperCase()} {(invoice.amount / 100).toFixed(2)}</TableCell>
+                  <TableCell>{formatBillingInvoiceAmount(invoice, locale)}</TableCell>
                   <TableCell><Badge variant={invoice.paid ? "secondary" : "outline"}>{invoice.status}</Badge></TableCell>
                   <TableCell>{invoice.hostedUrl ? <a className="text-sm underline" href={invoice.hostedUrl} target="_blank" rel="noreferrer">{t("open")}</a> : "—"}</TableCell>
                 </TableRow>

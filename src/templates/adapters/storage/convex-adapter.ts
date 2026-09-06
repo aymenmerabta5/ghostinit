@@ -11,7 +11,13 @@ export interface ConvexStorageExecutor {
     bytes: ArrayBuffer;
     mimeType: string;
     originalName: string;
-  }): Promise<{ id: string; mimeType: string; byteSize: number; originalName: string; createdAt: number }>;
+  }): Promise<{
+    id: string;
+    mimeType: string;
+    byteSize: number;
+    originalName: string;
+    createdAt: number
+  }>;
   download(input: { id: string }): Promise<{
     url: string;
     mimeType: string;

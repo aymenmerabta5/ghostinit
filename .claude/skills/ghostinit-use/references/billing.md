@@ -23,7 +23,7 @@ ghostinit create my-app --billing stripe --yes --no-install
 ghostinit create my-app --billing chargily,stripe --yes --no-install    # dual
 ghostinit create my-app --billing all --yes --no-install
 ghostinit create my-app --billing none --yes --no-install
-ghostinit create my-app --billing stripe --apps web,mobile --yes --no-install  # billing + mobile triple env
+ghostinit create my-app --billing stripe --apps web,mobile --yes --no-install  # Next + Expo public env
 ghostinit create my-app --billing stripe --apps both --framework tanstack-start --yes --no-install
 ```
 
@@ -31,23 +31,23 @@ Generated output includes `packages/billing/` capabilities, server-only provider
 
 ## Env Variables Needed
 
-Fill in `.env.local` (gitignored) — example placeholders in `.env.example`:
+Fill in the gitignored `.env.local`, or `.dev.vars` for Cloudflare. Vendor-issued credentials start as placeholders in both the example and local files; generation never invents provider keys or webhook secrets. Only self-issued application secrets are generated.
 
-- Stripe: `STRIPE_SECRET_KEY` (sk_...), `STRIPE_WEBHOOK_SECRET` (whsec_...), `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (pk_...) + `VITE_STRIPE_PUBLISHABLE_KEY` for TanStack + `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` for Expo when `--apps mobile|both` selected. Scaffold emits triple prefix for all client-safe tokens when mobile included.
+- Stripe: server-only `STRIPE_SECRET_KEY` (sk_...) and `STRIPE_WEBHOOK_SECRET` (whsec_...). Public `STRIPE_PUBLISHABLE_KEY` (pk_...) uses `NEXT_PUBLIC_` for Next, `VITE_` for TanStack/desktop, and `EXPO_PUBLIC_` for Expo, only when that audience is selected.
 - Chargily: `CHARGILY_API_KEY`, `CHARGILY_SECRET_KEY`, `CHARGILY_MODE=test|sandbox|live`. Server-only — never client. No `EXPO_PUBLIC_*` needed.
-- Paddle: `PADDLE_API_KEY`, `PADDLE_WEBHOOK_SECRET`, `PADDLE_ENVIRONMENT=sandbox|live`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN=pdl_ntf_...`, `NEXT_PUBLIC_PADDLE_ENVIRONMENT=sandbox` + `VITE_PADDLE_CLIENT_TOKEN` + `VITE_PADDLE_ENVIRONMENT` duplicates for TanStack + `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN` + `EXPO_PUBLIC_PADDLE_ENVIRONMENT` for Expo mobile when `--apps mobile|both`.
+- Paddle: server-only `PADDLE_API_KEY` and `PADDLE_WEBHOOK_SECRET`, plus `PADDLE_ENVIRONMENT=sandbox|live`. Public `PADDLE_CLIENT_TOKEN` (pdl_ntf_...) and `PADDLE_ENVIRONMENT` use only the selected audience prefixes listed below.
 - Polar: `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`, `POLAR_ORG_ID`, `POLAR_ENVIRONMENT=sandbox`. Server-only, no client token. No `EXPO_PUBLIC_*` for Polar.
 - Mobile API env (not billing but required when mobile+billing): `EXPO_PUBLIC_API_URL=http://localhost:3000` (API base for oRPC checkout session creation), `EXPO_PUBLIC_APP_URL=http://localhost:3000` (app origin for deep links). Billing checkout via same backend `/api/rpc` + webhooks.
 
-Client-safe (`NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*`) safe to expose to browser/mobile JS. Server-only secrets never client. When `--apps both`, scaffold emits triple prefix for every client-safe billing var so web Next, web TanStack, and mobile Expo all read same token via their convention.
+Only public values belong in `NEXT_PUBLIC_*`, `VITE_*`, or `EXPO_PUBLIC_*`; their names do not make a secret safe to expose. Next+Expo emits `NEXT_PUBLIC_*` and `EXPO_PUBLIC_*`; TanStack+Expo emits `VITE_*` and `EXPO_PUBLIC_*`. Desktop also consumes `VITE_*`. Each client imports its own env runtime, and server secrets stay in the server entry.
 
-Summary triple mapping:
+Public name reference (only selected audiences are emitted):
 
 - Stripe publishable: `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 - Paddle client token: `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, `VITE_PADDLE_CLIENT_TOKEN`, `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN`
 - Paddle environment: `NEXT_PUBLIC_PADDLE_ENVIRONMENT`, `VITE_PADDLE_ENVIRONMENT`, `EXPO_PUBLIC_PADDLE_ENVIRONMENT`
 - PostHog key (if analytics): `NEXT_PUBLIC_POSTHOG_KEY`, `VITE_POSTHOG_KEY`, `EXPO_PUBLIC_POSTHOG_KEY` similarly
-- App URLs: `NEXT_PUBLIC_APP_URL` + `VITE_APP_URL` + `EXPO_PUBLIC_APP_URL`, plus `EXPO_PUBLIC_API_URL` for Expo oRPC base (unique to Expo)
+- App/API origins: `NEXT_PUBLIC_APP_URL`/`NEXT_PUBLIC_API_URL`, `VITE_APP_URL`/`VITE_API_URL`, and `EXPO_PUBLIC_APP_URL`/`EXPO_PUBLIC_API_URL`. Set Expo origins to an HTTPS backend reachable from the device for production.
 
 ## How Webhooks Work in Generated Project
 
@@ -81,6 +81,6 @@ Turbo `globalEnv` includes every selected billing key and the applicable public-
 - Webhook 400 signature mismatch → check raw body pattern `arrayBuffer()` used not `json()`, secret correct from `.env.local`, local tunneling (e.g., ngrok) URL matches webhook registered in provider dashboard.
 - Checkout URL not generating → check `*_API_KEY` not placeholder `REPLACE_WITH_`, client throws if placeholder.
 - Duplicate webhook events → ensure `webhook_events` table exists `bun run db:push`, check unique constraint `(provider, providerEventId)`.
-- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` missing in mobile → scaffold emits triple when `--apps mobile|both` selected; if you scaffolded web-only then added mobile manually, copy publishable key to `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env.local` and add to `turbo.json` globalEnv.
+- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` missing in mobile → it is emitted when both Stripe and Expo are selected. If you added mobile manually, configure the publishable key under `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` and ensure the mobile env runtime and Turbo inputs include that audience. Never copy `STRIPE_SECRET_KEY` into a public variable.
 - `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN` missing → same as above for Paddle; Paddle client token originally `pdl_ntf_...`.
 - Mobile checkout 404 → ensure `EXPO_PUBLIC_API_URL` points to running backend `:3000` (web), not Expo dev `:19000`. Backend handles `/api/rpc` checkout session creation.

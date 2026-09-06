@@ -215,6 +215,18 @@ export function resolveDesktopMainEnv(
 ): DesktopMainEnv {
   return Object.freeze({ DESKTOP_API_URL: configuredDesktopApiUrl(environment, options) });
 }
+
+/** Public Convex origin used by the privileged desktop allowlist and renderer together. */
+export function resolveDesktopConvexUrl(value: string | undefined): string {
+  if (!value?.trim()) throw new Error("VITE_CONVEX_URL is required for desktop Convex mode");
+  let parsed: URL;
+  try { parsed = new URL(value.trim()); } catch { throw new Error("VITE_CONVEX_URL must be a valid HTTPS origin"); }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" ||
+    parsed.search || parsed.hash || value.includes("?") || value.includes("#")) {
+    throw new Error("VITE_CONVEX_URL must be an HTTPS origin without credentials, paths, queries, or fragments");
+  }
+  return parsed.origin;
+}
 `;
 }
 

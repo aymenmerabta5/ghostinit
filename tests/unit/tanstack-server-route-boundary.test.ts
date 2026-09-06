@@ -172,7 +172,7 @@ describe("TanStack server route boundaries", () => {
           }
         }
 
-        const rpcRoutePath = `${root}src/routes/api/rpc/$splat.ts`;
+        const rpcRoutePath = `${root}src/routes/api/rpc/$.ts`;
         const rpcServerPath = `${root}src/server/http/rpc.server.ts`;
         const rpcRoute = read(files, rpcRoutePath);
         const rpcServer = read(files, rpcServerPath);
@@ -188,7 +188,7 @@ describe("TanStack server route boundaries", () => {
 
         for (const [routePath, serverImport, serverPath] of [
           [
-            `${root}src/routes/api/auth/$splat.ts`,
+            `${root}src/routes/api/auth/$.ts`,
             "@/server/http/auth.server",
             `${root}src/server/http/auth.server.ts`,
           ],
@@ -198,7 +198,7 @@ describe("TanStack server route boundaries", () => {
             `${root}src/server/http/openapi.server.ts`,
           ],
           [
-            `${root}src/routes/api/$splat.ts`,
+            `${root}src/routes/api/$.ts`,
             "@/server/http/openapi-operations.server",
             `${root}src/server/http/openapi-operations.server.ts`,
           ],

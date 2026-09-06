@@ -7,12 +7,14 @@
  * serial and their node_modules are removed before the next case starts.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { cwd } from "node:process";
 import { runtime } from "../../packages/versions/src/index.js";
+import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
 import {
+  assertLoopbackPortUnowned,
   parseArchitectureEnvelope,
   packagedDesktopLaunchCommand,
   rawWebSocketUpgradeStatus,
@@ -26,12 +28,16 @@ import {
   waitForHealthyHttp,
   type CommandResult,
 } from "./e2e-build-process.js";
+import { configureNextLoopbackStart } from "./e2e-next-listener-binding.js";
+import { hasBroadWebSocketCspSource } from "./e2e-csp.js";
+import { verifyNestedProductionApiRoutes } from "./e2e-api-route-dispatch.js";
 import {
   startIsolatedE2EPostgres,
   startRejectingE2EPostgresAuthentication,
 } from "./e2e-postgres.js";
 
 interface ProductionProbeOptions {
+  stockNextLoopback?: boolean;
   desktopMainEntry?: string;
   environmentOverrides?: Readonly<Record<string, string>>;
   isolatedPostgres?: boolean;
@@ -112,7 +118,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
   });
 
   beforeEach(() => {
-    tempRoot = mkdtempSync(join(E2E_TEMP_ROOT, "gi-e2e-build-"));
+    tempRoot = createTemporaryWorkspace("gi-e2e-build-", E2E_TEMP_ROOT);
   });
 
   afterEach(async () => {
@@ -186,6 +192,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
     production: ProductionRuntime,
     options: ProductionProbeOptions = {},
   ): Promise<void> {
+    await assertLoopbackPortUnowned(production.port);
     const running = spawnTracked(
       BUN_EXECUTABLE,
       ["run", "start"],
@@ -193,11 +200,12 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       production.environment,
     );
     try {
-      const health = await waitForHealthyHttp(
+      const firstHealth = await waitForHealthyHttp(
         running,
         `${production.origin}/api/health`,
         SERVER_READY_TIMEOUT_MS,
       );
+      const health = firstHealth.response;
       expect(health.status, `${label}: health status`).toBe(200);
       if (options.productionCsp) {
         const csp = health.headers.get("content-security-policy");
@@ -205,15 +213,23 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
           "script-src 'self' 'unsafe-inline'",
         );
         expect(csp, `${label}: production CSP must not allow eval`).not.toContain("'unsafe-eval'");
-        expect(csp, `${label}: production CSP must not allow broad dev sockets`).not.toContain(
-          " ws:",
-        );
-        expect(csp, `${label}: production CSP must not allow broad dev sockets`).not.toContain(
-          " wss:",
-        );
+        expect(
+          hasBroadWebSocketCspSource(csp ?? ""),
+          `${label}: production CSP must not allow broad dev sockets`,
+        ).toBe(false);
         expect(csp, `${label}: production CSP disables plugins`).toContain("object-src 'none'");
       }
-      await health.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const stableHealth = await waitForHealthyHttp(
+        running,
+        `${production.origin}/api/health?ghostinit_stability=${Date.now()}`,
+        10_000,
+      );
+      expect(
+        Date.parse(stableHealth.payload.time),
+        `${label}: health route returned a stale or cached stability payload`,
+      ).toBeGreaterThan(Date.parse(firstHealth.payload.time));
+      await verifyNestedProductionApiRoutes(production.origin);
       if (options.messagingBoundary) {
         expect(await rawWebSocketUpgradeStatus(production.port, "/api/ws", production.origin)).toBe(
           401,
@@ -245,6 +261,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       ...options.environmentOverrides,
       NODE_ENV: "production",
       HOST: "127.0.0.1",
+      HOSTNAME: "127.0.0.1",
       NITRO_HOST: "127.0.0.1",
       PORT: String(port),
       BETTER_AUTH_URL: origin,
@@ -315,16 +332,17 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
     label: string,
     options: ProductionProbeOptions = {},
   ): Promise<void> {
-    const install = await runCommand(BUN_EXECUTABLE, ["install"], projectRoot, INSTALL_TIMEOUT_MS);
-    expectCommandOk(install, `${label}: bun install`);
-
-    const audit = await runCommand(
+    // Next's stock CLI accepts its bind address only through --hostname. Configure
+    // that supported flag before audited bootstrap/build; root start and all
+    // Eve/jobs supervision remain the generated production lifecycle.
+    if (options.stockNextLoopback) await configureNextLoopbackStart(projectRoot);
+    const install = await runCommand(
       BUN_EXECUTABLE,
-      ["run", "audit:dependencies"],
+      ["run", "install:bootstrap"],
       projectRoot,
-      STATIC_GATE_TIMEOUT_MS,
+      INSTALL_TIMEOUT_MS,
     );
-    expectCommandOk(audit, `${label}: dependency audit`);
+    expectCommandOk(install, `${label}: verified dependency bootstrap`);
 
     // Normal GhostInit installation formats before verification. This manual
     // --no-install lifecycle mirrors that ordering before checking idempotence.
@@ -517,6 +535,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       expect(E2E_BUILD_ENABLED).toBe(true);
       const projectRoot = await createProject("smoke");
       await installAndVerify(projectRoot, "default", {
+        stockNextLoopback: true,
         productionCsp: true,
         publicAssetRoots: ["apps/web/.next/static"],
       });
@@ -530,6 +549,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       expect(E2E_BUILD_ENABLED).toBe(true);
       const projectRoot = await createProject("billall", ["--billing", "all", "--with-eve"]);
       await installAndVerify(projectRoot, "billing-all", {
+        stockNextLoopback: true,
         productionCsp: true,
         publicAssetRoots: ["apps/web/.next/static"],
       });
@@ -610,6 +630,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         "redis",
       ]);
       await installAndVerify(projectRoot, "custom-capability-heavy", {
+        stockNextLoopback: true,
         environmentOverrides: E2E_REDIS_ENVIRONMENT,
         isolatedPostgres: true,
         productionCsp: true,
@@ -632,6 +653,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         "none",
       ]);
       await installAndVerify(projectRoot, "multi-app", {
+        stockNextLoopback: true,
         desktopMainEntry: "apps/desktop/dist/main.js",
         productionCsp: true,
         publicAssetRoots: [

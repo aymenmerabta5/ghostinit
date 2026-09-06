@@ -116,8 +116,8 @@ function expectedRoutes(config: ProjectConfig): {
     const routeRoot = `${prefix}src/routes`;
     return {
       routeRoot,
-      rpc: `${routeRoot}/api/rpc/$splat.ts`,
-      auth: `${routeRoot}/api/auth/$splat.ts`,
+      rpc: `${routeRoot}/api/rpc/$.ts`,
+      auth: `${routeRoot}/api/auth/$.ts`,
       admin: [
         `${routeRoot}/admin.tsx`,
         `${routeRoot}/admin.users.tsx`,

@@ -138,6 +138,7 @@ export function buildTanstackFiles(
   const hasAdminApi = hasApi && hasAuth && !isNone;
   const hasBilling = effectiveBilling.length > 0;
   const hasPdf = hasAddon(addonMap, "pdf");
+  const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const apiCapabilities = {
     auth: hasAuth,
     identity: hasApi && hasAuth && !isNone,
@@ -175,24 +176,32 @@ export function buildTanstackFiles(
         hasAuth,
         isNone,
         hasAddon(addonMap, "storage") && !isNone,
+        hasCloudflare,
       ),
     ),
   );
   const hasPostgres = !isConvex && !isNone;
   files.push(
-    file("vite.config.ts", singleViteConfigTanstackContent(hasMessaging && !isConvex, hasPostgres)),
-  );
-  files.push(
     file(
-      "nitro.config.ts",
-      singleNitroConfigTanstackContent(
-        hasMessaging && !isConvex,
-        hasAddon(addonMap, "vercel") ? "vercel" : runtime === "node" ? "node-server" : "bun",
-        hasEve,
-        hasPostgres,
-      ),
+      "vite.config.ts",
+      singleViteConfigTanstackContent(hasMessaging && !isConvex, hasPostgres, hasCloudflare),
     ),
   );
+  if (!hasCloudflare) {
+    files.push(
+      file(
+        "nitro.config.ts",
+        singleNitroConfigTanstackContent(
+          hasMessaging && !isConvex,
+          hasAddon(addonMap, "vercel") ? "vercel" : runtime === "node" ? "node-server" : "bun",
+          hasEve,
+          hasPostgres,
+          isConvex,
+          effectiveBilling.includes("paddle"),
+        ),
+      ),
+    );
+  }
   files.push(file("tsconfig.json", singleTsConfigTanstackContent()));
   files.push(file("postcss.config.mjs", singlePostCssTanstackContent()));
   files.push(file("src/styles/app.css", singleGlobalsCssTanstackContent()));
@@ -252,20 +261,22 @@ export function buildTanstackFiles(
     if (apiCapabilities.identity) {
       files.push(...webIdentityWorkspaceFiles("tanstack", "single", hasI18n));
     }
-    if (hasBilling) files.push(...singleTanstackBillingFeatureFiles(isConvex));
+    if (hasBilling) files.push(...singleTanstackBillingFeatureFiles(isConvex, effectiveBilling));
     if (hasAdminApi) {
       files.push(...singleTanstackAdminFeatureFiles(isConvex, hasI18n));
     }
   }
   files.push(file("src/routes/$notFound.tsx", singleNotFoundRouteTanstackContent()));
   if (hasAuth) {
-    files.push(file("src/routes/api/auth/$splat.ts", singleAuthApiRouteTanstackContent()));
-    files.push(file("src/server/http/auth.server.ts", singleAuthServerHandlerTanstackContent()));
+    files.push(file("src/routes/api/auth/$.ts", singleAuthApiRouteTanstackContent()));
+    files.push(
+      file("src/server/http/auth.server.ts", singleAuthServerHandlerTanstackContent(hasCloudflare)),
+    );
   }
   if (hasApi) {
-    files.push(file("src/routes/api/rpc/$splat.ts", singleRpcApiRouteTanstackContent()));
+    files.push(file("src/routes/api/rpc/$.ts", singleRpcApiRouteTanstackContent()));
     files.push(file("src/server/http/rpc.server.ts", singleRpcServerHandlerTanstackContent()));
-    files.push(file("src/routes/api/$splat.ts", singleOpenApiOperationsRouteTanstackContent()));
+    files.push(file("src/routes/api/$.ts", singleOpenApiOperationsRouteTanstackContent()));
     files.push(
       file(
         "src/server/http/openapi-operations.server.ts",
@@ -513,7 +524,16 @@ export function buildTanstackFiles(
           runtime,
         ) as TemplateFile[]);
   const billingRuntimeFiles = billingRaw.filter(
-    (f) => f.path.startsWith("src/server/") || f.path.startsWith("src/routes/api/webhooks/"),
+    (f) =>
+      f.path.startsWith("src/server/") ||
+      f.path.startsWith("src/routes/api/webhooks/") ||
+      (hasBilling &&
+        (f.path.startsWith("src/routes/billing_.") ||
+          f.path.startsWith("src/features/billing/") ||
+          f.path === "docs/PADDLE_CHECKOUT.md" ||
+          f.path === "src/contracts/billing.ts" ||
+          f.path === "src/adapters/billing/paddle.ts" ||
+          f.path === "src/lib/paddle-checkout-functions.ts")),
   );
   files.push(...billingRuntimeFiles);
 
@@ -525,10 +545,11 @@ export function buildTanstackFiles(
   if (hasAnalytics) {
     files.push(
       ...(analyticsFiles(
-        { mode: "single", runtime, framework: "tanstack-start" } as {
-          mode: "single";
-          runtime: "node" | "bun";
-          framework: "tanstack-start";
+        {
+          mode: "single",
+          runtime,
+          framework: "tanstack-start",
+          deploy: hasCloudflare ? "cloudflare" : "none",
         },
         runtime,
       ) as TemplateFile[]),

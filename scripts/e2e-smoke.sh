@@ -9,7 +9,7 @@
 #
 # Env overrides:
 #   E2E_TMP        temp parent (default /tmp)
-#   E2E_INSTALL    if 1, run bun install + full checks
+#   E2E_INSTALL    if 1, run the verified dependency bootstrap + full checks
 #   E2E_HEALTH     if 1, run dev server + health probe (requires E2E_INSTALL=1)
 #   E2E_CLEANUP    if 1, remove the generated gi-test workspace on exit
 #   KEEP           if 1, retain the generated workspace even when E2E_CLEANUP=1
@@ -184,9 +184,9 @@ bun "$CLI" check --cwd "$PROJECT_ROOT" --json
 
 if [ "$INSTALL" = "1" ]; then
   echo ""
-  echo "[e2e-smoke] E2E_INSTALL=1 — running bun install + checks (heavy)"
+  echo "[e2e-smoke] E2E_INSTALL=1 — running verified dependency bootstrap + checks (heavy)"
   cd "$PROJECT_ROOT"
-  bun install
+  bun run install:bootstrap
   echo "[e2e-smoke] dependency audit"
   bun run audit:dependencies
   echo "[e2e-smoke] format:check"

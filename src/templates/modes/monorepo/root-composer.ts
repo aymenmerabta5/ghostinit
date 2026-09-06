@@ -38,7 +38,12 @@ export function rootComposerFiles(
     messaging: addonMap ? hasAddon(addonMap, "messaging") : false,
     jobs: addonMap ? hasAddon(addonMap, "jobs") : false,
     storage: addonMap ? hasAddon(addonMap, "storage") : false,
+    notifications: addonMap ? hasAddon(addonMap, "notifications") : false,
+    cache: addonMap ? hasAddon(addonMap, "cache") : false,
+    billing: selectedBilling,
+    email: hasEmail,
     api: addonMap ? hasAddon(addonMap, "api") : true,
+    auth: addonMap ? hasAddon(addonMap, "auth") : true,
     pdf: addonMap ? hasAddon(addonMap, "pdf") : false,
     eve: addonMap ? hasAddon(addonMap, "eve") : false,
   };
@@ -80,6 +85,9 @@ export function rootComposerFiles(
   return raw.map((f: TemplateFile) => {
     if (f.path === ".env.example") return filteredExample;
     if (f.path === ".env.local") return filteredLocal;
+    if (f.path === "apps/web/.env.local") {
+      return { ...filteredLocal, path: "apps/web/.env.local" };
+    }
     return f;
   });
 }

@@ -32,6 +32,7 @@ import { agentsComposerFiles } from "./agents-composer.js";
 import { cacheComposerFiles } from "./cache-composer.js";
 import { pdfComposerFiles } from "./pdf-composer.js";
 import { proxyFiles } from "../../proxy.js";
+import { normalizeCloudflareTemplateFiles } from "../../cloudflare-normalization.js";
 import { accessFiles } from "../../access.js";
 import { shellFiles } from "../../shell.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
@@ -175,7 +176,7 @@ export function monorepoFiles(
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   const hasWebEarly = effectiveApps.includes("web" as AppName);
 
-  const deploy = (config.deploy ?? "none") as string;
+  const deploy = config.deploy ?? "none";
   const all: TemplateFile[] = [
     ...rootComposerFiles(
       config.name,
@@ -200,6 +201,7 @@ export function monorepoFiles(
       hasNotifications,
       hasCache,
       hasEve,
+      deploy,
     ),
     ...databaseComposerFiles(config.name, runtime, compositionAddons, effectiveDatabase),
     ...(hasAuth ? authComposerFiles(effectiveFramework, compositionAddons, hasEmail) : []),
@@ -258,7 +260,9 @@ export function monorepoFiles(
     ...(hasMessaging
       ? messagingFilesFor(effectiveFramework, effectiveDatabase, effectiveApps, "monorepo", hasI18n)
       : []),
-    ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n, hasAuth) : []),
+    ...(hasWebEarly && effectiveFramework === "nextjs"
+      ? proxyFiles(mode, hasI18n, hasAuth, config.deploy ?? "none", effectiveBilling)
+      : []),
     ...accessFiles(mode),
     ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode, hasBilling) : []),
   ];
@@ -300,6 +304,7 @@ export function monorepoFiles(
       jobsApi: hasJobsApi && hasAuth,
       pdf: hasPdf,
       cache: hasCache,
+      deploy: config.deploy ?? "none",
     },
   );
   const withoutOldAgents = integrated.filter(
@@ -483,7 +488,9 @@ export function monorepoFiles(
   }
   if (!hasAnalytics) {
     filteredFiles = filteredFiles.map((entry) =>
-      entry.path === ".env.example" || entry.path === ".env.local"
+      entry.path === ".env.example" ||
+      entry.path === ".env.local" ||
+      entry.path === "apps/web/.env.local"
         ? { ...entry, content: withoutClientAnalyticsEnvironment(entry.content) }
         : entry,
     );
@@ -521,7 +528,11 @@ export function monorepoFiles(
     } catch {}
   }
 
-  const finalFiles = filteredFiles.sort((a: TemplateFile, b: TemplateFile) =>
+  const deployNormalized =
+    config.deploy === "cloudflare"
+      ? normalizeCloudflareTemplateFiles(filteredFiles, effectiveFramework, mode)
+      : filteredFiles;
+  const finalFiles = deployNormalized.sort((a: TemplateFile, b: TemplateFile) =>
     a.path.localeCompare(b.path),
   );
 

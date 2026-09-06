@@ -97,7 +97,7 @@ Similarly `auth-composer.ts` handles `authPackage(framework)`.
 
 5. Env branching.
 
-`shared/env.ts` already emits both `NEXT_PUBLIC_*` + `VITE_*` dual for client tokens. If your framework uses different prefix (e.g., `PUBLIC_*`), add case there + note in env 5-place rule.
+`shared/env/core.ts` selects public prefixes through `EnvAudience` and `publicVarLines()`: Next uses `NEXT_PUBLIC_*`, TanStack and desktop renderers use `VITE_*`, and Expo uses `EXPO_PUBLIC_*`. Only selected app audiences appear in env files. The `@repo/config/next`, `/vite`, and `/expo` runtimes remain isolated from `/server`; single mode mirrors them under `src/lib/env/`. A new framework prefix needs its own public runtime and audience mapping, plus the env five-place updates.
 
 6. Turbo outputs.
 
@@ -118,7 +118,7 @@ History: Yellow #3 — extracted forgot-password 66 LOC, reset-password 80 LOC, 
 ```bash
 bun run build && bun run check
 mkdir /tmp/gi-test && bunx ghostinit create demo --framework myframework --yes --no-install --cwd /tmp/gi-test
-cd /tmp/gi-test/demo && bun install && bun run typecheck && bun run lint:all
+cd /tmp/gi-test/demo && bun run install:bootstrap && bun run typecheck && bun run lint:all
 # check turbo.json globalEnv, bunfig.toml hoist=true, architecture checker passes
 bun run build && node ../../dist/cli.js check inside generated? Or ghostinit check.
 ```

@@ -37,6 +37,7 @@ export function webhookRuntimeDeps(
     if (!hasAddon(map, provider)) continue;
     const [pkg, version, exact] = PROVIDER_SDK[provider];
     deps[pkg] = exact ? version : `^${version}`;
+    if (provider === "paddle") deps["@paddle/paddle-js"] = `^${v.billing["@paddle/paddle-js"]}`;
     anyProvider = true;
   }
 

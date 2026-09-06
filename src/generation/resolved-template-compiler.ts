@@ -173,6 +173,8 @@ function lifecycleForPath(path: string, capability: CapabilityId | null): FileLi
   if (
     path === ".env.local" ||
     path.endsWith("/.env.local") ||
+    path === ".dev.vars" ||
+    path.endsWith("/.dev.vars") ||
     path.endsWith("README.md") ||
     path.endsWith("AGENTS.md") ||
     path.endsWith("CLAUDE.md") ||
@@ -398,7 +400,7 @@ function toPlannedFile(
 
 function isDotenvPath(path: string): boolean {
   const name = path.slice(path.lastIndexOf("/") + 1);
-  return name === ".env" || name.startsWith(".env.");
+  return name === ".env" || name.startsWith(".env.") || name === ".dev.vars";
 }
 
 interface SelfIssuedSecretPolicy {
@@ -495,7 +497,11 @@ function plannedSecrets(files: readonly TemplateFile[]): PlannedSecretOperation[
   const operations: PlannedSecretOperation[] = [];
   for (const [environmentKey, group] of groups) {
     const localDestinations = group.destinations.filter(
-      ({ physicalPath }) => physicalPath === ".env.local" || physicalPath.endsWith("/.env.local"),
+      ({ physicalPath }) =>
+        physicalPath === ".env.local" ||
+        physicalPath.endsWith("/.env.local") ||
+        physicalPath === ".dev.vars" ||
+        physicalPath.endsWith("/.dev.vars"),
     );
     const selfIssued = SELF_ISSUED_SECRET_POLICIES[
       environmentKey as keyof typeof SELF_ISSUED_SECRET_POLICIES

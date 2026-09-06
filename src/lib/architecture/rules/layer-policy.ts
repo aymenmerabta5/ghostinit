@@ -6,7 +6,7 @@
 import { builtinModules } from "node:module";
 import type { LayerInfo } from "../types.js";
 import { getBasePackage } from "../utils.js";
-import { isVendorDirectImport } from "./vendor.js";
+import { isPaddleBrowserAdapterFile, isVendorDirectImport } from "./vendor.js";
 
 export type ArchitectureLayer =
   | "UI"
@@ -59,6 +59,9 @@ export function getLayerFromFilePath(path: string): LayerInfo | null {
   const file = `/${path.replace(/\\/g, "/").replace(/^\/+/, "")}`;
 
   if (/\/packages\/auth\/src\/client\.[cm]?[jt]sx?$/.test(file)) return layer("UI");
+  if (isPaddleBrowserAdapterFile(file)) return layer("Transport");
+  if (/^\/(?:apps\/(?:web|mobile|desktop)\/)?src\/contracts(?:\/|$)/.test(file))
+    return layer("Supporting");
 
   // Native client adapters are typed transports. Classify them before the
   // generic `/adapters/` application rule and the enclosing app UI rule so
@@ -76,10 +79,12 @@ export function getLayerFromFilePath(path: string): LayerInfo | null {
   // historical `lib` location is not presentation ownership; treating them as
   // UI makes native transport adapters appear to depend upward on a route.
   if (
-    /\/apps\/web\/src\/lib\/(?:orpc(?:\.server)?|server-functions)\.[cm]?[jt]sx?$/.test(file) ||
+    /\/apps\/web\/src\/lib\/(?:orpc(?:\.server)?|server-functions|paddle-checkout-functions)\.[cm]?[jt]sx?$/.test(
+      file,
+    ) ||
     /\/apps\/mobile\/src\/lib\/(?:auth-client|orpc|realtime)\.[cm]?[jt]sx?$/.test(file) ||
     /\/apps\/desktop\/src\/renderer\/lib\/(?:auth|orpc|realtime)\.[cm]?[jt]sx?$/.test(file) ||
-    /^\/src\/lib\/(?:auth-client|orpc(?:\.server)?|realtime|server-functions)\.[cm]?[jt]sx?$/.test(
+    /^\/src\/lib\/(?:auth-client|orpc(?:\.server)?|realtime|server-functions|paddle-checkout-functions)\.[cm]?[jt]sx?$/.test(
       file,
     ) ||
     /^\/src\/renderer\/lib\/(?:auth|orpc|realtime)\.[cm]?[jt]sx?$/.test(file)

@@ -127,7 +127,7 @@ describe("dependency version audit evidence", () => {
   });
 
   test("requires an explicit hold for every non-eligible pin and never waives package age", () => {
-    expect(evidence.schemaVersion).toBe(2);
+    expect(evidence.schemaVersion).toBe(3);
     expect(evidence.supplyChain).toEqual({
       minimumReleaseAgeSeconds: versions.supplyChain.minimumReleaseAgeSeconds,
       cutoffAt: "2026-08-25T16:22:25.760Z",
@@ -288,6 +288,8 @@ describe("dependency version audit evidence", () => {
       deprecated: null,
       publishedAt,
       publishedAtMilliseconds: Date.parse(publishedAt),
+      integrity:
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
     });
     const recorded = {
       registryLatest: "1.1.0",
@@ -423,6 +425,8 @@ describe("dependency version audit evidence", () => {
         key: "@scope/pkg",
         package: "@scope/pkg",
         version: "1.2.3",
+        integrity:
+          "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
       },
     ]);
 

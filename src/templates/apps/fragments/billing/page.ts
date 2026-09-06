@@ -1,9 +1,15 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import type { BillingProviderName } from "../../../../lib/addons.js";
+import { BILLING_PROVIDERS } from "../../../../lib/constants.js";
 
 export type RouterType = "next" | "tanstack";
 
-export function billingPresentationContent(router: RouterType = "next"): string {
+export function billingPresentationContent(
+  router: RouterType = "next",
+  selected: readonly BillingProviderName[] = BILLING_PROVIDERS,
+): string {
   const hookImport = router === "tanstack" ? "./use-billing" : "@/app/billing/hooks/use-billing.js";
+  const hasPaymentLinks = router === "tanstack" && selected.includes("chargily");
   return `"use client";
 import * as React from "react";
 import { Separator } from "@/components/ui/separator";
@@ -13,8 +19,11 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BillingEmptyState } from "./billing-empty-state";
+import { BillingInvoices } from "./billing-invoices";
 import { useBillingPage } from "${hookImport}";
 import { useSurfaceTranslations } from "@/lib/translations";
+import { supportsBillingPortal } from "./provider-options";
+${hasPaymentLinks ? 'import { BillingPaymentLinkForm } from "./payment-link-form";' : ""}
 
 function BillingContent(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
@@ -30,33 +39,23 @@ function BillingContent(): React.JSX.Element {
         <Badge variant={pastDue ? "destructive" : hasSubs ? "secondary" : "outline"}>{pastDue ? t("paymentPastDue") : hasSubs ? t("activeSubscriptions", { count: subscriptions.length }) : t("noSubscriptionsBadge")}</Badge>
       </div>
       <Separator />
-      {subsLoading ? <div className="flex flex-col gap-3" aria-label={t("loadingSubscriptions")}><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : hasSubs ? (
+      <BillingEmptyState disabled={isCheckoutLoading} onCheckout={handleCheckout} />
+      ${hasPaymentLinks ? '<BillingPaymentLinkForm provider="chargily" />' : ""}
+      {subsLoading ? <div className="flex flex-col gap-3" aria-label={t("loadingSubscriptions")}><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : (
         <div className="grid gap-4">
           <Card>
             <CardHeader><CardTitle className="text-base">{t("subscriptions")}</CardTitle><CardDescription>{t("configuredProviders")}</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-2">
-              {subscriptions.map((subscription) => (
+              {subscriptions.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noSubscriptionsTitle")}</EmptyTitle><EmptyDescription>{t("noSubscriptionsDescription")}</EmptyDescription></EmptyHeader></Empty> : subscriptions.map((subscription) => (
                 <div key={subscription.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div className="flex items-center gap-2"><Badge variant="secondary">{subscription.provider}</Badge><span className="font-mono text-xs">{subscription.status}</span></div>
-                  <Button size="sm" variant="outline" onClick={() => handlePortal(subscription.provider)}>{t("customerPortal")}</Button>
+                  {supportsBillingPortal(subscription.provider) ? <Button size="sm" variant="outline" onClick={() => handlePortal(subscription.provider)}>{t("customerPortal")}</Button> : null}
                 </div>
               ))}
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle className="text-base">{t("invoices")}</CardTitle><CardDescription>{t("securityNote")}</CardDescription></CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {invoices.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noInvoices")}</EmptyTitle><EmptyDescription>{t("securityNote")}</EmptyDescription></EmptyHeader></Empty> : invoices.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-                  <span className="text-sm">{invoice.provider} — {invoice.amount} {invoice.currency ?? ""}</span>
-                  <Badge variant={invoice.paid ? "secondary" : "destructive"}>{invoice.status}</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <BillingInvoices invoices={invoices} />
         </div>
-      ) : (
-        <BillingEmptyState disabled={isCheckoutLoading} onCheckout={handleCheckout} />
       )}
     </div>
   );
@@ -74,32 +73,26 @@ export function BillingPage(): React.JSX.Element {
 `;
 }
 
-export function billingEmptyStateContent(): string {
+export function billingEmptyStateContent(
+  _selected: readonly BillingProviderName[] = BILLING_PROVIDERS,
+): string {
   return `"use client";
 import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { ProviderName } from "./queries";
+import { BILLING_PROVIDERS } from "./provider-options";
 
 export function BillingEmptyState({ disabled, onCheckout }: { disabled: boolean; onCheckout: (provider: ProviderName) => void }): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{t("subscriptions")}</CardTitle><CardDescription>{t("noBillingDescription")}</CardDescription></CardHeader>
+      <CardHeader><CardTitle className="text-base">{t("configuredProviders")}</CardTitle><CardDescription>{t("providerDescription")}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <Empty>
-          <EmptyHeader><EmptyTitle>{t("noSubscriptionsTitle")}</EmptyTitle><EmptyDescription>{t("noSubscriptionsDescription")}</EmptyDescription></EmptyHeader>
-          <EmptyContent>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={disabled} onClick={() => onCheckout("stripe")}>{t("stripeCheckout")}</Button>
-              <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCheckout("chargily")}>{t("chargilyCheckout")}</Button>
-              <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCheckout("paddle")}>{t("providerPaddle")}</Button>
-              <Button size="sm" variant="outline" disabled={disabled} onClick={() => onCheckout("polar")}>{t("providerPolar")}</Button>
+              {BILLING_PROVIDERS.map((provider) => <Button key={provider.id} size="sm" variant="outline" disabled={disabled} onClick={() => onCheckout(provider.id)}>{provider.label} · {t("checkout")}</Button>)}
             </div>
-          </EmptyContent>
-        </Empty>
       </CardContent>
     </Card>
   );

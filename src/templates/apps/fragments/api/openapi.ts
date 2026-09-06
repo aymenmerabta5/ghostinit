@@ -1,4 +1,5 @@
 import { storageUploadPreflight } from "./core.js";
+import { standardApiRequestCode } from "./http-request.js";
 
 function openApiOperationsHandlerContent(apiImport: string): string {
   return `import "server-only";
@@ -12,6 +13,7 @@ import {
 } from "${apiImport}";
 
 ${storageUploadPreflight}
+${standardApiRequestCode}
 const openApiHandler = new OpenAPIHandler(appRouter, {
   plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
 });
@@ -32,7 +34,7 @@ export async function handleOpenApiOperation(request: Request): Promise<Response
   }
 
   try {
-    const result = await openApiHandler.handle(request, { context });
+    const result = await openApiHandler.handle(toStandardApiRequest(request), { context });
     if (!result.matched) return new Response("Not found", { status: 404 });
     const response = applyApiContextResponseHeaders(result.response, context);
     response.headers.set("X-Content-Type-Options", "nosniff");
@@ -68,7 +70,7 @@ const dispatchOpenApiOperation = createServerOnlyFn(async (request: Request): Pr
   return await handleOpenApiOperation(request);
 });
 
-export const Route = createFileRoute("/api/$splat")({
+export const Route = createFileRoute("/api/$")({
   server: {
     handlers: {
       GET: ({ request }: { request: Request }) => dispatchOpenApiOperation(request),

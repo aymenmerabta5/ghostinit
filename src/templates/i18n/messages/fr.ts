@@ -80,6 +80,7 @@ export const FR_MESSAGES = {
     windowMaximize: "Agrandir",
     windowClose: "Fermer",
     updatesChecking: "Vérification…",
+    updatesAvailable: "Mise à jour disponible",
     updatesCurrent: "À jour",
     updatesError: "Échec de la vérification des mises à jour",
     updatesCheck: "Rechercher les mises à jour",
@@ -1135,6 +1136,22 @@ export const FR_MESSAGES = {
     manifestDescription: "Votre monolithe modulaire structuré.",
   },
   billing: {
+    checkoutReturnTitle: "Retour du paiement",
+    checkoutReturnDescription:
+      "Votre prestataire confirme le résultat. Consultez la facturation pour connaître le dernier état du paiement et de l'abonnement.",
+    checkoutCancelledTitle: "Paiement annulé",
+    checkoutCancelledDescription:
+      "Vous êtes revenu sans terminer ce paiement. La facturation affiche le dernier état confirmé de votre compte.",
+    backToBilling: "Retour à la facturation",
+    paddleCheckoutLoading: "Ouverture du paiement sécurisé…",
+    paddleCheckoutReady: "Terminez votre paiement dans la fenêtre sécurisée.",
+    paddleCheckoutUnavailable:
+      "Le paiement n'est pas encore disponible. Revenez à la facturation ou contactez l'assistance.",
+    paddleCheckoutInvalid:
+      "Ce lien de paiement est invalide. Démarrez un nouveau paiement depuis la facturation.",
+    paddleCheckoutError: "Impossible d'ouvrir le paiement. Rechargez cette page pour réessayer.",
+    paddleCheckoutReturning: "Retour à la facturation pour consulter le dernier état confirmé…",
+    retryCheckout: "Recharger le paiement",
     title: "Facturation",
     description:
       "Gérez les abonnements, paiements, factures, portails clients, licences et usages de vos fournisseurs sélectionnés.",
@@ -1205,7 +1222,7 @@ export const FR_MESSAGES = {
     providerPolar: "Polar",
     algeriaMarketTitle: "Marché algérien — EDAHABIA/CIB uniquement",
     algeriaMarketDescription:
-      "Chargily dessert le marché algérien avec le paiement EDAHABIA/CIB. L’intégration reste côté serveur, sans portail client, et les paiements récurrents sont coordonnés par la tâche mensuelle billing-renewal.",
+      "Chargily dessert le marché algérien avec le paiement EDAHABIA/CIB. Sans portail client ni prélèvement récurrent automatique, le renouvellement nécessite un nouveau paiement autorisé par le client.",
     dualMarketTitle: "Couverture algérienne et mondiale",
     dualMarketDescription:
       "Chargily est configuré avec des fournisseurs mondiaux ({providers}). Orientez les clients algériens vers son paiement EDAHABIA/CIB pour les moyens de paiement locaux.",
@@ -1216,7 +1233,7 @@ export const FR_MESSAGES = {
       "Conservez le SDK Chargily côté serveur. Les webhooks vérifient le corps brut de la requête et l’en-tête de signature avant tout traitement.",
     paymentMethod: "Moyen de paiement",
     checkoutUrl: "URL de paiement",
-    manualRenewal: "Tâche mensuelle billing-renewal",
+    manualRenewal: "Nouveau paiement pour renouveler manuellement",
     chargilyFlowDescription:
       "Créez les produits et les prix côté serveur, créez le paiement avec un moyen et des URL de retour validés, puis redirigez vers l’URL du fournisseur.",
     merchantOfRecordTitle: "Gestion par le marchand officiel",

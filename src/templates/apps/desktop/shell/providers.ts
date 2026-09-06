@@ -1,9 +1,11 @@
 import { fullDesktopCapabilities, type DesktopCapabilities, type DesktopMode } from "../model.js";
+import { convexAuthBridgeContent } from "../../fragments/convex-providers.js";
 
 export function desktopProvidersContent(
   capabilities: DesktopCapabilities = fullDesktopCapabilities,
   mode: DesktopMode = "monorepo",
 ): string {
+  void mode;
   const hasConvexAuth = capabilities.isConvex && capabilities.hasAuth;
   const imports = [
     `import * as React from "react";`,
@@ -11,7 +13,7 @@ export function desktopProvidersContent(
       ? `import { QueryClientProvider } from "@tanstack/react-query";\nimport { getQueryClient } from "./query-client";`
       : "",
     hasConvexAuth
-      ? `import { ConvexReactClient } from "convex/react";\nimport { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";\nimport { authClient } from "./auth";\nimport { env } from "${mode === "monorepo" ? "@repo/config/vite" : "@/lib/env/vite"}";`
+      ? `import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";\nimport { authClient } from "./auth";`
       : "",
     capabilities.hasI18n ? `import { PlatformI18nProvider } from "./i18n";` : "",
     `import { ThemeProvider } from "./theme";`,
@@ -22,8 +24,8 @@ export function desktopProvidersContent(
     capabilities.hasApi ? `  const queryClient = getQueryClient();` : "",
     hasConvexAuth
       ? `  const convex = React.useMemo(() => {
-    const url = env.VITE_CONVEX_URL;
-    if (!url) throw new Error("VITE_CONVEX_URL must be set for desktop Convex mode");
+    const url = window.desktopBridge.convexUrl;
+    if (!url) throw new Error("The main process must provide the configured desktop Convex origin");
     return new ConvexReactClient(url);
   }, []);`
       : "",
@@ -36,13 +38,17 @@ export function desktopProvidersContent(
     providerTree = `<QueryClientProvider client={queryClient}>\n        ${providerTree}\n      </QueryClientProvider>`;
   }
   if (hasConvexAuth) {
-    providerTree = `<ConvexBetterAuthProvider client={convex} authClient={authClient}>\n      ${providerTree}\n    </ConvexBetterAuthProvider>`;
+    providerTree = `<ConvexProviderWithAuth client={convex} useAuth={useConvexBetterAuth}>\n      ${providerTree}\n    </ConvexProviderWithAuth>`;
   }
   if (capabilities.hasI18n) {
     providerTree = `<PlatformI18nProvider>\n      ${providerTree}\n    </PlatformI18nProvider>`;
   }
 
+  const authBridge = hasConvexAuth ? convexAuthBridgeContent() : "";
+
   return `${imports}
+
+${authBridge}
 
 export function Providers({ children }: { children: React.ReactNode }) {
 ${setup}

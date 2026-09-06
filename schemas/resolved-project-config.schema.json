@@ -42,7 +42,7 @@
   "properties": {
     "$schema": { "const": "https://ghostinit.dev/schemas/resolved-project-config.schema.json" },
     "schemaVersion": { "const": 2 },
-    "catalogVersion": { "const": 1 },
+    "catalogVersion": { "const": 2 },
     "configHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "name": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
     "mode": { "enum": ["monorepo", "single"] },
@@ -99,7 +99,7 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
         "target": { "enum": ["nextjs", "tanstack-start", "expo", "electron"] },
-        "deploy": { "enum": ["vercel", "fly", "docker", "none"] }
+        "deploy": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
       }
     },
     "backend": {

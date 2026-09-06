@@ -31,6 +31,7 @@ import type { BillingInitialData } from "./hooks/use-billing-page";`
   if (!me.user) redirect("/sign-in");
   const snapshot = await application.billing.subscriptions();
   const initialData = JSON.parse(JSON.stringify(snapshot)) as BillingInitialData;
+  initialData.canCreatePaymentLinks = me.user.role === "admin" || me.user.role === "superAdmin";
   return <BillingTabs providers={PROVIDERS} initialData={initialData} />;
 }
 `

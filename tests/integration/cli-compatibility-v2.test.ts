@@ -170,7 +170,7 @@ describe("V2 CLI compatibility contract", () => {
     const payload = JSON.parse(result.stdout);
     expect(payload.schemaVersion).toBe(2);
     expect(payload.meta.command).toBe("capabilities");
-    expect(payload.data.catalog.catalogVersion).toBe(1);
+    expect(payload.data.catalog.catalogVersion).toBe(2);
     expect(payload.data.catalog.capabilities.map(({ id }: { id: string }) => id)).toContain(
       "billing",
     );

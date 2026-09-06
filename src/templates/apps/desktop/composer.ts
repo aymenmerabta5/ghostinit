@@ -21,12 +21,14 @@ import { desktopOrpcContent } from "./orpc.js";
 import { desktopPackageJsonContent, desktopSmokeTestContent } from "./package.js";
 import { desktopPreloadContent } from "./preload.js";
 import { desktopRuntimeConfigContent } from "./runtime-config.js";
+import { desktopConvexStorageTransportContent } from "./convex-storage-transport.js";
 import { desktopRouteAdminContent } from "./routes/admin-overview.js";
 import {
   desktopRouteAdminCreateUserContent,
   desktopRouteAdminUsersContent,
 } from "./routes/admin-users.js";
 import { desktopRouteBillingContent } from "./routes/billing.js";
+import { billingMoneyFile } from "../../billing/ui/money.js";
 import { desktopRouteSignInContent, desktopRouteSignUpContent } from "./routes/credentials.js";
 import { desktopRouteDashboardContent } from "./routes/dashboard.js";
 import {
@@ -78,15 +80,19 @@ export function desktopCoreFiles(
   const capabilities = resolveDesktopCapabilities(addons, [], true);
   const selectedBilling = resolveDesktopBillingProviders(addons);
   const hasConvexAuth = capabilities.hasAuth && capabilities.isConvex;
+  const hasConvexStorage = hasConvexAuth && capabilities.hasMessaging;
   const rpcPath = "/api/rpc";
   const files: TemplateFile[] = [
     file("apps/desktop/package.json", desktopPackageJsonContent(runtime, addons, "monorepo")),
     file("apps/desktop/tests/smoke.test.ts", desktopSmokeTestContent()),
     file("apps/desktop/tsr.config.json", desktopRouterConfigContent()),
-    file("apps/desktop/electron.vite.config.ts", desktopViteConfigContent()),
+    file(
+      "apps/desktop/electron.vite.config.ts",
+      desktopViteConfigContent("monorepo", hasConvexAuth),
+    ),
     file("apps/desktop/tsconfig.json", desktopTsconfigContent()),
     file("apps/desktop/.gitignore", desktopGitignoreContent()),
-    file("apps/desktop/PACKAGING.md", desktopPackagingReadmeContent("monorepo")),
+    file("apps/desktop/PACKAGING.md", desktopPackagingReadmeContent("monorepo", hasConvexAuth)),
     file(
       "apps/desktop/electron-builder.yml",
       desktopElectronBuilderYmlContent(projectNamePlaceholder),
@@ -99,11 +105,13 @@ export function desktopCoreFiles(
         capabilities.hasI18n,
         capabilities.hasEve,
         capabilities.hasApi,
+        hasConvexAuth,
+        hasConvexStorage,
       ),
     ),
     file(
       "apps/desktop/src/server/transport/runtime-config.ts",
-      desktopRuntimeConfigContent("monorepo"),
+      desktopRuntimeConfigContent("monorepo", hasConvexAuth),
     ),
     file(
       "apps/desktop/src/preload.ts",
@@ -112,6 +120,8 @@ export function desktopCoreFiles(
         capabilities.hasI18n,
         capabilities.hasEve,
         capabilities.hasAuth || capabilities.hasApi,
+        hasConvexAuth,
+        hasConvexStorage,
       ),
     ),
     file("apps/desktop/src/renderer/index.html", desktopRendererHtmlContent()),
@@ -148,6 +158,14 @@ export function desktopCoreFiles(
       desktopRouteIndexContent(capabilities, "monorepo"),
     ),
   ];
+  if (hasConvexStorage) {
+    files.push(
+      file(
+        "apps/desktop/src/server/transport/convex-storage.ts",
+        desktopConvexStorageTransportContent(),
+      ),
+    );
+  }
   if (capabilities.hasAuth || capabilities.hasApi) {
     files.push(
       file(
@@ -247,6 +265,7 @@ export function desktopCoreFiles(
   }
   if (capabilities.hasBilling) {
     files.push(
+      billingMoneyFile("apps/desktop/src/renderer"),
       file(
         "apps/desktop/src/renderer/routes/billing.tsx",
         desktopRouteBillingContent(selectedBilling, capabilities.hasI18n, "monorepo"),

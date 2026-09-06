@@ -1,4 +1,5 @@
 import type { BillingProviderName } from "../../../../lib/addons.js";
+import { billingProviderSupportsClientOperation } from "../../../../domain/capabilities/billing-provider-operations.js";
 
 export interface BillingClientProviderOption {
   id: BillingProviderName;
@@ -8,39 +9,21 @@ export interface BillingClientProviderOption {
   paymentLink: boolean;
 }
 
-const BILLING_CLIENT_CAPABILITIES: Record<BillingProviderName, BillingClientProviderOption> = {
-  stripe: {
-    id: "stripe",
-    label: "Stripe",
-    checkout: true,
-    portal: true,
-    paymentLink: false,
-  },
-  chargily: {
-    id: "chargily",
-    label: "Chargily (EDAHABIA/CIB)",
-    checkout: true,
-    portal: false,
-    paymentLink: true,
-  },
-  paddle: {
-    id: "paddle",
-    label: "Paddle",
-    checkout: true,
-    portal: true,
-    paymentLink: false,
-  },
-  polar: {
-    id: "polar",
-    label: "Polar",
-    checkout: true,
-    portal: true,
-    paymentLink: false,
-  },
+const BILLING_PROVIDER_LABELS: Record<BillingProviderName, string> = {
+  stripe: "Stripe",
+  chargily: "Chargily (EDAHABIA/CIB)",
+  paddle: "Paddle",
+  polar: "Polar",
 };
 
 export function billingClientProviderOptions(
   selected: readonly BillingProviderName[],
 ): BillingClientProviderOption[] {
-  return selected.map((provider) => BILLING_CLIENT_CAPABILITIES[provider]);
+  return selected.map((provider) => ({
+    id: provider,
+    label: BILLING_PROVIDER_LABELS[provider],
+    checkout: true,
+    portal: billingProviderSupportsClientOperation(provider, "billing.portal.v1"),
+    paymentLink: billingProviderSupportsClientOperation(provider, "billing.payment-link.v1"),
+  }));
 }

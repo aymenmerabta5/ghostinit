@@ -32,7 +32,7 @@ describe("single Next boundary contracts", () => {
     );
 
     expect(generatedGate).toContain("const COMMAND_TIMEOUT_MS = 20 * 60 * 1000");
-    expect(generatedGate).toContain("}, COMMAND_TIMEOUT_MS)");
+    expect(generatedGate).toContain("timeoutMs: options.timeoutMs ?? COMMAND_TIMEOUT_MS");
     expect(browserHarness).toContain(
       "waitForHttp200(`${target.url}/primitive-contract`, runningServer, 120_000)",
     );
@@ -571,7 +571,9 @@ describe("single Next boundary contracts", () => {
         expect(`${users}\n${create}`, key).not.toContain("api.users.setBannedByAuthId");
         expect(auth, key).not.toContain("adminClient");
         if (database === "convex") {
-          expect(providers, key).toContain("ConvexBetterAuthProvider");
+          expect(providers, key).toContain("ConvexProviderWithAuth");
+          expect(providers, key).toContain("useAuth={useConvexBetterAuth}");
+          expect(providers, key).not.toContain("ConvexBetterAuthProvider");
           expect(auth, key).toContain("convexClient()");
         }
       }

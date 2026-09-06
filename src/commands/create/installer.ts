@@ -972,6 +972,24 @@ export interface InstallerCommandInput {
   readonly onContainmentFallback?: (message: string) => void;
 }
 
+export interface SupervisedCommandInput extends InstallerCommandInput {
+  /** Caller-filtered environment; installer callers retain buildInstallEnv defaults. */
+  readonly env?: NodeJS.ProcessEnv;
+  /** Observers receive private output; callers decide whether it is safe to display. */
+  readonly onStdout?: (chunk: Buffer) => void;
+  readonly onStderr?: (chunk: Buffer) => void;
+  /** Cancellation completes only after the same retained guard verifies cleanup. */
+  readonly abortSignal?: AbortSignal;
+}
+
+export interface SupervisedCommandResult {
+  readonly exitCode: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly timedOut: boolean;
+  readonly cleanupVerified: boolean;
+  readonly error?: Error;
+}
+
 type InstallerGuardMessage =
   | { readonly type: "ghostinit:ready" }
   | { readonly type: "ghostinit:spawn-error"; readonly message: string }
@@ -1160,7 +1178,23 @@ function reportDefaultContainmentFallback(message: string): void {
 }
 
 /** @internal Exported so the real timeout/tree-cleanup protocol can be regression-tested. */
-export function runInstallerCommand(args: InstallerCommandInput): Promise<void> {
+export function runSupervisedCommand(
+  args: SupervisedCommandInput,
+): Promise<SupervisedCommandResult> {
+  let exitCode: number | null = null;
+  let signal: NodeJS.Signals | null = null;
+  let timedOut = false;
+  const outcome = (error?: Error, cleanupVerified = true): SupervisedCommandResult => ({
+    exitCode,
+    signal,
+    timedOut,
+    cleanupVerified,
+    ...(error ? { error } : {}),
+  });
+  if (args.abortSignal?.aborted) {
+    signal = args.abortSignal.reason === "SIGINT" ? "SIGINT" : "SIGTERM";
+    return Promise.resolve(outcome(new InstallerInterruptedError(signal)));
+  }
   let launch: InstallerGuardLaunch;
   const payload = Buffer.from(
     JSON.stringify({ command: args.command, argv: [...args.argv] }),
@@ -1176,26 +1210,30 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
       (args.onContainmentFallback ?? reportDefaultContainmentFallback)(launch.containmentWarning);
     }
   } catch (error) {
-    return Promise.reject(error);
+    return Promise.resolve(outcome(error instanceof Error ? error : new Error(String(error))));
   }
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const scopeId = process.platform === "win32" ? undefined : randomUUID();
     const child = spawn(launch.executable, launch.argv, {
       cwd: args.cwd,
       stdio: ["ignore", args.inheritStdout ? "inherit" : "pipe", "pipe", "ipc"],
       env: {
-        ...buildInstallEnv(args.cwd),
+        ...(args.env ?? buildInstallEnv(args.cwd)),
         ...(scopeId === undefined ? {} : { [INSTALLER_SCOPE_ENV_KEY]: scopeId }),
       },
       detached: process.platform !== "win32",
       windowsHide: true,
     });
+    const streamsClosed = new Promise<void>((resolveClosed) =>
+      child.once("close", () => resolveClosed()),
+    );
     let stderr = "";
     let settled = false;
     let finalizing = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let readinessTimeout: ReturnType<typeof setTimeout> | undefined;
     let windowsJob: WindowsInstallerJob | undefined;
+    let pendingWindowsJob: Promise<WindowsInstallerJob> | undefined;
     let commandStarted = false;
     const signalSource: InstallerSignalSource = args.signalSource ?? {
       on(event, listener) {
@@ -1210,10 +1248,16 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
       },
     };
     const onSigint = (): void => {
+      signal = "SIGINT";
       void failAfterVerifiedCleanup(new InstallerInterruptedError("SIGINT"));
     };
     const onSigterm = (): void => {
+      signal = "SIGTERM";
       void failAfterVerifiedCleanup(new InstallerInterruptedError("SIGTERM"));
+    };
+    const onAbort = (): void => {
+      if (args.abortSignal?.reason === "SIGINT") onSigint();
+      else onSigterm();
     };
     const settle = (callback: () => void): void => {
       if (settled) return;
@@ -1222,31 +1266,73 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
       if (readinessTimeout !== undefined) clearTimeout(readinessTimeout);
       signalSource.off("SIGINT", onSigint);
       signalSource.off("SIGTERM", onSigterm);
+      args.abortSignal?.removeEventListener("abort", onAbort);
       callback();
     };
     // Non-inherited stdout still has to be drained or a verbose package script
     // can fill the pipe and deadlock before the timeout protocol runs.
-    child.stdout?.resume();
+    const observe = (observer: ((chunk: Buffer) => void) | undefined, chunk: Buffer): void => {
+      try {
+        observer?.(chunk);
+      } catch (error) {
+        void failAfterVerifiedCleanup(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+    child.stdout?.on("data", (chunk: Buffer) => observe(args.onStdout, chunk));
     child.stderr?.on("data", (chunk) => {
       if (stderr.length < 32_000) stderr += String(chunk).slice(0, 32_000 - stderr.length);
+      observe(args.onStderr, chunk);
     });
+
+    const cleanup = async (): Promise<void> => {
+      // Cancellation can arrive while pre-start Job assignment is in flight.
+      // Keep that controller in this operation instead of orphaning its cleanup.
+      if (pendingWindowsJob) {
+        try {
+          windowsJob = await pendingWindowsJob;
+        } catch {
+          // No command was admitted; the live waiting guard still needs cleanup.
+        }
+      }
+      await terminateInstallerProcessTree(child, scopeId, windowsJob);
+      // IPC completion and process exit do not imply that the independent
+      // stdout/stderr pipes have drained. Preserve their final diagnostic bytes.
+      await new Promise<void>((resolveClosed, rejectClosed) => {
+        const timeout = setTimeout(
+          () =>
+            rejectClosed(
+              new InstallerProcessTreeError(
+                `${args.label} guard streams did not close after cleanup`,
+              ),
+            ),
+          5_000,
+        );
+        void streamsClosed.then(() => {
+          clearTimeout(timeout);
+          resolveClosed();
+        });
+      });
+    };
 
     const failAfterVerifiedCleanup = async (failure: Error): Promise<void> => {
       if (settled || finalizing) return;
       finalizing = true;
       if (timeout !== undefined) clearTimeout(timeout);
       try {
-        await terminateInstallerProcessTree(child, scopeId, windowsJob);
-        settle(() => reject(failure));
+        await cleanup();
+        settle(() => resolve(outcome(failure, !(failure instanceof InstallerProcessTreeError))));
       } catch (cleanupError) {
         settle(() =>
-          reject(
-            cleanupError instanceof InstallerProcessTreeError
-              ? cleanupError
-              : new InstallerProcessTreeError(
-                  `${args.label} failed and its process tree could not be verified as stopped`,
-                  cleanupError,
-                ),
+          resolve(
+            outcome(
+              cleanupError instanceof InstallerProcessTreeError
+                ? cleanupError
+                : new InstallerProcessTreeError(
+                    `${args.label} failed and its process tree could not be verified as stopped`,
+                    cleanupError,
+                  ),
+              false,
+            ),
           ),
         );
       }
@@ -1259,17 +1345,20 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
       try {
         // A lifecycle command that exits zero can still daemonize a writer.
         // Verify the same tree boundary before the next phase can begin.
-        await terminateInstallerProcessTree(child, scopeId, windowsJob);
-        settle(resolve);
+        await cleanup();
+        settle(() => resolve(outcome()));
       } catch (cleanupError) {
         settle(() =>
-          reject(
-            cleanupError instanceof InstallerProcessTreeError
-              ? cleanupError
-              : new InstallerProcessTreeError(
-                  `${args.label} exited successfully but left an unverifiable process tree`,
-                  cleanupError,
-                ),
+          resolve(
+            outcome(
+              cleanupError instanceof InstallerProcessTreeError
+                ? cleanupError
+                : new InstallerProcessTreeError(
+                    `${args.label} exited successfully but left an unverifiable process tree`,
+                    cleanupError,
+                  ),
+              false,
+            ),
           ),
         );
       }
@@ -1277,6 +1366,7 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
 
     signalSource.on("SIGINT", onSigint);
     signalSource.on("SIGTERM", onSigterm);
+    args.abortSignal?.addEventListener("abort", onAbort, { once: true });
     readinessTimeout = setTimeout(() => {
       void failAfterVerifiedCleanup(
         new Error(
@@ -1288,6 +1378,7 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
       if (commandStarted || settled || finalizing) return;
       commandStarted = true;
       timeout = setTimeout(() => {
+        timedOut = true;
         void failAfterVerifiedCleanup(
           new Error(
             `${args.label} timed out after ${Math.ceil(args.timeoutMs / 1000)}s${stderr ? `: ${stderr.slice(0, 500)}` : ""}`,
@@ -1323,12 +1414,11 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
             );
             return;
           }
-          void createWindowsInstallerJob(pid)
+          if (pendingWindowsJob) return;
+          pendingWindowsJob = createWindowsInstallerJob(pid);
+          void pendingWindowsJob
             .then((job) => {
-              if (settled || finalizing) {
-                void job.terminate().catch(() => undefined);
-                return;
-              }
+              if (settled || finalizing) return;
               windowsJob = job;
               startCommand();
             })
@@ -1351,6 +1441,8 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
         );
         return;
       }
+      exitCode = message.code;
+      signal = message.signal;
       if (message.code === 0 && message.signal === null) void succeedAfterVerifiedCleanup();
       else
         void failAfterVerifiedCleanup(
@@ -1370,17 +1462,23 @@ export function runInstallerCommand(args: InstallerCommandInput): Promise<void> 
   });
 }
 
-function runInstall(
+/** Installer callers keep their existing throwing API and sanitized defaults. */
+export async function runInstallerCommand(args: InstallerCommandInput): Promise<void> {
+  const result = await runSupervisedCommand(args);
+  if (result.error) throw result.error;
+}
+
+async function runInstall(
   cwd: string,
   runtime: "node" | "bun",
   onContainmentFallback?: (message: string) => void,
 ): Promise<void> {
   void runtime;
-  return runInstallerCommand({
+  await runInstallerCommand({
     command: resolveCanonicalBunExecutable(),
-    argv: ["install"],
+    argv: ["run", "install:bootstrap"],
     cwd,
-    label: "bun install",
+    label: "bun run install:bootstrap",
     timeoutMs: INSTALL_TIMEOUT_MS,
     inheritStdout: true,
     onContainmentFallback,
@@ -1418,13 +1516,16 @@ async function runFormat(
   await flush();
 }
 
-function runVerification(
+async function runVerification(
   cwd: string,
   runtime: "node" | "bun",
   onContainmentFallback?: (message: string) => void,
 ): Promise<void> {
   void runtime;
-  return runInstallerCommand({
+  // install:bootstrap already ends with the installed patch and vulnerability
+  // audit. Keep that expensive network gate single-owner and use this phase for
+  // the generated TypeScript verification only.
+  await runInstallerCommand({
     command: resolveCanonicalBunExecutable(),
     argv: ["run", "typecheck"],
     cwd,
@@ -1536,9 +1637,11 @@ function discoverModules(plan: GenerationPlan, mode: ProjectConfig["mode"]): str
   return [
     ...new Set(
       plan.files
-        .map(({ physicalPath }) =>
-          physicalPath.startsWith(prefix) ? physicalPath.slice(prefix.length).split("/")[0] : "",
-        )
+        .map(({ physicalPath }) => {
+          if (!physicalPath.startsWith(prefix)) return "";
+          const relative = physicalPath.slice(prefix.length);
+          return relative.includes("/") ? relative.split("/")[0] : "";
+        })
         .filter(Boolean),
     ),
   ].sort();
@@ -1683,7 +1786,7 @@ export async function runProjectInstall(
       options.logger.info("Installation and verification complete");
     } else {
       options.logger.info(
-        "Skipping install, format, and verification because --no-install was used",
+        "Skipping install, format, and verification because --no-install was used. Run `bun run install:bootstrap` in the fresh project before any other dependency-backed script.",
       );
     }
 
@@ -1717,7 +1820,7 @@ export async function runProjectInstall(
       written = (await effectTx.commit()).written;
       if (!noInstall) {
         options.logger.warn(
-          "Dependencies were installed and verified in an isolated candidate so existing user files were not exposed to lifecycle scripts. Run `bun install` in the initialized project when ready to populate its local node_modules.",
+          "Dependencies were installed and verified in an isolated candidate so existing user files were not exposed to lifecycle scripts. The candidate lock cannot attest unrelated destination files; run `bun run install:bootstrap` in the initialized project before any other dependency-backed script.",
         );
       }
     }
@@ -1728,8 +1831,15 @@ export async function runProjectInstall(
     );
     if (selfIssued.length > 0) {
       await dependencies.createSecretMaterializer(effectRoot).materialize(selfIssued);
+      const localSecretFiles = [
+        ...new Set(
+          selfIssued.flatMap((operation) =>
+            operation.destinations.map(({ physicalPath }) => physicalPath),
+          ),
+        ),
+      ].sort();
       options.logger.warn(
-        ".env.local was generated with local development secrets and must not be committed. It is already gitignored.",
+        `${localSecretFiles.join(", ")} ${localSecretFiles.length === 1 ? "was" : "were"} generated with local development secrets and must not be committed. The paths are already gitignored.`,
       );
     }
 

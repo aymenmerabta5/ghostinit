@@ -62,6 +62,7 @@ export async function upgradeCommand(_args: string[], options: GlobalOptions): P
       }
       for (const conflict of plan.conflicts) {
         options.logger.warn(`Conflict ${conflict.reason}: ${conflict.path}`);
+        if (conflict.suggestion) options.logger.warn(conflict.suggestion);
       }
     }
     return code;

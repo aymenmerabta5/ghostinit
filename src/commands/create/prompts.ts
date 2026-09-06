@@ -48,6 +48,28 @@ export interface PromptResult {
   exitCode?: number;
 }
 
+function deploymentTargetOptions() {
+  return [
+    { value: "none", label: "None", hint: "No deploy config (default)" },
+    {
+      value: "cloudflare",
+      label: "Cloudflare Workers",
+      hint: "Web: TanStack native / Next OpenNext; Convex/none; no PostgreSQL, Eve, or PDF",
+    },
+    {
+      value: "docker",
+      label: "Docker",
+      hint: "Dockerfile + production Compose (exact Bun image)",
+    },
+    { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
+    {
+      value: "vercel",
+      label: "Vercel",
+      hint: "exact Bun build; managed function runtime",
+    },
+  ];
+}
+
 export function getIsInteractive(options: GlobalOptions): boolean {
   return isInteractiveMode({
     json: options.json,
@@ -230,7 +252,7 @@ export async function promptInteractive(
               initialValue: initial.mode,
               options: [
                 { value: "monorepo", label: "Monorepo", hint: "apps/web + packages/* + tooling" },
-                { value: "single", label: "Single", hint: "all-in-one — src/app + server/" },
+                { value: "single", label: "Single", hint: "one app, no workspaces" },
               ],
             }),
           stack: () =>
@@ -271,20 +293,7 @@ export async function promptInteractive(
             p.select({
               message: "Deployment target?",
               initialValue: initial.deploy ?? "none",
-              options: [
-                { value: "none", label: "None", hint: "No deploy config (default)" },
-                {
-                  value: "docker",
-                  label: "Docker",
-                  hint: "Dockerfile + production Compose (exact Bun image)",
-                },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
-                {
-                  value: "vercel",
-                  label: "Vercel",
-                  hint: "exact Bun build; managed function runtime",
-                },
-              ],
+              options: deploymentTargetOptions(),
             }),
           install: () =>
             p.confirm({
@@ -315,7 +324,7 @@ export async function promptInteractive(
                 {
                   value: "single",
                   label: "Single",
-                  hint: "all-in-one — src/app + server/ + agent/",
+                  hint: "one project — Next src/app or TanStack src/routes + src/server",
                 },
               ],
             }),
@@ -421,20 +430,7 @@ export async function promptInteractive(
             p.select({
               message: "Deployment target?",
               initialValue: initial.deploy ?? "none",
-              options: [
-                { value: "none", label: "None", hint: "No deploy config (default)" },
-                {
-                  value: "docker",
-                  label: "Docker",
-                  hint: "Dockerfile + production Compose (exact Bun image)",
-                },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
-                {
-                  value: "vercel",
-                  label: "Vercel",
-                  hint: "exact Bun build; managed function runtime",
-                },
-              ],
+              options: deploymentTargetOptions(),
             }),
           install: () =>
             p.confirm({
@@ -459,7 +455,11 @@ export async function promptInteractive(
               initialValue: initial.mode,
               options: [
                 { value: "monorepo", label: "Monorepo", hint: "apps/web + packages/* + tooling" },
-                { value: "single", label: "Single", hint: "all-in-one — src/app + server/" },
+                {
+                  value: "single",
+                  label: "Single",
+                  hint: "one project — Next src/app or TanStack src/routes + src/server",
+                },
               ],
             }),
           framework: () =>
@@ -562,20 +562,7 @@ export async function promptInteractive(
             p.select({
               message: "Deployment target?",
               initialValue: initial.deploy ?? "none",
-              options: [
-                { value: "none", label: "None", hint: "No deploy config (default)" },
-                {
-                  value: "docker",
-                  label: "Docker",
-                  hint: "Dockerfile + production Compose (exact Bun image)",
-                },
-                { value: "fly", label: "Fly.io", hint: "fly.toml + health-checked image" },
-                {
-                  value: "vercel",
-                  label: "Vercel",
-                  hint: "exact Bun build; managed function runtime",
-                },
-              ],
+              options: deploymentTargetOptions(),
             }),
           install: () =>
             p.confirm({

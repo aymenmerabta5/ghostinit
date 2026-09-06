@@ -1,5 +1,8 @@
-// @allow-long 890: planning, secret-safe env merging, apply-time validation, and recovery share one reconcile protocol
+// @allow-long 1300: planning, secret-safe env merging, apply-time validation, and recovery share one reconcile protocol
 import { randomBytes, randomUUID } from "node:crypto";
+import { lstat, readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { join } from "node:path";
 import { canonicalHash } from "../domain/project/canonical.js";
 import type {
   PlannedSecretOperation,
@@ -10,7 +13,23 @@ import { canonicalizeGenerationPlan } from "../generation/plan-formatter.js";
 import type { GenerationPlanState, ManagedFileState, State } from "./config.js";
 import { ConflictError } from "./errors.js";
 import { FsTransaction } from "./fs.js";
+import {
+  acquireEnvironmentLifecycleLease,
+  environmentLifecycleGuidance,
+  listEnvironmentLifecyclePaths,
+} from "./environment-lifecycle.js";
 import { hashContent } from "./checksum.js";
+import {
+  buildApiRegistry,
+  buildModuleRegistry,
+  mergeModuleSchemaRegistry,
+} from "./registry-content.js";
+import {
+  dotenvFieldsEqual,
+  isRuntimeDotenvFileName,
+  MAX_DOTENV_FILE_BYTES,
+  parseDotenvAssignments,
+} from "./dotenv.js";
 import {
   createGenerationPlanState,
   createManagedFileState,
@@ -39,11 +58,19 @@ export interface ReconcileConflict {
   reason:
     | "untracked-collision"
     | "content-hash-mismatch"
+    | "environment-path-migration-required"
+    | "environment-runtime-file-forbidden"
+    | "environment-local-file-unsafe"
+    | "environment-lifecycle-in-progress"
+    | "environment-mirror-missing"
+    | "environment-mirror-diverged"
     | "pending-operation-mismatch"
     | "unsafe-removal";
   expectedHash: string | null;
   actualHash: string | null;
   proposedHash: string | null;
+  sourcePath?: string;
+  suggestion?: string;
 }
 
 interface EnvironmentFieldAddition {
@@ -125,19 +152,174 @@ async function targetFiles(
   };
 }
 
+function preserveProductRegistryContributions(
+  state: State,
+  targets: Record<string, TargetFile>,
+): void {
+  const single = state.resolvedConfig.mode === "single";
+  const modulesRoot = single ? "src/server/modules" : "packages/modules/src";
+  const apiRoot = single ? "src/server/api" : "packages/api/src";
+  const schemaRoot = single ? "src/server/db/schema" : "packages/database/src/schema";
+  const additive = (path: string): boolean => {
+    const prior = state.files[path];
+    return (
+      !prior ||
+      prior.provenance.renderer === "ghostinit-add.v2" ||
+      prior.provenance.renderer === "ghostinit.registry-sync.v2"
+    );
+  };
+  // Older creation state accidentally listed the direct index.ts barrel as a
+  // module. Direct base files are not module-directory contributions.
+  const productModules = state.modules.filter(
+    (name) => !targets[`${modulesRoot}/${name}`] && additive(`${modulesRoot}/${name}/index.ts`),
+  );
+  const productProcedures = state.procedures.filter((name) =>
+    additive(`${apiRoot}/procedures/${name}.ts`),
+  );
+  const update = (path: string, content: string): void => {
+    const target = targets[path];
+    targets[path] = {
+      ...target,
+      content,
+      contentHash: hashContent(content),
+      size: Buffer.byteLength(content, "utf8"),
+    };
+  };
+  const modulePath = `${modulesRoot}/index.ts`;
+  if (targets[modulePath] && productModules.length > 0) {
+    const baseModules = [
+      ...targets[modulePath].content.matchAll(
+        /export \* as [A-Za-z_$][\w$]* from ["']\.\/([^/"']+)\/index(?:\.js)?["']/g,
+      ),
+    ].map((match) => match[1]);
+    update(
+      modulePath,
+      buildModuleRegistry([...new Set([...baseModules, ...productModules])].sort()),
+    );
+  }
+  const contractPath = `${apiRoot}/contract.ts`;
+  const routerPath = `${apiRoot}/router.ts`;
+  if (targets[contractPath] && targets[routerPath] && productProcedures.length > 0) {
+    const registry = buildApiRegistry(
+      ["health", "me", ...productProcedures],
+      targets[contractPath].content,
+      targets[routerPath].content,
+    );
+    update(contractPath, registry.contract);
+    update(routerPath, registry.router);
+  }
+  const schemaPath = `${schemaRoot}/index.ts`;
+  if (targets[schemaPath] && productModules.length > 0) {
+    const schemas = productModules.filter(
+      (name) => state.files[`${schemaRoot}/${name}.ts`] && additive(`${schemaRoot}/${name}.ts`),
+    );
+    update(
+      schemaPath,
+      mergeModuleSchemaRegistry(targets[schemaPath].content, schemas, productModules),
+    );
+  }
+}
+
 function isLocalDotenvPath(path: string): boolean {
-  return path === ".env.local" || path.endsWith("/.env.local");
+  return (
+    path === ".env.local" ||
+    path.endsWith("/.env.local") ||
+    path === ".dev.vars" ||
+    path.endsWith("/.dev.vars")
+  );
+}
+
+function alternateLocalEnvironmentPath(path: string): string | null {
+  if (path === ".env.local" || path.endsWith("/.env.local")) {
+    return path.replace(/\.env\.local$/, ".dev.vars");
+  }
+  if (path === ".dev.vars" || path.endsWith("/.dev.vars")) {
+    return path.replace(/\.dev\.vars$/, ".env.local");
+  }
+  return null;
+}
+
+interface RuntimeEnvironmentEntry {
+  path: string;
+  regularFile: boolean;
+}
+
+function isLegacyLocalEnvironmentPath(path: string): boolean {
+  return path === ".env.local" || path === "apps/web/.env.local";
+}
+
+async function cloudflareRuntimeEnvironmentEntries(
+  root: string,
+  monorepo: boolean,
+): Promise<RuntimeEnvironmentEntry[]> {
+  const directories = [
+    { absolute: root, prefix: "" },
+    ...(monorepo ? [{ absolute: join(root, "apps", "web"), prefix: "apps/web/" }] : []),
+  ];
+  const found: RuntimeEnvironmentEntry[] = [];
+  for (const directory of directories) {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(directory.absolute, { withFileTypes: true });
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT" && directory.prefix !== "") continue;
+      throw new ConflictError("Cloudflare runtime environment paths could not be inspected", {
+        path: directory.prefix || ".",
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    }
+    for (const entry of entries) {
+      if (!isRuntimeDotenvFileName(entry.name)) continue;
+      let regularFile = false;
+      try {
+        const metadata = await lstat(join(directory.absolute, entry.name));
+        regularFile =
+          metadata.isFile() && !metadata.isSymbolicLink() && metadata.size <= MAX_DOTENV_FILE_BYTES;
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ENOENT") {
+          throw new ConflictError("Cloudflare runtime environment entry is unsafe", {
+            path: `${directory.prefix}${entry.name}`,
+            cause: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      found.push({
+        path: `${directory.prefix}${entry.name}`,
+        regularFile,
+      });
+    }
+  }
+  return found.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+async function unsafeLocalEnvironmentPaths(
+  root: string,
+  paths: readonly string[],
+): Promise<string[]> {
+  const unsafe: string[] = [];
+  for (const path of paths) {
+    try {
+      const metadata = await lstat(join(root, ...path.split("/")));
+      if (
+        !metadata.isFile() ||
+        metadata.isSymbolicLink() ||
+        metadata.size > MAX_DOTENV_FILE_BYTES
+      ) {
+        unsafe.push(path);
+      }
+    } catch (error) {
+      if ((error as { code?: string }).code === "ENOENT") continue;
+      throw new ConflictError("Local environment path could not be inspected safely", {
+        path,
+        cause: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return unsafe.sort();
 }
 
 function dotenvAssignments(content: string): Map<string, string> {
-  const assignments = new Map<string, string>();
-  for (const line of content.split(/\r?\n/)) {
-    const match = /^\s*(?:export\s+)?([A-Z][A-Z0-9_]*)\s*=(.*)$/.exec(line);
-    if (match?.[1] !== undefined && match[2] !== undefined) {
-      assignments.set(match[1], match[2]);
-    }
-  }
-  return assignments;
+  return parseDotenvAssignments(content);
 }
 
 function isPlaceholder(value: string | undefined): boolean {
@@ -252,6 +434,7 @@ export async function buildReconcilePlan(
     generationPlan,
     secretOperations: plannedSecretOperations,
   } = await targetFiles(state, options.formatGenerationPlan ?? canonicalizeGenerationPlan);
+  preserveProductRegistryContributions(state, targets);
   const creates: ReconcileChange[] = [];
   const rewrites: ReconcileChange[] = [];
   const deletions: ReconcileChange[] = [];
@@ -260,14 +443,94 @@ export async function buildReconcilePlan(
   const preserved: string[] = [];
   const unchanged: string[] = [];
   const conflicts: ReconcileConflict[] = [];
+  const usesCloudflare = state.resolvedConfig.apps.some(({ deploy }) => deploy === "cloudflare");
+  const cloudflareMonorepo = usesCloudflare && state.resolvedConfig.mode === "monorepo";
+  const environmentLifecyclePaths = listEnvironmentLifecyclePaths(root);
+  const runtimeEnvironmentEntries = usesCloudflare
+    ? await cloudflareRuntimeEnvironmentEntries(root, cloudflareMonorepo)
+    : [];
+  const runtimeEnvironmentPaths = new Set(runtimeEnvironmentEntries.map(({ path }) => path));
+  const unsafeLegacyEnvironmentPaths = new Set(
+    runtimeEnvironmentEntries
+      .filter(({ path, regularFile }) => isLegacyLocalEnvironmentPath(path) && !regularFile)
+      .map(({ path }) => path),
+  );
+  const unsafeLocalPaths = new Set(
+    usesCloudflare
+      ? await unsafeLocalEnvironmentPaths(
+          root,
+          Object.keys(targets).filter(isLocalDotenvPath).sort(),
+        )
+      : [],
+  );
+
+  for (const path of environmentLifecyclePaths) {
+    conflicts.push({
+      path,
+      reason: "environment-lifecycle-in-progress",
+      expectedHash: null,
+      actualHash: null,
+      proposedHash: null,
+      suggestion: environmentLifecycleGuidance([path]),
+    });
+  }
+
+  for (const path of unsafeLocalPaths) {
+    conflicts.push({
+      path,
+      reason: "environment-local-file-unsafe",
+      expectedHash: state.files[path]?.contentHash ?? null,
+      actualHash: null,
+      proposedHash: targets[path]?.contentHash ?? null,
+      suggestion: `Replace ${path} with a regular file no larger than 1 MiB after preserving every operator-owned value. GhostInit will not read, rewrite, or mint secrets into unsafe local environment entries.`,
+    });
+  }
+
+  for (const entry of runtimeEnvironmentEntries) {
+    // A regular canonical .env.local keeps the established transition conflict
+    // below, including its source hash. Linked/non-regular entries are never
+    // read, even for hashing, and every other runtime dotenv name is forbidden.
+    if (isLegacyLocalEnvironmentPath(entry.path) && entry.regularFile) continue;
+    const destination = entry.path.startsWith("apps/web/") ? "apps/web/.dev.vars" : ".dev.vars";
+    const legacy = isLegacyLocalEnvironmentPath(entry.path);
+    conflicts.push({
+      path: destination,
+      sourcePath: entry.path,
+      reason: legacy ? "environment-path-migration-required" : "environment-runtime-file-forbidden",
+      expectedHash: state.files[entry.path]?.contentHash ?? null,
+      actualHash: null,
+      proposedHash: targets[destination]?.contentHash ?? null,
+      suggestion: legacy
+        ? `Refusing to read linked or non-regular ${entry.path}. Resolve the entry explicitly, preserve its operator-owned values in ${destination}, remove the obsolete runtime dotenv entry, then rerun sync.`
+        : `Migrate ${entry.path} explicitly without changing operator-owned values: put local values in ${destination}, configure production build variables in Workers Builds, and configure runtime values as Worker bindings or secrets. Remove ${entry.path}, then rerun sync; GhostInit will not copy, delete, or mint from runtime dotenv files.`,
+    });
+  }
 
   for (const path of Object.keys(targets).sort()) {
     const target = targets[path];
-    const actual = await readDiskFile(reader, path);
+    const actual = unsafeLocalPaths.has(path) ? null : await readDiskFile(reader, path);
     const prior = state.files[path];
     if (!actual) {
+      if (isLocalDotenvPath(path)) {
+        const alternatePath = alternateLocalEnvironmentPath(path);
+        const alternate =
+          alternatePath && !unsafeLegacyEnvironmentPaths.has(alternatePath)
+            ? await readDiskFile(reader, alternatePath)
+            : null;
+        if (alternate && alternatePath) {
+          conflicts.push({
+            path,
+            sourcePath: alternatePath,
+            reason: "environment-path-migration-required",
+            expectedHash: state.files[alternatePath]?.contentHash ?? null,
+            actualHash: alternate.hash,
+            proposedHash: target.contentHash,
+            suggestion: `Move ${alternatePath} to ${path}, preserving its values, then rerun sync so GhostInit can merge newly required fields transactionally.`,
+          });
+        }
+        continue;
+      }
       // Never create an environment file from a dry-run placeholder during migration.
-      if (path === ".env.local" || path.endsWith("/.env.local")) continue;
       creates.push({
         action: "create",
         path,
@@ -277,6 +540,25 @@ export async function buildReconcilePlan(
         file: target,
       });
       continue;
+    }
+    if (isLocalDotenvPath(path)) {
+      const alternatePath = alternateLocalEnvironmentPath(path);
+      const alternate =
+        alternatePath && !unsafeLegacyEnvironmentPaths.has(alternatePath)
+          ? await readDiskFile(reader, alternatePath)
+          : null;
+      if (alternate && alternatePath) {
+        conflicts.push({
+          path,
+          sourcePath: alternatePath,
+          reason: "environment-path-migration-required",
+          expectedHash: state.files[alternatePath]?.contentHash ?? null,
+          actualHash: alternate.hash,
+          proposedHash: target.contentHash,
+          suggestion: `Merge any required values into ${path}, remove ${alternatePath}, then rerun sync. GhostInit will not guess which secret-bearing file is authoritative.`,
+        });
+        continue;
+      }
     }
     if (actual.hash === target.contentHash) {
       unchanged.push(path);
@@ -335,6 +617,9 @@ export async function buildReconcilePlan(
 
   for (const [path, prior] of Object.entries(state.files).sort(([a], [b]) => a.localeCompare(b))) {
     if (targets[path]) continue;
+    // Runtime dotenv files are operator-owned migration inputs. A conflict was
+    // recorded above; do not read, hash, retire, or plan deletion of them.
+    if (runtimeEnvironmentPaths.has(path)) continue;
     const actual = await readDiskFile(reader, path);
     if (!actual) continue;
     const belongsToDesiredPlan =
@@ -417,13 +702,79 @@ export async function buildReconcilePlan(
     });
   }
 
+  if (cloudflareMonorepo) {
+    const rootTarget = targets[".dev.vars"];
+    const webTarget = targets["apps/web/.dev.vars"];
+    if (!rootTarget || !webTarget) {
+      throw new ConflictError("Generated Cloudflare monorepo environment mirrors are incomplete", {
+        rootTarget: Boolean(rootTarget),
+        webTarget: Boolean(webTarget),
+      });
+    }
+    if (!dotenvFieldsEqual(rootTarget.content, webTarget.content)) {
+      throw new ConflictError("Generated Cloudflare monorepo environment mirrors disagree", {
+        rootTargetHash: rootTarget.contentHash,
+        webTargetHash: webTarget.contentHash,
+      });
+    }
+
+    const [rootEnvironment, webEnvironment, legacyRootEnvironment, legacyWebEnvironment] =
+      await Promise.all([
+        unsafeLocalPaths.has(".dev.vars") ? null : readDiskFile(reader, ".dev.vars"),
+        unsafeLocalPaths.has("apps/web/.dev.vars")
+          ? null
+          : readDiskFile(reader, "apps/web/.dev.vars"),
+        unsafeLegacyEnvironmentPaths.has(".env.local") ? null : readDiskFile(reader, ".env.local"),
+        unsafeLegacyEnvironmentPaths.has("apps/web/.env.local")
+          ? null
+          : readDiskFile(reader, "apps/web/.env.local"),
+      ]);
+    const unsafeMirror =
+      unsafeLocalPaths.has(".dev.vars") || unsafeLocalPaths.has("apps/web/.dev.vars");
+    if (
+      !unsafeMirror &&
+      rootEnvironment &&
+      webEnvironment &&
+      !dotenvFieldsEqual(rootEnvironment.content, webEnvironment.content)
+    ) {
+      conflicts.push({
+        path: ".dev.vars",
+        sourcePath: "apps/web/.dev.vars",
+        reason: "environment-mirror-diverged",
+        expectedHash: rootEnvironment.hash,
+        actualHash: webEnvironment.hash,
+        proposedHash: targets[".dev.vars"].contentHash,
+        suggestion:
+          "Reconcile root and apps/web .dev.vars so every key has the same value in both files, preserving all real secrets, then rerun sync.",
+      });
+    } else if (
+      !unsafeMirror &&
+      Boolean(rootEnvironment) !== Boolean(webEnvironment) &&
+      !legacyRootEnvironment &&
+      !legacyWebEnvironment
+    ) {
+      const missingPath = rootEnvironment ? "apps/web/.dev.vars" : ".dev.vars";
+      const sourcePath = rootEnvironment ? ".dev.vars" : "apps/web/.dev.vars";
+      conflicts.push({
+        path: missingPath,
+        sourcePath,
+        reason: "environment-mirror-missing",
+        expectedHash: state.files[missingPath]?.contentHash ?? null,
+        actualHash: null,
+        proposedHash: targets[missingPath].contentHash,
+        suggestion: `Copy ${sourcePath} to ${missingPath} without changing any key/value, then rerun sync. GhostInit will merge newly required capability fields only after both secret-bearing mirrors have one explicit authority.`,
+      });
+    }
+  }
+
   for (const list of [creates, moves, rewrites, deletions])
     list.sort((a, b) => a.path.localeCompare(b.path));
-  const { environmentMerges, secretOperations } = await planEnvironmentReconciliation(
-    reader,
-    targets,
-    plannedSecretOperations,
-  );
+  const { environmentMerges, secretOperations } =
+    runtimeEnvironmentEntries.length > 0 ||
+    unsafeLocalPaths.size > 0 ||
+    environmentLifecyclePaths.length > 0
+      ? { environmentMerges: [], secretOperations: [] }
+      : await planEnvironmentReconciliation(reader, targets, plannedSecretOperations);
   retired.sort();
   preserved.sort();
   unchanged.sort();
@@ -806,99 +1157,137 @@ export async function applyReconcilePlan(
       plan: publicReconcilePlan(plan),
     });
   }
-  const now = new Date().toISOString();
-  const operationId = state.pendingOperation?.id ?? randomUUID();
-  const changes = [...plan.creates, ...plan.moves, ...plan.rewrites, ...plan.deletions];
-  const pending = {
-    id: operationId,
-    kind,
-    startedAt: state.pendingOperation?.startedAt ?? now,
-    configHash: plan.configHash,
-    planHash: plan.planHash,
-    changes: changes.map((change) => ({
-      action: change.action,
-      path: change.path,
-      ...(change.fromPath ? { fromPath: change.fromPath } : {}),
-      beforeHash: change.beforeHash,
-      afterHash: change.afterHash,
-    })),
-  } as const;
-  const baseSave: Omit<SaveStateOptions, "migrateV1"> = {
-    desiredConfig: canonicalDesiredProjectConfig(state.desiredConfig),
-    resolvedConfig: state.resolvedConfig,
-    replaceFiles: state.files,
-    pendingOperation: pending,
-    migrationHistory: state.migrationHistory,
-    desiredConfigAlreadyWritten: true,
-  };
-  const tx = new FsTransaction(root);
-  // Stage only after validating every beforeHash against the current disk.
-  // FsTransaction retains the exact bytes it observed and revalidates them at
-  // commit, closing the second race between staging and filesystem mutation.
-  await stageReconcilePlan(root, state, plan, tx);
-  await stageEnvironmentAndSecrets(
-    root,
-    plan,
-    tx,
-    dependencies.entropy ?? ((bytes, encoding) => randomBytes(bytes).toString(encoding)),
-  );
-  let pendingSaved = false;
+  const environmentLease = acquireEnvironmentLifecycleLease(root);
   try {
-    await saveStateV2(root, state, baseSave);
-    pendingSaved = true;
-    await tx.commit();
-
-    const completedAt = new Date().toISOString();
-    const history = [
-      ...state.migrationHistory,
-      {
-        id: operationId,
-        kind,
-        fromVersion: state.sourceVersion,
-        toVersion: 2 as const,
-        status: "completed" as const,
-        startedAt: pending.startedAt,
-        completedAt,
-        configHash: plan.configHash,
-        summary: summary(plan),
-      },
-    ];
-    await saveStateV2(root, state, {
+    environmentLease.assertIdle();
+    const usesCloudflare = state.resolvedConfig.apps.some(({ deploy }) => deploy === "cloudflare");
+    if (usesCloudflare) {
+      const appeared = await cloudflareRuntimeEnvironmentEntries(
+        root,
+        state.resolvedConfig.mode === "monorepo",
+      );
+      if (appeared.length > 0) {
+        throw new ConflictError(
+          "Cloudflare runtime dotenv files appeared after reconciliation planning",
+          {
+            paths: appeared.map(({ path }) => path),
+            suggestion:
+              "Migrate operator-owned values explicitly to .dev.vars, Workers Builds, or Worker bindings; remove the runtime dotenv files and rebuild the reconciliation plan.",
+          },
+        );
+      }
+      const unsafeLocal = await unsafeLocalEnvironmentPaths(
+        root,
+        Object.keys(plan.targets).filter(isLocalDotenvPath).sort(),
+      );
+      if (unsafeLocal.length > 0) {
+        throw new ConflictError(
+          "Cloudflare local environment files became unsafe after reconciliation planning",
+          {
+            paths: unsafeLocal,
+            suggestion:
+              "Preserve every operator-owned value, replace each path with a regular file no larger than 1 MiB, and rebuild the reconciliation plan.",
+          },
+        );
+      }
+    }
+    const now = new Date().toISOString();
+    const operationId = state.pendingOperation?.id ?? randomUUID();
+    const changes = [...plan.creates, ...plan.moves, ...plan.rewrites, ...plan.deletions];
+    const pending = {
+      id: operationId,
+      kind,
+      startedAt: state.pendingOperation?.startedAt ?? now,
+      configHash: plan.configHash,
+      planHash: plan.planHash,
+      changes: changes.map((change) => ({
+        action: change.action,
+        path: change.path,
+        ...(change.fromPath ? { fromPath: change.fromPath } : {}),
+        beforeHash: change.beforeHash,
+        afterHash: change.afterHash,
+      })),
+    } as const;
+    const baseSave: Omit<SaveStateOptions, "migrateV1"> = {
       desiredConfig: canonicalDesiredProjectConfig(state.desiredConfig),
       resolvedConfig: state.resolvedConfig,
-      replaceFiles: await finalFileRecords(root, state, plan),
-      generationPlan: plan.generationPlan,
-      acceptConfigChanges: true,
-      pendingOperation: null,
-      migrationHistory: history,
-      desiredConfigAlreadyWritten: true,
-    });
-  } catch (error) {
-    await tx.rollback();
-    if (!pendingSaved) throw error;
-    const completedAt = new Date().toISOString();
-    await saveStateV2(root, state, {
-      desiredConfig: state.desiredConfig,
-      resolvedConfig: state.resolvedConfig,
       replaceFiles: state.files,
-      generationPlan: state.generationPlan,
-      pendingOperation: null,
-      migrationHistory: [
+      pendingOperation: pending,
+      migrationHistory: state.migrationHistory,
+      desiredConfigAlreadyWritten: true,
+    };
+    const tx = new FsTransaction(root);
+    // Stage only after validating every beforeHash against the current disk.
+    // FsTransaction retains the exact bytes it observed and revalidates them at
+    // commit, closing the second race between staging and filesystem mutation.
+    await stageReconcilePlan(root, state, plan, tx);
+    await stageEnvironmentAndSecrets(
+      root,
+      plan,
+      tx,
+      dependencies.entropy ?? ((bytes, encoding) => randomBytes(bytes).toString(encoding)),
+    );
+    let pendingSaved = false;
+    try {
+      await saveStateV2(root, state, baseSave);
+      pendingSaved = true;
+      environmentLease.assertIdle();
+      await tx.commit();
+
+      const completedAt = new Date().toISOString();
+      const history = [
         ...state.migrationHistory,
         {
           id: operationId,
           kind,
           fromVersion: state.sourceVersion,
-          toVersion: 2,
-          status: "failed",
+          toVersion: 2 as const,
+          status: "completed" as const,
           startedAt: pending.startedAt,
           completedAt,
           configHash: plan.configHash,
           summary: summary(plan),
         },
-      ],
-      desiredConfigAlreadyWritten: true,
-    });
-    throw error;
+      ];
+      await saveStateV2(root, state, {
+        desiredConfig: canonicalDesiredProjectConfig(state.desiredConfig),
+        resolvedConfig: state.resolvedConfig,
+        replaceFiles: await finalFileRecords(root, state, plan),
+        generationPlan: plan.generationPlan,
+        acceptConfigChanges: true,
+        pendingOperation: null,
+        migrationHistory: history,
+        desiredConfigAlreadyWritten: true,
+      });
+    } catch (error) {
+      await tx.rollback();
+      if (!pendingSaved) throw error;
+      const completedAt = new Date().toISOString();
+      await saveStateV2(root, state, {
+        desiredConfig: state.desiredConfig,
+        resolvedConfig: state.resolvedConfig,
+        replaceFiles: state.files,
+        generationPlan: state.generationPlan,
+        pendingOperation: null,
+        migrationHistory: [
+          ...state.migrationHistory,
+          {
+            id: operationId,
+            kind,
+            fromVersion: state.sourceVersion,
+            toVersion: 2,
+            status: "failed",
+            startedAt: pending.startedAt,
+            completedAt,
+            configHash: plan.configHash,
+            summary: summary(plan),
+          },
+        ],
+        desiredConfigAlreadyWritten: true,
+      });
+      throw error;
+    }
+  } finally {
+    environmentLease.release();
   }
 }

@@ -66,4 +66,39 @@ describe("single Expo Better Auth server integration", () => {
     expect(server).toContain("    expo(),");
     expect(manifest.dependencies["@better-auth/expo"]).toBeDefined();
   });
+
+  test("the single Expo Convex runtime registers the same trusted native origin", () => {
+    const files = generateProjectFiles(
+      projectConfigSchema.parse({
+        name: "convex-mobile",
+        mode: "single",
+        framework: "nextjs",
+        database: "convex",
+        preset: "custom",
+        auth: true,
+        api: true,
+        email: false,
+        analytics: false,
+        notifications: false,
+        billing: [],
+        apps: ["mobile"],
+      }),
+    );
+    const appConfig = JSON.parse(content(files, "app.json")) as {
+      expo: { scheme: string };
+    };
+    const convexAuth = content(files, "convex/auth.ts");
+    const authProxy = content(files, "src/server/auth/index.ts");
+    const manifest = JSON.parse(content(files, "package.json")) as {
+      dependencies: Record<string, string>;
+    };
+
+    expect(appConfig.expo.scheme).toBe("convexmobile");
+    expect(convexAuth).toContain('import { expo } from "@better-auth/expo";');
+    expect(convexAuth).toContain(`trustedOrigins.add("${appConfig.expo.scheme}://")`);
+    expect(convexAuth).toContain("      expo(),");
+    expect(convexAuth).not.toContain("__APP_SCHEME__");
+    expect(authProxy).not.toContain("@better-auth/expo");
+    expect(manifest.dependencies["@better-auth/expo"]).toBeDefined();
+  });
 });

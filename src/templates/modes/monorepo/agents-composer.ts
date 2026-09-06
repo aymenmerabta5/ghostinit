@@ -6,6 +6,7 @@ import type {
   AppName,
   BillingProviderName,
   DatabaseProvider,
+  DeployTarget,
   FrameworkName,
 } from "../../../lib/addons.js";
 
@@ -24,6 +25,7 @@ export interface MonorepoAgentDocsOptions {
   readonly jobsApi?: boolean;
   readonly pdf?: boolean;
   readonly cache?: boolean;
+  readonly deploy?: DeployTarget;
 }
 
 function enabledCapabilities(
@@ -70,6 +72,7 @@ function buildAgentsMdContent(
   const database = options.database ?? "postgres";
   const apps = options.apps?.length ? [...options.apps] : (["web"] as AppName[]);
   const hasWeb = apps.includes("web");
+  const isCloudflare = options.deploy === "cloudflare";
   const usesProductionSupervisor =
     hasWeb && database === "postgres" && (options.jobs === true || options.storage === true);
   const hasAuth = options.auth ?? true;
@@ -99,10 +102,10 @@ function buildAgentsMdContent(
   const webRoot = "apps/web/src";
   const routeRoot = isTanstack ? `${webRoot}/routes` : `${webRoot}/app`;
   const rpcRoute = isTanstack
-    ? `${routeRoot}/api/rpc/$splat.ts`
+    ? `${routeRoot}/api/rpc/$.ts`
     : `${routeRoot}/api/rpc/[...path]/route.ts`;
   const authRoute = isTanstack
-    ? `${routeRoot}/api/auth/$splat.ts`
+    ? `${routeRoot}/api/auth/$.ts`
     : `${routeRoot}/api/auth/[...all]/route.ts`;
   const publicPrefix = isTanstack ? "VITE_" : "NEXT_PUBLIC_";
   const clientPrefixes = [
@@ -213,9 +216,11 @@ function buildAgentsMdContent(
       );
     }
     lines.push(
-      isTanstack
-        ? `- \`apps/web\` scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
-        : `- \`apps/web\` development runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build and package-local start remain \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\` and \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next start" : "next start"}\`; repository-level \`bun run start\` owns any generated custom production server.`,
+      isCloudflare
+        ? `- \`apps/web\` uses the generated Cloudflare ${isTanstack ? "Vite" : "OpenNext"} adapter. Use repository \`build:worker\`, \`cloudflare:dry-run\`, \`preview\`, and \`deploy\`; there is no long-lived Node/Bun production process.`
+        : isTanstack
+          ? `- \`apps/web\` scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
+          : `- \`apps/web\` development runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build and package-local start remain \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\` and \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next start" : "next start"}\`; repository-level \`bun run start\` owns any generated custom production server.`,
     );
   }
 
@@ -266,7 +271,9 @@ function buildAgentsMdContent(
   }
   if (database === "convex") {
     lines.push(
-      "- Database scripts are `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`.",
+      isCloudflare
+        ? "- Run `bun run convex:bootstrap` once, then use `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`; the wrapper keeps root and web `.dev.vars` synchronized."
+        : "- Database scripts are `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`.",
     );
   } else if (database === "postgres") {
     lines.push(
@@ -299,24 +306,32 @@ function buildAgentsMdContent(
     "Run from the repository root with Bun:",
     "",
     "```bash",
-    "bun install",
+    "bun run install:verified # use bun run install:bootstrap only for fresh --no-install output",
     "bun run dev",
     "bun run typecheck",
     "bun run lint",
     "bun run format:check",
     "bun run test",
-    "bun run build",
-    usesProductionSupervisor ? "bun run start:production" : "bun run start",
+    isCloudflare ? "bun run build:worker" : "bun run build",
+    isCloudflare
+      ? "bun run cloudflare:dry-run"
+      : usesProductionSupervisor
+        ? "bun run start:production"
+        : "bun run start",
     "ghostinit check",
     "```",
     "",
-    usesProductionSupervisor
-      ? "`bun run start` starts only the web process. Use `bun run start:production` to supervise the web process and selected PostgreSQL workers; Fly runs them as separate process groups."
-      : "Use `bun run start` for the generated production web process; do not replace it with an npm command.",
+    isCloudflare
+      ? "Cloudflare production is a Worker deployment, not `bun run start`; use the generated preview only for local verification and `bun run deploy` for release."
+      : usesProductionSupervisor
+        ? "`bun run start` starts only the web process. Use `bun run start:production` to supervise the web process and selected PostgreSQL workers; Fly runs them as separate process groups."
+        : "Use `bun run start` for the generated production web process; do not replace it with an npm command.",
     "",
     "## Security",
     "",
-    "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
+    isCloudflare
+      ? "- Never commit `.env*` or `.dev.vars`. Cloudflare builds reject runtime dotenv files; runtime values belong in Worker bindings and build variables are configured separately."
+      : "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
     `- Client-visible variables use only these generated prefixes: ${clientPrefixes.map((prefix) => `\`${prefix}\``).join(", ") || "none"}. Keep all other credentials server-only.`,
     "- Preserve raw-body verification, deterministic webhook idempotency, actor-derived resource ownership, auth guards, and secret-safe logging.",
     "",

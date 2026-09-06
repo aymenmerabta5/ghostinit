@@ -57,6 +57,25 @@ function issueKey(issue: {
 }
 
 describe("V2 desired-state resolution", () => {
+  test("fails closed for an unreviewed Cloudflare capability without a backend", () => {
+    const result = resolveProjectConfig(
+      desired({
+        apps: [{ id: "web", target: "nextjs", deploy: "cloudflare" }],
+        backend: false,
+        capabilities: { auth: true },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: "capability-deploy-binding-unsupported",
+        capability: "auth",
+        path: "/apps/web/deploy",
+      }),
+    );
+  });
+
   test("allows API transport without auth or persistence and preserves all none axes", () => {
     const result = resolveProjectConfig(
       desired({

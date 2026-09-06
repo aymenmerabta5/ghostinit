@@ -1,4 +1,5 @@
 export interface DesktopMainShellOptions {
+  readonly hasConvex: boolean;
   readonly authImport: string;
   readonly authStorage: string;
   readonly apiTransportImport: string;
@@ -8,14 +9,22 @@ export interface DesktopMainShellOptions {
 }
 
 export function desktopMainShellContent(options: DesktopMainShellOptions): string {
-  const { apiTransportImport, authImport, authStorage, eveHelpers, i18nSchema, i18nSetting } =
-    options;
+  const {
+    apiTransportImport,
+    authImport,
+    authStorage,
+    eveHelpers,
+    i18nSchema,
+    i18nSetting,
+    hasConvex,
+  } = options;
   return `import { app, BrowserWindow, ipcMain${authImport}, shell, dialog, session, type IpcMainInvokeEvent } from "electron";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Store, { type Schema } from "electron-store";
 import electronUpdater from "electron-updater";
 import { env } from "./server/transport/runtime-config.js";
+${hasConvex ? 'import { convexUrl } from "./server/transport/runtime-config.js";' : ""}
 ${apiTransportImport}
 
 // Adapted from t3code apps/desktop/src/electron/ElectronSafeStorage.ts + ElectronWindow.ts
@@ -107,13 +116,15 @@ function assertTrustedIpc(event: IpcMainInvokeEvent): void {
 function desktopCsp(): string {
   const origin = new URL(env.DESKTOP_API_URL);
   const wsProtocol = origin.protocol === "https:" ? "wss:" : "ws:";
+  const connections = [origin.origin, \`\${wsProtocol}//\${origin.host}\`];
+${hasConvex ? '  connections.push(convexUrl, "wss://" + new URL(convexUrl).host);' : ""}
   return [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    \`connect-src 'self' \${origin.origin} \${wsProtocol}//\${origin.host}\`,
+    \`connect-src 'self' \${connections.join(" ")}\`,
   ].join("; ");
 }
 
@@ -149,7 +160,7 @@ function createWindow() {
     backgroundColor: "#11111b",
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
-      additionalArguments: [\`--ghostinit-desktop-api-url=\${encodeURIComponent(env.DESKTOP_API_URL)}\`],
+      additionalArguments: [\`--ghostinit-desktop-api-url=\${encodeURIComponent(env.DESKTOP_API_URL)}\`${hasConvex ? ", `--ghostinit-desktop-convex-url=${encodeURIComponent(convexUrl)}`" : ""}],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

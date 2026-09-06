@@ -13,7 +13,7 @@
  * Customers: createCustomer listCustomers getCustomer etc
  * Balance: getBalance wallets
  * Operations: getCheckout listCheckouts getCheckoutItems expireCheckout listPaymentLinks getProductPrices
- * Recurring manual via DB subscriptions table + eve cron agent/schedules/billing-renewal.md monthly
+ * Renewal requires a new customer-authorized checkout; no automatic recurring charge.
  * Webhook: verifySignature payload Buffer signature secret rawBody header signature
  *   Buffer.from(await req.arrayBuffer()) NOT req.json() HMAC sha256 timingSafeEqual throws
  *   Middleware bodyParser.json verify buf rawBody bodyparser signature header 400 missing signature 403 invalid 200 ok

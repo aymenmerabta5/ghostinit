@@ -9,7 +9,7 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon, type AddonInstallerMap, type BillingProviderName } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
@@ -19,10 +19,14 @@ import {
 } from "./fragments/api.js";
 
 export function apiFiles(
-  _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
+  addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
+  const trustedCloudflareRuntime =
+    addons !== undefined &&
+    !Array.isArray(addons) &&
+    hasAddon(addons as AddonInstallerMap, "cloudflare");
   return [
-    authApiRoute(),
+    authApiRoute(trustedCloudflareRuntime),
     orpcApiRoute(),
     openapiOperationsRoute(),
     healthApiRoute(),
@@ -30,8 +34,11 @@ export function apiFiles(
   ];
 }
 
-function authApiRoute(): TemplateFile {
-  return file("apps/web/src/app/api/auth/[...all]/route.ts", authFileContent("next"));
+function authApiRoute(trustedCloudflareRuntime: boolean): TemplateFile {
+  return file(
+    "apps/web/src/app/api/auth/[...all]/route.ts",
+    authFileContent("next", trustedCloudflareRuntime),
+  );
 }
 
 function orpcApiRoute(): TemplateFile {

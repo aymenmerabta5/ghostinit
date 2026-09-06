@@ -1,5 +1,7 @@
 // @allow-long 551: cross-platform discovery, termination, and verification stay together so cleanup cannot fail open
 import { spawn, type ChildProcess } from "node:child_process";
+import { lstatSync, realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   listPosixProcessGroupMembers,
   sendPosixProcessGroupSignal,
@@ -31,6 +33,47 @@ function sameWindowsProcessIdentity(
 }
 
 export class ProcessTreeTerminationError extends Error {}
+
+export function resolveWindowsSystemExecutable(executable: "powershell" | "taskkill"): string {
+  if (process.platform !== "win32") {
+    throw new ProcessTreeTerminationError("Windows system executable resolution requires Windows");
+  }
+  const configuredRoot = process.env.SystemRoot ?? process.env.WINDIR;
+  if (!configuredRoot || !isAbsolute(configuredRoot)) {
+    throw new ProcessTreeTerminationError("Windows system root is missing or not absolute");
+  }
+  let system32: string;
+  let candidate: string;
+  try {
+    const canonicalRoot = realpathSync(configuredRoot);
+    system32 = realpathSync(resolve(canonicalRoot, "System32"));
+    const unresolvedCandidate =
+      executable === "taskkill"
+        ? resolve(system32, "taskkill.exe")
+        : resolve(system32, "WindowsPowerShell", "v1.0", "powershell.exe");
+    const metadata = lstatSync(unresolvedCandidate);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      throw new Error("not a regular executable");
+    }
+    candidate = realpathSync(unresolvedCandidate);
+  } catch (error) {
+    throw new ProcessTreeTerminationError(
+      `Windows ${executable} executable is missing or unsafe: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const descendant = relative(system32, candidate);
+  if (
+    !descendant ||
+    descendant === ".." ||
+    descendant.startsWith(".." + sep) ||
+    isAbsolute(descendant)
+  ) {
+    throw new ProcessTreeTerminationError(
+      `Windows ${executable} executable escapes the canonical System32 directory`,
+    );
+  }
+  return candidate;
+}
 
 const describeRoots = (rootPids: number[]): string =>
   rootPids.length === 1 ? `root PID ${rootPids[0]}` : `root PIDs ${rootPids.join(",")}`;
@@ -257,7 +300,11 @@ async function runWindowsTaskkill(
   pid: number,
   captured: readonly WindowsProcessRecord[],
 ): Promise<void> {
-  const outcome = await runCapturedCommand("taskkill", ["/PID", String(pid), "/T", "/F"], 10_000);
+  const outcome = await runCapturedCommand(
+    resolveWindowsSystemExecutable("taskkill"),
+    ["/PID", String(pid), "/T", "/F"],
+    10_000,
+  );
   if (
     outcome.spawnError ||
     outcome.timedOut ||
@@ -292,13 +339,7 @@ async function runWindowsTaskkill(
 }
 
 function resolvePowerShell(): string {
-  const executable = Bun.which("powershell") ?? Bun.which("pwsh");
-  if (executable === null) {
-    throw new ProcessTreeTerminationError(
-      "CIM process discovery failed because PowerShell was not found",
-    );
-  }
-  return executable;
+  return resolveWindowsSystemExecutable("powershell");
 }
 
 async function queryWindowsProcessIdentities(
@@ -386,6 +427,70 @@ ConvertTo-Json -InputObject @($result) -Compress`;
     10_000,
   );
   return parseWindowsProcessQuery(uniqueRoots, outcome);
+}
+
+/** Captures identities while the owned root is alive, before requesting graceful shutdown. */
+export async function captureWindowsProcessTree(
+  child: ChildProcess,
+): Promise<WindowsProcessRecord[]> {
+  if (process.platform !== "win32") return [];
+  if (!child.pid || child.exitCode !== null || child.signalCode !== null) {
+    throw new ProcessTreeTerminationError("Cannot capture an exited Windows preview root");
+  }
+  const records = await discoverWindowsProcessTree([child.pid]);
+  if (child.exitCode !== null || child.signalCode !== null) {
+    throw new ProcessTreeTerminationError("Windows preview exited during process-tree capture");
+  }
+  const captured = trustedWindowsRecords(records, new Map(), child, child.pid);
+  if (!captured.some(({ pid }) => pid === child.pid)) {
+    throw new ProcessTreeTerminationError("Windows preview root identity could not be captured");
+  }
+  return captured;
+}
+
+/** Verifies graceful shutdown without killing a process that the wrapper left behind. */
+export async function assertProcessTreeExited(
+  child: ChildProcess,
+  captured: readonly WindowsProcessRecord[],
+): Promise<void> {
+  if (!child.pid || (child.exitCode === null && child.signalCode === null)) {
+    throw new ProcessTreeTerminationError("Preview root has not exited");
+  }
+  if (process.platform !== "win32") {
+    if (processGroupExists(child.pid)) {
+      throw new ProcessTreeTerminationError("Preview process group remained live after shutdown");
+    }
+    return;
+  }
+  if (!captured.some(({ pid }) => pid === child.pid)) {
+    throw new ProcessTreeTerminationError("Windows preview root has no captured identity");
+  }
+  const current = await queryWindowsProcessIdentities(captured.map(({ pid }) => pid));
+  if (
+    captured.some((record) => current.some((entry) => sameWindowsProcessIdentity(record, entry)))
+  ) {
+    throw new ProcessTreeTerminationError(
+      "Captured Windows preview processes remained live after shutdown",
+    );
+  }
+  // The wrapper owns runtime supervision, including children created after our
+  // snapshot. Reject any late ancestry we can still observe, but never signal a
+  // process based only on its exited parent's reusable PID.
+  const descendants = await discoverWindowsProcessTree(captured.map(({ pid }) => pid));
+  if (
+    descendants.some((record) =>
+      captured.some(
+        (parent) =>
+          sameWindowsProcessIdentity(record, parent) ||
+          (record.parentPid === parent.pid &&
+            Date.parse(record.createdAt) >= Date.parse(parent.createdAt)),
+      ),
+    )
+  ) {
+    throw new ProcessTreeTerminationError(
+      "Unverified late Windows preview descendants remained after shutdown",
+    );
+  }
 }
 
 function topLevelWindowsProcesses(records: WindowsProcessRecord[]): WindowsProcessRecord[] {

@@ -77,8 +77,8 @@ describe("PDF production dependency resolution", () => {
         }
 
         const render = contentAt(files, `${base}/src/lib/render.ts`);
-        expect(render).toContain('import { registerPdfFonts } from "./fonts"');
-        expect(render).toContain("registerPdfFonts();");
+        expect(render).toContain('import { preparePdfFonts, type PdfFontSources } from "./fonts"');
+        expect(render).toContain("preparePdfFonts(sources);");
 
         const rootManifest = manifestAt(files, "package.json");
         expect(rootManifest.overrides?.pdfkit).toBe(pdfVersions.pdfkit);
@@ -114,7 +114,7 @@ describe("PDF production dependency resolution", () => {
           }
           const routePath =
             mode === "monorepo" ? "apps/web/src/app/api/pdf/route.ts" : "src/app/api/pdf/route.ts";
-          expect(contentAt(files, routePath)).toContain("registerPdfFonts();");
+          expect(contentAt(files, routePath)).toContain("const render = renderPdfToBuffer(");
         } else {
           const serverPath =
             mode === "monorepo"
@@ -130,7 +130,8 @@ describe("PDF production dependency resolution", () => {
             expect(server).toContain(`dejavu-fonts-ttf/ttf/${font}?inline`);
           }
           expect(server).toContain("satisfies PdfFontSources");
-          expect(server).toContain("registerPdfFonts(embeddedPdfFontSources)");
+          expect(server).toContain("const render = renderPdfToBuffer(");
+          expect(server).toContain("embeddedPdfFontSources,");
         }
       });
     }

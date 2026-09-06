@@ -8,9 +8,10 @@ import { runtime } from "../../packages/versions/src/index.js";
 import { deployFiles } from "../../src/templates/root/deploy.js";
 import { DEPLOY_LOCKFILE_GUARD_PATH } from "../../src/templates/root/deploy-guides.js";
 
-const guidance = `Deployment requires a regular root bun.lock; run bun install using Bun ${runtime.bun} before Vercel, Docker, or Fly.`;
+const guidance = `Deployment requires a verified regular root bun.lock; run bun run install:bootstrap using Bun ${runtime.bun} in fresh --no-install output before Vercel, Docker, Fly, or Cloudflare.`;
 const exactBun = `bunx bun@${runtime.bun}`;
 const vercelGuard = `${exactBun} ${DEPLOY_LOCKFILE_GUARD_PATH}`;
+const vercelInstall = `${vercelGuard} && ${exactBun} run audit:lock && ${exactBun} install --frozen-lockfile`;
 
 function guardedVercelCommand(command: string): string {
   return `${vercelGuard} && ${exactBun} ${command}`;
@@ -57,11 +58,14 @@ describe("deployment root lockfile admission", () => {
                 buildCommand: string;
               };
               const build = mode === "monorepo" ? "scripts/build-deployment.mjs" : "run build";
-              expect(config.installCommand).toBe(guardedVercelCommand("install --frozen-lockfile"));
+              expect(config.installCommand).toBe(vercelInstall);
               expect(config.buildCommand).toBe(guardedVercelCommand(build));
               for (const command of [config.installCommand, config.buildCommand]) {
                 expect(command.split(" && ")[0]).toBe(vercelGuard);
               }
+              expect(config.installCommand.indexOf(`${exactBun} run audit:lock`)).toBeLessThan(
+                config.installCommand.indexOf(`${exactBun} install --frozen-lockfile`),
+              );
               if (selectedRuntime === "bun") {
                 const guide = content(files, "docs/VERCEL_DEPLOYMENT.md");
                 expect(guide).toContain("regular root `bun.lock`");
@@ -77,6 +81,10 @@ describe("deployment root lockfile admission", () => {
                 ([instruction]) => instruction,
               );
               expect(installs).toHaveLength(2);
+              const audits = [...dockerfile.matchAll(/^RUN bun run audit:lock$/gm)].map(
+                ([instruction]) => instruction,
+              );
+              expect(audits).toHaveLength(2);
               expect(
                 installs.filter((instruction) => instruction.includes("--production")),
               ).toHaveLength(1);

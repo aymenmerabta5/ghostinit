@@ -13,12 +13,13 @@ export function useIdentityWorkspaceQueries(
   initialData?: IdentityWorkspaceInitialData,
 ) {
   const organizations = useQuery(orpc.identity.organizations.list.queryOptions({ input: {}, initialData: initialData?.organizations }));
-  const organizationId = selectedOrganizationId ?? organizations.data?.[0]?.id ?? null;
+  const organizationId = selectedOrganizationId ?? initialData?.organizationId ?? organizations.data?.[0]?.id ?? null;
   const isInitialOrganization = organizationId !== null && organizationId === initialData?.organizationId;
   const teams = useQuery(orpc.identity.teams.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId), initialData: isInitialOrganization ? initialData?.teams : undefined }));
-  const teamId = selectedTeamId ?? teams.data?.[0]?.id ?? null;
+  const teamId = selectedTeamId ?? (isInitialOrganization ? initialData?.teamId : null) ?? teams.data?.[0]?.id ?? null;
   const members = useQuery(orpc.identity.organizations.listMembers.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId), initialData: isInitialOrganization ? initialData?.members : undefined }));
-  const invitations = useQuery(orpc.identity.invitations.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId), initialData: isInitialOrganization ? initialData?.invitations : undefined }));
+  const invitationPermission = useQuery(orpc.identity.organizations.hasPermission.queryOptions({ input: { organizationId: organizationId ?? "", permission: "invitation:read" }, enabled: Boolean(organizationId) }));
+  const invitations = useQuery(orpc.identity.invitations.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId) && invitationPermission.data?.allowed === true, initialData: isInitialOrganization ? initialData?.invitations : undefined }));
   const teamMembers = useQuery(orpc.identity.teams.listMembers.queryOptions({ input: { organizationId: organizationId ?? "", teamId: teamId ?? "" }, enabled: Boolean(organizationId && teamId), initialData: isInitialOrganization && teamId === initialData?.teamId ? initialData.teamMembers : undefined }));
   return { invitations, members, organizationId, organizations, teamId, teamMembers, teams };
 }

@@ -7,7 +7,12 @@
 import type { ProjectMode } from "../../../lib/addons.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../auth-security.js";
 
-export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = false): string {
+export function convexAuthContent(
+  mode: ProjectMode,
+  hasEmail = true,
+  hasI18n = false,
+  hasMobile = false,
+): string {
   void mode;
   const authEmailLocaleLines = !hasEmail
     ? []
@@ -57,6 +62,7 @@ export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = 
     'import type { DataModel } from "./_generated/dataModel";',
     'import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";',
     'import { twoFactor } from "better-auth/plugins/two-factor";',
+    ...(hasMobile ? ['import { expo } from "@better-auth/expo";'] : []),
     ...(hasEmail ? ['import { magicLink } from "better-auth/plugins/magic-link";'] : []),
     'import { ConvexError } from "convex/values";',
     'import authConfig from "./auth.config";',
@@ -68,7 +74,7 @@ export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = 
     "function requireEnv(name: string): string {",
     "  const value = process.env[name];",
     '  if (!value || value.startsWith("REPLACE_WITH") || value.trim() === "") {',
-    "    throw new Error(`[convex/auth] Missing required env ${name}. Set it in Convex dashboard or .env.local`);",
+    "    throw new Error(`[convex/auth] Missing required env ${name}. Set it in the target Convex deployment environment or dashboard`);",
     "  }",
     "  return value;",
     "}",
@@ -102,7 +108,7 @@ export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = 
     "function resolveSiteUrl(): string {",
     "  const url = process.env.SITE_URL ?? process.env.CONVEX_SITE_URL;",
     '  if (!url || url.startsWith("REPLACE_WITH") || url === "https://example.com") {',
-    '    throw new Error("[convex/auth] SITE_URL or CONVEX_SITE_URL must be set to your app URL (e.g. https://example.com or http://localhost:3000). No insecure fallback allowed.");',
+    '    throw new Error("[convex/auth] SITE_URL or CONVEX_SITE_URL must be set to your app URL (e.g. https://app.example.test or http://localhost:3000). No insecure fallback allowed.");',
     "  }",
     '  return requireHttpUrl("SITE_URL", url);',
     "}",
@@ -200,6 +206,7 @@ export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = 
     '  const baseURL = requireHttpUrl("CONVEX_SITE_URL", process.env.CONVEX_SITE_URL ?? siteUrl);',
     '  const betterAuthUrl = requireHttpUrl("BETTER_AUTH_URL", optionalEnv("BETTER_AUTH_URL") ?? siteUrl);',
     "  const trustedOrigins = new Set([new URL(siteUrl).origin, new URL(betterAuthUrl).origin]);",
+    ...(hasMobile ? ['  trustedOrigins.add("__APP_SCHEME__://");'] : []),
     "  const authNetworkSecurity = resolveAuthNetworkSecurity(",
     "    betterAuthUrl,",
     '    optionalEnv("TRUSTED_PROXY"),',
@@ -280,6 +287,7 @@ export function convexAuthContent(mode: ProjectMode, hasEmail = true, hasI18n = 
     "      ipAddress: authNetworkSecurity.ipAddress,",
     "    },",
     "    plugins: [",
+    ...(hasMobile ? ["      expo(),"] : []),
     "      // The stock component lacks account-lockout columns, so keep its schema-safe",
     "      // five-attempt signed-challenge lockout plus database-backed /two-factor rate limits.",
     "      twoFactor({ issuer: betterAuthUrl, twoFactorCookieMaxAge: 600, accountLockout: { enabled: false } }),",

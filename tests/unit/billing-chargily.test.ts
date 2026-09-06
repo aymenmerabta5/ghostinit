@@ -184,8 +184,8 @@ describe("billing provider — chargily (Algeria EDAHABIA/CIB checkout-only serv
     expect(content).toContain("listCheckouts");
     expect(content).toContain("getCheckout");
     expect(content).toContain("expireCheckout");
-    expect(content.toLowerCase()).toContain("billing-renewal");
-    expect(content.toLowerCase()).toContain("manual");
+    expect(content.toLowerCase()).toContain("new customer-authorized checkout");
+    expect(content.toLowerCase()).toContain("no automatic recurring charge");
   });
 
   it("chargily webhook verification full spec — verifySignature Buffer signature secret raw body middleware bodyParser.json verify buf rawBody header signature 400 missing 403 invalid 200 ok", () => {

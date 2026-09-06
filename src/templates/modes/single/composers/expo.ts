@@ -6,6 +6,7 @@ import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/add
 import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
+import { billingMoneyFile } from "../../../billing/ui/money.js";
 import { emailFiles } from "../../../email.js";
 import { eveFiles as genEveFiles } from "../../../eve.js";
 
@@ -151,7 +152,7 @@ function expoAuthApiContent(): string {
   return [
     'import { auth } from "@/server/auth";',
     "",
-    authRouteBoundaryCode,
+    authRouteBoundaryCode(false),
     "",
     'const allowedAuthMethods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);',
     "",
@@ -161,7 +162,9 @@ function expoAuthApiContent(): string {
     "  }",
     "  const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);",
     "  if (directPrivilegedRejection) return directPrivilegedRejection;",
-    "  return auth.handler(request);",
+    "  const preparedAuthRequest = prepareAuthRequestForRuntime(request);",
+    "  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;",
+    "  return auth.handler(preparedAuthRequest.request);",
     "}",
     "",
     "export const GET = handle;",
@@ -645,6 +648,7 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
   }
   if (hasBilling)
     files.push(
+      billingMoneyFile("src"),
       file("app/billing.tsx", expoBillingContent("single", effectiveBilling, effectiveHasI18n)),
     );
   files.push(file("app/+not-found.tsx", expoNotFoundContent(effectiveHasI18n)));
@@ -726,11 +730,15 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       billing: hasBilling,
       email: hasEmail,
       i18n: effectiveHasI18n,
+      mobile: true,
       posts: hasAuth,
     });
     for (const cf of convexAll) {
       if (cf.path.startsWith("convex/") || cf.path === "convex.json") {
-        files.push(cf);
+        files.push({
+          ...cf,
+          content: cf.content.replace(/__APP_SCHEME__/g, singleExpoScheme(projectName)),
+        });
       }
     }
   } else if (hasAuth) {

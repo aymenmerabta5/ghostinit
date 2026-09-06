@@ -172,6 +172,7 @@ export function packageJson(opts: {
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   overrides?: Record<string, string>;
+  patchedDependencies?: Record<string, string>;
   exports?: Record<string, string>;
 }): string {
   const obj: Record<string, unknown> = {
@@ -196,6 +197,9 @@ export function packageJson(opts: {
   }
   if (opts.overrides && Object.keys(opts.overrides).length > 0) {
     obj.overrides = sortKeys(normalizeDeps(opts.overrides));
+  }
+  if (opts.patchedDependencies && Object.keys(opts.patchedDependencies).length > 0) {
+    obj.patchedDependencies = sortKeys(opts.patchedDependencies);
   }
   if (opts.exports && Object.keys(opts.exports).length > 0) {
     obj.exports = opts.exports;

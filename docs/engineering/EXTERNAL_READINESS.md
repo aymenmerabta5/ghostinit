@@ -15,6 +15,11 @@ The exhaustive generated-project matrix, realtime runtime, and production-build 
 separate Ubuntu gates. A green portability job is therefore cross-platform package evidence, not a
 claim that every generated application matrix ran on every operating system.
 
+The Cloudflare Worker corners are also credential-free: they build and scan the upload artifact,
+run `wrangler deploy --dry-run`, and exercise routes through a bounded local Wrangler process. They
+prove packaging, configuration shape, and local Worker routing, not an upload to an operator account
+or the existence of account-scoped R2, Durable Object, variable, secret, route, or DNS resources.
+
 ## Protected manual workflow
 
 `.github/workflows/external-readiness.yml` is `workflow_dispatch` only. It has no push, pull-request,
@@ -152,6 +157,12 @@ success proves only that the selected credential authenticated, the selected end
 and that one minimal operation completed for that commit and environment. It does not prove payment
 settlement, webhook delivery, production scopes, provider uptime after the run, or full release
 readiness.
+
+Likewise, a green Cloudflare dry-run/local preview is not a live deployment attestation. Before
+production traffic, an operator must provision the generated R2 bucket for Next/OpenNext, deploy the
+Durable Object migration, configure build-time values and runtime secrets separately, run the
+generated deployment in a protected staging account, and verify the public health/API paths and
+stateful cache behavior. Keep that account-specific record outside credential-free release claims.
 
 As of 2026-09-02, this infrastructure has been contract-tested only. No Upstash, Convex, billing
 provider, or staging deployment was contacted while implementing it.

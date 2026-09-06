@@ -13,6 +13,11 @@ const provider = z.enum(["stripe", "chargily", "paddle", "polar"]);
 const origin = z.string().url().transform((value) => new URL(value).origin);
 const checkoutInput = z.object({ provider, origin, requestKey: z.string().uuid() });
 const portalInput = z.object({ provider, origin });
+const paymentLinkInput = z.object({
+  provider,
+  name: z.string().trim().min(1).max(120),
+  price: z.string().trim().min(1).max(200),
+});
 
 async function application() {
   return createRequestApplicationForRequest(new Headers(await headers()));
@@ -41,6 +46,16 @@ export async function createBillingPortalAction(input: unknown) {
   });
   revalidatePath("/billing");
   return result;
+}
+
+export async function createBillingPaymentLinkAction(input: unknown) {
+  const parsed = paymentLinkInput.safeParse(input);
+  if (!parsed.success) throw new Error("Invalid payment-link input");
+  return await (await application()).billing.createPaymentLink({
+    provider: parsed.data.provider,
+    name: parsed.data.name,
+    items: [{ price: parsed.data.price, quantity: 1 }],
+  });
 }
 `;
 }

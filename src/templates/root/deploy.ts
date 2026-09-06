@@ -27,6 +27,7 @@ import {
   hasHostedWebEve,
   integratedEveLifecycleFiles,
 } from "./eve-lifecycle.js";
+import { cloudflareDeploymentFiles } from "./cloudflare.js";
 
 export interface DeploymentProfile {
   mode: ProjectMode;
@@ -36,7 +37,12 @@ export interface DeploymentProfile {
   messaging: boolean;
   jobs: boolean;
   storage: boolean;
+  notifications: boolean;
+  cache: boolean;
+  billing?: readonly string[];
+  email?: boolean;
   api?: boolean;
+  auth?: boolean;
   pdf?: boolean;
   eve?: boolean;
 }
@@ -49,7 +55,12 @@ const DEFAULT_DEPLOYMENT_PROFILE: DeploymentProfile = {
   messaging: false,
   jobs: false,
   storage: false,
+  notifications: false,
+  cache: false,
+  billing: [],
+  email: false,
   api: true,
+  auth: true,
   pdf: false,
   eve: false,
 };
@@ -124,6 +135,14 @@ function vercelBunCommand(command: string): string {
 
 function vercelGuardedBunCommand(command: string): string {
   return `${vercelBunCommand(DEPLOY_LOCKFILE_GUARD_PATH)} && ${vercelBunCommand(command)}`;
+}
+
+function vercelGuardedInstallCommand(): string {
+  return [
+    vercelBunCommand(DEPLOY_LOCKFILE_GUARD_PATH),
+    vercelBunCommand("run audit:lock"),
+    vercelBunCommand("install --frozen-lockfile"),
+  ].join(" && ");
 }
 
 function deploymentBuildCommand(profile: DeploymentProfile): string {
@@ -314,6 +333,7 @@ RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules tooling/*/no
 # Husky is a root development prepare hook. Remove only that hook so Bun can
 # still run trusted production dependency lifecycle scripts during the reinstall.
 RUN bun pm pkg delete scripts.prepare
+RUN bun run audit:lock
 RUN bun install --production --frozen-lockfile${filterArguments}
 RUN bun ${DEPLOY_WEB_RUNTIME_GUARD_PATH}
 `;
@@ -370,6 +390,7 @@ function dockerfileContent(
     ? 'CMD ["bun", "scripts/start-production.mjs"]'
     : 'CMD ["bun", "run", "start"]';
   const lockfileGuard = `RUN bun ${DEPLOY_LOCKFILE_GUARD_PATH}`;
+  const lockAudit = "RUN bun run audit:lock";
   if (runtime === "node") {
     return `# syntax=docker/dockerfile:1
 FROM oven/bun:${v.runtime.bun} AS bun-runtime
@@ -383,6 +404,7 @@ WORKDIR /app
 # without relying on experimental parent-preserving copy flags.
 COPY . .
 ${lockfileGuard}
+${lockAudit}
 RUN bun install --frozen-lockfile
 
 ${dockerBuildInstruction(deploymentBuildCommand(profile))}
@@ -419,6 +441,7 @@ WORKDIR /app
 # without relying on experimental parent-preserving copy flags.
 COPY . .
 ${lockfileGuard}
+${lockAudit}
 RUN bun install --frozen-lockfile
 
 ${dockerBuildInstruction(deploymentBuildCommand(profile))}
@@ -571,7 +594,7 @@ function vercelJsonContent(runtime: "node" | "bun", profile: DeploymentProfile):
       framework: isTanStack ? null : "nextjs",
       ...(runtime === "bun" ? { bunVersion: vercelBunRuntimeSelector() } : {}),
       buildCommand: vercelGuardedBunCommand(deploymentBuildCommand(profile)),
-      installCommand: vercelGuardedBunCommand("install --frozen-lockfile"),
+      installCommand: vercelGuardedInstallCommand(),
       outputDirectory: isTanStack
         ? profile.mode === "single"
           ? ".vercel/output"
@@ -692,6 +715,13 @@ export function deployFiles(
   const workflowPath = hasHostedWebEve(profile) ? eveWorkflowDataPath(profile) : undefined;
   const requiresSingleReplica = profile.pdf === true || workflowPath !== undefined;
   if (deploy === "none") return [...supportFiles, ...eveLifecycleFiles, ...productionFiles];
+  if (deploy === "cloudflare") {
+    return [
+      ...lockfileGuardFiles,
+      ...operationalHealthFiles,
+      ...cloudflareDeploymentFiles(projectName, profile),
+    ];
+  }
   if (deploy === "docker") {
     return [
       ...supportFiles,

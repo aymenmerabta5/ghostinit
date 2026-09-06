@@ -1,6 +1,6 @@
 {
   "compiler": "typescript@7.0.2",
-  "verifiedAt": "2026-09-01",
+  "verifiedAt": "2026-09-05",
   "entries": [
     {
       "id": "host-compiler",
@@ -26,7 +26,8 @@
         "scripts/sync-turbo-env.ts",
         "scripts/test-fixtures.ts",
         "scripts/test-generated.ts",
-        "scripts/verify-generated-env.ts"
+        "scripts/verify-generated-env.ts",
+        "scripts/worker-preview-readiness.ts"
       ],
       "phase": "1A",
       "disposition": "proven",

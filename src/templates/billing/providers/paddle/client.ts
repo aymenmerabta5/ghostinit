@@ -5,6 +5,7 @@ export type PaddleConfig = {
   apiKey?: string;
   webhookSecret?: string;
   environment?: "sandbox" | "production";
+  appUrl?: string;
 };
 
 export type PaddleSubscriptionStatus = "active" | "canceled" | "past_due" | "paused" | "trialing";
@@ -64,6 +65,7 @@ interface PaddleClient {
       customerId?: string;
       collectionMode: "automatic" | "manual";
       customData?: Record<string, unknown>;
+      checkout?: { url: string };
     }): Promise<PaddleTransaction>;
     list(input?: { customerId?: string[]; perPage?: number }): PaddleCollection<PaddleTransaction>;
   };
@@ -114,6 +116,10 @@ export function resolvePaddleConfig(config?: Record<string, unknown>): PaddleCon
       : undefined;
   const environmentValue = configuredEnvironment ?? getEnv("PADDLE_ENVIRONMENT");
   return {
+    appUrl:
+      typeof config?.appUrl === "string"
+        ? config.appUrl
+        : (getEnv("BETTER_AUTH_URL") ?? getEnv("SITE_URL")),
     apiKey: apiKey ?? getEnv("PADDLE_API_KEY") ?? "",
     webhookSecret: webhookSecret ?? getEnv("PADDLE_WEBHOOK_SECRET") ?? "",
     environment: environmentValue === "production" ? "production" : "sandbox",

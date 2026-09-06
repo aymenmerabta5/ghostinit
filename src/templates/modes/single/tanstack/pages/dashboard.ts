@@ -1,6 +1,8 @@
 import { tanstackSettingsPageContent } from "../../../../apps/fragments/settings/index.js";
 import { billingFiles as sharedBillingFiles } from "../../../../apps/fragments/billing/index.js";
 import type { TemplateFile } from "../../../../shared.js";
+import type { BillingProviderName } from "../../../../../lib/addons.js";
+import { BILLING_PROVIDERS } from "../../../../../lib/constants.js";
 import { singleDashboardRouteContent } from "./dashboard-feature.js";
 export { singleDashboardFeatureFilesTanstack } from "./dashboard-feature.js";
 
@@ -15,8 +17,11 @@ export function singleSettingsRouteTanstackContent(
 ): string {
   return tanstackSettingsPageContent(isConvex, "single", hasIdentityTransport, hasBilling);
 }
-export function singleTanstackBillingFeatureFiles(isConvex = false): TemplateFile[] {
-  return sharedBillingFiles("tanstack", isConvex).map((entry) => {
+export function singleTanstackBillingFeatureFiles(
+  isConvex = false,
+  selected: readonly BillingProviderName[] = BILLING_PROVIDERS,
+): TemplateFile[] {
+  return sharedBillingFiles("tanstack", isConvex, selected).map((entry) => {
     const path = entry.path.replace(/^apps\/web\//, "");
     if (path === "src/routes/billing.tsx") {
       return {

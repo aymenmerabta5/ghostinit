@@ -1,4 +1,8 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import {
+  convexTanstackMessagingDataContent,
+  convexTanstackMessagingQueriesContent,
+} from "./convex-tanstack-data.js";
 
 type MessagingMode = "monorepo" | "single";
 
@@ -22,10 +26,8 @@ function routeContent(mode: MessagingMode): string {
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMutation, useQuery as useConvexQuery } from "convex/react";
 import { loadInitialConversations, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
 import { currentQueryAuthScope, messagingConversationsQueryKey } from "@/lib/query-client";
-import { api } from "${generated}/api";
 import type { Id } from "${generated}/dataModel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -33,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { ConvexMessageThread } from "./-components/messages/convex-message-thread";
+import { useConvexConversations, useStartConvexConversation } from "./-components/messages/convex-messaging-queries";
 
 function MessagesPage(): React.JSX.Element {
   const t = useSurfaceTranslations("messaging");
@@ -42,18 +45,18 @@ function MessagesPage(): React.JSX.Element {
     ? queryClient.getQueryData<{ conversations: Array<{ id: string }> }>(messagingConversationsQueryKey(scope))
     : undefined;
   // Convex remains the live overlay; the scoped Start snapshot removes the first-render waterfall.
-  const liveConversations = useConvexQuery(api.messaging.listConversations);
+  const liveConversations = useConvexConversations();
   const conversationItems = liveConversations
     ? liveConversations.map((conversation) => ({ key: String(conversation._id), liveId: conversation._id }))
     : (initialConversations?.conversations ?? []).map((conversation) => ({ key: conversation.id, liveId: null }));
-  const getOrCreate = useMutation(api.messaging.getOrCreateConversation);
+  const getOrCreate = useStartConvexConversation();
   const [selected, setSelected] = React.useState<Id<"conversations"> | null>(null);
   const [peerId, setPeerId] = React.useState("");
   return <main className="min-h-screen bg-background p-6">
     <div className="mx-auto grid max-w-6xl grid-cols-[300px_1fr] gap-6">
       <Card><CardHeader><CardTitle className="text-base">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">
         {conversationItems.map((conversation) => <Button key={conversation.key} type="button" variant={conversation.liveId !== null && selected === conversation.liveId ? "secondary" : "outline"} disabled={conversation.liveId === null} onClick={() => { if (conversation.liveId !== null) setSelected(conversation.liveId); }} className="w-full justify-start font-mono text-xs">{conversation.key.slice(0, 8)}</Button>)}
-        <div className="flex gap-2"><Input value={peerId} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><Button variant="outline" disabled={!peerId.trim()} onClick={async () => { const conversation = await getOrCreate({ peerUserId: peerId.trim() as never }); if (conversation) { setSelected(conversation._id); setPeerId(""); } }}>{t("startDirectMessage")}</Button></div>
+        <div className="flex gap-2"><Input value={peerId} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><Button variant="outline" disabled={!peerId.trim()} onClick={async () => { const conversation = await getOrCreate(peerId.trim()); setSelected(conversation._id); setPeerId(""); }}>{t("startDirectMessage")}</Button></div>
       </CardContent></Card>
       {selected ? <Card><CardContent className="flex flex-col gap-3 p-4"><ConvexMessageThread conversationId={selected} /></CardContent></Card> : <Empty><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>}
     </div>
@@ -210,18 +213,17 @@ function threadContent(mode: MessagingMode): string {
   const generated = componentGeneratedRoot(mode);
   return `"use client";
 import * as React from "react";
-import { useQuery } from "convex/react";
-import { api } from "${generated}/api";
 import type { Id } from "${generated}/dataModel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { ConvexMessageComposer } from "./convex-message-composer";
+import { useConvexMessages, useConvexTyping } from "./convex-messaging-queries";
 
 export function ConvexMessageThread({ conversationId }: { conversationId: Id<"conversations"> }): React.JSX.Element {
   const t = useSurfaceTranslations("messaging");
-  const messages = useQuery(api.messaging.listMessages, { conversationId, limit: 30 });
-  const typing = useQuery(api.messaging.listTyping, { conversationId });
+  const messages = useConvexMessages(conversationId);
+  const typing = useConvexTyping(conversationId);
   return <>
     <div className="flex max-h-[400px] flex-col gap-2 overflow-auto">
       {(messages?.messages ?? []).length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noMessages")}</EmptyTitle></EmptyHeader></Empty> : (messages?.messages ?? []).map((message) => <Card key={message._id}><CardContent className="flex flex-col gap-1 p-3">
@@ -241,6 +243,14 @@ export function messagingConvexTanstackWebFiles(mode: MessagingMode = "monorepo"
   const componentRoot = `${root}src/routes/-components/messages`;
   return [
     file(`${root}src/routes/messages.tsx`, routeContent(mode)),
+    file(
+      `${componentRoot}/convex-messaging-data.ts`,
+      convexTanstackMessagingDataContent(componentGeneratedRoot(mode)),
+    ),
+    file(
+      `${componentRoot}/convex-messaging-queries.ts`,
+      convexTanstackMessagingQueriesContent(componentGeneratedRoot(mode)),
+    ),
     file(`${componentRoot}/convex-attachment-upload.ts`, attachmentUploadContent(mode)),
     file(`${componentRoot}/convex-message-composer.tsx`, composerContent(mode)),
     file(`${componentRoot}/convex-message-thread.tsx`, threadContent(mode)),

@@ -1,7 +1,10 @@
 import { generatedGitignoreContent } from "../../gitignore.js";
 import type { DesktopMode } from "./model.js";
 
-export function desktopViteConfigContent(mode: DesktopMode = "monorepo"): string {
+export function desktopViteConfigContent(
+  mode: DesktopMode = "monorepo",
+  hasConvex = false,
+): string {
   const aliasRoot = mode === "monorepo" ? "./src/renderer" : "./src";
   const environmentRoot = mode === "monorepo" ? "../../" : "./";
   const configImport =
@@ -10,7 +13,7 @@ export function desktopViteConfigContent(mode: DesktopMode = "monorepo"): string
     mode === "monorepo"
       ? `      // electron-vite 5 externalizes package dependencies by default. Bundle the
       // source-only workspace config so packaged Electron never imports TypeScript
-      // from node_modules; the selected subpath contains only DESKTOP_API_URL.
+      // from node_modules; the selected subpath resolves public desktop origins only.
       externalizeDeps: { exclude: ["@repo/config"] },
 `
       : "";
@@ -20,7 +23,7 @@ import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
-import { resolveDesktopMainEnv } from "${configImport}";
+import { resolveDesktopMainEnv${hasConvex ? ", resolveDesktopConvexUrl" : ""} } from "${configImport}";
 
 const sourceRoot = fileURLToPath(new URL("${aliasRoot}", import.meta.url));
 const environmentRoot = fileURLToPath(new URL("${environmentRoot}", import.meta.url));
@@ -36,10 +39,17 @@ function resolveEmbeddedDesktopApiUrl(mode: string): string {
 
 export default defineConfig(({ command, mode }) => {
   const embeddedApiUrl = command === "build" ? resolveEmbeddedDesktopApiUrl(mode) : "";
-  return {
+${
+  hasConvex
+    ? `  const loadedConvex = loadEnv(mode, environmentRoot, "VITE_CONVEX_URL");
+  const embeddedConvexUrl = resolveDesktopConvexUrl(process.env.VITE_CONVEX_URL?.trim() || loadedConvex.VITE_CONVEX_URL);
+`
+    : ""
+}  return {
     main: {
       define: {
         __GHOSTINIT_DESKTOP_EMBEDDED_API_URL__: JSON.stringify(embeddedApiUrl),
+${hasConvex ? "        __GHOSTINIT_DESKTOP_EMBEDDED_CONVEX_URL__: JSON.stringify(embeddedConvexUrl),\n" : ""}
       },
       build: {
 ${mainWorkspaceBundle}      outDir: "dist",
@@ -140,7 +150,10 @@ export function desktopGitignoreContent(): string {
   return generatedGitignoreContent();
 }
 
-export function desktopPackagingReadmeContent(mode: DesktopMode = "monorepo"): string {
+export function desktopPackagingReadmeContent(
+  mode: DesktopMode = "monorepo",
+  hasConvex = false,
+): string {
   const environmentLocation = mode === "monorepo" ? "the workspace root" : "this project root";
   return `# Desktop packaging
 
@@ -161,5 +174,20 @@ At launch, a managed deployment may set a runtime \`DESKTOP_API_URL\` to overrid
 Normal Explorer/Finder launches use the embedded origin because they do not inherit a deployment
 shell environment. Development may omit the variable and uses \`http://localhost:3000\`; a
 packaged application never falls back to localhost and fails closed when no endpoint was embedded.
+${
+  hasConvex
+    ? `
+For Convex, configure the existing public \`VITE_CONVEX_URL\` in the same build environment.
+The main process validates and embeds that exact HTTPS origin, passes it to the renderer,
+and permits only its HTTPS/WebSocket connections in the renderer policy. A runtime
+\`VITE_CONVEX_URL\` override updates both the client and policy together.
+Attachment URLs returned by Convex \`storage.getUrl()\` are bearer capabilities, not
+automatically expiring URLs: anyone with the URL can download until the file is deleted.
+The desktop downloader accepts only \`/api/storage/<id>\` on the configured Convex origin,
+sends no application credentials, and refuses redirects. Backend attachment routes keep
+their authenticated application transport.
+`
+    : ""
+}
 `;
 }

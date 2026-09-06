@@ -21,6 +21,7 @@ export const RESOLUTION_ISSUE_CODES = [
   "capability-target-binding-missing",
   "capability-client-target-unsupported",
   "capability-deploy-binding-unsupported",
+  "database-deploy-binding-unsupported",
 ] as const;
 
 export type ResolutionIssueCode = (typeof RESOLUTION_ISSUE_CODES)[number];

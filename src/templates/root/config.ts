@@ -149,11 +149,88 @@ export function readme(projectName: string, runtime: string): TemplateFile {
 Generated with ghostinit. Runtime: ${runtime}
 
 Dependency installs reject package versions published less than ${v.supplyChain.minimumReleaseAgeSeconds} seconds ago. The generated \`bunfig.toml\` has no minimum-release-age exclusions.
+
+For a committed clone, run \`bun run install:verified\`. For fresh output created
+with \`--no-install\`, run \`bun run install:bootstrap\` once to resolve without
+lifecycle scripts, attest the public-registry lock, and then install frozen.
 `,
   );
 }
-export function githubWorkflow(runtime: string): TemplateFile {
+export function githubWorkflow(
+  runtime: string,
+  deploy: string = "none",
+  profile?: {
+    database?: string;
+    framework?: string;
+    auth?: boolean;
+    notifications?: boolean;
+    cache?: boolean;
+    apps?: readonly string[];
+    messaging?: boolean;
+  },
+): TemplateFile {
   void runtime;
+  const cloudflareFramework = profile?.framework ?? "nextjs";
+  const cloudflareDatabase = profile?.database ?? "none";
+  const cloudflareAuth = profile?.auth === true;
+  const cloudflareApps = new Set(profile?.apps ?? ["web"]);
+  const siteUrl = "https://ghostinit-ci.example.test";
+  const convexUrl = "https://fixture-worker.convex.cloud";
+  const websocketUrl = "wss://ghostinit-ci.example.test/api/realtime";
+  const cloudflareEnvironment = new Map<string, string>([["SITE_URL", siteUrl]]);
+  cloudflareEnvironment.set(
+    cloudflareFramework === "tanstack-start" ? "VITE_APP_URL" : "NEXT_PUBLIC_APP_URL",
+    siteUrl,
+  );
+  if (cloudflareDatabase === "convex") {
+    cloudflareEnvironment.set("CONVEX_DEPLOYMENT", "dev:fixture-worker");
+    cloudflareEnvironment.set("CONVEX_URL", convexUrl);
+    cloudflareEnvironment.set("CONVEX_SITE_URL", "https://fixture-worker.convex.site");
+    cloudflareEnvironment.set(
+      cloudflareFramework === "tanstack-start" ? "VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL",
+      convexUrl,
+    );
+  }
+  if (cloudflareAuth) {
+    cloudflareEnvironment.set(
+      "BETTER_AUTH_SECRET",
+      "ghostinit-ci-only-not-a-production-secret-${{ github.run_id }}-${{ github.run_attempt }}",
+    );
+    cloudflareEnvironment.set("BETTER_AUTH_URL", siteUrl);
+  }
+  if (profile?.notifications === true) {
+    cloudflareEnvironment.set(
+      "NOTIFICATION_TOKEN_ENCRYPTION_KEY",
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    );
+  }
+  if (profile?.cache === true) {
+    cloudflareEnvironment.set("UPSTASH_REDIS_REST_URL", "https://redis.example.test");
+    cloudflareEnvironment.set(
+      "UPSTASH_REDIS_REST_TOKEN",
+      "ghostinit-ci-only-${{ github.run_id }}-${{ github.run_attempt }}",
+    );
+  }
+  if (cloudflareApps.has("mobile")) {
+    cloudflareEnvironment.set("EXPO_PUBLIC_APP_URL", siteUrl);
+    cloudflareEnvironment.set("EXPO_PUBLIC_API_URL", siteUrl);
+    if (cloudflareDatabase === "convex") {
+      cloudflareEnvironment.set("EXPO_PUBLIC_CONVEX_URL", convexUrl);
+    }
+    if (profile?.messaging === true) {
+      cloudflareEnvironment.set("EXPO_PUBLIC_WS_URL", websocketUrl);
+    }
+  }
+  if (cloudflareApps.has("desktop")) {
+    cloudflareEnvironment.set("DESKTOP_API_URL", siteUrl);
+    cloudflareEnvironment.set("VITE_APP_URL", siteUrl);
+    cloudflareEnvironment.set("VITE_API_URL", siteUrl);
+    if (cloudflareDatabase === "convex") cloudflareEnvironment.set("VITE_CONVEX_URL", convexUrl);
+    if (profile?.messaging === true) cloudflareEnvironment.set("VITE_WS_URL", websocketUrl);
+  }
+  const cloudflareStepEnvironment = [...cloudflareEnvironment]
+    .map(([key, value]) => `          ${key}: ${value}`)
+    .join("\n");
   return file(
     ".github/workflows/ci.yml",
     `name: CI
@@ -173,6 +250,8 @@ jobs:
       - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: ${v.runtime.bun}
+      - name: Verify committed lock trust, integrity, and release age
+        run: bun run audit:lock
       - name: Install frozen dependencies
         run: bun install --frozen-lockfile
       - name: Audit dependencies for high-severity vulnerabilities
@@ -187,9 +266,17 @@ jobs:
         run: bun run lint:all
       - name: Run generated project tests
         run: bun run test
-      - name: Build generated project
+${
+  deploy === "cloudflare"
+    ? `      - name: Build every app through the secret-scanned Worker path
         run: bun run build
-      - name: Run pinned architecture checker
+        env:
+${cloudflareStepEnvironment}
+`
+    : `      - name: Build generated project
+        run: bun run build
+`
+}      - name: Run pinned architecture checker
         shell: bash
         run: |
           report="$RUNNER_TEMP/ghostinit-architecture-check.json"

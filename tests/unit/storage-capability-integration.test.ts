@@ -87,7 +87,7 @@ describe("standalone storage capability integration", () => {
           const rpcRoutePath =
             framework === "nextjs"
               ? `${webRoot}src/app/api/rpc/[...path]/route.ts`
-              : `${webRoot}src/routes/api/rpc/$splat.ts`;
+              : `${webRoot}src/routes/api/rpc/$.ts`;
           const rpcRoute = files.get(rpcRoutePath) ?? "";
           const rpcAdmission =
             framework === "nextjs"

@@ -99,11 +99,11 @@ src/templates/
     index.ts                     monorepoFiles() assembler → dedup + sort + __PROJECT_NAME__ replace
     {root,packages,database,auth,api,ui,modules,apps,billing,services,agents,core-services,eve}-composer.ts
     utils.ts                     buildSecrets(), selectedBillingFromAddons()
-  modes/single.ts                Flat Next.js no workspaces
+  modes/single/                   Next/TanStack web or frontend-only Expo/Electron; no workspaces
   shared/
     env.ts                       Single source for .env (.example + .local) — billingEnvLines, filteredEnv*
     billing-env.ts (legacy shim), analytics-env.ts
-  default.ts                     generateProjectFiles() router — mode switch → monorepoFiles vs singleFiles
+  default.ts                     buildProjectGenerationPlan() typed plan; legacy mode dispatcher for emitters
 packages/versions/src/index.ts   Real @repo/versions package, SSOT for ALL dependency versions + ghostinitVersion
 tooling/
   typescript-config/base.json    Strict ES2024, bundler, composite, paths @/* + @repo/*
@@ -247,6 +247,48 @@ Example: we already have `monorepo` vs `single` + `nextjs` vs `tanstack-start` (
 
 6. **Docs** Update README framework list, and this CONTRIBUTING.
 
+## Cloudflare Workers Deployment Target
+
+Cloudflare is a resolved deployment binding, not a post-generation rewrite. Keep
+`DesiredProjectConfig` -> `ResolvedProjectConfig` -> `GenerationPlan` as the
+authoritative path so support validation, file ownership, provenance, checksums,
+and dry-run output all describe the same project.
+
+- Next.js uses `@opennextjs/cloudflare`; TanStack Start uses the native
+  `@cloudflare/vite-plugin` plus `vite-tsconfig-paths`.
+- Both frameworks support monorepo and single web modes with Convex or no
+  database. PostgreSQL requires a request-scoped Hyperdrive adapter, Eve needs a
+  Workers-native runtime, and server-side PDF needs shared admission control;
+  the resolver rejects those combinations rather than emitting a partial app.
+- The target emits `wrangler.jsonc`, `scripts/cloudflare.mjs`,
+  `docs/CLOUDFLARE_DEPLOYMENT.md`, framework-specific Worker configuration, and
+  root/package scripts for type generation, build, preview, dry-run, and deploy.
+- Local runtime values belong only in the gitignored `.dev.vars`. The build
+  wrapper rejects runtime `.env*` files before OpenNext/Vite runs, requires the
+  regular root `bun.lock`, and scans the bounded Worker artifact for non-public
+  server values without logging them. Production build variables and runtime
+  Worker secrets are separate Cloudflare settings; deploy preserves
+  dashboard-managed variables with `--keep-vars`.
+- OpenNext's production cache uses the `NEXT_INC_CACHE_R2_BUCKET` R2 binding,
+  `NEXT_CACHE_DO_QUEUE` Durable Object queue, and
+  `NEXT_TAG_CACHE_DO_SHARDED` tag cache. The immutable `v1` migration owns
+  `DOQueueHandler`; additive `v2` owns `DOShardedTagCache`. The named R2 bucket
+  must be created once before the first deploy.
+
+Any Cloudflare template change must run the four release-blocking Worker corners
+with `bun run test:workers`. They cover Next/TanStack x monorepo/single across
+Convex and database-free profiles. Both Convex monorepos select the full reviewed
+all four billing providers, i18n, messaging/storage, notifications, feature-flags, jobs, and
+Redis-cache surface; the monorepos select Bun and the single projects select Node.
+Each corner must install, audit, format, pass architecture, typecheck, lint and
+test; then build/secret-scan, run `wrangler deploy --dry-run`, and return HTTP
+200 for `/`, `/api/health`, and `/api/rpc/health` under a bounded local Wrangler
+preview. Convex monorepos avoid external-service calls; the database-free single
+projects explicitly add the framework-neutral API capability. The
+canonical release gate remains `bun run test:generated -- --all`.
+
+See [the operational and evidence contract](./docs/engineering/CLOUDFLARE_WORKERS.md).
+
 ## How to Add New Feature (eve, i18n)
 
 Same pattern as billing but simpler — feature flags.
@@ -310,8 +352,9 @@ bun test --timeout 100000 tests/integration tests/unit   # official script
 # Fixtures (frozen install + high-severity lock audit + fixture-specific checks)
 bun run test:fixtures
 
-# Real generated projects: install + high-severity audit + format/check + architecture + typecheck + lint:all + root tests (no build)
-bun run test:generated -- --all # all 15 configured representative corners
+# Real generated projects: verified bootstrap + installed dependency audit + format/check + architecture + typecheck + lint:all + root tests
+bun run test:generated -- --all # all 24 configured representative corners
+bun run test:workers            # four Cloudflare Worker build/dry-run/runtime corners
 
 # Full CI
 bun run test:ci # static + host/fixtures + generated --all + oRPC WS runtime + six audited production builds
@@ -322,12 +365,14 @@ supervisor, process-tree, and filesystem portability suites on `ubuntu-latest`,
 `windows-latest`, and `macos-latest`. Expensive fixture, generated-project,
 packed-artifact, runtime, and production-build acceptance remains single-run on
 Linux rather than being triplicated across operating systems.
+The dedicated Cloudflare portability job additionally builds and runs both the
+OpenNext and native Vite single-Worker profiles on Windows and macOS.
 
 **Fixtures:** `tests/fixtures/compatibility/` — frozen-install compatibility matrices for
 Drizzle + Better Auth + oRPC runtime contracts, a Next production build, and Expo
 type/tooling probes.
 
-`test:generated` defaults to `next-monorepo` and `single-next`; `--all` runs 15
+`test:generated` defaults to `next-monorepo` and `single-next`; `--all` runs 24
 configured representative corners rather than an exhaustive Cartesian product.
 Every generated corner and every frozen fixture lock runs a blocking
 `bun audit --audit-level=high`. The separate heavy `test:e2e-build` lifecycle
@@ -346,15 +391,17 @@ cd /tmp/gi-test/demo
 cat turbo.json | grep globalEnv
 cat bunfig.toml
 ls packages/ packages/billing/src/providers/
-bun install && bun run typecheck && bun run lint:all && bun run test
+bun run install:bootstrap && bun run typecheck && bun run lint:all && bun run test
 ```
 
-For `--deploy vercel`, `--deploy docker`, or `--deploy fly`, a `--no-install`
-project is not yet deployable: run `bun install` with Bun 1.4.0 to create the
-regular root `bun.lock`. Vercel runs the shared guard before both dependency
-installation and application build; the generated Dockerfile verifies the same
-lock before its frozen install. Missing and non-regular locks fail with
-corrective guidance before project dependency resolution.
+For `--deploy vercel`, `--deploy docker`, `--deploy fly`, or
+`--deploy cloudflare`, a `--no-install` project is not yet deployable: run
+`bun run install:bootstrap` with Bun 1.4.0 to create and attest the regular root
+`bun.lock` before lifecycle scripts run. Vercel runs
+the shared guard before both dependency installation and application build; the
+generated Dockerfile and Cloudflare build wrapper verify the same lock before
+their build paths. Missing and non-regular locks fail with corrective guidance
+before project dependency resolution.
 
 Checks: `turbo.json` globalEnv includes billing vars, `bunfig.toml` hoist=true, `packages/versions` catalog used, no `export *` in billing barrels.
 

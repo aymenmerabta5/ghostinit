@@ -47,7 +47,9 @@ Create/init options:
                               Single mobile/desktop is frontend-only; pair it with web in monorepo mode for backend capabilities
   --preset saas|frontend|custom  Preset: saas (full), frontend (minimal ui+config), custom (pick features) (default: saas)
   --cache redis|none         Cache: redis (Upstash) or none (default: none)
-  --deploy vercel|fly|docker|none  Emit Vercel, Fly, or Dockerfile+production Compose config (default: none)
+  --deploy vercel|fly|docker|cloudflare|none  Emit provider deployment config (default: none)
+                                      Cloudflare web: Convex/none (Next via OpenNext, TanStack native)
+                                      PostgreSQL, Eve, and server-side PDF are unsupported on Cloudflare
   --stack nextjs|tanstack-start|expo|both  Stack shorthand for frontend (framework+apps)
   --with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n --with-pdf --with-messaging  Opt-in addons for custom preset
   --with-storage          Actor-owned object storage (requires auth, API, database, web)

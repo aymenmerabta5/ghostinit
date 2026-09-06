@@ -74,7 +74,7 @@ export type DatabaseProvider = (typeof availableDatabases)[number];
 export const availablePresets = PRESETS;
 export const availableCacheProviders = CACHE_PROVIDERS;
 
-export const availableDeployTargets = ["vercel", "fly", "docker", "none"] as const;
+export const availableDeployTargets = ["vercel", "fly", "docker", "cloudflare", "none"] as const;
 export type DeployTarget = (typeof availableDeployTargets)[number];
 
 export const availableStacks = ["nextjs", "tanstack-start", "expo", "both"] as const;
@@ -512,7 +512,7 @@ export function parseFeatureFlagsInput(input?: string): FeatureFlagProvider {
  * Parse deploy input:
  * - undefined / "" / whitespace -> "none" default
  * - case-insensitive, trimmed
- * - valid values: vercel, fly, docker, none
+ * - valid values: vercel, fly, docker, cloudflare, none
  * - invalid -> throws ValidationError
  */
 export function parseDeployInput(input?: string): DeployTarget {

@@ -41,8 +41,8 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "auth",
     "auth.sign-in.v1",
-    "tests/unit/identity-ui-flows.test.ts",
-    "generated shared schemas reject invalid structured form values",
+    "tests/unit/backend-capabilities/auth-sign-in-behavior.test.ts",
+    "signs in verified credentials and rejects unverified, incorrect, and revoked sessions",
   ),
   ...[
     "identity.passkey.authenticate.v1",
@@ -54,8 +54,8 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
     behavioralEvidence(
       "auth",
       operationId,
-      "tests/unit/auth-passkey-platform-parity.test.ts",
-      "forwards registration, authentication, listing, rename, and owner deletion",
+      "tests/integration/generated-passkey-webauthn.test.ts",
+      "completes registration, authentication, listing, rename, and ownership-safe deletion",
     ),
   ),
   behavioralEvidence(
@@ -73,14 +73,14 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "billing",
     "billing.payment-link.v1",
-    "tests/unit/billing-chargily.test.ts",
-    "exposes merchant payment links through the typed application security facade",
+    "tests/unit/request-application-facade.test.ts",
+    "enforces authentication, verification, administration, and limiter order centrally",
   ),
   behavioralEvidence(
     "billing",
     "billing.portal.v1",
     "tests/unit/billing-portal-security.test.ts",
-    "emits customer-id-free oRPC portal inputs in both packaging modes",
+    "resolves the vendor customer id from authenticated actors in both packaging modes",
   ),
   behavioralEvidence(
     "billing",
@@ -98,7 +98,7 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
     "messaging",
     "messaging.attachment.download.v1",
     "tests/integration/convex-messaging-behavior.test.ts",
-    "failed server uploads abort owned blobs while cleanup preserves committed storage",
+    "attachment download URLs require membership and protect pending ownership",
   ),
   behavioralEvidence(
     "messaging",
@@ -121,8 +121,8 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "messaging",
     "messaging.polling-fallback.v1",
-    "tests/unit/messaging-storage-security.test.ts",
-    "desktop Postgres messaging degrades to polling when native websocket tickets are unavailable",
+    "tests/unit/realtime-native-ticket-parity.test.ts",
+    "executes native typed ticket clients with typing, transport status, and polling fallback",
   ),
   behavioralEvidence(
     "messaging",
@@ -133,26 +133,26 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "messaging",
     "messaging.transport-status.v1",
-    "tests/unit/messaging-storage-security.test.ts",
-    "websocket handshakes reject cross-site origins and expose one typed oRPC endpoint",
+    "tests/unit/realtime-native-ticket-parity.test.ts",
+    "executes native typed ticket clients with typing, transport status, and polling fallback",
   ),
   behavioralEvidence(
     "messaging",
     "messaging.typing.v1",
-    "tests/unit/messaging-storage-security.test.ts",
-    "websocket handshakes reject cross-site origins and expose one typed oRPC endpoint",
+    "tests/integration/convex-messaging-behavior.test.ts",
+    "typing updates use the current actor and require conversation membership",
   ),
   behavioralEvidence(
     "email",
     "email.send.v1",
-    "tests/unit/transactional-email-i18n.test.ts",
-    "resolves cookie and weighted Accept-Language preferences and formats subjects",
+    "tests/unit/backend-capabilities/email-delivery-behavior.test.ts",
+    "sends transactional email through both generated provider paths and propagates delivery failure",
   ),
   behavioralEvidence(
     "storage",
     "storage.authorized-read.v1",
-    "tests/unit/convex-storage-security.test.ts",
-    "keeps storage IDs behind a server-owned action and internal registry",
+    "tests/unit/backend-capabilities/storage-read-behavior.test.ts",
+    "reads owned bytes and rejects foreign, anonymous, and suspended actors before disclosure",
   ),
   behavioralEvidence(
     "storage",
@@ -163,26 +163,26 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "cache",
     "cache.get-set.v1",
-    "tests/unit/generated-audience-cache-matrix.test.ts",
-    "configuration and provider failures reject instead of fabricating success",
+    "tests/unit/backend-capabilities/cache-behavior.test.ts",
+    "stores and retrieves values with expiry and scoped invalidation through the pinned Redis SDK",
   ),
   behavioralEvidence(
     "analytics",
     "analytics.capture.v1",
-    "tests/unit/expo-analytics.test.ts",
-    "implements the PostHog 4.x provider, opt-out, and manual Expo screen APIs",
+    "tests/unit/cloudflare-analytics-lifetime.test.ts",
+    "concurrent requests never share provider clients, abort signals, or queues",
   ),
   behavioralEvidence(
     "i18n",
     "i18n.locale-routing.v1",
-    "tests/unit/transactional-email-i18n.test.ts",
-    "resolves cookie and weighted Accept-Language preferences and formats subjects",
+    "tests/unit/backend-capabilities/locale-routing-behavior.test.ts",
+    "resolves request locale after persisted switches and preserves weighted fallback",
   ),
   behavioralEvidence(
     "pdf",
     "pdf.render.v1",
-    "tests/unit/pdf-security.test.ts",
-    "revives only template date fields and rejects invalid dates before rendering",
+    "tests/unit/backend-capabilities/pdf-render-behavior.test.ts",
+    "renders every generated document with local fonts after enforcing request authorization",
   ),
   {
     capability: "eve",
@@ -235,8 +235,8 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   behavioralEvidence(
     "jobs",
     "jobs.execute.v1",
-    "tests/unit/backend-capabilities/jobs-behavior.test.ts",
-    "deduplicates enqueue deterministically and denies cross-user access",
+    "tests/unit/backend-capabilities/jobs-execution-behavior.test.ts",
+    "executes queued handlers with durable results, replay safety, ownership, retry, and cancellation",
   ),
   behavioralEvidence(
     "jobs",

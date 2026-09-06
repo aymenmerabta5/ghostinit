@@ -39,40 +39,100 @@ describe("V2 closed support catalog", () => {
   test("keeps database, cache, and deploy as independent named axes", () => {
     expect(SUPPORT_CATALOG.axes.databases).toEqual(["postgres", "convex", "none"]);
     expect(SUPPORT_CATALOG.axes.cacheProviders).toEqual(["redis", "none"]);
-    expect(SUPPORT_CATALOG.axes.deployTargets).toEqual(["vercel", "fly", "docker", "none"]);
+    expect(SUPPORT_CATALOG.axes.deployTargets).toEqual([
+      "vercel",
+      "fly",
+      "docker",
+      "cloudflare",
+      "none",
+    ]);
     expect(SUPPORT_CATALOG.axes.featureFlagProviders).toEqual(["posthog"]);
     expect(SUPPORT_CATALOG.axes.executionRuntimes).toEqual(["bun", "node"]);
     expect(SUPPORT_CATALOG.axes.packageManagers).toEqual([{ name: "bun", version: runtime.bun }]);
     expect(Object.keys(SUPPORT_CATALOG.axes)).toContain("databases");
     expect(Object.keys(SUPPORT_CATALOG.axes)).toContain("cacheProviders");
     expect(Object.keys(SUPPORT_CATALOG.axes)).toContain("deployTargets");
-    expect(SUPPORT_CATALOG.capabilityDeployBindings).toEqual([
+    expect(SUPPORT_CATALOG.databaseDeployBindings).toEqual([
       {
-        capability: "messaging",
         database: "postgres",
-        deployTargets: ["none", "fly", "docker"],
+        deployTargets: ["none", "vercel", "fly", "docker"],
       },
       {
-        capability: "jobs",
-        database: "postgres",
-        deployTargets: ["none", "fly", "docker"],
-      },
-      {
-        capability: "storage",
-        database: "postgres",
-        deployTargets: ["none", "fly", "docker"],
-      },
-      {
-        capability: "pdf",
-        database: "postgres",
-        deployTargets: ["none", "fly", "docker"],
-      },
-      {
-        capability: "pdf",
         database: "convex",
-        deployTargets: ["none", "fly", "docker"],
+        deployTargets: ["none", "vercel", "fly", "docker", "cloudflare"],
+      },
+      {
+        database: "none",
+        deployTargets: ["none", "vercel", "fly", "docker", "cloudflare"],
       },
     ]);
+    expect(SUPPORT_CATALOG.capabilityDeployBindings).toEqual(
+      expect.arrayContaining([
+        {
+          capability: "messaging",
+          database: "postgres",
+          deployTargets: ["none", "fly", "docker"],
+        },
+        {
+          capability: "jobs",
+          database: "postgres",
+          deployTargets: ["none", "fly", "docker"],
+        },
+        {
+          capability: "storage",
+          database: "postgres",
+          deployTargets: ["none", "fly", "docker"],
+        },
+        {
+          capability: "pdf",
+          database: "postgres",
+          deployTargets: ["none", "fly", "docker"],
+        },
+        {
+          capability: "pdf",
+          database: "convex",
+          deployTargets: ["none", "fly", "docker"],
+        },
+        {
+          capability: "eve",
+          database: "postgres",
+          deployTargets: ["none", "vercel", "fly", "docker"],
+        },
+        {
+          capability: "eve",
+          database: "convex",
+          deployTargets: ["none", "vercel", "fly", "docker"],
+        },
+      ]),
+    );
+    expect(SUPPORT_CATALOG.defaultDenyCapabilityDeployTargets).toEqual(["cloudflare"]);
+    expect(
+      SUPPORT_CATALOG.capabilityDeployBindings
+        .filter(({ deployTargets }) => deployTargets.includes("cloudflare"))
+        .map(({ capability, database }) => `${capability}:${database}`)
+        .sort(),
+    ).toEqual(
+      [
+        "analytics:convex",
+        "analytics:none",
+        "auth:convex",
+        "billing:convex",
+        "cache:convex",
+        "cache:none",
+        "email:convex",
+        "email:none",
+        "featureFlags:convex",
+        "featureFlags:none",
+        "i18n:convex",
+        "i18n:none",
+        "jobs:convex",
+        "messaging:convex",
+        "notifications:convex",
+        "storage:convex",
+        "transport:convex",
+        "transport:none",
+      ].sort(),
+    );
   });
 
   test("retains Node runtime with explicit release evidence", () => {

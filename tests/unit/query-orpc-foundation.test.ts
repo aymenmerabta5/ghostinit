@@ -95,13 +95,15 @@ describe("generated Query and oRPC foundation", () => {
       expect(nextRoute).not.toContain("OpenAPIHandler");
       expect(nextRoute).not.toContain("as unknown as");
       expect(nextOpenApi).toContain("new OpenAPIHandler(appRouter,");
-      expect(nextOpenApi).toContain("openApiHandler.handle(request, { context })");
+      expect(nextOpenApi).toContain(
+        "openApiHandler.handle(toStandardApiRequest(request), { context })",
+      );
       expect(nextOpenApi).not.toContain('prefix: "/api/rpc"');
 
       const tanstackFiles = generate(mode, "tanstack-start");
-      const tanstackRoute = read(tanstackFiles, `${prefix(mode)}src/routes/api/rpc/$splat.ts`);
+      const tanstackRoute = read(tanstackFiles, `${prefix(mode)}src/routes/api/rpc/$.ts`);
       const tanstackHandler = read(tanstackFiles, `${prefix(mode)}src/server/http/rpc.server.ts`);
-      const tanstackOpenApi = read(tanstackFiles, `${prefix(mode)}src/routes/api/$splat.ts`);
+      const tanstackOpenApi = read(tanstackFiles, `${prefix(mode)}src/routes/api/$.ts`);
       const tanstackOpenApiHandler = read(
         tanstackFiles,
         `${prefix(mode)}src/server/http/openapi-operations.server.ts`,
@@ -120,9 +122,11 @@ describe("generated Query and oRPC foundation", () => {
       expect(tanstackHandler).toContain("new RPCHandler(appRouter");
       expect(tanstackHandler).toMatch(/prefix: ["']\/api\/rpc["']/);
       expect(tanstackRoute).not.toContain("OpenAPIHandler");
-      expect(tanstackOpenApi).toContain('createFileRoute("/api/$splat")');
+      expect(tanstackOpenApi).toContain('createFileRoute("/api/$")');
       expect(tanstackOpenApiHandler).toContain("new OpenAPIHandler(appRouter,");
-      expect(tanstackOpenApiHandler).toContain("openApiHandler.handle(request, { context })");
+      expect(tanstackOpenApiHandler).toContain(
+        "openApiHandler.handle(toStandardApiRequest(request), { context })",
+      );
       expect(`${tanstackRoute}\n${tanstackHandler}`).not.toContain("as unknown as");
 
       const spec = read(

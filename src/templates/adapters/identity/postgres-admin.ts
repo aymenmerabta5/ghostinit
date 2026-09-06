@@ -11,7 +11,7 @@ function postgresAdminCompositionContent(mode: ProjectMode): string {
       : `import { db } from "@/server/db";
 import { accounts, adminAuditEvents, sessions, users } from "@/server/db/schema/auth";`;
   const loggerImport = mode === "monorepo" ? "@repo/observability" : "@/server/observability";
-  const serviceImport = mode === "monorepo" ? "../../admin/index.js" : "@/server/services/admin";
+  const serviceImport = mode === "monorepo" ? "../../admin/index" : "@/server/services/admin";
   const serviceImportLine = `import * as admin from "${serviceImport}";`;
 
   return `// @allow-long 429: authoritative Postgres admin mutations with serialized policy and transactional audit

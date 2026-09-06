@@ -469,7 +469,12 @@ function toNotificationDeviceDto(value: NotificationDeviceRegistration) { return
   const billingPort = selection.billing
     ? `
 export interface BillingApplicationPort {
-  subscriptions(userId: string): Promise<{ subscriptions: readonly unknown[]; invoices: readonly unknown[]; usageEvents: readonly unknown[]; licenseKeys: readonly unknown[] }>;
+  subscriptions(userId: string): Promise<{
+    subscriptions: readonly unknown[];
+    invoices: readonly unknown[];
+    usageEvents: readonly unknown[];
+    licenseKeys: readonly unknown[]
+  }>;
   createCheckout(principal: RequestPrincipal, input: BillingCheckoutInput): Promise<BillingCheckoutDto>;
   createPortalSession(principal: RequestPrincipal, input: BillingPortalInput): Promise<{ url: string }>;
   createPaymentLink(principal: RequestPrincipal, input: BillingPaymentLinkInput): Promise<{ id: string; url: string }>;

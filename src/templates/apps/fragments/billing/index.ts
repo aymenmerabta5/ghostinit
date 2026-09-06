@@ -7,6 +7,15 @@ import {
   type RouterType,
 } from "./page.js";
 import { file } from "../../../shared.js";
+import type { BillingProviderName } from "../../../../lib/addons.js";
+import { BILLING_PROVIDERS } from "../../../../lib/constants.js";
+import { billingClientProviderOptions } from "./client-capabilities.js";
+import { billingInvoicesContent } from "../../../billing/ui/invoices.js";
+import { billingMoneyFile } from "../../../billing/ui/money.js";
+import {
+  billingPaymentLinkFormContent,
+  billingProviderUrlContent,
+} from "../../../billing/ui/payment-link-form.js";
 
 export {
   billingEmptyStateContent,
@@ -16,7 +25,11 @@ export {
   type RouterType,
 };
 
-export function billingFiles(router: RouterType = "next", isConvex = false): TemplateFile[] {
+export function billingFiles(
+  router: RouterType = "next",
+  isConvex = false,
+  selected: readonly BillingProviderName[] = BILLING_PROVIDERS,
+): TemplateFile[] {
   const hookPath =
     router === "tanstack"
       ? "apps/web/src/features/billing/use-billing.ts"
@@ -25,8 +38,26 @@ export function billingFiles(router: RouterType = "next", isConvex = false): Tem
   const hookContent = billingHookContent(router);
   return [
     billingPage(router, isConvex),
-    file(`${featureBase}/billing-empty-state.tsx`, billingEmptyStateContent()),
-    file(`${featureBase}/billing-page.tsx`, billingPresentationContent(router)),
+    billingMoneyFile("apps/web/src"),
+    file(`${featureBase}/billing-empty-state.tsx`, billingEmptyStateContent(selected)),
+    file(`${featureBase}/billing-page.tsx`, billingPresentationContent(router, selected)),
+    file(`${featureBase}/billing-invoices.tsx`, billingInvoicesContent()),
+    file(
+      `${featureBase}/provider-options.ts`,
+      `import type { ProviderName } from "./queries";
+export const BILLING_PROVIDERS: readonly { id: ProviderName; label: string; checkout: true; portal: boolean; paymentLink: boolean }[] = ${JSON.stringify(billingClientProviderOptions(selected))};
+export function supportsBillingPortal(provider: ProviderName): boolean { return BILLING_PROVIDERS.some((option) => option.id === provider && option.portal); }
+`,
+    ),
+    file(`${featureBase}/provider-url.ts`, billingProviderUrlContent),
+    ...(router === "tanstack" && selected.includes("chargily")
+      ? [
+          file(
+            `${featureBase}/payment-link-form.tsx`,
+            billingPaymentLinkFormContent("./use-billing"),
+          ),
+        ]
+      : []),
     file(`${featureBase}/queries.ts`, billingQueriesContent(router)),
     file(`${featureBase}/mutations.ts`, billingMutationsContent()),
     file(hookPath, hookContent),
@@ -114,6 +145,8 @@ export function useBillingSnapshot() {
       : "";
   return `"use client";
 ${queryImports}
+import { protectedRouteSessionQueryOptions } from "@/lib/protected-route";
+import { getProtectedRouteSession } from "@/lib/server-functions";
 import { orpcClient } from "@/lib/orpc";
 import { normalizeBillingSnapshot, type Inv, type Sub } from "./snapshot";
 export type { Inv, ProviderName, Sub } from "./snapshot";
@@ -122,6 +155,16 @@ export async function fetchBillingSnapshot(): Promise<{ subscriptions: Sub[]; in
   return normalizeBillingSnapshot(data);
 }
 ${queryHook}
+export function useBillingIdentity() {
+  const queryClient = useQueryClient();
+  const scope = currentQueryAuthScope(queryClient);
+  return useQuery({
+    queryKey: scope ? protectedRouteSessionQueryOptions(scope).queryKey : ["auth", "anonymous", "billing", "identity"],
+    queryFn: () => getProtectedRouteSession(),
+    enabled: Boolean(scope),
+    staleTime: 30_000,
+  });
+}
 `;
 }
 
@@ -135,6 +178,9 @@ export function createBillingCheckout(input: { provider: ProviderName; planId: "
 export function createBillingPortalSession(input: { provider: ProviderName; returnUrl: string }) {
   return orpcClient.billing.createPortalSession(input);
 }
+export function createBillingPaymentLink(input: { provider: ProviderName; name: string; items: { price: string; quantity: number }[] }) {
+  return orpcClient.billing.createPaymentLink(input);
+}
 `;
 }
 
@@ -143,13 +189,20 @@ function billingHookContent(router: RouterType): string {
     return `"use client";
 import * as React from "react";
 import { toast } from "sonner";
-import { useBillingSnapshot } from "./queries";
+import { useBillingSnapshot, useBillingIdentity } from "./queries";
 import type { ProviderName } from "./snapshot";
-import { createBillingCheckout, createBillingPortalSession } from "./mutations";
+export type { ProviderName } from "./snapshot";
+import { createBillingCheckout, createBillingPortalSession, createBillingPaymentLink } from "./mutations";
+import { safeBillingProviderUrl } from "./provider-url";
+import { supportsBillingPortal } from "./provider-options";
 
 export function useBillingPage() {
   const snapshot = useBillingSnapshot();
+  const identity = useBillingIdentity();
+  const role = identity.data?.user?.role;
+  const canCreatePaymentLinks = !identity.data?.user?.banned && (role === "admin" || role === "superAdmin");
   const [isCheckoutLoading, setIsCheckoutLoading] = React.useState(false);
+  const [isPaymentLinkLoading, setIsPaymentLinkLoading] = React.useState(false);
   const subscriptions = snapshot.data?.subscriptions ?? [];
   const invoices = snapshot.data?.invoices ?? [];
   const pastDue = subscriptions.some((subscription) => subscription.status === "past_due");
@@ -158,17 +211,23 @@ export function useBillingPage() {
     try {
       const result = await createBillingCheckout({ provider, planId: "pro", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", requestKey: crypto.randomUUID() });
       if (!result.url) throw new Error("No checkout url returned");
-      window.location.href = result.url;
+      window.location.href = safeBillingProviderUrl(result.url);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Checkout failed"); }
     finally { setIsCheckoutLoading(false); }
   }
   async function handlePortal(provider: ProviderName) {
+    if (!supportsBillingPortal(provider)) return;
     try {
       const result = await createBillingPortalSession({ provider, returnUrl: window.location.origin + "/billing" });
-      if (result.url) window.location.href = result.url;
+      if (result.url) window.location.href = safeBillingProviderUrl(result.url);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Portal failed"); }
   }
-  return { subscriptions, invoices, subsLoading: snapshot.isPending, isCheckoutLoading, pastDue, handleCheckout, handlePortal };
+  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string> {
+    setIsPaymentLinkLoading(true);
+    try { return safeBillingProviderUrl((await createBillingPaymentLink({ provider, name, items: [{ price, quantity: 1 }] })).url); }
+    finally { setIsPaymentLinkLoading(false); }
+  }
+  return { subscriptions, invoices, subsLoading: snapshot.isPending, isCheckoutLoading, pastDue, handleCheckout, handlePortal, canCreatePaymentLinks, isPaymentLinkLoading, handlePaymentLink, snapshotError: snapshot.error, refresh: snapshot.refetch };
 }
 `;
   }

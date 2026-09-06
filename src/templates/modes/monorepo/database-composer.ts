@@ -19,6 +19,7 @@ export function databaseComposerFiles(
   const hasAuth = addons ? hasAddon(addons, "auth") : true;
   const hasEmail = addons ? hasAddon(addons, "email") : true;
   const hasI18n = Boolean(addons && hasAddon(addons, "i18n"));
+  const hasMobile = Boolean(addons && hasAddon(addons, "mobile"));
   const hasBilling = addons
     ? hasAddon(addons, "billing") ||
       (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
@@ -34,6 +35,7 @@ export function databaseComposerFiles(
         billing: hasBilling,
         email: hasEmail,
         i18n: hasI18n,
+        mobile: hasMobile,
         posts: hasAuth,
       }),
       ...convexStartDatabaseFiles(projectName),

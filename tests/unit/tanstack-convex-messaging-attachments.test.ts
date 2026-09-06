@@ -3,10 +3,13 @@ import { extname, posix } from "node:path";
 import { parseFile } from "../../src/lib/architecture/parsers/imports.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
+import { z } from "zod";
 
 type Mode = "monorepo" | "single";
 
 const CLIENT_FILES = [
+  "convex-messaging-data.ts",
+  "convex-messaging-queries.ts",
   "convex-attachment-upload.ts",
   "convex-message-composer.tsx",
   "convex-message-thread.tsx",
@@ -79,6 +82,70 @@ function content(files: Map<string, string>, path: string): string {
 
 describe("TanStack Convex web messaging attachments", () => {
   for (const mode of ["monorepo", "single"] as const) {
+    test(`${mode} validates Convex query DTOs before rendering or selecting a conversation`, () => {
+      const generated = generateProjectFiles(config(mode, true, true), { dryRun: true });
+      const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
+      const root = mode === "monorepo" ? "apps/web/" : "";
+      const componentRoot = `${root}src/routes/-components/messages`;
+      const source = content(byPath, `${componentRoot}/convex-messaging-data.ts`);
+      const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(
+        source.replace(/^import[^\n]*\n/gm, "").replace(/^export /gm, ""),
+      );
+      const schemas = new Function(
+        "z",
+        `${javascript}; return { convexConversationSchema, convexConversationListSchema, convexMessagePageSchema, convexTypingListSchema };`,
+      )(z) as Record<string, z.ZodType>;
+      expect(
+        schemas.convexConversationListSchema!.parse([
+          { _id: "conversation-1", internal: "not a UI field" },
+        ]),
+      ).toEqual([{ _id: "conversation-1" }]);
+      expect(() => schemas.convexConversationSchema!.parse(null)).toThrow();
+      expect(() => schemas.convexConversationSchema!.parse({ _id: "" })).toThrow();
+      const page = {
+        messages: [
+          {
+            _id: "message-1",
+            body: "hello",
+            attachments: [
+              {
+                id: "attachment-1",
+                url: "https://fixture.convex.cloud/api/storage/file-1",
+                originalName: "hello.txt",
+              },
+            ],
+          },
+        ],
+        nextCursor: null,
+      };
+      expect(schemas.convexMessagePageSchema!.parse(page)).toEqual(page);
+      for (const invalid of [
+        null,
+        { messages: "wrong", nextCursor: null },
+        { messages: [{ _id: "message-1", attachments: null }], nextCursor: null },
+        { messages: [{ _id: "message-1", body: 42, attachments: [] }], nextCursor: null },
+        { ...page, nextCursor: 42 },
+      ]) {
+        expect(() => schemas.convexMessagePageSchema!.parse(invalid)).toThrow();
+      }
+      expect(schemas.convexTypingListSchema!.parse([{ userId: "user-1" }])).toEqual([
+        { userId: "user-1" },
+      ]);
+      expect(() => schemas.convexTypingListSchema!.parse([{ userId: 42 }])).toThrow();
+      const route = content(byPath, `${root}src/routes/messages.tsx`);
+      const thread = content(byPath, `${componentRoot}/convex-message-thread.tsx`);
+      const queries = content(byPath, `${componentRoot}/convex-messaging-queries.ts`);
+      expect(queries).toContain("const rawConversations: unknown = useQuery");
+      expect(queries).toContain("rawConversations === undefined ? undefined");
+      expect(queries).toContain("convexConversationSchema.parse(await start");
+      expect(queries).toContain("const rawMessages: unknown = useQuery");
+      expect(queries).toContain("rawMessages === undefined ? undefined");
+      expect(route).toContain("useConvexConversations()");
+      expect(thread).toContain("useConvexMessages(conversationId)");
+      expect(`${source}\n${queries}\n${route}\n${thread}`).not.toMatch(
+        /\bas any\b|@ts-(?:ignore|expect-error|nocheck)/,
+      );
+    });
     test(`${mode} emits bounded parseable clients with closed imports`, () => {
       const generated = generateProjectFiles(config(mode, true, true), { dryRun: true });
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));

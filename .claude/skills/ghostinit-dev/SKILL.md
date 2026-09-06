@@ -63,7 +63,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 2. `apps/myframework-*.ts` templates: `core`, `api`, `pages`, `components` — see `tanstack-*`
 3. fragments DRY `apps/fragments/` with `RouterType` param — extract if >300 LOC or >30% duplication
 4. router `default.ts` `generateProjectFiles()` + `monorepo/index.ts`
-5. env already dual `NEXT_PUBLIC_*` + `VITE_*`
+5. env audiences: Next uses `NEXT_PUBLIC_*`, TanStack/desktop use `VITE_*`, and Expo uses `EXPO_PUBLIC_*`; emit only the selected audiences and keep their runtime schemas isolated
 6. turbo outputs `.next/** .vinxi/** .output/** dist/** .vercel/**`
 
 ### Expo RNR + Uniwind (Host Template)
@@ -102,9 +102,9 @@ Unified as addons via `--with-eve/--with-i18n` (preferred) + deprecated `--featu
 
 New var → MUST update same PR 5 places + skills:
 
-1. `src/lib/constants.ts` `ENV_PLACEHOLDERS` `"REPLACE_WITH_..."`
-2. `src/templates/shared/env/` builder: `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe
-3. `src/templates/root.ts` `turbo()` manifest-derived, capability-scoped `globalEnv`
+1. `src/lib/env-manifest.ts` `ENV_PLACEHOLDERS` and environment key catalog (`constants.ts` re-exports it)
+2. `src/templates/shared/env/` builders: `billing.ts`, `core.ts`, `builders.ts` — emit example + local values for selected capabilities and app audiences; keep the matching config runtime schemas in sync
+3. `src/templates/root/turbo.ts` `turbo()` manifest-derived, capability-scoped `globalEnv`
 4. root `turbo.json` `globalEnv`
 5. docs `AGENTS.md` + `CONTRIBUTING.md` tooling quirk + **MUST also update** `skills/ghostinit-use/` (`references/billing.md` or `workflows.md` or `frameworks.md` if user-visible) + `references/env-vars.md` this skill
 
@@ -138,20 +138,21 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - Status verbose: `status --verbose` / `--list` exposes `mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksumCount, generatedBy`
 - CI freshness: host `check-and-test` now runs `scripts/sync-turbo-env.ts --check` + `check:versions` (needs network) before test; `scripts/sync-turbo-env.ts` is SSOT for `turbo.json` vs `GLOBAL_ENV_KEYS`
 - build verifies real d.ts >10 bytes not fake `export {}` stub
-- Deployment templates: `root/deploy.ts` + `deploy-guides.ts` emit exact Bun images, an ephemeral BuildKit env secret (never `COPY .env*`), runtime `COPY --chown=1000:1000`, `/api/health` image/Fly probes, 30-second Compose/Fly shutdown grace, and explicit named Eve Workflow volumes. Vercel validly uses provider-managed `bunVersion: "1.4.x"` while install/build invoke exact catalog Bun. Postgres 18 volumes mount `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
+- Deployment templates: `root/deploy.ts` + `deploy-guides.ts` emit exact Bun images, an ephemeral BuildKit env secret (never `COPY .env*`), runtime `COPY --chown=1000:1000`, `/api/health` image/Fly probes, 30-second Compose/Fly shutdown grace, and explicit named Eve Workflow volumes. `root/cloudflare.ts` emits the resolved Worker profile: OpenNext for Next.js or native Cloudflare Vite for TanStack, gitignored `.dev.vars`, separate production build/runtime variables, lock enforcement, artifact secret scanning, Wrangler type/dry-run commands, and Next R2 plus queue/sharded-tag Durable Object cache bindings. Cloudflare supports Convex/none and rejects PostgreSQL/Eve/PDF. Vercel validly uses provider-managed `bunVersion: "1.4.x"` while install/build invoke exact catalog Bun. Postgres 18 volumes mount `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
 - Cache via catalog-pinned Upstash Redis over HTTP is fail-closed; `packages/cache` is emitted only for `cache===redis` (or `--with-cache`). The same `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair owns atomic production API rate limiting when auth+transport are selected even if the cache package is off; placeholders permit only the bounded development/test limiter fallback. Turbo `globalEnv` and capability sanitization follow that ownership.
 - Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; `email` is now always emitted (React Email default-on) — not stripped; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
 - API RBAC: `packages/api/src/context.ts` exposes `role` + `sessionId` + `requireUser`/`requireAdmin`; `packages/api/src/middleware/auth.ts` provides `protectedProcedure(ctx)`/`adminProcedure(ctx)` (throw `ORPCError` `UNAUTHORIZED`/`FORBIDDEN`). Mutation procedures use one atomic Upstash Redis `EVAL` through the REST pipeline; only development/test may use the bounded process-local fallback, and production fails closed even when the optional cache package is off. `health` + `me` still exist, `billing/*` procedures use `listSubscriptionsUseCase`.
 - Settings: `apps/web/src/app/settings/components/sessions-card.tsx` (`useState` + `authClient.listSessions`/`revokeSession`/`revokeSessions`, `Badge current`, `Revoke`) added to `settingsFiles()` (Next) and TanStack `settings/tanstack-page.ts` `Security` now links to `Sessions` + `Passkey & Magic Link` note + `Organization` enabled.
 - Admin: `admin/hooks/use-admin-users.ts` now `search`/`page`/`limit:20`/`offset` + `query:{limit,offset,search}`; `admin/users-page.tsx` search input + `Prev/Next` + `Page X/Y` + audit-log footnote.
 - Billing: `apps/web/src/app/billing/page.tsx` (and `routes/billing.tsx`) now real UI via `hooks/use-billing.ts` (`subscriptions`/`invoices`/`isCheckoutLoading`/`pastDue` + `handleCheckout(provider)` + `handlePortal`) emitted by `billing/index.ts` for both routers; `billingFiles()` emits hook for Next (`app/billing/hooks/use-billing.ts`) and TanStack (`routes/billing/hooks/use-billing.ts`).
-- Env prefix is framework-specific: `@repo/config` uses `@t3-oss/env-nextjs` (NEXT_PUBLIC_) for Next.js and `@t3-oss/env-core` with `clientPrefix: "VITE_"` for TanStack, emitting only that framework's public vars; listing both families together fails t3-env typecheck. Expo adds `EXPO_PUBLIC_` via separate config.
+- Env runtimes are audience-specific: `@repo/config/next` uses `NEXT_PUBLIC_`, `/vite` uses `VITE_` for TanStack and desktop renderers, and `/expo` uses `EXPO_PUBLIC_`. `/server` alone exposes server secrets; the root barrel exposes no env values. Single mode mirrors these under `src/lib/env/`. Shared env files contain only prefixes consumed by selected apps, and each client entry validates only its own prefix.
 
 ## Testing
 
 - `--timeout 100000` required
 - fixtures per-fixture `bun install` slow — skip unless compat
 - `bun run build && node dist/cli.js check` after template changes
+- `bun run test:workers` after Cloudflare/support-catalog changes; four installed profiles must build/scan, dry-run, and serve `/` plus `/api/health`
 - QA: turbo globalEnv 96 keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
 - `check --fix` / `doctor --fix` tested via drift injection (turbo.json truncated + placeholder `.env.local`) → mint+rewrite
 - See `references/testing.md`
@@ -163,6 +164,7 @@ Whenever you change host contributor workflow, you MUST update this skill in SAM
 - New package catalog group pattern
 - New billing provider 7-file pattern or factory pattern changed, or `ENV_PLACEHOLDERS` pattern
 - New framework `RouterType` pattern or fragments extraction trigger changed
+- New deploy target, support-catalog binding, Worker adapter, or provider lifecycle changed
 - New env 5-place location or verification command, new turbo globalEnv pattern
 - New convention: <400 LOC escape, composers <5 imports, no `export *`, FsTransaction, secret-safe, typed errors, versions SSOT
 - New testing quirk: timeout, fixtures, checker, QA
@@ -200,3 +202,4 @@ No drift. Verify `build && check`.
 - `references/env-vars.md` — 5-place + skills rule, patterns, verification
 - `references/templates.md` — composition pipeline monorepoFiles, dedup, fragments triggers, DRY
 - `references/testing.md` — test org, fixtures, smoke, version sync
+- `../ghostinit-use/references/cloudflare.md` - Worker support matrix, environment boundary, cache provisioning, and user commands

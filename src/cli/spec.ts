@@ -113,8 +113,8 @@ export const COMMAND_SPECS = {
     maxPositionals: 1,
   },
   upgrade: {
-    description: "Upgrade project-owned registries and metadata",
-    usage: "upgrade",
+    description: "Hash-gated transactional desired-state upgrade",
+    usage: "upgrade [--dry-run] [--force]",
     options: [...PROJECT_OPTIONS, "dry-run", "force"],
     minPositionals: 0,
     maxPositionals: 0,
@@ -127,8 +127,8 @@ export const COMMAND_SPECS = {
     maxPositionals: 3,
   },
   sync: {
-    description: "Rebuild generated indexes",
-    usage: "sync [--check]",
+    description: "Reconcile desired state and rebuild generated indexes",
+    usage: "sync [--check] [--dry-run] [--force]",
     options: [...PROJECT_OPTIONS, "dry-run", "force", "check"],
     minPositionals: 0,
     maxPositionals: 0,

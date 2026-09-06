@@ -9,6 +9,8 @@ export function desktopMainContent(
   hasI18n = false,
   hasEve = false,
   hasApi = false,
+  hasConvex = false,
+  hasConvexStorage = false,
 ): string {
   void mode;
   const hasRemoteTransport = hasAuth || hasApi;
@@ -170,6 +172,16 @@ async function startDesktopOAuth(value: unknown): Promise<{ completed: true }> {
   const apiTransportImport = hasRemoteTransport
     ? 'import { handleDesktopApiRequest } from "./server/transport/api-fetch.js";'
     : "";
+  const convexTransportImport = hasConvexStorage
+    ? 'import { handleDesktopConvexStorageRequest } from "./server/transport/convex-storage.js";'
+    : "";
+  const convexTransportHandler = hasConvexStorage
+    ? `  ipcMain.handle("desktop:convex-storage-fetch", async (event, url: unknown) => {
+    assertTrustedIpc(event);
+    return await handleDesktopConvexStorageRequest(url);
+  });
+`
+    : "";
   const apiTransportHandler = hasRemoteTransport
     ? `  ipcMain.handle("desktop:api-fetch", async (event, input: unknown) => {
     assertTrustedIpc(event);
@@ -179,7 +191,8 @@ async function startDesktopOAuth(value: unknown): Promise<{ completed: true }> {
     : "";
   return (
     desktopMainShellContent({
-      apiTransportImport,
+      apiTransportImport: [apiTransportImport, convexTransportImport].filter(Boolean).join("\n"),
+      hasConvex,
       authImport,
       authStorage,
       eveHelpers,
@@ -187,7 +200,7 @@ async function startDesktopOAuth(value: unknown): Promise<{ completed: true }> {
       i18nSetting,
     }) +
     desktopMainLifecycleContent({
-      apiTransportHandler,
+      apiTransportHandler: apiTransportHandler + convexTransportHandler,
       authHandlers,
       authReadyLog,
       eveHandler,

@@ -5,6 +5,8 @@ export function desktopPreloadContent(
   hasI18n = false,
   hasEve = false,
   hasRemoteTransport = hasAuth,
+  hasConvex = false,
+  hasConvexStorage = false,
 ): string {
   const authTypes = hasAuth
     ? `  authGetSession: () => Promise<string | undefined>;
@@ -56,6 +58,21 @@ function desktopApiUrl(): string {
   }
   return parsed.origin;
 }
+${
+  hasConvex
+    ? `
+function desktopConvexUrl(): string {
+  const prefix = "--ghostinit-desktop-convex-url=";
+  const argument = process.argv.find((value) => value.startsWith(prefix));
+  if (!argument) throw new Error("The desktop Convex URL was not provided by the main process");
+  const value = decodeURIComponent(argument.slice(prefix.length));
+  const parsed = new URL(value);
+  if (parsed.protocol !== "https:" || value !== parsed.origin) throw new Error("The desktop Convex URL provided by the main process is invalid");
+  return parsed.origin;
+}
+`
+    : ""
+}
 
 // Adapted from t3code apps/desktop/src/preload.ts; exposes typed desktopBridge via contextBridge
 // t3code uses exposeClerkBridge + 80 channels; we expose minimal 8 for starter
@@ -77,6 +94,7 @@ export type DesktopUpdateCheck = {
 
 export type DesktopBridge = {
   readonly apiUrl: string;
+${hasConvex ? "  readonly convexUrl: string;\n" : ""}${hasConvexStorage ? "  convexStorageFetch: (url: string) => Promise<{\n    body: Uint8Array;\n    headers: [string, string][];\n    status: number;\n    statusText: string\n  }>;\n" : ""}
   getAppBranding: () => Promise<{ name: string; version: string }>;
   getClientSettings: () => Promise<DesktopClientSettings | undefined>;
   setClientSettings: (v: DesktopClientSettings) => Promise<void>;
@@ -91,6 +109,7 @@ ${authTypes}${i18nType}${eveType}${apiType}  windowMinimize: () => Promise<void>
 
 const bridge: DesktopBridge = {
   apiUrl: desktopApiUrl(),
+${hasConvex ? "  convexUrl: desktopConvexUrl(),\n" : ""}${hasConvexStorage ? '  convexStorageFetch: (url) => ipcRenderer.invoke("desktop:convex-storage-fetch", url),\n' : ""}
   getAppBranding: () => ipcRenderer.invoke("desktop:get-app-branding"),
   getClientSettings: () => ipcRenderer.invoke("desktop:get-client-settings"),
   setClientSettings: (v) => ipcRenderer.invoke("desktop:set-client-settings", v),

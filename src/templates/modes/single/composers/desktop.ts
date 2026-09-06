@@ -7,6 +7,7 @@ import {
 } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
 import { desktopUiChatFiles } from "../../../apps/desktop/ui/chat.js";
+import { desktopConvexStorageTransportContent } from "../../../apps/desktop/convex-storage-transport.js";
 import {
   desktopPackageJsonContent,
   desktopSmokeTestContent,
@@ -77,6 +78,7 @@ import {
   eveProtocolFile,
 } from "../../../apps/fragments/eve/index.js";
 import { platformI18nFiles } from "../../../apps/fragments/platform-i18n.js";
+import { billingMoneyFile } from "../../../billing/ui/money.js";
 
 function singleDesktopPackageJson(
   projectName: string,
@@ -132,6 +134,7 @@ export function buildDesktopFiles(
   const database = isConvex ? "convex" : isNone ? "none" : "postgres";
   void secrets;
   const hasConvexAuth = capabilities.hasAuth && isConvex;
+  const hasConvexStorage = hasConvexAuth && capabilities.hasMessaging;
   const rpcPath = "/api/rpc";
   const convexFiles =
     isConvex && capabilities.hasAuth
@@ -166,10 +169,10 @@ export function buildDesktopFiles(
     singleDesktopPackageJson(projectName, runtime, _billing, addons),
     file("tests/smoke.test.ts", desktopSmokeTestContent()),
     file("tsr.config.json", desktopRouterConfigContent()),
-    file("electron.vite.config.ts", desktopViteConfigContent("single")),
+    file("electron.vite.config.ts", desktopViteConfigContent("single", hasConvexAuth)),
     file("tsconfig.json", singleTsconfig),
     file("electron-builder.yml", desktopElectronBuilderYmlContent(projectName)),
-    file("DESKTOP_PACKAGING.md", desktopPackagingReadmeContent("single")),
+    file("DESKTOP_PACKAGING.md", desktopPackagingReadmeContent("single", hasConvexAuth)),
     file(
       "src/main.ts",
       desktopMainContent(
@@ -178,9 +181,14 @@ export function buildDesktopFiles(
         capabilities.hasI18n,
         capabilities.hasEve,
         capabilities.hasApi,
+        hasConvexAuth,
+        hasConvexStorage,
       ),
     ),
-    file("src/server/transport/runtime-config.ts", desktopRuntimeConfigContent("single")),
+    file(
+      "src/server/transport/runtime-config.ts",
+      desktopRuntimeConfigContent("single", hasConvexAuth),
+    ),
     file(
       "src/preload.ts",
       desktopPreloadContent(
@@ -188,6 +196,8 @@ export function buildDesktopFiles(
         capabilities.hasI18n,
         capabilities.hasEve,
         capabilities.hasAuth || capabilities.hasApi,
+        hasConvexAuth,
+        hasConvexStorage,
       ),
     ),
     file("src/renderer/index.html", desktopRendererHtmlContent()),
@@ -218,6 +228,11 @@ export function buildDesktopFiles(
     file("src/renderer/routes/index.tsx", desktopRouteIndexContent(capabilities, "single")),
     ...singleEnvFiles(addons, "desktop", false),
   ];
+  if (hasConvexStorage) {
+    files.push(
+      file("src/server/transport/convex-storage.ts", desktopConvexStorageTransportContent()),
+    );
+  }
   if (capabilities.hasAuth || capabilities.hasApi) {
     files.push(
       file("src/server/transport/api-fetch.ts", desktopApiTransportContent("single")),
@@ -323,6 +338,7 @@ export function buildDesktopFiles(
   }
   if (capabilities.hasBilling) {
     files.push(
+      billingMoneyFile("src/renderer"),
       file(
         "src/renderer/routes/billing.tsx",
         desktopRouteBillingContent(selectedBilling, capabilities.hasI18n, "single"),

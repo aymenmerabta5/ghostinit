@@ -16,6 +16,7 @@ import {
 import { envExample, envLocal, webEnvLocal } from "./env.js";
 import { huskyFiles } from "./husky.js";
 import { deployFiles, type DeploymentProfile } from "./deploy.js";
+import { cloudflareWorkspaceFiles } from "./cloudflare-workspace.js";
 import {
   dependencyAuditFiles,
   integrateDependencyAuditManifest,
@@ -44,9 +45,11 @@ export function rootFiles(
       }
     : undefined;
   const hasImageSizePatch = profile?.apps?.includes("mobile") ?? false;
+  const hasOpenNextPatch = deploy === "cloudflare" && profile?.framework === "nextjs";
   const packageFile = integrateDependencyAuditManifest(
     rootPackageJson(projectName, runtime, addonMap, profile),
     hasImageSizePatch,
+    hasOpenNextPatch,
   );
   return [
     packageFile,
@@ -62,9 +65,10 @@ export function rootFiles(
     webEnvLocal(projectName, secrets, ctx),
     gitignore(),
     readme(projectName, runtime),
-    githubWorkflow(runtime),
+    githubWorkflow(runtime, deploy, profile),
     ...huskyFiles(),
-    ...dependencyAuditFiles(hasImageSizePatch),
+    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
+    ...cloudflareWorkspaceFiles(deploy, profile),
     ...deployFiles(projectName, deploy, runtime, profile),
   ];
 }

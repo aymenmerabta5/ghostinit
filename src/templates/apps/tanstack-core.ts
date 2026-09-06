@@ -65,6 +65,8 @@ export function tanstackCoreFiles(
   const addonMap = resolveAddonMapTanstack(hasEveInput, addonMapExplicit);
   const hasEmail = addonMap ? hasAddon(addonMap, "email") : true;
   const hasPostgres = addonMap ? hasAddon(addonMap, "postgres") : true;
+  const hasConvex = addonMap ? hasAddon(addonMap, "convex") : false;
+  const hasCloudflare = addonMap ? hasAddon(addonMap, "cloudflare") : false;
   const hasWebSocketMessaging = Boolean(
     addonMap && hasAddon(addonMap, "messaging") && !hasAddon(addonMap, "convex"),
   );
@@ -76,8 +78,17 @@ export function tanstackCoreFiles(
         : "bun";
   return [
     webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap, hasEmail),
-    viteConfig(hasEve, effectiveHasI18n, hasWebSocketMessaging, hasPostgres),
-    nitroConfig(hasWebSocketMessaging, nitroPreset),
+    viteConfig(hasEve, effectiveHasI18n, hasWebSocketMessaging, hasPostgres, hasCloudflare),
+    ...(hasCloudflare
+      ? []
+      : [
+          nitroConfig(
+            hasWebSocketMessaging,
+            nitroPreset,
+            hasConvex,
+            Boolean(addonMap && hasAddon(addonMap, "paddle")),
+          ),
+        ]),
     routerFile(),
     globalCss(),
     postcssConfig(),
@@ -106,6 +117,7 @@ function webPackageTanstack(
 ): TemplateFile {
   const hasAuth = addonMap ? hasAddon(addonMap as AddonInstallerMap, "auth") : true;
   const hasPostgres = addonMap ? hasAddon(addonMap as AddonInstallerMap, "postgres") : true;
+  const hasCloudflare = Boolean(addonMap && hasAddon(addonMap as AddonInstallerMap, "cloudflare"));
   return file(
     "apps/web/package.json",
     packageJson({
@@ -113,9 +125,27 @@ function webPackageTanstack(
       type: "module",
       packageManager: `bun@${v.runtime.bun}`,
       scripts: {
-        dev: "vite dev --port 3000",
-        build: "vite build",
-        start: runtime === "bun" ? "bun .output/server/index.mjs" : "node .output/server/index.mjs",
+        dev: hasCloudflare
+          ? "bun --env-file=.dev.vars scripts/cloudflare.mjs dev"
+          : "vite dev --port 3000",
+        // Cloudflare production builds must not bypass the wrapper's runtime
+        // environment isolation, Wrangler dry run, and artifact secret scan.
+        build: hasCloudflare ? "bun scripts/cloudflare.mjs build" : "vite build",
+        start: hasCloudflare
+          ? "bun run preview"
+          : runtime === "bun"
+            ? "bun .output/server/index.mjs"
+            : "node .output/server/index.mjs",
+        ...(hasCloudflare
+          ? {
+              "build:worker": "bun scripts/cloudflare.mjs build",
+              preview: "bun --env-file=.dev.vars scripts/cloudflare.mjs preview",
+              deploy: "bun scripts/cloudflare.mjs deploy",
+              "cloudflare:dry-run": "bun scripts/cloudflare.mjs dry-run",
+              "cf-typegen":
+                "bun x --no-install wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+            }
+          : {}),
         ...codeScripts({
           // Package management and tests stay on Bun for both execution runtimes.
           // Scope unit discovery so Playwright e2e specs are never run by bun:test.
@@ -208,7 +238,14 @@ function webPackageTanstack(
         vite: `^${v.tanstackStart.vite}`,
         "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
         "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
-        nitro: `^${v.tanstackStart.nitro}`,
+        ...(hasCloudflare
+          ? {
+              "@cloudflare/vite-plugin": `^${v.cloudflare["@cloudflare/vite-plugin"]}`,
+              dotenv: `^${v.cloudflare.dotenv}`,
+              "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
+              wrangler: `^${v.cloudflare.wrangler}`,
+            }
+          : { nitro: `^${v.tanstackStart.nitro}` }),
         oxfmt: `^${v.tooling.oxfmt}`,
         oxlint: `^${v.tooling.oxlint}`,
         "@repo/typescript-config": "workspace:*",
@@ -233,6 +270,7 @@ function viteConfig(
   _hasI18n = false,
   hasWebSocketMessaging = false,
   hasPostgres = true,
+  hasCloudflare = false,
 ): TemplateFile {
   return file(
     "apps/web/vite.config.ts",
@@ -240,12 +278,11 @@ function viteConfig(
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
+${hasCloudflare ? "import { cloudflare } from '@cloudflare/vite-plugin'\nimport tsconfigPaths from 'vite-tsconfig-paths'" : "import { nitro } from 'nitro/vite'"}
 import { fileURLToPath } from 'node:url'
 
-const includeNitroInDev = ${hasWebSocketMessaging};
-
-export default defineConfig(({ command }) => ({
+${hasCloudflare ? "" : `const includeNitroInDev = ${hasWebSocketMessaging};\n`}
+export default defineConfig(${hasCloudflare ? "{" : "({ command }) => ({"}
   server: {
     port: 3000,
   },
@@ -257,6 +294,7 @@ export default defineConfig(({ command }) => ({
   },
 ${hasPostgres ? "  ssr: { external: ['pg'] },\n" : ""}  plugins: [
     tailwindcss(),
+${hasCloudflare ? "    cloudflare({ viteEnvironment: { name: 'ssr' } }),\n    tsconfigPaths()," : ""}
     ...tanstackStart({
       srcDirectory: 'src',
       router: {
@@ -264,9 +302,9 @@ ${hasPostgres ? "  ssr: { external: ['pg'] },\n" : ""}  plugins: [
       },
     }),
     viteReact(),
-    ...(command === 'build' || includeNitroInDev ? [nitro()] : []),
+${hasCloudflare ? "" : "    ...(command === 'build' || includeNitroInDev ? [nitro()] : []),"}
   ],
-}))
+${hasCloudflare ? "})" : "}))"}
 `,
   );
 }
@@ -274,17 +312,19 @@ ${hasPostgres ? "  ssr: { external: ['pg'] },\n" : ""}  plugins: [
 function nitroConfig(
   hasWebSocketMessaging: boolean,
   preset: "bun" | "node-server" | "vercel",
+  hasConvex = false,
+  hasPaddle = false,
 ): TemplateFile {
   return file(
     "apps/web/nitro.config.ts",
     `import { defineNitroConfig } from 'nitro/config'
 
-${tanstackSecurityPolicyDeclaration()}
+${tanstackSecurityPolicyDeclaration(hasConvex, hasPaddle)}
 
 export default defineNitroConfig({
   preset: '${preset}',
 ${hasWebSocketMessaging ? "  serverDir: 'server',\n  experimental: { websocket: true },\n  plugins: [\n    './server/plugins/00-nitro-websocket-compat.ts',\n    './server/plugins/messaging-outbox.ts',\n  ],\n" : ""}  routeRules: {
-${viteSecurityHeaders()}
+${viteSecurityHeaders(hasPaddle)}
   },
 })
 `,

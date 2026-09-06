@@ -31,6 +31,8 @@ import {
 } from "./billing/webhooks/factory.js";
 
 import { billingUiFiles } from "./billing/ui/billing-page.js";
+import { billingReturnPageFiles } from "./billing/ui/return-pages.js";
+import { paddleCheckoutFiles } from "./billing/ui/paddle-checkout.js";
 import { convexApiImport } from "./billing/webhooks/providers/shared.js";
 import { convexBillingIndexContent } from "./billing/convex-index.js";
 import { billingApplicationsFiles } from "./billing/applications/billing.js";
@@ -500,7 +502,10 @@ export function billingFiles(
   const indexTemplate = isConvex ? convexBillingIndexContent() : load("./billing/index.ts");
   const indexContent = withSelectedProviderRegistry(indexTemplate, selected);
 
-  const files: TemplateFile[] = [];
+  const files: TemplateFile[] = [
+    ...billingReturnPageFiles(mode, billingFramework),
+    ...(selected.includes("paddle") ? paddleCheckoutFiles(mode, billingFramework) : []),
+  ];
 
   function billingConvexAdapterFiles(): TemplateFile[] {
     if (!isConvex) return [];

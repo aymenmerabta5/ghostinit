@@ -4,6 +4,7 @@ import type {
   AppName,
   BillingProviderName,
   DatabaseProvider,
+  DeployTarget,
   FrameworkName,
 } from "../../../../lib/addons.js";
 
@@ -21,6 +22,7 @@ export interface SingleAgentDocsOptions {
   readonly jobs?: boolean;
   readonly jobsApi?: boolean;
   readonly pdf?: boolean;
+  readonly deploy?: DeployTarget;
 }
 
 function enabledCapabilities(
@@ -66,6 +68,7 @@ export function buildAgentsMdContent(
   const database = options.database ?? "postgres";
   const apps = options.apps?.length ? [...options.apps] : (["web"] as AppName[]);
   const hasWeb = apps.includes("web");
+  const isCloudflare = options.deploy === "cloudflare";
   const isMobileOnly = apps.includes("mobile") && !hasWeb;
   const isDesktopOnly = apps.includes("desktop") && !hasWeb && !isMobileOnly;
   const isNativeOnly = isMobileOnly || isDesktopOnly;
@@ -103,10 +106,10 @@ export function buildAgentsMdContent(
     : `Next.js ${v.nextStack.next}`;
   const routeRoot = isTanstack ? "src/routes" : "src/app";
   const rpcRoute = isTanstack
-    ? `${routeRoot}/api/rpc/$splat.ts`
+    ? `${routeRoot}/api/rpc/$.ts`
     : `${routeRoot}/api/rpc/[...path]/route.ts`;
   const authRoute = isTanstack
-    ? `${routeRoot}/api/auth/$splat.ts`
+    ? `${routeRoot}/api/auth/$.ts`
     : `${routeRoot}/api/auth/[...all]/route.ts`;
   const publicPrefix = isTanstack ? "VITE_" : "NEXT_PUBLIC_";
   const clientPrefixes = [
@@ -114,10 +117,16 @@ export function buildAgentsMdContent(
     ...(apps.includes("mobile") ? ["EXPO_PUBLIC_"] : []),
     ...(apps.includes("desktop") ? ["VITE_", "DESKTOP_"] : []),
   ];
-  const qualityCommands = ["bun install", "bun run dev", "bun run typecheck", "bun run lint"];
+  const qualityCommands = [
+    "bun run install:verified # use bun run install:bootstrap only for fresh --no-install output",
+    "bun run dev",
+    "bun run typecheck",
+    "bun run lint",
+  ];
   if (!isDesktopOnly) qualityCommands.push("bun run format:check", "bun run test");
-  qualityCommands.push("bun run build");
-  if (!isMobileOnly)
+  qualityCommands.push(isCloudflare ? "bun run build:worker" : "bun run build");
+  if (isCloudflare) qualityCommands.push("bun run cloudflare:dry-run");
+  if (!isMobileOnly && !isCloudflare)
     qualityCommands.push(usesProductionSupervisor ? "bun run start:production" : "bun run start");
   qualityCommands.push("ghostinit check");
 
@@ -242,9 +251,11 @@ export function buildAgentsMdContent(
       );
     }
     lines.push(
-      isTanstack
-        ? `- Manifest scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
-        : `- The manifest development script runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build remains \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\`; \`bun run start\` uses the generated custom server only when selected capabilities require it.`,
+      isCloudflare
+        ? `- The manifest uses the generated Cloudflare ${isTanstack ? "Vite" : "OpenNext"} adapter. Use \`build:worker\`, \`cloudflare:dry-run\`, \`preview\`, and \`deploy\`; there is no long-lived Node/Bun production process.`
+        : isTanstack
+          ? `- Manifest scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
+          : `- The manifest development script runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build remains \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\`; \`bun run start\` uses the generated custom server only when selected capabilities require it.`,
     );
   }
 
@@ -292,7 +303,9 @@ export function buildAgentsMdContent(
   }
   if (database === "convex" && hasLocalBackend) {
     lines.push(
-      "- Database scripts are `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`.",
+      isCloudflare
+        ? "- Run `bun run convex:bootstrap` once, then use `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`; the wrapper keeps `.dev.vars` authoritative."
+        : "- Database scripts are `bun run convex:dev`, `bun run convex:deploy`, and `bun run convex:codegen`.",
     );
   } else if (database === "postgres" && hasLocalBackend) {
     lines.push(
@@ -322,18 +335,22 @@ export function buildAgentsMdContent(
     ...qualityCommands,
     "```",
     "",
-    hasWeb
-      ? usesProductionSupervisor
-        ? "`bun run start` starts only the web process. Use `bun run start:production` to supervise it with selected PostgreSQL workers; Fly runs them as separate process groups."
-        : "Use `bun run start` for the generated production web process, including any custom server."
-      : isMobileOnly
-        ? "The mobile manifest uses Expo for `dev` and `build`; it does not expose a `start` script."
-        : "The desktop manifest uses electron-vite/electron-builder and exposes `start` without a test or format-check script.",
+    isCloudflare
+      ? "Cloudflare production is a Worker deployment, not `bun run start`; use `bun run preview` locally and `bun run deploy` for release."
+      : hasWeb
+        ? usesProductionSupervisor
+          ? "`bun run start` starts only the web process. Use `bun run start:production` to supervise it with selected PostgreSQL workers; Fly runs them as separate process groups."
+          : "Use `bun run start` for the generated production web process, including any custom server."
+        : isMobileOnly
+          ? "The mobile manifest uses Expo for `dev` and `build`; it does not expose a `start` script."
+          : "The desktop manifest uses electron-vite/electron-builder and exposes `start` without a test or format-check script.",
     "Do not replace generated Bun scripts with npm commands.",
     "",
     "## Security",
     "",
-    "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
+    isCloudflare
+      ? "- Never commit `.env*` or `.dev.vars`. Cloudflare builds reject runtime dotenv files; runtime values belong in Worker bindings and build variables are configured separately."
+      : "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
     `- Client-visible variables use only these generated prefixes: ${clientPrefixes.map((prefix) => `\`${prefix}\``).join(", ") || "none"}. Keep all other credentials server-only.`,
     isDesktopOnly
       ? "- Keep provider credentials and privileged Electron APIs out of the renderer; preserve context isolation and the preload boundary. No backend is generated in this mode."

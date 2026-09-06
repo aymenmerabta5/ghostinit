@@ -13,6 +13,9 @@ import { stripeInvoicesContent } from "./providers/stripe-invoices.js";
 import { stripeSubscriptionsContent } from "./providers/stripe-subscriptions.js";
 import { billingTabsContent } from "./tabs.js";
 import { mainPageContent } from "./main.js";
+import { billingInvoicesContent } from "../invoices.js";
+import { billingMoneyFile } from "../money.js";
+import { billingPaymentLinkFormContent, billingProviderUrlContent } from "../payment-link-form.js";
 
 type Runtime = "node" | "bun";
 
@@ -38,11 +41,29 @@ export function billingUiFiles(
   const base = mode === "monorepo" ? "apps/web/src/app/billing" : "src/app/billing";
 
   const files: TemplateFile[] = [
+    ...(effective.length > 0
+      ? [billingMoneyFile(mode === "monorepo" ? "apps/web/src" : "src")]
+      : []),
     file(`${base}/components/icons.tsx`, billingIconsContent()),
     file(`${base}/components/billing-header.tsx`, billingHeaderContent()),
     file(`${base}/components/billing-empty.tsx`, billingEmptyContent()),
     file(`${base}/hooks/use-billing-page.ts`, billingHookContent()),
     file(`${base}/actions.ts`, billingActionsContent(mode)),
+    ...(effective.some((provider) => provider !== "stripe")
+      ? [file(`${base}/components/billing-invoices.tsx`, billingInvoicesContent())]
+      : []),
+    file(
+      `${mode === "monorepo" ? "apps/web/" : ""}src/features/billing/provider-url.ts`,
+      billingProviderUrlContent,
+    ),
+    ...(effective.includes("chargily")
+      ? [
+          file(
+            `${base}/components/payment-link-form.tsx`,
+            billingPaymentLinkFormContent("../hooks/use-billing-page"),
+          ),
+        ]
+      : []),
   ];
 
   for (const p of effective) {

@@ -28,7 +28,7 @@ export interface BillingProvider {
   createCustomer(input: CreateCustomerInput): Promise<CreateCustomerOutput>;
   /**
    * Customer portal — stripe/paddle/polar only. Chargily checkout-only throws NOT_SUPPORTED.
-   * Not supported for Chargily — checkout-only, no portal, manual recurring via DB + cron.
+   * Chargily is checkout-only: renewal requires a new customer-authorized payment.
    */
   createPortalSession?(input: CreatePortalSessionInput): Promise<CreatePortalSessionOutput>;
   /** Merchant payment-link creation. Only providers with a native capability implement this. */

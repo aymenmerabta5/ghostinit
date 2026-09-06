@@ -1,8 +1,8 @@
 /** Install and exercise every committed dependency-compatibility project exactly once. */
-import { spawn, type ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { resolve } from "node:path";
 import { runtime } from "../packages/versions/src/index.js";
-import { terminateProcessTree } from "../tests/helpers/process-tree.js";
+import { runSupervisedCommand } from "../src/commands/create/installer.js";
 
 export interface FixtureStage {
   readonly label: string;
@@ -85,77 +85,91 @@ export const FIXTURE_PLANS: readonly FixturePlan[] = [
   },
 ];
 
-let activeChild: ChildProcess | undefined;
-let activeTermination:
-  | { readonly child: ChildProcess; readonly promise: Promise<void> }
+let activeStage:
+  | { readonly controller: AbortController; readonly completion: Promise<boolean> }
   | undefined;
 let terminationRequested = false;
 let cleanupWasVerified = true;
 
-function ensureProcessTreeTerminated(child: ChildProcess): Promise<void> {
-  if (activeTermination?.child === child) return activeTermination.promise;
-  const promise = terminateProcessTree(child).finally(() => {
-    if (activeTermination?.promise === promise) activeTermination = undefined;
-  });
-  activeTermination = { child, promise };
-  return promise;
-}
-
-async function runStage(plan: FixturePlan, stage: FixtureStage): Promise<boolean> {
+/** @internal Exported for real process-lifecycle regressions. */
+export function runStage(plan: FixturePlan, stage: FixtureStage): Promise<boolean> {
   const command = `${process.execPath} ${stage.args.join(" ")}`;
   console.log(`\n[fixtures] ${plan.id} :: ${stage.label}`);
-  const child = spawn(process.execPath, [...stage.args], {
+  const controller = new AbortController();
+  if (terminationRequested || !cleanupWasVerified) controller.abort("SIGTERM");
+  const completion = runSupervisedCommand({
+    command: process.execPath,
+    argv: stage.args,
     cwd: plan.directory,
-    detached: process.platform !== "win32",
+    label: `[fixtures] ${plan.id} :: ${stage.label}`,
+    timeoutMs: stage.timeoutMs,
     env: process.env,
-    shell: false,
-    stdio: "inherit",
-    windowsHide: true,
-  });
-  activeChild = child;
-
-  return await new Promise<boolean>((resolveStage) => {
-    let settled = false;
-    let timedOut = false;
-    const finish = (ok: boolean): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (activeChild === child) activeChild = undefined;
-      resolveStage(ok);
-    };
-    const timer = setTimeout(() => {
-      timedOut = true;
-      console.error(`[fixtures] timed out after ${stage.timeoutMs}ms: ${command}`);
-      void ensureProcessTreeTerminated(child)
-        .catch((error) => {
-          cleanupWasVerified = false;
-          console.error(
-            `[fixtures] could not verify ${plan.id} process-tree termination: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        })
-        .finally(() => finish(false));
-    }, stage.timeoutMs);
-
-    child.once("error", (error) => {
-      if (timedOut) return;
-      console.error(`[fixtures] failed to start ${command}: ${error.message}`);
-      finish(false);
-    });
-    child.once("close", (code, signal) => {
-      // Timeout settlement belongs to the verified tree-cleanup promise. The
-      // root closing is not proof that its descendants have also exited.
-      if (timedOut) return;
-      if (code !== 0) {
-        console.error(
-          `[fixtures] ${plan.id} :: ${stage.label} failed with ${String(code ?? signal ?? "unknown")}`,
-        );
-        finish(false);
-        return;
+    abortSignal: controller.signal,
+    signalSource: new EventEmitter(),
+    onStdout: (chunk) => {
+      process.stdout.write(chunk);
+    },
+    onStderr: (chunk) => {
+      process.stderr.write(chunk);
+    },
+  })
+    .catch((error: unknown) => ({
+      exitCode: null,
+      signal: null,
+      timedOut: false,
+      cleanupVerified: false,
+      error: error instanceof Error ? error : new Error(String(error)),
+    }))
+    .then((result) => {
+      if (result.timedOut) {
+        console.error(`[fixtures] timed out after ${stage.timeoutMs}ms: ${command}`);
       }
-      finish(true);
+      if (!result.cleanupVerified) {
+        cleanupWasVerified = false;
+        console.error(
+          `[fixtures] could not verify ${plan.id} process-tree termination: ${result.error?.message ?? "unknown cleanup failure"}`,
+        );
+      } else if (
+        !result.timedOut &&
+        result.error &&
+        result.exitCode === null &&
+        result.signal === null
+      ) {
+        console.error(`[fixtures] failed to start ${command}: ${result.error.message}`);
+      } else if (!result.timedOut && (result.exitCode !== 0 || result.signal !== null)) {
+        console.error(
+          `[fixtures] ${plan.id} :: ${stage.label} failed with ${String(result.exitCode ?? result.signal ?? "unknown")}`,
+        );
+      }
+      return (
+        result.cleanupVerified &&
+        !result.error &&
+        !result.timedOut &&
+        result.exitCode === 0 &&
+        result.signal === null
+      );
+    })
+    .finally(() => {
+      if (activeStage?.completion === completion) activeStage = undefined;
     });
-  });
+  activeStage = { controller, completion };
+  return completion;
+}
+
+/** @internal Cancellation joins the same stage before another stage or caller can proceed. */
+export function cancelActiveFixtureStage(
+  signal: "SIGINT" | "SIGTERM",
+): Promise<boolean> | undefined {
+  const operation = activeStage;
+  operation?.controller.abort(signal);
+  return operation?.completion;
+}
+
+/** @internal Preserve uncertain cleanup after the completed stage leaves activeStage. */
+export function assertFixtureStageCleanup(): void {
+  if (activeStage || !cleanupWasVerified) {
+    throw new Error("Fixture stage process-tree cleanup could not be verified");
+  }
 }
 
 async function main(): Promise<void> {
@@ -191,19 +205,8 @@ async function main(): Promise<void> {
 const terminateForSignal = async (signal: "SIGINT" | "SIGTERM"): Promise<void> => {
   if (terminationRequested) return;
   terminationRequested = true;
-  let exitCode = signal === "SIGINT" ? 130 : 143;
-  const child = activeChild;
-  if (child) {
-    try {
-      await ensureProcessTreeTerminated(child);
-    } catch (error) {
-      cleanupWasVerified = false;
-      exitCode = 1;
-      console.error(
-        `[fixtures] interrupted, but process-tree cleanup could not be verified: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
+  await cancelActiveFixtureStage(signal);
+  const exitCode = cleanupWasVerified ? (signal === "SIGINT" ? 130 : 143) : 1;
   process.exit(exitCode);
 };
 if (import.meta.main) {

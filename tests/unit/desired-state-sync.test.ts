@@ -1,6 +1,15 @@
-// @allow-long 414: desired-state lifecycle, secrets, collisions, and recovery cases share one fixture
+// @allow-long 750: desired-state lifecycle, secrets, collisions, and recovery cases share one fixture
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generateProjectFiles } from "../../src/templates/default";
@@ -20,6 +29,12 @@ import {
 } from "../../src/lib/reconcile";
 import type { ProjectConfig } from "../../src/lib/config";
 import type { GlobalOptions } from "../../src/commands/types";
+import {
+  CLOUDFLARE_ENVIRONMENT_LOCK_FILE,
+  CLOUDFLARE_HIDDEN_ENVIRONMENT_FILE,
+  dotenvFieldsEqual,
+  MAX_DOTENV_FILE_BYTES,
+} from "../../src/lib/dotenv";
 
 const notificationPath = "packages/services/src/notifications/service.ts";
 
@@ -49,6 +64,34 @@ function config(enabled: boolean): ProjectConfig {
     framework: "nextjs",
     apps: ["web"],
   };
+}
+
+function cloudflareConfig(deploy: "none" | "cloudflare"): ProjectConfig {
+  return {
+    ...config(false),
+    preset: "frontend",
+    database: "none",
+    deploy,
+    auth: false,
+    api: false,
+  };
+}
+
+function cloudflareConvexAuthConfig(deploy: "none" | "cloudflare"): ProjectConfig {
+  return {
+    ...cloudflareConfig(deploy),
+    preset: "custom",
+    database: "convex",
+    auth: true,
+    api: true,
+  };
+}
+
+function writeDesiredConfig(root: string, project: ProjectConfig): void {
+  writeFileSync(
+    join(root, "ghostinit.config.json"),
+    serializeDesiredProjectConfig(projectConfigToDesired(project)),
+  );
 }
 
 function options(root: string): GlobalOptions {
@@ -176,6 +219,422 @@ describe("V2 desired-state sync", () => {
     await expect(syncCommand([], options(root))).rejects.toBeInstanceOf(IncompatibleSchemaError);
     expect(existsSync(join(root, ...storagePath.split("/")))).toBe(false);
     expect(readFileSync(join(root, ".ghostinit", "state.json"), "utf8")).toBe(stateBefore);
+  });
+
+  test("deploy transitions fail closed until local environment files are explicitly migrated", async () => {
+    await writeGenerated(root, cloudflareConfig("none"));
+    const configPath = join(root, "ghostinit.config.json");
+    const desired = JSON.parse(readFileSync(configPath, "utf8")) as {
+      apps: Array<{ deploy: string }>;
+    };
+    desired.apps[0]!.deploy = "cloudflare";
+    writeFileSync(configPath, `${JSON.stringify(desired, null, 2)}\n`);
+
+    let state = await loadState(root);
+    if (!state) throw new Error("expected project state");
+    const blocked = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(blocked.conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "environment-path-migration-required",
+          path: ".dev.vars",
+          sourcePath: ".env.local",
+        }),
+        expect.objectContaining({
+          reason: "environment-path-migration-required",
+          path: "apps/web/.dev.vars",
+          sourcePath: "apps/web/.env.local",
+        }),
+      ]),
+    );
+    await expect(syncCommand([], options(root))).rejects.toBeInstanceOf(ConflictError);
+
+    renameSync(join(root, ".env.local"), join(root, ".dev.vars"));
+    renameSync(join(root, "apps", "web", ".env.local"), join(root, "apps", "web", ".dev.vars"));
+    expect(await syncCommand([], options(root))).toBe(0);
+    state = await loadState(root);
+    expect(state?.files[".env.local"]).toBeUndefined();
+    expect(state?.files["apps/web/.env.local"]).toBeUndefined();
+    expect(state?.files[".dev.vars"]).toBeDefined();
+    expect(state?.files["apps/web/.dev.vars"]).toBeDefined();
+  });
+
+  test("stable Cloudflare sync rejects every runtime dotenv authority without reading or mutating it", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootRuntimePath = join(root, ".env.production");
+    const linkedRuntimePath = join(root, "apps/web/.env.staging");
+    const linkedLegacyPath = join(root, "apps/web/.env.local");
+    const linkedSecretSource = join(root, "operator-owned-linked-secret");
+    const rootOperatorSecret = "root-production-secret-must-remain-untouched";
+    const linkedOperatorSecret = "linked-production-secret-must-remain-untouched";
+    writeFileSync(rootRuntimePath, `SERVER_SECRET=${rootOperatorSecret}\n`);
+    writeFileSync(linkedSecretSource, `SERVER_SECRET=${linkedOperatorSecret}\n`);
+    symlinkSync(linkedSecretSource, linkedRuntimePath, "file");
+    symlinkSync(linkedSecretSource, linkedLegacyPath, "file");
+
+    const rootLocalBefore = readFileSync(join(root, ".dev.vars"), "utf8");
+    const webLocalBefore = readFileSync(join(root, "apps/web/.dev.vars"), "utf8");
+    const stateBefore = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+
+    expect(plan.conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "environment-runtime-file-forbidden",
+          path: ".dev.vars",
+          sourcePath: ".env.production",
+        }),
+        expect.objectContaining({
+          reason: "environment-runtime-file-forbidden",
+          path: "apps/web/.dev.vars",
+          sourcePath: "apps/web/.env.staging",
+        }),
+        expect.objectContaining({
+          reason: "environment-path-migration-required",
+          path: "apps/web/.dev.vars",
+          sourcePath: "apps/web/.env.local",
+        }),
+      ]),
+    );
+    expect(plan.environmentMerges).toEqual([]);
+    expect(plan.secretOperations).toEqual([]);
+    expect(JSON.stringify(publicReconcilePlan(plan))).not.toContain(rootOperatorSecret);
+    expect(JSON.stringify(publicReconcilePlan(plan))).not.toContain(linkedOperatorSecret);
+
+    let entropyCalls = 0;
+    await expect(
+      applyReconcilePlan(root, state, plan, "sync", {
+        entropy: () => {
+          entropyCalls += 1;
+          return "must-not-be-minted";
+        },
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(entropyCalls).toBe(0);
+    await expect(syncCommand([], options(root))).rejects.toBeInstanceOf(ConflictError);
+
+    expect(readFileSync(rootRuntimePath, "utf8")).toBe(`SERVER_SECRET=${rootOperatorSecret}\n`);
+    expect(readFileSync(linkedSecretSource, "utf8")).toBe(
+      `SERVER_SECRET=${linkedOperatorSecret}\n`,
+    );
+    expect(readFileSync(join(root, ".dev.vars"), "utf8")).toBe(rootLocalBefore);
+    expect(readFileSync(join(root, "apps/web/.dev.vars"), "utf8")).toBe(webLocalBefore);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateBefore);
+  });
+
+  test("deploy plus auth and Convex transition preserves semantically equal reordered environment mirrors", async () => {
+    await writeGenerated(root, cloudflareConfig("none"));
+    const persistentAuthSecret = "persistent-auth-secret-value-that-must-not-rotate";
+    const customPrivateValue = "operator-owned-private-value";
+    const rootEnvironment = readFileSync(join(root, ".env.local"), "utf8")
+      .replace(/^BETTER_AUTH_SECRET=.*$/m, `BETTER_AUTH_SECRET=${persistentAuthSecret}`)
+      .concat(
+        [
+          "CONVEX_DEPLOYMENT=dev:existing-worker",
+          "CONVEX_URL=https://existing-worker.convex.cloud",
+          "CONVEX_SITE_URL=https://existing-worker.convex.site",
+          "NEXT_PUBLIC_CONVEX_URL=https://existing-worker.convex.cloud",
+          `CUSTOM_PRIVATE_VALUE=${customPrivateValue}`,
+          "",
+        ].join("\n"),
+      );
+    const reorderedWebEnvironment = `${rootEnvironment
+      .trimEnd()
+      .split(/\r?\n/)
+      .reverse()
+      .join("\n")}\n`;
+    writeFileSync(join(root, ".env.local"), rootEnvironment);
+    writeFileSync(join(root, "apps/web/.env.local"), reorderedWebEnvironment);
+    writeDesiredConfig(root, cloudflareConvexAuthConfig("cloudflare"));
+
+    renameSync(join(root, ".env.local"), join(root, ".dev.vars"));
+    renameSync(join(root, "apps/web/.env.local"), join(root, "apps/web/.dev.vars"));
+    const state = await loadState(root);
+    if (!state) throw new Error("expected project state");
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.conflicts.map(({ reason }) => reason)).not.toContain("environment-mirror-diverged");
+    expect(plan.secretOperations.map(({ reference }) => reference)).not.toContain(
+      "auth.session-secret",
+    );
+
+    let entropyCalls = 0;
+    await applyReconcilePlan(root, state, plan, "sync", {
+      entropy: () => {
+        entropyCalls += 1;
+        return "unexpected-secret-rotation";
+      },
+    });
+
+    const reconciledEnvironment: string[] = [];
+    for (const path of [".dev.vars", "apps/web/.dev.vars"]) {
+      const content = readFileSync(join(root, ...path.split("/")), "utf8");
+      reconciledEnvironment.push(content);
+      expect(content).toContain(`BETTER_AUTH_SECRET=${persistentAuthSecret}`);
+      expect(content).toContain(`CUSTOM_PRIVATE_VALUE=${customPrivateValue}`);
+      expect(content).toContain("CONVEX_DEPLOYMENT=dev:existing-worker");
+      expect(content).toContain("CONVEX_URL=https://existing-worker.convex.cloud");
+    }
+    expect(dotenvFieldsEqual(reconciledEnvironment[0]!, reconciledEnvironment[1]!)).toBe(true);
+    expect(entropyCalls).toBe(0);
+    const persistedState = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+    expect(persistedState).not.toContain(persistentAuthSecret);
+    expect(persistedState).not.toContain(customPrivateValue);
+  });
+
+  test("divergent legacy environment mirrors block transition until explicitly reconciled", async () => {
+    await writeGenerated(root, cloudflareConfig("none"));
+    const rootSecret = "root-secret-value-that-remains-authoritative";
+    const webSecret = "different-web-secret-that-must-not-be-guessed";
+    const rootPath = join(root, ".env.local");
+    const webPath = join(root, "apps/web/.env.local");
+    writeFileSync(
+      rootPath,
+      readFileSync(rootPath, "utf8").replace(
+        /^BETTER_AUTH_SECRET=.*$/m,
+        `BETTER_AUTH_SECRET=${rootSecret}`,
+      ),
+    );
+    writeFileSync(
+      webPath,
+      readFileSync(webPath, "utf8").replace(
+        /^BETTER_AUTH_SECRET=.*$/m,
+        `BETTER_AUTH_SECRET=${webSecret}`,
+      ),
+    );
+    writeDesiredConfig(root, cloudflareConvexAuthConfig("cloudflare"));
+    renameSync(rootPath, join(root, ".dev.vars"));
+    renameSync(webPath, join(root, "apps/web/.dev.vars"));
+
+    let state = await loadState(root);
+    if (!state) throw new Error("expected project state");
+    const blocked = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(blocked.conflicts).toContainEqual(
+      expect.objectContaining({
+        path: ".dev.vars",
+        sourcePath: "apps/web/.dev.vars",
+        reason: "environment-mirror-diverged",
+      }),
+    );
+    expect(JSON.stringify(publicReconcilePlan(blocked))).not.toContain(rootSecret);
+    expect(JSON.stringify(publicReconcilePlan(blocked))).not.toContain(webSecret);
+    const stateBefore = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+    await expect(applyReconcilePlan(root, state, blocked, "sync")).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(readFileSync(join(root, ".dev.vars"), "utf8")).toContain(rootSecret);
+    expect(readFileSync(join(root, "apps/web/.dev.vars"), "utf8")).toContain(webSecret);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateBefore);
+
+    writeFileSync(
+      join(root, "apps/web/.dev.vars"),
+      readFileSync(join(root, "apps/web/.dev.vars"), "utf8").replace(webSecret, rootSecret),
+    );
+    state = await loadState(root);
+    const reconciled = await buildReconcilePlan(root, state!, { operation: "sync" });
+    expect(reconciled.conflicts.map(({ reason }) => reason)).not.toContain(
+      "environment-mirror-diverged",
+    );
+    await applyReconcilePlan(root, state!, reconciled, "sync", {
+      entropy: () => {
+        throw new Error("existing secret must not rotate after explicit reconciliation");
+      },
+    });
+    expect(readFileSync(join(root, ".dev.vars"), "utf8")).toContain(rootSecret);
+    expect(readFileSync(join(root, "apps/web/.dev.vars"), "utf8")).toContain(rootSecret);
+  });
+
+  test("a single missing Cloudflare mirror blocks instead of dropping operator-owned values", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    const operatorValue = "operator-owned-value-that-target-placeholders-cannot-recover";
+    const original = `${readFileSync(rootPath, "utf8")}CUSTOM_PRIVATE_VALUE=${operatorValue}\n`;
+    writeFileSync(rootPath, original);
+    rmSync(webPath);
+
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.conflicts).toContainEqual(
+      expect.objectContaining({
+        path: "apps/web/.dev.vars",
+        sourcePath: ".dev.vars",
+        reason: "environment-mirror-missing",
+      }),
+    );
+    expect(JSON.stringify(publicReconcilePlan(plan))).not.toContain(operatorValue);
+    await expect(applyReconcilePlan(root, state, plan, "sync")).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(readFileSync(rootPath, "utf8")).toBe(original);
+    expect(existsSync(webPath)).toBe(false);
+  });
+
+  test("two absent Cloudflare mirrors are created together with one materialized secret set", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    rmSync(rootPath);
+    rmSync(webPath);
+
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.conflicts.map(({ reason }) => reason)).not.toContain("environment-mirror-missing");
+    let entropyCalls = 0;
+    await applyReconcilePlan(root, state, plan, "sync", {
+      entropy: () => {
+        entropyCalls += 1;
+        return "one-shared-secret-value-for-both-cloudflare-mirrors";
+      },
+    });
+
+    const rootContent = readFileSync(rootPath, "utf8");
+    const webContent = readFileSync(webPath, "utf8");
+    expect(dotenvFieldsEqual(rootContent, webContent)).toBe(true);
+    expect(rootContent).toContain(
+      "BETTER_AUTH_SECRET=one-shared-secret-value-for-both-cloudflare-mirrors",
+    );
+    expect(entropyCalls).toBe(1);
+  });
+
+  test("apply rejects a runtime dotenv symlink introduced after Cloudflare planning", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    rmSync(rootPath);
+    rmSync(webPath);
+    const stateText = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.environmentMerges.map(({ path }) => path)).toEqual([
+      ".dev.vars",
+      "apps/web/.dev.vars",
+    ]);
+
+    const secretSource = join(root, "late-operator-secret-source");
+    const runtimeLink = join(root, ".env.production");
+    const operatorSecret = "late-linked-secret-must-not-be-read-or-replaced";
+    writeFileSync(secretSource, `SERVER_SECRET=${operatorSecret}\n`);
+    symlinkSync(secretSource, runtimeLink, "file");
+    let entropyCalls = 0;
+    await expect(
+      applyReconcilePlan(root, state, plan, "sync", {
+        entropy: () => {
+          entropyCalls += 1;
+          return "must-not-be-minted";
+        },
+      }),
+    ).rejects.toThrow("appeared after reconciliation planning");
+
+    expect(entropyCalls).toBe(0);
+    expect(existsSync(rootPath)).toBe(false);
+    expect(existsSync(webPath)).toBe(false);
+    expect(readFileSync(secretSource, "utf8")).toBe(`SERVER_SECRET=${operatorSecret}\n`);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateText);
+  });
+
+  test("Cloudflare reconciliation refuses oversized local mirrors without secret planning", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    const oversized = Buffer.alloc(MAX_DOTENV_FILE_BYTES + 1, "s");
+    writeFileSync(rootPath, oversized);
+    const webBefore = readFileSync(webPath, "utf8");
+    const stateBefore = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.conflicts).toContainEqual(
+      expect.objectContaining({
+        path: ".dev.vars",
+        reason: "environment-local-file-unsafe",
+        actualHash: null,
+      }),
+    );
+    expect(plan.environmentMerges).toEqual([]);
+    expect(plan.secretOperations).toEqual([]);
+    await expect(syncCommand([], options(root))).rejects.toBeInstanceOf(ConflictError);
+    expect(readFileSync(rootPath).byteLength).toBe(oversized.byteLength);
+    expect(readFileSync(webPath, "utf8")).toBe(webBefore);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateBefore);
+  });
+
+  test("sync never creates split mirrors while the Cloudflare wrapper hides local values", async () => {
+    await writeGenerated(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    const rootHidden = join(root, CLOUDFLARE_HIDDEN_ENVIRONMENT_FILE);
+    const webHidden = join(root, "apps/web", CLOUDFLARE_HIDDEN_ENVIRONMENT_FILE);
+    const rootBefore = readFileSync(rootPath, "utf8");
+    const webBefore = readFileSync(webPath, "utf8");
+    renameSync(rootPath, rootHidden);
+    renameSync(webPath, webHidden);
+    writeFileSync(
+      join(root, CLOUDFLARE_ENVIRONMENT_LOCK_FILE),
+      JSON.stringify({ version: 1, pid: process.pid, owner: "deterministic-overlap" }) + "\n",
+    );
+    const stateBefore = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: CLOUDFLARE_ENVIRONMENT_LOCK_FILE,
+          reason: "environment-lifecycle-in-progress",
+        }),
+        expect.objectContaining({
+          path: CLOUDFLARE_HIDDEN_ENVIRONMENT_FILE,
+          reason: "environment-lifecycle-in-progress",
+        }),
+        expect.objectContaining({
+          path: `apps/web/${CLOUDFLARE_HIDDEN_ENVIRONMENT_FILE}`,
+          reason: "environment-lifecycle-in-progress",
+        }),
+      ]),
+    );
+    expect(plan.environmentMerges).toEqual([]);
+    expect(plan.secretOperations).toEqual([]);
+    await expect(syncCommand([], options(root))).rejects.toBeInstanceOf(ConflictError);
+
+    expect(existsSync(rootPath)).toBe(false);
+    expect(existsSync(webPath)).toBe(false);
+    expect(readFileSync(rootHidden, "utf8")).toBe(rootBefore);
+    expect(readFileSync(webHidden, "utf8")).toBe(webBefore);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateBefore);
+  });
+
+  test("Convex and auth transition entropy failure publishes neither environment mirror", async () => {
+    await writeGenerated(root, cloudflareConfig("none"));
+    const rootLegacyPath = join(root, ".env.local");
+    const webLegacyPath = join(root, "apps/web/.env.local");
+    const rootEnvironment = `${readFileSync(rootLegacyPath, "utf8")}CONVEX_DEPLOYMENT=dev:existing-worker\nCONVEX_URL=https://existing-worker.convex.cloud\nCONVEX_SITE_URL=https://existing-worker.convex.site\nNEXT_PUBLIC_CONVEX_URL=https://existing-worker.convex.cloud\n`;
+    const webEnvironment = `${rootEnvironment.trimEnd().split(/\r?\n/).reverse().join("\n")}\n`;
+    writeFileSync(rootLegacyPath, rootEnvironment);
+    writeFileSync(webLegacyPath, webEnvironment);
+    writeDesiredConfig(root, cloudflareConvexAuthConfig("cloudflare"));
+    const rootPath = join(root, ".dev.vars");
+    const webPath = join(root, "apps/web/.dev.vars");
+    renameSync(rootLegacyPath, rootPath);
+    renameSync(webLegacyPath, webPath);
+    const stateText = readFileSync(join(root, ".ghostinit/state.json"), "utf8");
+
+    const state = (await loadState(root))!;
+    const plan = await buildReconcilePlan(root, state, { operation: "sync" });
+    expect(plan.secretOperations.map(({ reference }) => reference)).toContain(
+      "auth.session-secret",
+    );
+    await expect(
+      applyReconcilePlan(root, state, plan, "sync", {
+        entropy: () => {
+          throw new Error("injected mirrored environment entropy failure");
+        },
+      }),
+    ).rejects.toThrow("injected mirrored environment entropy failure");
+
+    expect(readFileSync(rootPath, "utf8")).toBe(rootEnvironment);
+    expect(readFileSync(webPath, "utf8")).toBe(webEnvironment);
+    expect(readFileSync(join(root, ".ghostinit/state.json"), "utf8")).toBe(stateText);
   });
 
   test("disable fails closed when a managed capability file was edited", async () => {

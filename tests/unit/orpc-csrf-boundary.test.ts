@@ -109,7 +109,7 @@ describe("generated oRPC CSRF boundary", () => {
           handler.indexOf("const context = await createContext"),
         );
         expect(handler.indexOf("const requestBoundaryRejection")).toBeLessThan(
-          handler.indexOf("rpcHandler.handle(request"),
+          handler.indexOf("rpcHandler.handle(toStandardApiRequest(request)"),
         );
         expect(handler).not.toContain("Access-Control-Allow-Origin");
         expect(handler).not.toMatch(/\bOPTIONS\b/);

@@ -12,6 +12,7 @@ import {
   PROJECT_MODES,
   SERVER_APP_TARGETS,
   type AppTarget,
+  type BillingProvider,
   type DatabaseProvider,
   type DeployTarget,
   type ExecutionRuntime,
@@ -26,6 +27,11 @@ import {
   type CapabilityOperationEvidence,
 } from "./types.js";
 import { CAPABILITY_OPERATION_EVIDENCE } from "./operation-evidence.js";
+import {
+  BILLING_PROVIDER_CLIENT_BINDINGS,
+  billingProviderSupportsClientOperation,
+  type BillingProviderClientBinding,
+} from "./billing-provider-operations.js";
 
 export const SUPPORT_CATALOG_SCHEMA_URI =
   "https://ghostinit.dev/schemas/support-catalog.schema.json";
@@ -43,6 +49,12 @@ export interface CapabilityDeployBinding {
   readonly deployTargets: readonly DeployTarget[];
 }
 
+/** Closed database/runtime-adapter support by deployment target. */
+export interface DatabaseDeployBinding {
+  readonly database: DatabaseProvider;
+  readonly deployTargets: readonly DeployTarget[];
+}
+
 export interface SupportCatalogEvidenceNote {
   readonly id: string;
   readonly subject: `execution-runtime:${ExecutionRuntime}`;
@@ -53,8 +65,8 @@ export interface SupportCatalogEvidenceNote {
 
 export interface SupportCatalogManifest {
   readonly $schema: typeof SUPPORT_CATALOG_SCHEMA_URI;
-  readonly schemaVersion: 1;
-  readonly catalogVersion: 1;
+  readonly schemaVersion: 2;
+  readonly catalogVersion: 2;
   readonly axes: {
     readonly modes: typeof PROJECT_MODES;
     readonly appTargets: typeof APP_TARGETS;
@@ -67,14 +79,18 @@ export interface SupportCatalogManifest {
     readonly packageManagers: typeof PACKAGE_MANAGERS;
   };
   readonly deployBindings: readonly DeployBinding[];
+  readonly databaseDeployBindings: readonly DatabaseDeployBinding[];
+  /** Unlisted capability/database tuples fail closed on these targets. */
+  readonly defaultDenyCapabilityDeployTargets: readonly DeployTarget[];
   readonly capabilityDeployBindings: readonly CapabilityDeployBinding[];
+  readonly billingProviderClientBindings: readonly BillingProviderClientBinding[];
   readonly capabilities: readonly CapabilityDefinition[];
   /** Closed mapping from every advertised operation to executable behavioral proof. */
   readonly operationEvidence: readonly CapabilityOperationEvidence[];
   readonly compatibilityEvidence: readonly SupportCatalogEvidenceNote[];
 }
 
-const ALL_WEB_DEPLOY_TARGETS = ["none", "vercel", "fly", "docker"] as const;
+const ALL_WEB_DEPLOY_TARGETS = ["none", "vercel", "fly", "docker", "cloudflare"] as const;
 const LOCAL_ONLY_DEPLOY_TARGETS = ["none"] as const;
 
 const deployBindings = [
@@ -104,6 +120,21 @@ const deployBindings = [
   },
 ] as const satisfies readonly DeployBinding[];
 
+const databaseDeployBindings = [
+  {
+    database: "postgres",
+    deployTargets: ["none", "vercel", "fly", "docker"],
+  },
+  {
+    database: "convex",
+    deployTargets: ALL_WEB_DEPLOY_TARGETS,
+  },
+  {
+    database: "none",
+    deployTargets: ALL_WEB_DEPLOY_TARGETS,
+  },
+] as const satisfies readonly DatabaseDeployBinding[];
+
 const capabilityDeployBindings = [
   {
     capability: "messaging",
@@ -130,6 +161,42 @@ const capabilityDeployBindings = [
     database: "convex",
     deployTargets: ["none", "fly", "docker"],
   },
+  {
+    capability: "eve",
+    database: "postgres",
+    deployTargets: ["none", "vercel", "fly", "docker"],
+  },
+  {
+    capability: "eve",
+    database: "convex",
+    deployTargets: ["none", "vercel", "fly", "docker"],
+  },
+  ...(
+    [
+      ["transport", "convex"],
+      ["transport", "none"],
+      ["auth", "convex"],
+      ["billing", "convex"],
+      ["messaging", "convex"],
+      ["email", "convex"],
+      ["email", "none"],
+      ["storage", "convex"],
+      ["cache", "convex"],
+      ["cache", "none"],
+      ["analytics", "convex"],
+      ["analytics", "none"],
+      ["i18n", "convex"],
+      ["i18n", "none"],
+      ["notifications", "convex"],
+      ["featureFlags", "convex"],
+      ["featureFlags", "none"],
+      ["jobs", "convex"],
+    ] as const
+  ).map(([capability, database]) => ({
+    capability,
+    database,
+    deployTargets: ALL_WEB_DEPLOY_TARGETS,
+  })),
 ] as const satisfies readonly CapabilityDeployBinding[];
 
 const compatibilityEvidence = [
@@ -506,8 +573,8 @@ const capabilities = [
 
 export const SUPPORT_CATALOG = deepFreeze({
   $schema: SUPPORT_CATALOG_SCHEMA_URI,
-  schemaVersion: 1,
-  catalogVersion: 1,
+  schemaVersion: 2,
+  catalogVersion: 2,
   axes: {
     modes: PROJECT_MODES,
     appTargets: APP_TARGETS,
@@ -520,7 +587,10 @@ export const SUPPORT_CATALOG = deepFreeze({
     packageManagers: PACKAGE_MANAGERS,
   },
   deployBindings,
+  databaseDeployBindings,
+  defaultDenyCapabilityDeployTargets: ["cloudflare"],
   capabilityDeployBindings,
+  billingProviderClientBindings: BILLING_PROVIDER_CLIENT_BINDINGS,
   capabilities,
   operationEvidence: CAPABILITY_OPERATION_EVIDENCE,
   compatibilityEvidence,
@@ -547,16 +617,26 @@ export function getCapabilityOperationEvidence(
 }
 
 /**
- * Resolve database-conditional operation evidence without falsely rejecting the
- * rest of the auth client on targets where the passkey sub-capability is not
- * implemented. The closed passkey support matrix lives in data-model domain.
+ * Resolve conditional operation promises from the selected persistence/provider
+ * bindings. The catalog's base capability remains the union of supported cases.
  */
 export function getEffectiveCapabilityClientBinding(args: {
   capability: CapabilityId;
   target: AppTarget;
   database: DatabaseProvider;
+  billingProviders?: readonly BillingProvider[];
 }): CapabilityClientBinding {
   const binding = getCapabilityDefinition(args.capability).clientBindings[args.target];
+  if (args.capability === "billing" && args.billingProviders !== undefined) {
+    return deepFreeze({
+      ...binding,
+      requiredOperationIds: binding.requiredOperationIds.filter((operation) =>
+        args.billingProviders?.some((provider) =>
+          billingProviderSupportsClientOperation(provider, operation),
+        ),
+      ),
+    });
+  }
   if (args.capability !== "auth" || args.database === "postgres") return binding;
   const requiredOperationIds = binding.requiredOperationIds.filter(
     (operation) =>
@@ -580,6 +660,16 @@ export function isDeployBindingSupported(args: {
   );
 }
 
+export function isDatabaseDeployBindingSupported(args: {
+  readonly database: DatabaseProvider;
+  readonly deployTarget: DeployTarget;
+}): boolean {
+  const binding = SUPPORT_CATALOG.databaseDeployBindings.find(
+    (candidate) => candidate.database === args.database,
+  );
+  return Boolean(binding?.deployTargets.some((deployTarget) => deployTarget === args.deployTarget));
+}
+
 export function isCapabilityDeployBindingSupported(args: {
   readonly capability: CapabilityId;
   readonly database: DatabaseProvider;
@@ -588,6 +678,14 @@ export function isCapabilityDeployBindingSupported(args: {
   const binding = SUPPORT_CATALOG.capabilityDeployBindings.find(
     (candidate) => candidate.capability === args.capability && candidate.database === args.database,
   );
+  if (
+    binding === undefined &&
+    (SUPPORT_CATALOG.defaultDenyCapabilityDeployTargets as readonly DeployTarget[]).includes(
+      args.deployTarget,
+    )
+  ) {
+    return false;
+  }
   return (
     binding === undefined || binding.deployTargets.some((target) => target === args.deployTarget)
   );
@@ -616,8 +714,31 @@ export function hasCompleteCapabilityCatalog(): boolean {
         )
       );
     });
+  const capabilityDeployKeys = SUPPORT_CATALOG.capabilityDeployBindings.map(
+    ({ capability, database }) => `${capability}:${database}`,
+  );
+  const hasClosedDeployPolicy =
+    new Set(capabilityDeployKeys).size === capabilityDeployKeys.length &&
+    SUPPORT_CATALOG.defaultDenyCapabilityDeployTargets.every((target) =>
+      (DEPLOY_TARGETS as readonly DeployTarget[]).includes(target),
+    );
+  const billingBindings = SUPPORT_CATALOG.billingProviderClientBindings;
+  const billingOperations = getCapabilityDefinition("billing").acceptanceOperationIds;
+  const hasClosedBillingPolicy =
+    billingBindings.length === BILLING_PROVIDERS.length &&
+    new Set(billingBindings.map(({ provider }) => provider)).size === BILLING_PROVIDERS.length &&
+    BILLING_PROVIDERS.every((provider) =>
+      billingBindings.some((entry) => entry.provider === provider),
+    ) &&
+    billingBindings.every(
+      ({ operationIds }) =>
+        operationIds.length > 0 &&
+        operationIds.every((operation) => billingOperations.includes(operation)),
+    );
   return (
     hasCompleteOperationEvidence &&
+    hasClosedDeployPolicy &&
+    hasClosedBillingPolicy &&
     SUPPORT_CATALOG.capabilities.length === CAPABILITY_IDS.length &&
     CAPABILITY_IDS.every((id) => definitionById.has(id)) &&
     SUPPORT_CATALOG.capabilities.every((definition) =>

@@ -1,0 +1,197 @@
+// Shared source is embedded in both generated wrappers so their cleanup contract cannot drift.
+export function cloudflareProcessHelpers(includeRecoveryMarker = false): string {
+  const recoveryMarker = includeRecoveryMarker
+    ? String.raw`
+function createProcessRecoveryMarker(root, child) {
+  const path = resolve(root, PROCESS_RECOVERY_PREFIX + process.pid + "-" + randomUUID());
+  const content = JSON.stringify({ version: 1, pid: process.pid, owner: randomUUID(), child: childProcessIdentity(child) }) + "\n";
+  writeFileSync(path, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
+  const created = lstatSync(path);
+  return () => {
+    const current = lstatSync(path);
+    if (!current.isFile() || current.isSymbolicLink() || current.size > 4096 ||
+      ["dev", "ino", "birthtimeMs"].some((field) => current[field] !== created[field]) || readFileSync(path, "utf8") !== content) {
+      throw new Error("Child recovery marker ownership changed; leaving it untouched");
+    }
+    unlinkSync(path);
+  };
+}
+`
+    : "";
+  return String.raw`
+const sleep = (milliseconds) => new Promise((resolveSleep) => setTimeout(resolveSleep, milliseconds));
+const childHasExited = (child) => child.exitCode !== null || child.signalCode !== null;
+const PROCESS_RECOVERY_PREFIX = ".dev.vars.ghostinit-process-recovery-";
+
+function assertNoProcessRecovery(root) {
+  for (const name of readdirSync(root)) {
+    const normalized = name.toLowerCase();
+    if (normalized.startsWith(PROCESS_RECOVERY_PREFIX)) {
+      throw new Error("Unverified child cleanup marker exists; verify the recorded wrapper, child PID, and process group/tree stopped before removing .dev.vars.ghostinit-process-recovery-* and retrying");
+    }
+    if (!normalized.startsWith(".dev.vars.ghostinit-convex-")) continue;
+    const match = /^\.dev\.vars\.ghostinit-convex-(\d+)-[0-9a-f-]{36}$/.exec(normalized);
+    if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) <= 1) {
+      throw new Error("Unsafe Convex temporary environment filename; inspect it before retrying");
+    }
+    try { process.kill(Number(match[1]), 0); } catch {
+      throw new Error("A stale Convex temporary environment remains; verify its wrapper and child process tree stopped before removing .dev.vars.ghostinit-convex-* and retrying");
+    }
+  }
+}
+
+function childProcessIdentity(child) {
+  return { pid: child.pid, processGroup: process.platform === "win32" ? null : child.pid,
+    createdAt: child.ghostinitProcessTree?.records.find((entry) => entry.pid === child.pid)?.createdAt ?? null };
+}
+
+${recoveryMarker}
+
+async function waitForCondition(predicate, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    if (predicate()) return true;
+    await sleep(50);
+  } while (Date.now() < deadline);
+  return predicate();
+}
+
+function windowsSystemExecutable(name) {
+  const configuredRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? process.env.WINDIR;
+  if (!configuredRoot || !isAbsolute(configuredRoot)) throw new Error("Windows system root is missing or unsafe");
+  const system32 = realpathSync(resolve(realpathSync(configuredRoot), "System32"));
+  const unresolved = name === "taskkill"
+    ? resolve(system32, "taskkill.exe")
+    : resolve(system32, "WindowsPowerShell", "v1.0", "powershell.exe");
+  const metadata = lstatSync(unresolved);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("Windows cleanup executable is not a regular system file");
+  const executable = realpathSync(unresolved);
+  const descendant = relative(system32, executable);
+  if (!descendant || descendant === ".." || descendant.startsWith(".." + sep) || isAbsolute(descendant)) {
+    throw new Error("Windows cleanup executable escapes canonical System32");
+  }
+  return executable;
+}
+
+function windowsProcessTable() {
+  const script = '$ErrorActionPreference = "Stop"\n' +
+    '$records = @(Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -gt 0 } | ForEach-Object {\n' +
+    '  [pscustomobject]@{ pid = [int]$_.ProcessId; parentPid = [int]$_.ParentProcessId; createdAt = ([datetime]$_.CreationDate).ToUniversalTime().ToString("O") }\n' +
+    '})\nConvertTo-Json -InputObject @($records) -Compress';
+  const result = spawnSync(windowsSystemExecutable("powershell"), ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+    encoding: "utf8", shell: false, windowsHide: true, timeout: 10_000, maxBuffer: 16 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error || result.status !== 0 || result.signal !== null) throw new Error("Could not verify the Windows process table");
+  let records;
+  try { records = JSON.parse(result.stdout); } catch { throw new Error("Windows process table was not valid JSON"); }
+  if (!Array.isArray(records) || records.some((record) => !Number.isSafeInteger(record.pid) || record.pid < 0 ||
+    !Number.isSafeInteger(record.parentPid) || record.parentPid < 0 || !Number.isFinite(Date.parse(record.createdAt)))) {
+    throw new Error("Windows process table contained an invalid identity");
+  }
+  return records;
+}
+
+function captureProcessTree(child) {
+  const pid = child.pid;
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Cannot supervise a child without a safe root PID");
+  const state = child.ghostinitProcessTree ??= { pid, groupId: process.platform === "win32" ? null : pid, records: [] };
+  if (process.platform !== "win32") return state;
+  const table = windowsProcessTable();
+  const known = new Map(state.records.map((record) => [record.pid, record]));
+  const trusted = new Map(table.filter((record) => known.get(record.pid)?.createdAt === record.createdAt).map((record) => [record.pid, record]));
+  const root = table.find((record) => record.pid === pid);
+  if (root && !childHasExited(child) && (!known.has(pid) || known.get(pid).createdAt === root.createdAt)) trusted.set(pid, root);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const record of table) {
+      const parent = trusted.get(record.parentPid);
+      if (trusted.has(record.pid) || !parent || Date.parse(record.createdAt) < Date.parse(parent.createdAt)) continue;
+      trusted.set(record.pid, record);
+      changed = true;
+    }
+  }
+  for (const record of trusted.values()) known.set(record.pid, record);
+  state.records = [...known.values()];
+  if (table.some((record) => !trusted.has(record.pid) && known.has(record.parentPid) &&
+    Date.parse(record.createdAt) >= Date.parse(known.get(record.parentPid).createdAt))) {
+    throw new Error("Unverified descendants remain after a captured Windows parent exited");
+  }
+  // A root that exited before its identity could be captured cannot authorize
+  // killing a PID-only orphan. Preserve the lock for explicit operator recovery.
+  if (state.records.length === 0 && childHasExited(child) && table.some((record) => record.parentPid === pid)) {
+    throw new Error("Exited Windows child has unverified descendants");
+  }
+  state.live = [...trusted.values()];
+  return state;
+}
+
+function posixProcessGroupExists(pid) {
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Unsafe POSIX process group");
+  // Inspect the process table: Bun on macOS can return EPERM for kill(-pgid, 0)
+  // even after the group has exited. Zombies cannot execute or read env files.
+  const ps = existsSync("/bin/ps") ? "/bin/ps" : "/usr/bin/ps";
+  const result = spawnSync(ps, ["-A", "-o", "pid=", "-o", "pgid=", "-o", "stat="], {
+    encoding: "utf8", shell: false, timeout: 5_000, maxBuffer: 16 * 1024 * 1024,
+    env: { ...process.env, LC_ALL: "C" }, stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.error || result.status !== 0 || result.signal !== null) throw new Error("Could not verify the POSIX process table");
+  let live = false;
+  for (const line of result.stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const match = /^\s*(\d+)\s+(\d+)\s+([A-Za-z+<>NslLWX-]+)\s*$/.exec(line);
+    if (!match) throw new Error("POSIX process table contained an invalid identity");
+    if (Number(match[2]) === pid && !match[3].startsWith("Z")) live = true;
+  }
+  return live;
+}
+
+async function terminateSupervisedProcessTree(child, completion, signal = "SIGTERM") {
+  const pid = child.pid;
+  if (!Number.isSafeInteger(pid) || pid <= 1) throw new Error("Cannot terminate a child without a safe root PID");
+  const deadline = Date.now() + 30_000;
+  const assertWithinDeadline = () => {
+    if (Date.now() >= deadline) throw new Error("Process-tree termination exceeded its bounded deadline");
+  };
+  if (process.platform === "win32") {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      assertWithinDeadline();
+      const state = captureProcessTree(child);
+      if (state.live.length === 0) {
+        if (!(await waitForCondition(() => childHasExited(child), 5_000))) throw new Error("Windows child remained live without a verifiable identity");
+        try { await completion; } catch {}
+        return;
+      }
+      const ids = new Set(state.live.map((record) => record.pid));
+      for (const root of state.live.filter((record) => !ids.has(record.parentPid))) {
+        assertWithinDeadline();
+        const outcome = spawnSync(windowsSystemExecutable("taskkill"), ["/PID", String(root.pid), "/T", "/F"], {
+          encoding: "utf8", shell: false, timeout: 10_000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+        });
+        if (outcome.error || outcome.signal !== null || outcome.status === null) throw new Error("Windows process-tree termination failed");
+        assertWithinDeadline();
+        const current = windowsProcessTable();
+        const remaining = state.live.filter((record) => current.some((candidate) => candidate.pid === record.pid && candidate.createdAt === record.createdAt));
+        if (outcome.status !== 0 && remaining.some((record) => record.pid === root.pid)) throw new Error("Windows process-tree termination was refused");
+      }
+      await sleep(50);
+    }
+    assertWithinDeadline();
+    if (captureProcessTree(child).live.length > 0 || !(await waitForCondition(() => childHasExited(child), 5_000))) {
+      throw new Error("Could not verify termination of the Windows process tree");
+    }
+  } else {
+    const signalGroup = (nextSignal) => {
+      try { process.kill(-pid, nextSignal); } catch (error) { if (error?.code !== "ESRCH") throw error; }
+    };
+    if (posixProcessGroupExists(pid)) signalGroup(signal);
+    if (!(await waitForCondition(() => !posixProcessGroupExists(pid) && childHasExited(child), 2_000))) signalGroup("SIGKILL");
+    if (!(await waitForCondition(() => !posixProcessGroupExists(pid) && childHasExited(child), 5_000))) {
+      throw new Error("Could not verify termination of the POSIX process group");
+    }
+  }
+  try { await completion; } catch {}
+}
+`;
+}

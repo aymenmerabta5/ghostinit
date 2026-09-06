@@ -20,6 +20,13 @@ const FEATURE_REMOTE_PACKAGES = new Set([
   "urql",
 ]);
 
+/** The reviewed browser-only Paddle transport seam, never a feature/vendor bypass. */
+export function isPaddleBrowserAdapterFile(file: string): boolean {
+  return /^(?:apps\/web\/)?src\/adapters\/billing\/paddle\.[cm]?[jt]s$/.test(
+    file.replace(/\\/g, "/").replace(/^\/+/, ""),
+  );
+}
+
 /** A generated feature is presentation code, regardless of the app or framework. */
 export function isFeatureFile(file: string): boolean {
   const normalized = file.replace(/\\/g, "/");
@@ -87,6 +94,7 @@ export function checkVendorIsolation(
   imp: string,
 ): void {
   const normalizedFile = file.replace(/\\/g, "/");
+  if (isPaddleBrowserAdapterFile(normalizedFile) && imp === "@paddle/paddle-js") return;
   // Electron main/preload are legit Vendors consumers (electron, electron-updater, electron-store)
   // They live at apps/desktop/src/main.ts / preload.ts and are allowed to import electron family.
   // Only desktop renderer + web UI are restricted from direct vendor SDKs.

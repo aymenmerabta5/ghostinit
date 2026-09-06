@@ -310,7 +310,7 @@ test("runtime.node.packed-cli.v1: the exact Bun-packed tarball generates Bun and
       };
     };
     expect(capabilitiesPayload.schemaVersion).toBe(2);
-    expect(capabilitiesPayload.data.catalog.catalogVersion).toBe(1);
+    expect(capabilitiesPayload.data.catalog.catalogVersion).toBe(2);
     expect(capabilitiesPayload.data.schemas.projectConfig.schemaVersion).toBe(2);
 
     const generatedParent = join(temp, "generated-projects");

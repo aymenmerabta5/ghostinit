@@ -474,12 +474,9 @@ function convexClientContent(framework: AuthFramework, hasEmail = true): string 
   ].join("\n");
 }
 
-function convexServerNextContent(hasMobile = false): string {
-  const expoNote = hasMobile
-    ? `\n// Mobile enabled: ensure @better-auth/expo is installed and trustedOrigins includes scheme\nimport { expo } from "@better-auth/expo";`
-    : "";
+function convexServerNextContent(): string {
   return [
-    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";${expoNote}`,
+    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";`,
     `import type { Preloaded } from "convex/react";`,
     `import type { FunctionReference, FunctionReturnType, OptionalRestArgs } from "convex/server";`,
     `import { api } from "../../../convex/_generated/api";`,
@@ -582,12 +579,9 @@ function convexServerNextContent(hasMobile = false): string {
   ].join("\n");
 }
 
-function convexServerTanstackContent(hasMobile = false): string {
-  const expoNote = hasMobile
-    ? `\n// Mobile enabled: ensure @better-auth/expo is installed\nimport { expo } from "@better-auth/expo";`
-    : "";
+function convexServerTanstackContent(): string {
   return [
-    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";${expoNote}`,
+    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";`,
     `import { api } from "../../../convex/_generated/api";`,
     `import { env } from "@repo/config/server";`,
     ``,
@@ -655,15 +649,9 @@ function convexServerTanstackContent(hasMobile = false): string {
   ].join("\n");
 }
 
-function convexPackageFiles(
-  framework: AuthFramework,
-  hasMobile = false,
-  hasEmail = true,
-): TemplateFile[] {
+function convexPackageFiles(framework: AuthFramework, hasEmail = true): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
-  const serverContent = isTanstack
-    ? convexServerTanstackContent(hasMobile)
-    : convexServerNextContent(hasMobile);
+  const serverContent = isTanstack ? convexServerTanstackContent() : convexServerNextContent();
 
   return [
     file(
@@ -680,7 +668,6 @@ function convexPackageFiles(
         },
         dependencies: {
           "better-auth": `^${v.auth["better-auth"]}`,
-          ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
           ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
           convex: `^${v.convex.convex}`,
@@ -731,8 +718,8 @@ export function authPackage(
 ): TemplateFile[] {
   // Parameter types already line up with resolveFrameworkAndConvex — no cast needed.
   const { framework, isConvex } = resolveFrameworkAndConvex(frameworkOrAddons, maybeAddons);
-  // The expo() server plugin is only emitted when the project actually has a
-  // mobile app; @better-auth/expo is a mobile-only dependency.
+  // PostgreSQL auth owns its server options in this package. Convex auth owns
+  // them in convex/auth.ts, where the database renderer registers expo().
   const hasMobile = [frameworkOrAddons, maybeAddons].some((c) => {
     if (!c || typeof c !== "object") return false;
     try {
@@ -743,7 +730,7 @@ export function authPackage(
   });
   const hasEmail = options.hasEmail ?? true;
   if (isConvex) {
-    return convexPackageFiles(framework, hasMobile, hasEmail);
+    return convexPackageFiles(framework, hasEmail);
   }
   return postgresPackageFiles(framework, hasMobile, hasEmail);
 }

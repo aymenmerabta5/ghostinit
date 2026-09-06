@@ -48,6 +48,25 @@ function localFontSources(): PdfFontSources {
 
 let registered = false;
 
+/** Called only inside the shared renderer's exclusive font/render section. */
+export function preparePdfFonts(sources?: PdfFontSources): void {
+  const resolved = sources ?? localFontSources();
+  // Font.reset() retains already-resolved load promises in the pinned SDK.
+  // Recreate the faces so shaping state cannot leak between Arabic documents.
+  Font.clear();
+  Font.register({
+    family: "Helvetica",
+    fonts: [
+      { src: "Helvetica", fontStyle: "normal", fontWeight: 400 },
+      { src: "Helvetica-Bold", fontStyle: "normal", fontWeight: 700 },
+      { src: "Helvetica-Oblique", fontStyle: "italic", fontWeight: 400 },
+      { src: "Helvetica-BoldOblique", fontStyle: "italic", fontWeight: 700 },
+    ],
+  });
+  registered = false;
+  registerPdfFonts(resolved);
+}
+
 export function registerPdfFonts(sources?: PdfFontSources): void {
   if (registered) return;
   const resolved = sources ?? localFontSources();

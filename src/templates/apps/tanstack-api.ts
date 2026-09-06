@@ -9,7 +9,7 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon, type AddonInstallerMap, type BillingProviderName } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
@@ -23,11 +23,18 @@ import {
 } from "./fragments/api.js";
 
 export function tanstackApiFiles(
-  _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
+  addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
+  const trustedCloudflareRuntime =
+    addons !== undefined &&
+    !Array.isArray(addons) &&
+    hasAddon(addons as AddonInstallerMap, "cloudflare");
   return [
     authApiRoute(),
-    file("apps/web/src/server/http/auth.server.ts", tanstackAuthServerHandlerContent("@repo/auth")),
+    file(
+      "apps/web/src/server/http/auth.server.ts",
+      tanstackAuthServerHandlerContent("@repo/auth", trustedCloudflareRuntime),
+    ),
     orpcApiRoute(),
     file("apps/web/src/server/http/rpc.server.ts", tanstackRpcServerHandlerContent("@repo/api")),
     openapiOperationsRoute(),
@@ -45,15 +52,15 @@ export function tanstackApiFiles(
 }
 
 function authApiRoute(): TemplateFile {
-  return file("apps/web/src/routes/api/auth/$splat.ts", authFileContent("tanstack"));
+  return file("apps/web/src/routes/api/auth/$.ts", authFileContent("tanstack"));
 }
 
 function orpcApiRoute(): TemplateFile {
-  return file("apps/web/src/routes/api/rpc/$splat.ts", orpcFileContent("tanstack"));
+  return file("apps/web/src/routes/api/rpc/$.ts", orpcFileContent("tanstack"));
 }
 
 function openapiOperationsRoute(): TemplateFile {
-  return file("apps/web/src/routes/api/$splat.ts", tanstackOpenApiOperationsRouteContent());
+  return file("apps/web/src/routes/api/$.ts", tanstackOpenApiOperationsRouteContent());
 }
 
 function healthApiRoute(): TemplateFile {

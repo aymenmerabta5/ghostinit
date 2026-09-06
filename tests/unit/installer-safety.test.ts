@@ -219,6 +219,9 @@ describe("installer process-tree and init isolation", () => {
     const env = buildInstallEnv(candidateRoot, {
       ...process.env,
       BUN_INSTALL_CACHE_DIR: "D:\\BunCache\\install\\cache",
+      BUN_CONFIG_PATH: "D:\\untrusted-bunfig.toml",
+      BUN_CONFIG_REGISTRY: "https://registry.example.invalid/",
+      npm_config_registry: "https://registry.example.invalid/",
     });
     for (const [key, value] of Object.entries(process.env)) {
       if (key.toUpperCase() === "PATH" || key.toUpperCase() === "PATHEXT") {
@@ -228,6 +231,9 @@ describe("installer process-tree and init isolation", () => {
     expect(env.PWD).toBe(candidateRoot);
     expect(env.BUN_INSTALL_CACHE_DIR).toBe("D:\\BunCache\\install\\cache");
     expect(env.NPM_CONFIG_CACHE).toBeUndefined();
+    expect(env.BUN_CONFIG_PATH).toBeUndefined();
+    expect(env.BUN_CONFIG_REGISTRY).toBeUndefined();
+    expect(env.npm_config_registry).toBeUndefined();
 
     const discovered = discoverCanonicalBunExecutable();
     expect(discovered).toBeDefined();

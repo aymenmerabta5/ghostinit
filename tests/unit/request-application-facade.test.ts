@@ -605,6 +605,35 @@ describe("generated request application facade", () => {
       ),
     ).rejects.toMatchObject({ code: "APPLICATION_RATE_LIMITED" });
     expect(capabilityCalls).toBe(0);
+
+    const merchantCalls: unknown[] = [];
+    const merchant = createRequestApplication({
+      ...dependencies,
+      principal,
+      rateLimit: async (...args: unknown[]) => {
+        merchantCalls.push({ rateLimit: args });
+      },
+      billing: {
+        ...dependencies.billing,
+        createPaymentLink: async (actor: unknown, input: unknown) => {
+          merchantCalls.push({ actor, input });
+          return { id: "merchant-link", url: "https://pay.example.test/link" };
+        },
+      },
+    });
+    const input = {
+      provider: "chargily",
+      name: "Merchant product",
+      items: [{ price: "price-1", quantity: 1 }],
+    };
+    const created = await (
+      Reflect.get(merchant, "billing") as { createPaymentLink(input: unknown): Promise<unknown> }
+    ).createPaymentLink(input);
+    expect(created).toEqual({ id: "merchant-link", url: "https://pay.example.test/link" });
+    expect(merchantCalls).toEqual([
+      { rateLimit: ["billing:payment-link:app-user", 10, 60_000] },
+      { actor: principal, input },
+    ]);
   });
 
   test("keeps direct and oRPC identity paths behaviorally identical", async () => {

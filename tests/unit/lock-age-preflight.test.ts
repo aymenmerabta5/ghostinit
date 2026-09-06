@@ -31,7 +31,7 @@ function registryLock(
 function evidence(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify(
     {
-      schemaVersion: 2,
+      schemaVersion: 3,
       auditedAt,
       asOf: "2026-01-08",
       registry: "https://registry.npmjs.org",
@@ -42,7 +42,15 @@ function evidence(overrides: Record<string, unknown> = {}): string {
         releaseAgeExceptions: [],
       },
       summary: { auditedLockfiles: 2, lockedPackageVersions: 1 },
-      lockedReleases: [{ package: "package", version: "1.0.0", publishedAt }],
+      lockedReleases: [
+        {
+          package: "package",
+          version: "1.0.0",
+          publishedAt,
+          integrity:
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        },
+      ],
       ...overrides,
     },
     null,
@@ -103,6 +111,17 @@ describe("dependency-free preinstall lock-age gate", () => {
     expectFailure(
       (root) =>
         writeFileSync(
+          join(root, "bun.lock"),
+          registryLock(
+            "",
+            "sha512-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==",
+          ),
+        ),
+      "locked integrity differs from reviewed evidence",
+    );
+    expectFailure(
+      (root) =>
+        writeFileSync(
           join(root, "evidence", "compatibility", "dependency-versions.json"),
           evidence({
             summary: { auditedLockfiles: 2, lockedPackageVersions: 0 },
@@ -121,6 +140,8 @@ describe("dependency-free preinstall lock-age gate", () => {
                 package: "package",
                 version: "1.0.0",
                 publishedAt: "2026-01-01T00:00:00.001Z",
+                integrity:
+                  "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               },
             ],
           }),
@@ -150,7 +171,7 @@ describe("dependency-free preinstall lock-age gate", () => {
         );
       }
     }
-    expect(installs).toBe(8);
+    expect(installs).toBe(9);
 
     const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, "package.json"), "utf8")) as {
       scripts: Record<string, string>;

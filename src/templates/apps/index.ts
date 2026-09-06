@@ -13,6 +13,7 @@ import { expoPageFiles } from "./expo-pages.js";
 import type { TemplateFile } from "../shared.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
+import { BILLING_PROVIDERS } from "../../lib/constants.js";
 
 type EveAndBillingInput =
   | boolean
@@ -72,9 +73,25 @@ export function tanstackStartFiles(
           hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
         )
       : true;
+  const selectedBilling = Array.isArray(addonsOrHasEve)
+    ? addonsOrHasEve
+    : typeof addonsOrHasEve === "object"
+      ? BILLING_PROVIDERS.filter((provider) =>
+          hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
+        )
+      : BILLING_PROVIDERS;
   return [
     ...tanstackCoreFiles(runtime, addonsOrHasEve),
-    ...tanstackPageFiles(hasEmail, isConvex, hasAuth, hasApi, isPostgres, hasI18n, hasBilling),
+    ...tanstackPageFiles(
+      hasEmail,
+      isConvex,
+      hasAuth,
+      hasApi,
+      isPostgres,
+      hasI18n,
+      hasBilling,
+      selectedBilling,
+    ),
     ...(hasApi ? tanstackApiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),
     ...testFiles(runtime, "tanstack-start"),

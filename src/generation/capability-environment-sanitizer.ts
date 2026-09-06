@@ -183,7 +183,9 @@ export function sanitizeLegacyCapabilityEnvironment(
   config: ResolvedProjectConfig,
 ): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
-  if (name === ".env" || name.startsWith(".env.")) return sanitizeDotenv(content, config);
+  if (name === ".env" || name.startsWith(".env.") || name === ".dev.vars") {
+    return sanitizeDotenv(content, config);
+  }
   if (
     /^(?:packages\/config\/src|src\/lib\/env)\/(?:server-schema|server|next|vite|expo)\.ts$/.test(
       path,

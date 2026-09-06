@@ -134,8 +134,10 @@ ${i18nState}  const [status, setStatus] = React.useState<string | null>(null);
   const check = React.useCallback(async () => {
     setStatus(${capabilities.hasI18n ? 't("updatesChecking")' : '"Checking…"'});
     try {
-      await window.desktopBridge.updatesCheck();
-      setStatus(${capabilities.hasI18n ? 't("updatesCurrent")' : '"Up to date"'});
+      const result = await window.desktopBridge.updatesCheck();
+      setStatus(result.isUpdateAvailable
+        ? ${capabilities.hasI18n ? 't("updatesAvailable")' : '"Update available"'}
+        : ${capabilities.hasI18n ? 't("updatesCurrent")' : '"Up to date"'});
     } ${capabilities.hasI18n ? "catch {" : "catch (error) {"}
       setStatus(${capabilities.hasI18n ? 't("updatesError")' : 'error instanceof Error ? error.message : "Update check failed"'});
     }

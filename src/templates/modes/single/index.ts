@@ -41,7 +41,9 @@ import {
   integrateDependencyAuditManifest,
 } from "../../tooling/dependency-audit.js";
 import { deployFiles } from "../../root/deploy.js";
+import { normalizeCloudflareTemplateFiles } from "../../cloudflare-normalization.js";
 import { bunfig } from "../../root/package.js";
+import { githubWorkflow } from "../../root/config.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
 import { integrateEveSecurityFiles } from "../../eve/security/index.js";
 import { capabilityClientFiles } from "../../apps/capability-clients/index.js";
@@ -324,6 +326,7 @@ export function singleFiles(
       jobs: hasJobsEarly,
       jobsApi: hasJobsApi && effectiveAuth,
       pdf: hasAddon(addonMap, "pdf") || config.pdf === true,
+      deploy: config.deploy ?? "none",
     },
   );
   const withoutOld = files.filter(
@@ -341,6 +344,15 @@ export function singleFiles(
     cursorRulesFromAgents(enrichedAgents),
     windsurfFromAgents(enrichedAgents),
     bunfig(),
+    githubWorkflow(runtime, config.deploy ?? "none", {
+      database: effectiveDatabaseSingle,
+      framework,
+      auth: effectiveAuth,
+      notifications: hasNotifications && effectiveApps.includes("web"),
+      cache: hasCache && effectiveApps.includes("web"),
+      apps: effectiveApps,
+      messaging: hasMessagingEarly && effectiveApps.includes("web"),
+    }),
   );
   withoutOld.push(...designSystemFiles("single", resolvedDesignSystemApps));
   withoutOld.push(
@@ -377,7 +389,14 @@ export function singleFiles(
     (config.framework ?? "nextjs") === "nextjs" ||
     (!config.framework && !hasAddon(addonMap, "tanstack-start"));
   if (hasWebSingle && isNextSingle)
-    for (const f of proxyFiles(mode, hasI18n, effectiveAuth)) withoutOld.push(f);
+    for (const f of proxyFiles(
+      mode,
+      hasI18n,
+      effectiveAuth,
+      config.deploy ?? "none",
+      effectiveBilling,
+    ))
+      withoutOld.push(f);
   for (const f of accessFiles(mode)) withoutOld.push(f);
   if (hasWebSingle && isNextSingle)
     for (const f of shellFiles(mode, effectiveBilling.length > 0)) withoutOld.push(f);
@@ -390,7 +409,12 @@ export function singleFiles(
     messaging: hasMessagingEarly && hasWebSingle,
     jobs: hasJobsEarly && hasWebSingle,
     storage: hasStorageEarly && hasWebSingle,
+    notifications: hasNotifications && hasWebSingle,
+    cache: hasCache && hasWebSingle,
+    billing: effectiveBilling,
+    email: hasEmail,
     api: effectiveApi && hasWebSingle,
+    auth: effectiveAuth && hasWebSingle,
     pdf: hasPdfEarly && hasWebSingle,
     eve: hasEve && hasWebSingle,
   }))
@@ -572,19 +596,29 @@ export function singleFiles(
     web: hasWebSingle,
   });
   const hasImageSizePatch = effectiveApps.includes("mobile");
+  const hasOpenNextPatch = config.deploy === "cloudflare" && isNextSingle;
   const packageIndex = deduped.findIndex((entry) => entry.path === "package.json");
   if (packageIndex === -1) throw new Error("Single mode did not emit a root package.json");
   deduped[packageIndex] = integrateDependencyAuditManifest(
     deduped[packageIndex],
     hasImageSizePatch,
+    hasOpenNextPatch,
   );
-  deduped = dedupeFilesOrThrow([...deduped, ...dependencyAuditFiles(hasImageSizePatch)]);
-  const finalFiles = deduped.sort((a, b) => a.path.localeCompare(b.path));
+  deduped = dedupeFilesOrThrow([
+    ...deduped,
+    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
+  ]);
+  const deployNormalized =
+    config.deploy === "cloudflare"
+      ? normalizeCloudflareTemplateFiles(deduped, framework, mode)
+      : deduped;
+  const finalFiles = deployNormalized.sort((a, b) => a.path.localeCompare(b.path));
 
-  return finalFiles.map((f) => ({
-    path: f.path.replace(/__PROJECT_NAME__/g, config.name),
-    content: f.content.replace(/__PROJECT_NAME__/g, config.name),
-  }));
+  return finalFiles.map((f) => {
+    const path = f.path.replace(/__PROJECT_NAME__/g, config.name);
+    const content = f.content.replace(/__PROJECT_NAME__/g, config.name);
+    return { path, content };
+  });
 }
 
 export const singleTemplateFiles = singleFiles;

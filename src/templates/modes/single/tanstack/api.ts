@@ -15,8 +15,8 @@ export function singleAuthApiRouteTanstackContent(): string {
   return tanstackAuthRouteContent();
 }
 
-export function singleAuthServerHandlerTanstackContent(): string {
-  return tanstackAuthServerHandlerContent("@/server/auth");
+export function singleAuthServerHandlerTanstackContent(trustedCloudflareRuntime = false): string {
+  return tanstackAuthServerHandlerContent("@/server/auth", trustedCloudflareRuntime);
 }
 
 export function singleRpcApiRouteTanstackContent(): string {

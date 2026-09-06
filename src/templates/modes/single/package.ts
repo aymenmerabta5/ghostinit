@@ -4,6 +4,10 @@ import * as v from "../../versions.js";
 import type { BillingProviderName } from "../../../lib/addons.js";
 import { jobsAdapterIntegrationGuide } from "../../adapters/jobs/index.js";
 import { nodeEngineSelector, typescriptRuntimeCommand } from "../../root/deploy.js";
+import {
+  OPENNEXT_AWS_WINDOWS_PATCH_KEY,
+  OPENNEXT_AWS_WINDOWS_PATCH_PATH,
+} from "../../root/cloudflare.js";
 
 const LINT_ALL =
   "bun run lint && bun run lint:architecture && bun run lint:rtl && bun run lint:animations && bun run lint:server-only && bun run typecheck";
@@ -181,6 +185,7 @@ export function singlePackageJson(
   hasAuth = true,
   isNone = false,
   hasStorage = false,
+  hasCloudflare = false,
 ): string {
   const lintAll =
     "oxlint --deny-warnings . && bun scripts/check-import-aliases.cjs && bun scripts/check-next-parity.cjs && bun scripts/check-navigation-imports.cjs";
@@ -254,6 +259,28 @@ export function singlePackageJson(
     scripts["start:production"] = "bun scripts/start-production.mjs";
     scripts.start = "bun --env-file=.env.local run start:production";
   }
+  if (hasCloudflare) {
+    scripts.dev = "bun --env-file=.dev.vars scripts/cloudflare.mjs dev";
+    // Keep the conventional production build on the same fail-closed path as
+    // build:worker. OpenNext's internal Next command is configured separately
+    // so this does not recurse.
+    scripts.build = "bun scripts/cloudflare.mjs build";
+    scripts.start = "bun run preview";
+    scripts["build:framework"] = nextRuntimeCommand(runtime, "build");
+    scripts["build:worker"] = "bun scripts/cloudflare.mjs build";
+    scripts.preview = "bun --env-file=.dev.vars scripts/cloudflare.mjs preview";
+    scripts.deploy = "bun scripts/cloudflare.mjs deploy";
+    scripts.upload = "bun scripts/cloudflare.mjs upload";
+    scripts["cloudflare:dry-run"] = "bun scripts/cloudflare.mjs dry-run";
+    scripts["cf-typegen"] =
+      "bun x --no-install wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts";
+    if (isConvex) {
+      scripts["convex:bootstrap"] = "bun scripts/cloudflare-convex.mjs bootstrap";
+      scripts["convex:dev"] = "bun scripts/cloudflare-convex.mjs dev";
+      scripts["convex:deploy"] = "bun scripts/cloudflare-convex.mjs deploy";
+      scripts["convex:codegen"] = "bun scripts/cloudflare-convex.mjs codegen";
+    }
+  }
 
   return packageJson({
     name: projectName,
@@ -297,7 +324,17 @@ export function singlePackageJson(
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,
+      ...(hasCloudflare
+        ? {
+            "@opennextjs/cloudflare": `^${v.cloudflare["@opennextjs/cloudflare"]}`,
+            dotenv: `^${v.cloudflare.dotenv}`,
+            wrangler: `^${v.cloudflare.wrangler}`,
+          }
+        : {}),
     },
+    patchedDependencies: hasCloudflare
+      ? { [OPENNEXT_AWS_WINDOWS_PATCH_KEY]: OPENNEXT_AWS_WINDOWS_PATCH_PATH }
+      : undefined,
   });
 }
 
@@ -316,6 +353,7 @@ export function singlePackageJsonTanstack(
   hasAuth = true,
   isNone = false,
   hasStorage = false,
+  hasCloudflare = false,
 ): string {
   void hasI18n;
   const lintAll =
@@ -386,6 +424,23 @@ export function singlePackageJsonTanstack(
     scripts["start:production"] = "bun scripts/start-production.mjs";
     scripts.start = "bun --env-file=.env.local run start:production";
   }
+  if (hasCloudflare) {
+    scripts.dev = "bun --env-file=.dev.vars scripts/cloudflare.mjs dev";
+    scripts.build = "bun scripts/cloudflare.mjs build";
+    scripts.start = "bun run preview";
+    scripts["build:worker"] = "bun scripts/cloudflare.mjs build";
+    scripts.preview = "bun --env-file=.dev.vars scripts/cloudflare.mjs preview";
+    scripts.deploy = "bun scripts/cloudflare.mjs deploy";
+    scripts["cloudflare:dry-run"] = "bun scripts/cloudflare.mjs dry-run";
+    scripts["cf-typegen"] =
+      "bun x --no-install wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts";
+    if (isConvex) {
+      scripts["convex:bootstrap"] = "bun scripts/cloudflare-convex.mjs bootstrap";
+      scripts["convex:dev"] = "bun scripts/cloudflare-convex.mjs dev";
+      scripts["convex:deploy"] = "bun scripts/cloudflare-convex.mjs deploy";
+      scripts["convex:codegen"] = "bun scripts/cloudflare-convex.mjs codegen";
+    }
+  }
 
   return packageJson({
     name: projectName,
@@ -419,7 +474,14 @@ export function singlePackageJsonTanstack(
       vite: `^${v.tanstackStart.vite}`,
       "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
       "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
-      nitro: `^${v.tanstackStart.nitro}`,
+      ...(hasCloudflare
+        ? {
+            "@cloudflare/vite-plugin": `^${v.cloudflare["@cloudflare/vite-plugin"]}`,
+            dotenv: `^${v.cloudflare.dotenv}`,
+            "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
+            wrangler: `^${v.cloudflare.wrangler}`,
+          }
+        : { nitro: `^${v.tanstackStart.nitro}` }),
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,

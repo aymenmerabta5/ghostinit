@@ -12,7 +12,11 @@ import Ajv2020 from "ajv/dist/2020.js";
 import * as versions from "../packages/versions/src/index.js";
 import type { ProjectConfig } from "../src/lib/config.js";
 import { generateProjectFiles } from "../src/templates/default.js";
-import { collectRepositoryLockedPins, releaseAgeWindow } from "./lock-age-policy.js";
+import {
+  collectRepositoryLockedPins,
+  isSha512Integrity,
+  releaseAgeWindow,
+} from "./lock-age-policy.js";
 
 export { lockedRegistryPinsFromText, releaseAgeWindow } from "./lock-age-policy.js";
 
@@ -28,6 +32,7 @@ interface Pin {
 
 interface RegistryVersion {
   deprecated?: string;
+  dist?: { integrity?: string };
 }
 
 interface RegistryDocument {
@@ -61,7 +66,7 @@ interface EvidencePin {
 }
 
 interface VersionEvidence {
-  schemaVersion: 2;
+  schemaVersion: 3;
   auditedAt: string;
   asOf: string;
   registry: "https://registry.npmjs.org";
@@ -88,7 +93,12 @@ interface VersionEvidence {
     reason: string;
   }>;
   nonNpm: Array<{ scope: string; value: string; reason: string }>;
-  lockedReleases: Array<{ package: string; version: string; publishedAt: string }>;
+  lockedReleases: Array<{
+    package: string;
+    version: string;
+    publishedAt: string;
+    integrity: string;
+  }>;
   pins: EvidencePin[];
   summary: {
     auditedScopes: number;
@@ -354,6 +364,23 @@ function generatedPins(): CollectedPins {
     { ...base, database: "convex", features: ["i18n"] },
     { ...base, mode: "single", apps: ["web"] },
     { ...base, mode: "single", framework: "tanstack-start", apps: ["web"], features: ["i18n"] },
+    {
+      ...base,
+      database: "convex",
+      billing: [],
+      deploy: "cloudflare",
+      features: ["i18n"],
+    },
+    {
+      ...base,
+      mode: "single",
+      framework: "tanstack-start",
+      apps: ["web"],
+      database: "convex",
+      billing: [],
+      deploy: "cloudflare",
+      features: ["i18n"],
+    },
   ] as ProjectConfig[];
 
   const pins = new Map<string, Pin>();
@@ -410,6 +437,7 @@ export interface RegistryVersionSnapshot {
   deprecated: string | null;
   publishedAt: string;
   publishedAtMilliseconds: number;
+  integrity: string;
 }
 
 export interface RecordedReleaseSnapshot {
@@ -501,10 +529,15 @@ function createRegistryLoader(
         const projected = new Map<string, RegistryVersionSnapshot>();
         for (const version of versionsToKeep) {
           const publishedAt = requiredPublishedAt(pkg, version, registry);
+          const integrity = registry.versions?.[version]?.dist?.integrity;
+          if (!isSha512Integrity(integrity)) {
+            throw new Error(pkg + "@" + version + " has no canonical sha512 registry integrity");
+          }
           projected.set(version, {
             deprecated: registry.versions?.[version]?.deprecated ?? null,
             publishedAt: publishedAt.value,
             publishedAtMilliseconds: publishedAt.milliseconds,
+            integrity,
           });
         }
         return { snapshot: { release, versions: projected } };
@@ -871,9 +904,14 @@ async function main(): Promise<void> {
       continue;
     }
     const recorded = lockedReleaseEvidence.get(`${pin.package}@${pin.version}`);
-    if (!recorded || recorded.publishedAt !== metadata.publishedAt) {
+    if (
+      !recorded ||
+      recorded.publishedAt !== metadata.publishedAt ||
+      recorded.integrity !== metadata.integrity ||
+      pin.integrity !== metadata.integrity
+    ) {
       failures.push(
-        `${pin.lockfile}:${pin.key}: locked publication evidence is missing or stale for ${pin.package}@${pin.version}`,
+        `${pin.lockfile}:${pin.key}: locked publication or integrity evidence is missing or stale for ${pin.package}@${pin.version}`,
       );
       continue;
     }

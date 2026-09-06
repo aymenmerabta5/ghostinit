@@ -26,7 +26,8 @@ import { Text } from "@/components/ui/text";
 import { useAuth } from "@/hooks/use-auth";
 import { orpc } from "@/lib/orpc";
 import { env } from "${mode === "monorepo" ? "@repo/config/expo" : "@/lib/env/expo"}";
-${i18n.importLine}
+${i18n.importLine.replace("{ useTranslations }", "{ usePlatformI18n, useTranslations }")}
+import { formatBillingInvoiceAmount } from "@/lib/billing-money";
 
 type ProviderName = "stripe" | "chargily" | "paddle" | "polar";
 type ProviderOption = { id: ProviderName; label: string; checkout: true; portal: boolean; paymentLink: boolean };
@@ -117,7 +118,9 @@ async function openProviderUrl(value: string, returnUrl?: string): Promise<void>
 
 export default function BillingScreen(): React.JSX.Element {
 ${i18n.hookLine}
-  const { isAuthenticated, user } = useAuth();
+  const locale = ${hasI18n ? "usePlatformI18n().locale" : '"en"'};
+  const { isAuthenticated } = useAuth();
+  const applicationIdentity = useQuery(orpc.me.queryOptions({ enabled: isAuthenticated }));
   const snapshot = useQuery(orpc.billing.subscriptions.queryOptions({ enabled: isAuthenticated }));
   const checkout = useMutation(orpc.billing.createCheckout.mutationOptions());
   const portal = useMutation(orpc.billing.createPortalSession.mutationOptions());
@@ -127,7 +130,7 @@ ${i18n.hookLine}
   const [linkPrice, setLinkPrice] = React.useState("");
   const subscriptions = React.useMemo(() => snapshot.data?.subscriptions.flatMap((value) => subscriptionView(value) ?? []) ?? [], [snapshot.data]);
   const invoices = React.useMemo(() => snapshot.data?.invoices.flatMap((value) => invoiceView(value) ?? []) ?? [], [snapshot.data]);
-  const role = isRecord(user) && typeof user.role === "string" ? user.role : "";
+  const role = applicationIdentity.data?.user?.role ?? "";
   const isAdmin = role === "admin" || role === "superAdmin";
   const busy = checkout.isPending || portal.isPending || paymentLink.isPending;
 
@@ -182,7 +185,7 @@ ${i18n.hookLine}
           {SELECTED_PROVIDERS.map((provider) => <Card key={provider.id}><CardHeader><CardTitle>{provider.label}</CardTitle><CardDescription>${i18n.child("providerDescription", "Only server-selected provider capabilities are exposed.")}</CardDescription></CardHeader><CardContent className="gap-3"><View className="flex-row flex-wrap gap-2"><Button disabled={!isAuthenticated || busy} onPress={() => startCheckout(provider.id)}><Text>${i18n.child("startCheckout", "Start checkout")}</Text></Button>{provider.portal ? <Button variant="outline" disabled={!isAuthenticated || busy} onPress={() => openPortal(provider.id)}><Text>${i18n.child("openPortal", "Open portal")}</Text></Button> : null}</View>{provider.paymentLink ? isAdmin ? <View className="gap-2"><Input value={linkName} onChangeText={setLinkName} placeholder={${i18n.value("paymentLinkName", "Payment-link name")}} /><Input value={linkPrice} onChangeText={setLinkPrice} placeholder={${i18n.value("providerPriceId", "Provider price ID")}} autoCapitalize="none" /><Button variant="outline" disabled={busy} onPress={() => createPaymentLink(provider.id)}><Text>${i18n.child("createPaymentLink", "Create payment link")}</Text></Button></View> : <Text className="text-xs text-muted-foreground">${i18n.child("adminPaymentLinks", "Merchant administrators can create payment links.")}</Text> : null}</CardContent></Card>)}
         </View>
         <Card><CardHeader><CardTitle>${i18n.child("subscriptions", "Subscriptions")}</CardTitle><CardDescription>${i18n.child("subscriptionDescription", "Actor-scoped subscription state.")}</CardDescription></CardHeader><CardContent className="gap-2">{snapshot.isPending ? <ActivityIndicator /> : subscriptions.length === 0 ? <Text className="text-sm text-muted-foreground">${i18n.child("noSubscriptionsTitle", "No subscriptions yet.")}</Text> : subscriptions.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><View className="gap-1"><Text className="text-sm">{item.provider}</Text>{item.currentPeriodEnd ? <Text className="text-xs text-muted-foreground">${renews}</Text> : null}</View><Badge variant={item.status === "past_due" ? "destructive" : "secondary"}><Text className="text-xs">{item.status}</Text></Badge></View>)}</CardContent></Card>
-        <Card><CardHeader><CardTitle>${i18n.child("invoices", "Invoices")}</CardTitle><CardDescription>${i18n.child("invoiceDescription", "Recent actor-scoped invoices.")}</CardDescription></CardHeader><CardContent className="gap-2">{invoices.length === 0 ? <Text className="text-sm text-muted-foreground">${i18n.child("noInvoices", "No invoices yet.")}</Text> : invoices.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><Text className="text-sm">{item.provider} · {item.amount} {item.currency ?? ""}</Text><Badge variant={item.paid ? "secondary" : "destructive"}><Text className="text-xs">{item.status}</Text></Badge></View>)}</CardContent></Card>
+        <Card><CardHeader><CardTitle>${i18n.child("invoices", "Invoices")}</CardTitle><CardDescription>${i18n.child("invoiceDescription", "Recent actor-scoped invoices.")}</CardDescription></CardHeader><CardContent className="gap-2">{invoices.length === 0 ? <Text className="text-sm text-muted-foreground">${i18n.child("noInvoices", "No invoices yet.")}</Text> : invoices.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><Text className="text-sm">{item.provider} · {formatBillingInvoiceAmount(item, locale)}</Text><Badge variant={item.paid ? "secondary" : "destructive"}><Text className="text-xs">{item.status}</Text></Badge></View>)}</CardContent></Card>
         <Button variant="outline" disabled={!isAuthenticated || snapshot.isFetching} onPress={() => void snapshot.refetch()}><Text>${i18n.child("refresh", "Refresh billing")}</Text></Button>
       </View>
     </ScrollView>

@@ -19,7 +19,15 @@ ghostinit create my-app --framework nextjs
 ghostinit create my-app --framework tanstack-start
 ```
 
-Both emit dual env prefixes (`NEXT_PUBLIC_*` + `VITE_*`) for client tokens so switching framework later easier.
+Generated env files include only the public prefixes consumed by selected apps: `NEXT_PUBLIC_*` for Next web, `VITE_*` for TanStack web or desktop renderers, and `EXPO_PUBLIC_*` for Expo. In monorepos, clients import the matching `@repo/config/next`, `/vite`, or `/expo` runtime; single projects use `src/lib/env/`. Each entry validates only its own audience and cannot import server secrets. A later framework migration must update both env values and imports.
+
+With `--deploy cloudflare`, Next.js is packaged by
+`@opennextjs/cloudflare`, while TanStack Start replaces Nitro with Cloudflare's
+native Vite plugin. Both Worker paths support monorepo/single web projects with
+Convex or no database. They use gitignored `.dev.vars` locally and keep
+production build variables separate from runtime Worker secrets. Next/OpenNext
+adds R2 incremental-cache, Durable Object queue, and sharded tag-cache bindings. See
+`cloudflare.md` for commands and provisioning.
 
 ## App Targets
 
@@ -35,7 +43,7 @@ Expo and Electron are **not** frameworks — they are app targets selected via `
 - Storage/Auth: `expo-secure-store` for Better Auth token persistence, `expo-linking` for deep links + OAuth redirects, `expo-constants` + `expo-web-browser` for auth flow, scheme handling for `__PROJECT_NAME__://` links, `typedRoutes: true` typed linking.
 - Better Auth and oRPC are emitted for Expo only when a monorepo web app owns the backend. Single Expo is frontend-only; external backend-host selection is not implemented.
 - Backend: when both web+mobile, single DB + same `packages/api` + same auth server. Mobile calls `/api/rpc` and `/api/auth/*` via `EXPO_PUBLIC_API_URL`.
-- Env: client prefix `EXPO_PUBLIC_*` (Expo convention). Scaffold emits triple prefixes for client-safe tokens: `NEXT_PUBLIC_*` + `VITE_*` + `EXPO_PUBLIC_*`.
+- Env: client prefix `EXPO_PUBLIC_*` (Expo convention). A Next+Expo project emits `NEXT_PUBLIC_*` and `EXPO_PUBLIC_*`; TanStack+Expo emits `VITE_*` and `EXPO_PUBLIC_*`. Adding desktop also selects `VITE_*` for its renderer.
 
 - Catalog-pinned Electron + electron-vite + electron-builder, TanStack Router SPA (`src/renderer/routes/__root.tsx` + `index.tsx`/`dashboard.tsx` + `routeTree.gen.ts` via `@tanstack/router-plugin`), `src/main.ts` + `preload.ts` (contextBridge), `electron-store` + `safeStorage` (t3code `ElectronSafeStorage.ts` pattern) for auth, `electron-updater` autoUpdater. Renderer shares `packages/ui/theme.css` + `packages/api` oRPC via `http://localhost:3000/api/rpc` single port, no direct DB.
 
@@ -77,6 +85,8 @@ bun run dev              # expo start (single expo mode)
 - `postgres` default — Drizzle ORM 0.45.2 + pg 8.23.0 + drizzle-kit 0.31.10, postgres:18.6 via the cross-platform `docker compose --env-file .env.local up -d` path (optional `bash ./start-database.sh` when Bash is installed). The named volume mounts `/var/lib/postgresql`, the required parent for Postgres 18's versioned `18/docker` data directory. Pool config prefers `DATABASE_URL`, otherwise `POSTGRES_USER/PASSWORD/HOST/PORT/DB`; SSL uses `DATABASE_SSL=true` and optional `DATABASE_SSL_CA`.
 - `convex` — realtime serverless alternative, scaffold uses Convex packages (check versions catalog).
 - `none` — no database, invalid if billing selected (needs subscriptions table).
+- Cloudflare supports `convex` and `none`; the generated PostgreSQL adapter is
+  rejected until it has a request-scoped Hyperdrive implementation.
 
 ```bash
 ghostinit create my-app --database postgres
@@ -140,7 +150,7 @@ All addons optional, false default (except saas preset forces auth/api/email/ana
 ## Modes
 
 - `monorepo` default — workspaces `apps/*, packages/*, tooling/*`, turbo tasks, root composer 12+ groups, recommended for AI/codebase split bounded contexts. Supports `apps web, mobile, both`.
-- `single` — flat Next.js all-in-one for web. Single Expo/Electron is a frontend-only native layout with no generated server or external host contract.
+- `single` — one project without workspaces. Web uses Next.js `src/app/` or TanStack Start `src/routes/`, with selected backend capabilities under `src/server/`. Single Expo/Electron is a frontend-only native layout with no generated server or external host contract.
 
 ```bash
 ghostinit create my-app --mode monorepo

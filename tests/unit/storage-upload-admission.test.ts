@@ -183,7 +183,10 @@ describe("standalone storage upload admission", () => {
       );
       const rateLimitIndex = source.indexOf("status: 429", admissionIndex);
       const tryIndex = source.indexOf("try {", rateLimitIndex);
-      const decodeIndex = source.indexOf(`${handlerName}.handle(request`, contextIndex);
+      const decodeIndex = source.indexOf(
+        `${handlerName}.handle(toStandardApiRequest(request)`,
+        contextIndex,
+      );
       const finallyIndex = source.indexOf("finally", decodeIndex);
       const releaseIndex = source.indexOf("releaseStorageUploadAdmission?.()", finallyIndex);
       expect(contextIndex, `${name} must authenticate request headers`).toBeGreaterThanOrEqual(0);

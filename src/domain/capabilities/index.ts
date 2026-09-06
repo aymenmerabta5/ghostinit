@@ -6,11 +6,19 @@ export {
   getEffectiveCapabilityClientBinding,
   hasCompleteCapabilityCatalog,
   isCapabilityDeployBindingSupported,
+  isDatabaseDeployBindingSupported,
   isDeployBindingSupported,
 } from "./support-catalog.js";
 export { CAPABILITY_OPERATION_EVIDENCE } from "./operation-evidence.js";
+export {
+  BILLING_PROVIDER_CLIENT_BINDINGS,
+  billingProviderSupportsClientOperation,
+  billingProvidersForClientOperation,
+} from "./billing-provider-operations.js";
+export type { BillingProviderClientBinding } from "./billing-provider-operations.js";
 export type {
   CapabilityDeployBinding,
+  DatabaseDeployBinding,
   DeployBinding,
   SupportCatalogEvidenceNote,
   SupportCatalogManifest,

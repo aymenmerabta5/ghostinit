@@ -39,26 +39,7 @@ async function WorkspaceData(): Promise<React.JSX.Element> {
   const application = await createRequestApplicationForRequest(new Headers(await headers()));
   const me = await application.me();
   if (!me.user) redirect("/sign-in");
-  const organizations = await application.identity.organizations.list();
-  const organizationId = organizations[0]?.id ?? null;
-  const [teams, members, invitations]: [
-    IdentityWorkspaceInitialData["teams"],
-    IdentityWorkspaceInitialData["members"],
-    IdentityWorkspaceInitialData["invitations"],
-  ] = organizationId
-    ? await Promise.all([
-        application.identity.teams.list({ organizationId }),
-        application.identity.organizations.listMembers({ organizationId }),
-        application.identity.invitations.list({ organizationId }),
-      ])
-    : [[], [], []];
-  const teamId = teams[0]?.id ?? null;
-  const teamMembers = organizationId && teamId
-    ? await application.identity.teams.listMembers({ organizationId, teamId })
-    : [];
-  const initialData: IdentityWorkspaceInitialData = {
-    organizations, organizationId, teams, members, invitations, teamId, teamMembers,
-  };
+  const initialData: IdentityWorkspaceInitialData = await application.identity.workspace.snapshot();
   return <IdentityWorkspace initialData={initialData} />;
 }
 

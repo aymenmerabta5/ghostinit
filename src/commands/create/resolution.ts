@@ -48,6 +48,7 @@ export const CREATE_RESOLUTION_FAILURE_REASONS = [
   "single-native-server-capabilities-unsupported",
   "server-capable-web-app-required",
   "capability-deploy-binding-unsupported",
+  "database-deploy-binding-unsupported",
   "project-capability-resolution-failed",
 ] as const;
 
@@ -241,11 +242,16 @@ export function resolveCreateConfig(input: CreateResolutionInput): CreateResolut
     const hasUnsupportedCapabilityDeployBinding = resolved.issues.some(
       (issue) => issue.code === "capability-deploy-binding-unsupported",
     );
+    const hasUnsupportedDatabaseDeployBinding = resolved.issues.some(
+      (issue) => issue.code === "database-deploy-binding-unsupported",
+    );
     return {
       ok: false,
-      reason: hasUnsupportedCapabilityDeployBinding
-        ? "capability-deploy-binding-unsupported"
-        : "project-capability-resolution-failed",
+      reason: hasUnsupportedDatabaseDeployBinding
+        ? "database-deploy-binding-unsupported"
+        : hasUnsupportedCapabilityDeployBinding
+          ? "capability-deploy-binding-unsupported"
+          : "project-capability-resolution-failed",
       message: resolved.issues.map((issue) => issue.message).join(" "),
     };
   }

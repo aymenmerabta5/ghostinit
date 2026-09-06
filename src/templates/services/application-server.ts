@@ -47,6 +47,11 @@ async function verifiedSession(headers: Headers): Promise<VerifiedSession | null
 }
 
 async function resolvePrincipal(headers: Headers): Promise<RequestPrincipal | null> {
+  // Anonymous requests need no hosted identity lookup. Preserve verification for
+  // every credential carrier, including empty or malformed values.
+  if (!headers.has("cookie") && !headers.has("authorization") && !headers.has("better-auth-cookie")) {
+    return null;
+  }
   const [actor, session] = await Promise.all([getRequestUser(), verifiedSession(headers)]);
   if (!actor || !session || actor.authId !== session.user.id) return null;
   if (actor.banned === true) {

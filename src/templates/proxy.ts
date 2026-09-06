@@ -1,4 +1,4 @@
-import type { ProjectMode } from "../lib/addons.js";
+import type { BillingProviderName, DeployTarget, ProjectMode } from "../lib/addons.js";
 import { file, type TemplateFile } from "./shared.js";
 
 const MATCHER = `"/((?!api|_next|_vercel|static|.*\\\\..*).*)"`;
@@ -287,12 +287,26 @@ export default function MaintenancePage(): React.JSX.Element {
 `;
 }
 
-function proxyContent(hasAuth: boolean): string {
+function proxyContent(
+  hasAuth: boolean,
+  deploy: DeployTarget,
+  billing: readonly BillingProviderName[],
+): string {
+  const publicBillingPaths =
+    billing.length > 0
+      ? [
+          "/billing/success",
+          "/billing/cancel",
+          ...(billing.includes("paddle") ? ["/billing/paddle-checkout"] : []),
+        ]
+      : [];
   const authDefinitions = hasAuth
     ? `export const PROTECTED_PATHS = ["/dashboard", "/onboarding", "/profile", "/admin", "/settings", "/billing"] as const;
 export const AUTH_PATHS = ["/login", "/sign-in", "/sign-up", "/reset-password", "/forgot-password"] as const;
+${publicBillingPaths.length > 0 ? `export const PUBLIC_BILLING_PATHS: readonly string[] = ${JSON.stringify(publicBillingPaths)};` : ""}
 
 export function isProtectedPath(pathname: string): boolean {
+  ${publicBillingPaths.length > 0 ? 'if (PUBLIC_BILLING_PATHS.some((path) => pathname === path || pathname === path + "/")) return false;' : ""}
   return PROTECTED_PATHS.some((path) => matchesPath(pathname, path));
 }
 
@@ -309,6 +323,7 @@ export function isAuthPath(pathname: string): boolean {
   }
 `
     : "";
+  const handlerName = deploy === "cloudflare" ? "middleware" : "proxy";
   return `${hasAuth ? 'import { getSessionCookie } from "better-auth/cookies";\n' : ""}import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
@@ -334,7 +349,7 @@ export function isMaintenanceExemptPath(pathname: string): boolean {
 
 ${MAINTENANCE_GATE}
 
-export async function proxy(request: NextRequest) {
+export async function ${handlerName}(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const maintenance = await checkMaintenanceStatus(request);
 
@@ -361,12 +376,21 @@ export function proxyFiles(
   mode: ProjectMode = "monorepo",
   _hasI18n = false,
   hasAuth = true,
+  deploy: DeployTarget = "none",
+  billing: readonly BillingProviderName[] = [],
 ): TemplateFile[] {
-  const proxyPath = mode === "single" ? "src/proxy.ts" : "apps/web/src/proxy.ts";
+  const proxyPath =
+    deploy === "cloudflare"
+      ? mode === "single"
+        ? "src/middleware.ts"
+        : "apps/web/src/middleware.ts"
+      : mode === "single"
+        ? "src/proxy.ts"
+        : "apps/web/src/proxy.ts";
   const pageDir = mode === "single" ? "src/app" : "apps/web/src/app";
   const libDir = mode === "single" ? "src/lib" : "apps/web/src/lib";
   return [
-    file(proxyPath, proxyContent(hasAuth)),
+    file(proxyPath, proxyContent(hasAuth, deploy, billing)),
     file(`${libDir}/maintenance-access.ts`, MAINTENANCE_ACCESS),
     file(`${pageDir}/maintenance/access/route.ts`, maintenanceAccessRouteContent()),
     file(`${pageDir}/maintenance/page.tsx`, maintenancePageContent()),

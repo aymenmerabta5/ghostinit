@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   mkdirSync,
@@ -114,6 +115,14 @@ function runAudit(projectRoot) {
   });
 }
 
+function attestCurrentLock(projectRoot) {
+  const lockPath = join(projectRoot, "bun.lock");
+  const evidencePath = join(projectRoot, "dependency-lock-evidence.json");
+  const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+  evidence.lockSha256 = createHash("sha256").update(readFileSync(lockPath)).digest("hex");
+  writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+}
+
 function expectAuditSuccess(projectRoot, label) {
   const result = runAudit(projectRoot);
   if (result.error || result.status !== 0) {
@@ -149,7 +158,14 @@ try {
   mkdirSync(join(auditRoot, "scripts"), { recursive: true });
   mkdirSync(join(auditRoot, "patches"), { recursive: true });
   mkdirSync(join(auditRoot, "node_modules"), { recursive: true });
-  for (const path of ["package.json", "bun.lock"]) cpSync(join(root, path), join(auditRoot, path));
+  for (const path of [
+    "package.json",
+    "bun.lock",
+    "bunfig.toml",
+    "dependency-lock-evidence.json",
+  ]) {
+    cpSync(join(root, path), join(auditRoot, path));
+  }
   cpSync(join(root, "scripts", "audit-dependencies.ts"), join(auditRoot, "scripts", "audit-dependencies.ts"));
   cpSync(
     join(root, "patches", "image-size@1.2.1.patch"),
@@ -171,11 +187,13 @@ try {
   }
   const freshMobileLock = reviewedLock.replace(lockVersionOne, '"lockfileVersion": 2');
   writeFileSync(lockPath, freshMobileLock);
+  attestCurrentLock(auditRoot);
   expectAuditSuccess(auditRoot, "Fresh Bun 1.4 generated mobile lock v2");
   const unsupportedLock = reviewedLock.replace(lockVersionOne, '"lockfileVersion": 3');
   writeFileSync(lockPath, unsupportedLock);
   expectAuditFailure(auditRoot, "Unsupported future lock version", "unsupported lockfile version");
   writeFileSync(lockPath, reviewedLock);
+  attestCurrentLock(auditRoot);
 
   safeCleanup(patchPath);
   expectAuditFailure(auditRoot, "Missing patch", "reviewed image-size patch is missing");

@@ -10,12 +10,14 @@ export function singleNitroConfigTanstackContent(
   preset: "bun" | "node-server" | "vercel" = "bun",
   hasEve = false,
   _hasPostgres = true,
+  hasConvex = false,
+  hasPaddle = false,
 ): string {
   return [
     "import { defineNitroConfig } from 'nitro/config'",
     ...(hasEve ? eveNitroResolverPreamble(true).trimEnd().split("\n") : []),
     "",
-    tanstackSecurityPolicyDeclaration(),
+    tanstackSecurityPolicyDeclaration(hasConvex, hasPaddle),
     "",
     "export default defineNitroConfig({",
     `  preset: '${preset}',`,
@@ -31,7 +33,7 @@ export function singleNitroConfigTanstackContent(
         ]
       : []),
     "  routeRules: {",
-    sharedViteSecurityHeaders(),
+    sharedViteSecurityHeaders(hasPaddle),
     "  },",
     "})",
     "",
@@ -45,7 +47,40 @@ export function viteSecurityHeaders(): string {
 export function singleViteConfigTanstackContent(
   hasWebSocketMessaging = false,
   hasPostgres = true,
+  hasCloudflare = false,
 ): string {
+  if (hasCloudflare) {
+    return [
+      "import { defineConfig } from 'vite'",
+      "import { fileURLToPath } from 'node:url'",
+      "import { cloudflare } from '@cloudflare/vite-plugin'",
+      "import { tanstackStart } from '@tanstack/react-start/plugin/vite'",
+      "import viteReact from '@vitejs/plugin-react'",
+      "import tailwindcss from '@tailwindcss/vite'",
+      "import tsconfigPaths from 'vite-tsconfig-paths'",
+      "",
+      "export default defineConfig({",
+      "  server: { port: 3000 },",
+      "  resolve: {",
+      "    alias: {",
+      "      '@': fileURLToPath(new URL('./src', import.meta.url)),",
+      "      'server-only': '@tanstack/react-start/server-only',",
+      "    },",
+      "  },",
+      "  plugins: [",
+      "    tailwindcss(),",
+      "    cloudflare({ viteEnvironment: { name: 'ssr' } }),",
+      "    tsconfigPaths(),",
+      "    ...tanstackStart({",
+      "      srcDirectory: 'src',",
+      "      router: { routesDirectory: 'routes' },",
+      "    }),",
+      "    viteReact(),",
+      "  ],",
+      "})",
+      "",
+    ].join("\n");
+  }
   return [
     "import { defineConfig } from 'vite'",
     "import { fileURLToPath } from 'node:url'",

@@ -1,5 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { MAX_DOTENV_FILE_BYTES, parseDotenvAssignments } from "../../lib/dotenv.js";
+
+export { parseDotenvLine as parseEnvLine } from "../../lib/dotenv.js";
 
 export const SECRET_ENV_KEYS = [
   "BETTER_AUTH_SECRET",
@@ -22,40 +25,23 @@ export function getAllPlainSecrets(): Record<string, string> {
   return { ...plainSecretsCache };
 }
 
-export function parseEnvLine(line: string): { key: string; value: string } | undefined {
-  const trimmed = line.trim();
-  if (trimmed.length === 0) return undefined;
-  if (trimmed.startsWith("#")) return undefined;
-  const idx = line.indexOf("=");
-  if (idx <= 0) return undefined;
-  const rawKey = line.slice(0, idx).trim();
-  if (!rawKey || rawKey.startsWith("#")) return undefined;
-  let rawValue = line.slice(idx + 1);
-  if (rawValue.endsWith("\r")) rawValue = rawValue.slice(0, -1);
-  rawValue = rawValue.trim();
-  if (
-    (rawValue.startsWith('"') && rawValue.endsWith('"') && rawValue.length >= 2) ||
-    (rawValue.startsWith("'") && rawValue.endsWith("'") && rawValue.length >= 2) ||
-    (rawValue.startsWith("`") && rawValue.endsWith("`") && rawValue.length >= 2)
-  ) {
-    rawValue = rawValue.slice(1, -1);
-  } else {
-    const hashIdx = rawValue.indexOf(" #");
-    if (hashIdx !== -1) rawValue = rawValue.slice(0, hashIdx).trim();
-  }
-  return { key: rawKey, value: rawValue };
-}
-
-export async function loadEnvMap(root: string): Promise<Record<string, string>> {
+export async function loadEnvMap(
+  root: string,
+  options: { cloudflare?: boolean } = {},
+): Promise<Record<string, string>> {
   const vars: Record<string, string> = {};
   clearSecretCache();
-  for (const fileName of [".env", ".env.development", ".env.production", ".env.local"]) {
+  const environmentFiles = options.cloudflare
+    ? [".dev.vars"]
+    : [".env", ".env.development", ".env.production", ".env.local"];
+  for (const fileName of environmentFiles) {
     try {
-      const raw = await readFile(join(root, fileName), "utf-8");
-      for (const line of raw.split(/\r?\n/)) {
-        const parsed = parseEnvLine(line);
-        if (!parsed) continue;
-        const { key, value } = parsed;
+      const path = join(root, fileName);
+      const metadata = await lstat(path);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > MAX_DOTENV_FILE_BYTES)
+        continue;
+      const raw = await readFile(path, "utf-8");
+      for (const [key, value] of parseDotenvAssignments(raw)) {
         if (SECRET_ENV_KEYS.includes(key)) {
           vars[`${key}_LENGTH`] = String(value.length);
           plainSecretsCache[key] = value;
@@ -70,9 +56,15 @@ export async function loadEnvMap(root: string): Promise<Record<string, string>> 
     "APP_NAME",
     "BETTER_AUTH_URL",
     "NEXT_PUBLIC_APP_URL",
+    "VITE_APP_URL",
     "EXPO_PUBLIC_APP_URL",
     "EXPO_PUBLIC_API_URL",
     "EXPO_PUBLIC_CONVEX_URL",
+    "CONVEX_DEPLOYMENT",
+    "CONVEX_URL",
+    "CONVEX_SITE_URL",
+    "NEXT_PUBLIC_CONVEX_URL",
+    "VITE_CONVEX_URL",
     "POSTGRES_DB",
     "POSTGRES_HOST",
     "POSTGRES_PORT",

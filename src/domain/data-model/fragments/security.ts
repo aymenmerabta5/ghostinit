@@ -86,12 +86,13 @@ export const securityIdentityEntities = [
       convexTable: "rateLimit",
     },
     fields: [
-      field("key", "key", "text", { primaryKey: true, required: true, unique: true }),
+      field("id", "id", "text", { primaryKey: true, required: true }),
+      field("key", "key", "text", { required: true, unique: true }),
       field("count", "count", "integer", { required: true }),
       field("lastRequest", "last_request", "bigint", { required: true }),
     ],
-    indexes: [],
-    constraints: [],
+    indexes: [index("rate_limits_key_idx", ["key"], true)],
+    constraints: [unique("rate_limits_key_unique", ["key"])],
     lifecycle: {
       deletion: "explicit",
       retention: "Better Auth prunes rows after the longest configured rate-limit window.",

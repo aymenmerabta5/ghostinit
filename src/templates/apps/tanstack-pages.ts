@@ -13,6 +13,8 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
+import type { BillingProviderName } from "../../lib/addons.js";
+import { BILLING_PROVIDERS } from "../../lib/constants.js";
 import {
   tanstackRootDocumentContent,
   notFoundFileContent,
@@ -55,6 +57,7 @@ export function tanstackPageFiles(
   isPostgres = true,
   hasI18n = false,
   hasBilling = true,
+  selectedBilling: readonly BillingProviderName[] = BILLING_PROVIDERS,
 ): TemplateFile[] {
   const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
@@ -82,7 +85,7 @@ export function tanstackPageFiles(
             : []),
         ]
       : []),
-    ...(hasBilling ? billingFiles("tanstack", isConvex) : []),
+    ...(hasBilling ? billingFiles("tanstack", isConvex, selectedBilling) : []),
     ...(hasAdminUi ? tanstackAdminFiles(isConvex, hasI18n) : []),
     unauthorizedRoute(),
     forbiddenRoute(),

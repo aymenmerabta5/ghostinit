@@ -187,6 +187,12 @@ function sanitizeAuthlessNavigation(content: string, config: ResolvedProjectConf
     result = result.replace(/^import Link from "next\/link";\r?\n/m, "");
     result = result.replace(/^import \{ Link \} from "@tanstack\/react-router";\r?\n/m, "");
   }
+  if (!result.includes("<Button")) {
+    result = result.replace(
+      /^import \{ Button \} from ["']@\/components\/ui\/button["'];\r?\n/m,
+      "",
+    );
+  }
   return result;
 }
 
@@ -229,6 +235,9 @@ export function sanitizeLegacyCapabilityOutput(
         content,
         (line) => !/\/(?:dashboard|settings|admin)(?:[\x60<])/u.test(line),
       );
+    }
+    if (/\.[cm]?ts$/.test(file.path) && content.trim().length === 0) {
+      content = "export {};\n";
     }
     file = content === file.content ? file : { ...file, content };
     return file;

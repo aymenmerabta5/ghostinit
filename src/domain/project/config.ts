@@ -67,7 +67,7 @@ export interface ResolvedProjectBackend {
 export interface ResolvedProjectConfig {
   readonly $schema: typeof RESOLVED_PROJECT_CONFIG_SCHEMA_URI;
   readonly schemaVersion: 2;
-  readonly catalogVersion: 1;
+  readonly catalogVersion: 2;
   readonly configHash: string;
   readonly name: string;
   readonly mode: ProjectMode;

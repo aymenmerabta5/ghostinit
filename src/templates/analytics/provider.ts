@@ -293,8 +293,6 @@ export function useExperiment(
   }, [flag, payload, options?.fallback, isLoading]);
 }
 
-export function PostHogPageView() {
-  return null;
-}
+export { PostHogPageView } from "./posthog-pageview.js";
 `;
 }

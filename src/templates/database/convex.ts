@@ -20,6 +20,7 @@ export interface ConvexDatabaseFeatures {
   billing?: boolean;
   email?: boolean;
   i18n?: boolean;
+  mobile?: boolean;
   posts?: boolean;
 }
 
@@ -57,6 +58,7 @@ export function convexDatabaseFiles(
   const hasBilling = features.billing ?? true;
   const hasEmail = features.email ?? true;
   const hasI18n = features.i18n ?? false;
+  const hasMobile = features.mobile ?? false;
   const hasPosts = hasAuth && (features.posts ?? true);
 
   // ------------------------------------------------------------------
@@ -91,7 +93,7 @@ export function convexDatabaseFiles(
     "",
   ].join("\n");
 
-  const authTsContent = hasAuth ? convexAuthContent(mode, hasEmail, hasI18n) : "";
+  const authTsContent = hasAuth ? convexAuthContent(mode, hasEmail, hasI18n, hasMobile) : "";
 
   const authAdapterContent = [
     'import { createApi } from "@convex-dev/better-auth";',

@@ -200,7 +200,10 @@ describe("generated Better Auth hardening matrix", () => {
               mode === "monorepo" ? "rateLimit: rateLimits" : "rateLimit: schema.rateLimits",
             );
             expect(schema).toMatch(/export const rateLimits = pgTable\(["']rate_limits["']/);
-            expect(schema).toMatch(/key: text\(["']key["']\)\.primaryKey\(\)/);
+            const rateLimitSchema = schema.slice(schema.indexOf("export const rateLimits ="));
+            expect(rateLimitSchema).toMatch(/id: text\(["']id["']\)\.primaryKey\(\)/);
+            expect(rateLimitSchema).toMatch(/key: text\(["']key["']\)\.notNull\(\)/);
+            expect(rateLimitSchema).toMatch(/uniqueIndex\(["']rate_limits_key_idx["']\)/);
             expect(schema).toMatch(
               /lastRequest: bigint\(["']last_request["'], \{ mode: "number" \}\)\.notNull\(\)/,
             );

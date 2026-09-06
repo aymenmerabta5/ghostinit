@@ -10,21 +10,36 @@
     "catalogVersion",
     "axes",
     "deployBindings",
+    "databaseDeployBindings",
+    "defaultDenyCapabilityDeployTargets",
     "capabilityDeployBindings",
+    "billingProviderClientBindings",
     "capabilities",
     "operationEvidence",
     "compatibilityEvidence"
   ],
   "properties": {
     "$schema": { "const": "https://ghostinit.dev/schemas/support-catalog.schema.json" },
-    "schemaVersion": { "const": 1 },
-    "catalogVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
+    "catalogVersion": { "const": 2 },
     "axes": { "$ref": "#/$defs/axes" },
     "deployBindings": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/deployBinding" }
+    },
+    "databaseDeployBindings": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/databaseDeployBinding" }
+    },
+    "defaultDenyCapabilityDeployTargets": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
     },
     "capabilityDeployBindings": {
       "type": "array",
@@ -36,6 +51,34 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
+    },
+    "billingProviderClientBindings": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "operationIds"],
+        "properties": {
+          "provider": { "enum": ["stripe", "chargily", "paddle", "polar"] },
+          "operationIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "billing.checkout.v1",
+                "billing.invoices.v1",
+                "billing.payment-link.v1",
+                "billing.portal.v1",
+                "billing.subscriptions.v1"
+              ]
+            }
+          }
+        }
+      }
     },
     "operationEvidence": {
       "type": "array",
@@ -107,7 +150,7 @@
         "deployTargets": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["vercel", "fly", "docker", "none"] }
+          "items": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
         },
         "executionRuntimes": {
           "type": "array",
@@ -163,7 +206,7 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["vercel", "fly", "docker", "none"] }
+          "items": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
         }
       }
     },
@@ -178,7 +221,21 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["vercel", "fly", "docker", "none"] }
+          "items": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
+        }
+      }
+    },
+    "databaseDeployBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["database", "deployTargets"],
+      "properties": {
+        "database": { "enum": ["postgres", "convex", "none"] },
+        "deployTargets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
         }
       }
     },

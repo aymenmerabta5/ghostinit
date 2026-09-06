@@ -78,6 +78,7 @@ export const EN_MESSAGES = {
     windowMaximize: "Maximize",
     windowClose: "Close",
     updatesChecking: "Checking…",
+    updatesAvailable: "Update available",
     updatesCurrent: "Up to date",
     updatesError: "Update check failed",
     updatesCheck: "Check updates",
@@ -1097,6 +1098,21 @@ export const EN_MESSAGES = {
   },
   billing: {
     title: "Billing",
+    checkoutReturnTitle: "Checkout returned",
+    checkoutReturnDescription:
+      "Your payment provider is confirming the result. Check your billing page for the latest payment and subscription status.",
+    checkoutCancelledTitle: "Checkout canceled",
+    checkoutCancelledDescription:
+      "You returned without completing this checkout. Your billing page shows the latest confirmed account status.",
+    backToBilling: "Back to billing",
+    paddleCheckoutLoading: "Opening secure checkout…",
+    paddleCheckoutReady: "Complete your checkout in the secure payment window.",
+    paddleCheckoutUnavailable:
+      "Checkout is not available yet. Return to billing or contact support.",
+    paddleCheckoutInvalid: "This checkout link is invalid. Start a new checkout from billing.",
+    paddleCheckoutError: "Checkout could not open. Reload this page to try again.",
+    paddleCheckoutReturning: "Returning to your billing page for the latest confirmed status…",
+    retryCheckout: "Reload checkout",
     description:
       "Manage subscriptions, checkouts, invoices, customer portals, licenses, and usage across your selected providers.",
     dashboard: "Dashboard",
@@ -1164,7 +1180,7 @@ export const EN_MESSAGES = {
     providerPolar: "Polar",
     algeriaMarketTitle: "Algeria market — EDAHABIA/CIB only",
     algeriaMarketDescription:
-      "Chargily serves the Algerian market with EDAHABIA/CIB checkout. It is server-only, has no customer portal, and recurring charges are coordinated by the monthly billing-renewal job.",
+      "Chargily serves the Algerian market with EDAHABIA/CIB checkout. It has no customer portal or automatic recurring charge: renewal requires a new customer-authorized checkout.",
     dualMarketTitle: "Algeria and global coverage",
     dualMarketDescription:
       "Chargily is configured with global providers ({providers}). Route Algerian customers to its EDAHABIA/CIB checkout for local payment methods.",
@@ -1175,7 +1191,7 @@ export const EN_MESSAGES = {
       "Keep the Chargily SDK on the server. Webhooks verify the raw request body and signature header before processing.",
     paymentMethod: "Payment method",
     checkoutUrl: "Checkout URL",
-    manualRenewal: "Monthly billing-renewal job",
+    manualRenewal: "New checkout for manual renewal",
     chargilyFlowDescription:
       "Create products and prices on the server, create the checkout with a validated payment method and return URLs, then redirect to the provider checkout URL.",
     merchantOfRecordTitle: "Merchant-of-record handling",

@@ -1,4 +1,5 @@
 import { authRouteBoundaryCode } from "./auth-boundary.js";
+import { standardApiRequestCode } from "./http-request.js";
 import { MAX_ORPC_BODY_BYTES } from "../../../api/body-limits.js";
 
 export type RouterType = "next" | "tanstack";
@@ -18,21 +19,26 @@ function shouldEmitProvider(provider: BillingProviderName, selected: BillingProv
   return selected.includes(provider);
 }`;
 
-export const sharedAuthHandlerLogic = `${authRouteBoundaryCode}
+export const sharedAuthHandlerLogic = `${authRouteBoundaryCode(false)}
 
 const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 async function handle(request: Request): Promise<Response> {
   if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
   const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
   if (directPrivilegedRejection) return directPrivilegedRejection;
-  return auth.handler(request);
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
 }`;
 
-export function tanstackAuthServerHandlerContent(authImport = "@repo/auth"): string {
+export function tanstackAuthServerHandlerContent(
+  authImport = "@repo/auth",
+  trustedCloudflareRuntime = false,
+): string {
   return `import "server-only";
 import { auth } from "${authImport}";
 
-${authRouteBoundaryCode}
+${authRouteBoundaryCode(trustedCloudflareRuntime)}
 const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
 export async function handleAuthRequest(request: Request): Promise<Response> {
@@ -41,7 +47,9 @@ export async function handleAuthRequest(request: Request): Promise<Response> {
   }
   const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
   if (directPrivilegedRejection) return directPrivilegedRejection;
-  return auth.handler(request);
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
 }
 `;
 }
@@ -55,7 +63,7 @@ const dispatchAuthRequest = createServerOnlyFn(async (request: Request): Promise
   return await handleAuthRequest(request);
 });
 
-export const Route = createFileRoute("/api/auth/$splat")({
+export const Route = createFileRoute("/api/auth/$")({
   server: {
     handlers: {
       GET: ({ request }: { request: Request }) => dispatchAuthRequest(request),
@@ -133,18 +141,20 @@ function acquireStorageUploadAdmission(actorId: string): (() => void) | null {
   };
 }`;
 
-export function authFileContent(router: RouterType): string {
+export function authFileContent(router: RouterType, trustedCloudflareRuntime = false): string {
   if (router === "tanstack") {
     return tanstackAuthRouteContent();
   }
   return `import { auth } from "@repo/auth";
-${authRouteBoundaryCode}
+${authRouteBoundaryCode(trustedCloudflareRuntime)}
 const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 async function handle(request: Request): Promise<Response> {
   if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
   const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
   if (directPrivilegedRejection) return directPrivilegedRejection;
-  return auth.handler(request);
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
 }
 export const GET = handle; export const POST = handle; export const PUT = handle; export const PATCH = handle; export const DELETE = handle;
 `;
@@ -162,6 +172,7 @@ import {
 
 export const runtime = "nodejs" as const;
 ${storageUploadPreflight}
+${standardApiRequestCode}
 const rpcHandler = new RPCHandler(appRouter, {
   plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
 });
@@ -181,7 +192,7 @@ export async function handleRpcRequest(request: Request): Promise<Response> {
     return Response.json({ error: "Upload capacity is temporarily exhausted" }, { status: 429 });
   }
   try {
-    const result = await rpcHandler.handle(request, { prefix: "/api/rpc", context });
+    const result = await rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context });
     if (!result.matched) return new Response("Not found", { status: 404 });
     const response = applyApiContextResponseHeaders(result.response, context);
     response.headers.set("X-Content-Type-Options", "nosniff");
@@ -203,7 +214,7 @@ const dispatchRpcRequest = createServerOnlyFn(async (request: Request): Promise<
   return await handleRpcRequest(request);
 });
 
-export const Route = createFileRoute("/api/rpc/$splat")({
+export const Route = createFileRoute("/api/rpc/$")({
   server: {
     handlers: {
       GET: ({ request }: { request: Request }) => dispatchRpcRequest(request),
@@ -220,6 +231,7 @@ export const Route = createFileRoute("/api/rpc/$splat")({
 export function orpcFileContent(router: RouterType): string {
   const sharedLogicNext = `import { after } from "next/server";
 ${storageUploadPreflight}
+${standardApiRequestCode}
 const rpcHandler = new RPCHandler(appRouter, {
   plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
 });
@@ -238,7 +250,7 @@ async function handle(request: Request): Promise<Response> {
     return Response.json({ error: "Upload capacity is temporarily exhausted" }, { status: 429 });
   }
   try {
-    const rpcResult = await rpcHandler.handle(request, { prefix: "/api/rpc", context });
+    const rpcResult = await rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context });
     if (rpcResult.matched) { const response = applyApiContextResponseHeaders(rpcResult.response, context); response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
     return new Response("Not found", { status: 404 });
   } finally {

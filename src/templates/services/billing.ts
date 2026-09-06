@@ -1,6 +1,7 @@
 import { file, type TemplateFile } from "../shared.js";
 import type { ProjectMode } from "../../lib/addons.js";
 import { resultImportForMode } from "./shared.js";
+import { billingProvidersForClientOperation } from "../../domain/capabilities/billing-provider-operations.js";
 
 function billingIndexContent(mode: ProjectMode): string {
   const resultModule = mode === "monorepo" ? "@repo/kernel" : "@/server/kernel/result.js";
@@ -402,6 +403,7 @@ function portalServiceContent(mode: ProjectMode): string {
 import { ServiceError } from "../errors.js";
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export type BillingPortalErrorCode = "NOT_SUPPORTED" | "CUSTOMER_NOT_FOUND" | "PORTAL_FAILED" | "INVALID_REDIRECT";
+const PORTAL_PROVIDERS: readonly BillingProviderName[] = ${JSON.stringify(billingProvidersForClientOperation("billing.portal.v1"))};
 export interface PortalSessionRecord { url: string; }
 export interface PortalProviderPort { createPortalSession?(input: { customerId: string; returnUrl: string }): Promise<PortalSessionRecord>; }
 export interface PortalCustomerRepositoryPort {
@@ -414,7 +416,7 @@ export interface CreatePortalSessionDeps {
 }
 export type CreatePortalSessionOutput = Result<PortalSessionRecord, ServiceError<BillingPortalErrorCode>>;
 export async function createPortalSessionService(input: CreatePortalSessionInput, deps: CreatePortalSessionDeps): Promise<CreatePortalSessionOutput> {
-  if (!deps.billingProvider.createPortalSession) {
+  if (!PORTAL_PROVIDERS.includes(input.provider) || !deps.billingProvider.createPortalSession) {
     return err(new ServiceError("NOT_SUPPORTED", \`\${input.provider} does not support a customer portal\`));
   }
   try {

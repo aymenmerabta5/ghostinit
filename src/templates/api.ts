@@ -126,7 +126,7 @@ function convexAdminApiFiles(): TemplateFile[] {
   const composition = `import "server-only";
 import { auth, fetchAuthMutation, fetchAuthQuery } from "@repo/auth/server";
 import { logger } from "@repo/observability";
-import * as admin from "../../admin/index.js";
+import * as admin from "../../admin/index";
 import { api } from "../../../../../convex/_generated/api";
 
 interface ConvexAdminUser {

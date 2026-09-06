@@ -38,6 +38,10 @@ export function pdfTextAlign(locale?: string): "left" | "right" {
   return normalizePdfLocale(locale) === "ar" ? "right" : "left";
 }
 
+export function pdfTextDirection(locale?: string): "ltr" | "rtl" {
+  return normalizePdfLocale(locale) === "ar" ? "rtl" : "ltr";
+}
+
 export function pdfRowDirection(locale?: string): "row" | "row-reverse" {
   return normalizePdfLocale(locale) === "ar" ? "row-reverse" : "row";
 }

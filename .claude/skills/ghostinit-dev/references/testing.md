@@ -10,6 +10,7 @@ bun test --timeout 100000 tests/integration tests/unit
 bun test tests/unit/<file>.test.ts --timeout 100000
 bun test tests/integration/<file>.test.ts --timeout 100000
 bun run test:fixtures
+bun run test:workers
 bun run test:ci
 ```
 
@@ -50,6 +51,18 @@ the runner frozen-installs each fixture exactly once.
   - Each fixture has its own `package.json` and `bun.lock`. Run `bun run test:fixtures` once; `scripts/test-fixtures.ts` performs every stage with bounded timeouts.
   - Skip on narrow iterations unless touching oRPC/Drizzle, Next/Tailwind, or Expo/Uniwind compatibility because the three installs are slow.
 
+- `bun run test:workers` — four installed Cloudflare release corners: Next and
+  TanStack Start in both monorepo and single mode, across Convex and
+  database-free profiles. Every corner runs the ordinary generated-project
+  audit/format/architecture/type/lint/test sequence, then Worker build and an
+  independent sentinel scan, Wrangler dry-run, and bounded local `/` plus
+  `/api/health` HTTP 200 smoke with verified process-tree cleanup. The Next
+  Convex corner also covers billing, i18n, and Convex-native messaging. The
+  database-free single profiles add API and validate `/api/rpc/health`, while
+  Convex monorepos avoid external-service calls. Monorepos select Bun and single
+  projects select Node. TanStack's independent scan targets the app-level
+  `.wrangler/ghostinit-dry-run` upload bundle rather than only Vite `dist`.
+
 ## Architecture Checker in Tests
 
 - Integration runs `analyzeProject()` on generated path ensuring no layered violations introduced by template changes.
@@ -65,7 +78,7 @@ cd /tmp/gi-test/demo
 cat turbo.json | grep globalEnv -A 80 | head -100    # billing vars present
 cat bunfig.toml                                      # hoist=true
 ls packages/ packages/billing/src/providers/         # stripe + chargily present
-bun install && bun run typecheck && bun run lint:all
+bun run install:bootstrap && bun run typecheck && bun run lint:all
 # variants
 bunx ghostinit create demo2 --yes --no-install --cwd /tmp/gi-test --mode monorepo --framework tanstack-start --database postgres --billing all --features eve
 bunx ghostinit create demo3 --yes --no-install --cwd /tmp/gi-test --mode single --database postgres --billing stripe
@@ -79,7 +92,10 @@ Checklist after generation:
 - No `export *` in billing barrels — grep `export \*` in `billing/` + `webhooks/` + `providers/*/index.ts` should be 0 except allowed shims
 - No direct `fs.writeFileSync` / `mkdirSync` / `rmSync` in src/ except `fs.ts` itself `node:fs/promises`
 - Architecture checker passes on generated: `ghostinit check` inside generated or via built CLI
-- `.env.example` includes expected billing placeholders for chosen providers, filtered `.env.local` real secrets
+- `.env.example` and filtered `.env.local` retain vendor-issued billing credential placeholders for chosen providers; only self-issued secrets are minted. Client variables include only the selected app audiences.
+- Cloudflare output contains `.dev.vars` instead of runtime `.env.local`, the
+  correct OpenNext/native Vite adapter, and no unsupported PostgreSQL/Eve/PDF
+  profile; `bun run test:workers` proves the built Worker and runtime health
 
 ## Version Sync Check
 

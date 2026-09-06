@@ -106,6 +106,7 @@ describe("identity data model blueprint", () => {
     expect(schema).toContain('providerId: text("provider_id").notNull()');
     expect(schema).toContain('export const passkeys = pgTable("passkeys"');
     expect(schema).toContain('export const rateLimits = pgTable("rate_limits"');
+    expect(schema).toContain('uniqueIndex("rate_limits_key_idx").on(table.key)');
     expect(schema).toContain('lastRequest: bigint("last_request", { mode: "number" }).notNull()');
     expect(schema).toContain('export const organizationRoles = pgTable("organization_roles"');
     expect(schema).toContain('uniqueIndex("members_organization_user_idx")');

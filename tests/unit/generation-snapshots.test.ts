@@ -122,7 +122,7 @@ describe("generation snapshots", () => {
     expect(parsed.framework).toBe("nextjs");
     expect(parsed.bunVersion).toBe(`${runtime.bun.split(".").slice(0, 2).join(".")}.x`);
     expect(parsed.installCommand).toBe(
-      `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} install --frozen-lockfile`,
+      `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} run audit:lock && bunx bun@${runtime.bun} install --frozen-lockfile`,
     );
     expect(parsed.buildCommand).toBe(
       `bunx bun@${runtime.bun} scripts/require-bun-lock.mjs && bunx bun@${runtime.bun} scripts/build-deployment.mjs`,

@@ -1,4 +1,4 @@
-// @allow-long 1400: executable generated-code fixture keeps its isolated in-memory Convex adapter inline
+// @allow-long 1730: executable generated-code fixture keeps its isolated in-memory Convex adapter inline
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -582,6 +582,46 @@ test("public conversation creation normalizes untrusted peer id strings", async 
   );
   expect(readProperty(first, "_id")).toBe(readProperty(second, "_id"));
   expect(fixture.db.rows("conversationParticipants")).toHaveLength(2);
+});
+
+test("attachment download URLs require membership and protect pending ownership", async () => {
+  const fixture = new Fixture();
+  const ownerId = await fixture.user({ name: "Owner" });
+  const peerId = await fixture.user({ name: "Peer" });
+  const outsiderId = await fixture.user({ name: "Outsider" });
+  const conversationId = await fixture.conversation(ownerId, peerId);
+  const storageId = await fixture.storage.store(new Blob(["private attachment"], { type: "text/plain" }));
+  const attachmentId = await fixture.db.insert("messageAttachments", {
+    conversationId, ownerId, mimeType: "text/plain", byteSize: 18,
+    originalName: "private.txt", createdAt: Date.now(), expiresAt: Date.now() + 60_000,
+  });
+  await fixture.db.insert("attachmentStorage", { attachmentId, storageId });
+  expect(await callHandler(messaging.getAttachmentUrl, fixture.context(ownerId), { attachmentId })).toBe("https://storage.example/" + storageId);
+  const storageReads = fixture.db.systemReads.length;
+  await expectConvexError(callHandler(messaging.getAttachmentUrl, fixture.context(peerId), { attachmentId }), "NOT_FOUND");
+  await expectConvexError(callHandler(messaging.getAttachmentUrl, fixture.context(outsiderId), { attachmentId }), "FORBIDDEN");
+  expect(fixture.db.systemReads.length).toBe(storageReads);
+  await callHandler(messagingInternal.insertMessage, fixture.context(), {
+    conversationId, senderId: ownerId, body: "Shared attachment", attachmentIds: [attachmentId],
+  });
+  expect(await callHandler(messaging.getAttachmentUrl, fixture.context(peerId), { attachmentId })).toBe("https://storage.example/" + storageId);
+  await fixture.storage.delete(storageId);
+  await expectConvexError(callHandler(messaging.getAttachmentUrl, fixture.context(peerId), { attachmentId }), "NOT_FOUND");
+});
+
+test("typing updates use the current actor and require conversation membership", async () => {
+  const fixture = new Fixture();
+  const actorId = await fixture.user({ name: "Actor" });
+  const peerId = await fixture.user({ name: "Peer" });
+  const outsiderId = await fixture.user({ name: "Outsider" });
+  const conversationId = await fixture.conversation(actorId, peerId);
+  expect(await callHandler(messaging.sendTyping, fixture.context(actorId), { conversationId, isTyping: true })).toEqual({ ok: true });
+  expect(await callHandler(messaging.listTyping, fixture.context(peerId), { conversationId })).toMatchObject([{ userId: actorId, conversationId, isTyping: true }]);
+  await expectConvexError(callHandler(messaging.sendTyping, fixture.context(outsiderId), { conversationId, isTyping: true }), "FORBIDDEN");
+  expect(fixture.db.rows("typingIndicators")).toHaveLength(1);
+  await callHandler(messaging.sendTyping, fixture.context(actorId), { conversationId, isTyping: false });
+  expect(await callHandler(messaging.listTyping, fixture.context(peerId), { conversationId })).toEqual([]);
+  expect(fixture.db.rows("typingIndicators")).toHaveLength(1);
 });
 
 test("public message pagination uses opaque cursors without duplicates or gaps", async () => {

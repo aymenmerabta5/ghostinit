@@ -1,5 +1,6 @@
 import {
   isCapabilityDeployBindingSupported,
+  isDatabaseDeployBindingSupported,
   isDeployBindingSupported,
 } from "../capabilities/support-catalog.js";
 import { CAPABILITY_IDS, type DesiredCapabilities } from "../capabilities/types.js";
@@ -207,6 +208,26 @@ function validateBindings(
       message: `${hostApp.target} cannot host the selected backend.`,
       suggestion: "Use a nextjs or tanstack-start application as the backend host.",
     });
+  } else if (
+    !isDatabaseDeployBindingSupported({
+      database: desired.backend.database,
+      deployTarget: hostApp.deploy,
+    })
+  ) {
+    addResolutionIssue(issues, {
+      severity: "error",
+      code: "database-deploy-binding-unsupported",
+      path: `/apps/${hostApp.id}/deploy`,
+      capability: null,
+      message:
+        desired.backend.database === "postgres" && hostApp.deploy === "cloudflare"
+          ? "Cloudflare Workers does not support the generated PostgreSQL adapter; a request-scoped Hyperdrive adapter is required."
+          : `${desired.backend.database} is not supported on ${hostApp.deploy}.`,
+      suggestion:
+        hostApp.deploy === "cloudflare"
+          ? "Select Convex or database=none, or choose Fly/Docker until a Workers-native database adapter is generated."
+          : "Select a database/deployment binding listed in the support catalog.",
+    });
   }
 }
 
@@ -268,12 +289,42 @@ export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionR
     issues: issueMap,
   });
   const backend = desired.backend;
-  if (backend !== false) {
+  if (backend === false) {
+    for (const app of apps) {
+      for (const capability of CAPABILITY_IDS) {
+        if (
+          !state[capability] ||
+          isCapabilityDeployBindingSupported({
+            capability,
+            database: "none",
+            deployTarget: app.deploy,
+          })
+        ) {
+          continue;
+        }
+        addResolutionIssue(issueMap, {
+          severity: "error",
+          code: "capability-deploy-binding-unsupported",
+          path: `/apps/${app.id}/deploy`,
+          capability,
+          message: `${capability} has not been reviewed for ${app.deploy} without a backend.`,
+          suggestion: "Select a reviewed deployment binding or disable the capability.",
+        });
+      }
+    }
+  } else {
     const host = apps.find(({ id }) => id === backend.hostApp.trim());
+    const databaseDeploySupported =
+      host !== undefined &&
+      isDatabaseDeployBindingSupported({
+        database: backend.database,
+        deployTarget: host.deploy,
+      });
     for (const capability of CAPABILITY_IDS) {
       if (
         !state[capability] ||
         !host ||
+        !databaseDeploySupported ||
         isCapabilityDeployBindingSupported({
           capability,
           database: backend.database,
@@ -299,7 +350,9 @@ export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionR
               ? `Postgres storage requires durable shared object storage and a persistent cleanup worker and cannot use the generated local-disk adapter on ${host.deploy}.`
               : isPdf
                 ? `PDF admission is process-local and cannot enforce global concurrency or per-actor limits on ${host.deploy}.`
-                : `${capability} is not supported on ${host.deploy} with ${backend.database}.`,
+                : capability === "eve" && host.deploy === "cloudflare"
+                  ? "Eve requires a persistent Node.js sidecar and is not supported on Cloudflare Workers."
+                  : `${capability} is not supported on ${host.deploy} with ${backend.database}.`,
         suggestion: isMessaging
           ? "Use Fly or Docker, select Convex native realtime, or disable messaging."
           : isJobs
@@ -308,7 +361,9 @@ export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionR
               ? "Use Fly or Docker, select Convex storage, or disable storage until an explicit external object-storage binding is configured."
               : isPdf
                 ? "Use the generated single-replica Fly or Docker profile, keep local execution to one web process, or add a shared transactional PDF admission adapter before scaling."
-                : "Select a deployment binding listed for this capability in the support catalog.",
+                : capability === "eve" && host.deploy === "cloudflare"
+                  ? "Use Fly or Docker, or disable Eve until a Workers-native runtime adapter is available."
+                  : "Select a deployment binding listed for this capability in the support catalog.",
       });
     }
   }
@@ -326,7 +381,7 @@ export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionR
   const body = {
     $schema: RESOLVED_PROJECT_CONFIG_SCHEMA_URI,
     schemaVersion: 2 as const,
-    catalogVersion: 1 as const,
+    catalogVersion: 2 as const,
     name,
     mode: desired.mode,
     runtime: executionRuntime,

@@ -17,15 +17,15 @@ Reference files: `src/templates/billing/providers/stripe/`
 
 ## Chargily (Algeria) Differences
 
-- checkout-only, server-only, manual recurring cron, no portal → portal.ts throws `checkout-only: portal not supported`.
+- Checkout-only and server-only, with no customer portal. Renewals require a new customer-authorized checkout; the generated application does not promise automatic recurring debits.
 - Docs say meant to be ONLY used in server-side → checker flags client-boundary if UI imports directly; UI must go via `@repo/billing` capability.
 - Payment link vs checkout session.
 - HMAC webhook verify.
 
 ## Paddle / Polar Differences
 
-- Paddle MoR 5%+50c + client token `pdl_ntf_` + environment sandbox/live + webhook secret.
-- Polar MoR open-source 4% + metering + license keys + usage_events + org id.
+- Paddle uses a public client-side token for Paddle.js and separate server API/webhook credentials. Never put an API key or notification secret in a public client-token variable.
+- Polar's provider modules include usage and licensing APIs; server credentials remain private.
 
 ## Step-by-Step Adding 5th Provider `myprovider`
 
@@ -54,7 +54,7 @@ export const ENV_PLACEHOLDERS = {
 } as const;
 ```
 
-3. Folder `src/templates/billing/providers/myprovider/` with small capability modules `<300 LOC` each; use `// @allow-long <LOC>: <reason>` only when justified. Start from `client.ts`, `checkout.ts`, `customer.ts`, `webhook.ts`, and `subscriptions.ts`; add portal, mapper, licensing, usage, product, or payment-link modules only when the provider supports them.
+3. Register actual client operations in `src/domain/capabilities/billing-provider-operations.ts` and the support-catalog schema. The compiler derives effective acceptance requirements from the selected provider set; UI controls and server portal admission use the same domain policy. Then add `src/templates/billing/providers/myprovider/` with small capability modules `<300 LOC` each; use `// @allow-long <LOC>: <reason>` only when justified. Start from `client.ts`, `checkout.ts`, `customer.ts`, `webhook.ts`, and `subscriptions.ts`; add portal, mapper, licensing, usage, product, or payment-link modules only when the provider supports them.
 
 client.ts pattern:
 
@@ -165,7 +165,7 @@ cat /tmp/gi-test/demo/packages/billing/src/providers/myprovider/ - list
 ## Patterns to Follow
 
 - Server-only secrets never client.
-- Client-safe publishable/client token dual emit NEXT_PUBLIC_* + VITE_*.
+- Emit client-safe publishable keys and client tokens through `publicVarLines(audience, name, value)`: only selected Next (`NEXT_PUBLIC_*`), TanStack/desktop (`VITE_*`), and Expo (`EXPO_PUBLIC_*`) audiences receive them. Never combine server secrets with a client runtime schema.
 - Idempotent webhook_events unique (provider+providerEventId) onConflictDoNothing.
 - DRY via factory, not duplication.
 - Explicit named re-exports only, never `export *`.

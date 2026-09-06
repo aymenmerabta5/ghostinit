@@ -1,4 +1,6 @@
-// @allow-long 460: emitted server-only policy keeps resolution, taint propagation, and dominance analysis together
+import { isPaddleBrowserAdapterFile } from "../../lib/architecture/rules/vendor.js";
+
+// @allow-long 510: emitted server-only policy keeps resolution, taint propagation, and dominance analysis together
 
 export function checkServerOnlyContent(): string {
   return `#!/usr/bin/env bun
@@ -231,7 +233,9 @@ function isTanStackServerFunctionReference(file, program, source) {
           reference.specifier === "@repo/services/application" ||
           reference.specifier === "@/server/services/application")));
 }
-function isServerPackage(specifier) {
+const isPaddleBrowserAdapterFile = ${isPaddleBrowserAdapterFile.toString()};
+function isServerPackage(file, specifier) {
+  if (specifier === "@paddle/paddle-js" && isPaddleBrowserAdapterFile(relative(file))) return false;
   return SERVER_PACKAGES.has(specifier) || SERVER_PREFIXES.some((prefix) => specifier.startsWith(prefix));
 }
 function memberName(node) {
@@ -419,7 +423,7 @@ function main() {
             publicEnvironmentOnly: !typeOnly && publicEnvironmentImport(program, reference, target),
           });
         }
-      } else if (!typeOnly && isServerPackage(reference.specifier)) {
+      } else if (!typeOnly && isServerPackage(file, reference.specifier)) {
         node.directReason ??= "imports server runtime " + JSON.stringify(reference.specifier);
       }
     }
