@@ -1,5 +1,8 @@
 import { file, type TemplateFile } from "../../../shared.js";
-import { dashboardIdentityStateContent } from "../../../apps/fragments/dashboard-identity.js";
+import {
+  dashboardIdentityQueriesContent,
+  dashboardIdentityStateContent,
+} from "../../../apps/fragments/dashboard-identity.js";
 
 type DashboardRouter = "next" | "tanstack";
 
@@ -25,7 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSurfaceTranslations } from "@/lib/translations";
-import { DashboardIdentityStatus, useDashboardIdentity } from "./identity-state";
+import { DashboardIdentityStatus } from "./identity-state";
+import { useDashboardIdentity } from "./queries";
 
 export interface DashboardUser {
   name?: string | null;
@@ -139,6 +143,7 @@ export function singleDashboardFeatureFiles(
   hasAdminNavigation: boolean,
 ): TemplateFile[] {
   return [
+    file("src/features/dashboard/queries.ts", dashboardIdentityQueriesContent()),
     file("src/features/dashboard/identity-state.tsx", dashboardIdentityStateContent()),
     file(
       "src/features/dashboard/identity-card.tsx",

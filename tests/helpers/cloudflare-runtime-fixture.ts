@@ -469,6 +469,8 @@ const PASSTHROUGH_ENVIRONMENT_KEYS = [
   "LOCALAPPDATA",
   "PATH",
   "PATHEXT",
+  // CI prepares this module cache so native discovery does not require a cold scan.
+  "PSModuleAnalysisCachePath",
   "SYSTEMDRIVE",
   "SYSTEMROOT",
   "TEMP",

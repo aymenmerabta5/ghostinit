@@ -35,6 +35,7 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
   const withBilling = hasBillingAddon(addons);
   const withEmail = addons ? hasAddon(addons as AddonInstallerMap, "email") : true;
   const withAuth = addons ? hasAddon(addons as AddonInstallerMap, "auth") : true;
+  const withApi = addons ? hasAddon(addons as AddonInstallerMap, "api") : true;
   const withMessaging = addons ? hasAddon(addons as AddonInstallerMap, "messaging") : false;
   const withStorage = addons
     ? hasAddon(addons as AddonInstallerMap, "storage") || withMessaging
@@ -51,7 +52,7 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
       : addons && hasAddon(addons as AddonInstallerMap, "database:none")
         ? "none"
         : "postgres";
-  const withRequestApplication = withAuth && database !== "none";
+  const withRequestApplication = withApi && withAuth && database !== "none";
   const requestApplicationSelection = {
     admin: withRequestApplication,
     billing: withRequestApplication && withBilling,

@@ -90,6 +90,7 @@ function dashboardRuntime(authSource: string, pageSource: string, user: User | n
       values ? JSON.stringify(values) : key,
     Link: component,
     DashboardView: component,
+    DashboardOverview: component,
     Card: component,
     CardHeader: component,
     CardTitle: component,

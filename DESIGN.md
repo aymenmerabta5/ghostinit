@@ -293,8 +293,9 @@ used for server rendering and matching initial hydration; subsequent renders
 select the canonical current-request user, or the reactive provider session
 when the API capability is absent. Loading, error, and signed-out states never
 fall back to a retained user's identity. Dashboard Admin controls require both
-the generated admin routes and the current admin role. A shared identity-state
-component consumes existing authentication state without adding a network read.
+the generated admin routes and the current admin role. Feature-root `queries.ts`
+consumes existing authentication state without adding a network read;
+`identity-state.tsx` renders the shared loading and error presentation.
 Single Next.js and TanStack dashboards share bounded components with explicit
 framework-specific link emission.
 

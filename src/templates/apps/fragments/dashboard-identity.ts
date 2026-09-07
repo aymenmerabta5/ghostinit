@@ -1,14 +1,9 @@
 /** Current-user selection shared by dashboard identity and privileged controls. */
-export function dashboardIdentityStateContent(): string {
+export function dashboardIdentityQueriesContent(): string {
   return `"use client";
-import type * as React from "react";
 import { useSyncExternalStore } from "react";
 import { identityClient } from "@/lib/auth-client";
 import { useQueryAuthSession } from "@/components/query-auth-boundary";
-import { useSurfaceTranslations } from "@/lib/translations";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export interface DashboardIdentityUser {
   name?: string | null;
@@ -32,6 +27,16 @@ export function useDashboardIdentity(initialUser?: DashboardIdentityUser) {
     : initialUser ?? liveUser;
   return { user, pending: hydrated && pending, error: hydrated ? error : null };
 }
+`;
+}
+
+export function dashboardIdentityStateContent(): string {
+  return `"use client";
+import type * as React from "react";
+import { useSurfaceTranslations } from "@/lib/translations";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardIdentityStatus({ pending, error, className }: {
   pending: boolean; error: unknown; className?: string;

@@ -64,7 +64,7 @@ function identityHarness(read: (path: string) => string, mode: Mode, api: boolea
     error: null as Error | null,
   };
   const selection = generatedFormHarness(
-    read("features/dashboard/identity-state.tsx"),
+    read("features/dashboard/queries.ts"),
     ["useDashboardIdentity"],
     {
       identityClient: { useSession: () => provider },
@@ -149,7 +149,15 @@ describe("dashboard identity follows its current owner", () => {
             expect(textContent(harness.render())).not.toContain(accountA.email);
 
             const stateSource = output.read("features/dashboard/identity-state.tsx");
-            expect(stateSource).not.toMatch(/\bfetch\(|orpc|queryOptions|\.getSession\(/);
+            expect(stateSource).not.toMatch(
+              /\bfetch\(|orpc|queryOptions|\.getSession\(|auth-client|useSession|useQueryAuthSession/,
+            );
+            expect(output.read("features/dashboard/queries.ts")).toContain(
+              'from "@/lib/auth-client"',
+            );
+            expect(output.read("features/dashboard/identity-card.tsx")).toContain(
+              'from "./queries"',
+            );
             expect(output.read("components/query-auth-boundary.tsx")).toContain(
               `hasCanonicalApi: ${api}`,
             );
@@ -158,8 +166,7 @@ describe("dashboard identity follows its current owner", () => {
             )) {
               const formatted = await formatGenerationText(file.physicalPath, file.content);
               expect(parseSync(file.physicalPath, formatted).errors, file.physicalPath).toEqual([]);
-              if (mode === "single")
-                expect(formatted.split(/\r?\n/).length, file.physicalPath).toBeLessThanOrEqual(150);
+              expect(formatted.split(/\r?\n/).length, file.physicalPath).toBeLessThanOrEqual(150);
               if (!api) expect(formatted, file.physicalPath).not.toMatch(/(?:href|to)="\/admin/);
               if (framework === "nextjs") expect(formatted).not.toContain("@tanstack/react-router");
             }

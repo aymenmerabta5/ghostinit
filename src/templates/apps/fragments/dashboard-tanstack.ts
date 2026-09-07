@@ -1,6 +1,9 @@
 // @allow-long 530: bounded TanStack dashboard component renderers preserve one control-plane surface
 import { file, type TemplateFile } from "../../shared.js";
-import { dashboardIdentityStateContent } from "./dashboard-identity.js";
+import {
+  dashboardIdentityQueriesContent,
+  dashboardIdentityStateContent,
+} from "./dashboard-identity.js";
 
 function headerContent(): string {
   return `"use client";
@@ -73,7 +76,7 @@ export function ArchitectureCard(): React.JSX.Element {
 function checksCardContent(hasAdminNavigation: boolean): string {
   return `"use client";
 import type * as React from "react";
-${hasAdminNavigation ? 'import { Link } from "@tanstack/react-router";\nimport { Button } from "@/components/ui/button";\nimport { useDashboardIdentity } from "./identity-state";' : ""}
+${hasAdminNavigation ? 'import { Link } from "@tanstack/react-router";\nimport { Button } from "@/components/ui/button";\nimport { useDashboardIdentity } from "./queries";' : ""}
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { DashboardUser } from "./types";
 
@@ -122,7 +125,8 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
-import { DashboardIdentityStatus, useDashboardIdentity } from "./identity-state";
+import { DashboardIdentityStatus } from "./identity-state";
+import { useDashboardIdentity } from "./queries";
 import type { DashboardUser } from "./types";
 export function IdentityCard({ user: initialUser }: { user: DashboardUser }): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
@@ -221,6 +225,7 @@ export function tanstackDashboardFeatureFiles(
   const root = "apps/web/src/features/dashboard";
   return [
     file(`${root}/types.ts`, typesContent()),
+    file(`${root}/queries.ts`, dashboardIdentityQueriesContent()),
     file(`${root}/identity-state.tsx`, dashboardIdentityStateContent()),
     file(`${root}/dashboard-header.tsx`, headerContent()),
     file(`${root}/architecture-card.tsx`, architectureCardContent()),

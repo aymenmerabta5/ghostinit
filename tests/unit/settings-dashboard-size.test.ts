@@ -29,6 +29,28 @@ function lineCount(content: string): number {
   return content.split(/\r?\n/).length;
 }
 
+const SINGLE_DASHBOARD_FILES = [
+  "queries.ts",
+  "identity-state.tsx",
+  "identity-card.tsx",
+  "quick-actions.tsx",
+  "dashboard-overview.tsx",
+];
+const MONOREPO_DASHBOARD_FILES = [
+  "types.ts",
+  "queries.ts",
+  "identity-state.tsx",
+  "dashboard-header.tsx",
+  "architecture-card.tsx",
+  "checks-card.tsx",
+  "architecture-status.tsx",
+  "identity-card.tsx",
+  "actions-card.tsx",
+  "identity-actions.tsx",
+  "modules-card.tsx",
+  "dashboard-view.tsx",
+];
+
 function formattedLineCount(path: string, content: string): number {
   const result = Bun.spawnSync([process.execPath, "x", "oxfmt", "--stdin-filepath", path], {
     stdin: new TextEncoder().encode(content),
@@ -168,7 +190,12 @@ describe("generated settings and single-dashboard file budgets", () => {
       ({ path }) =>
         path === "src/routes/dashboard.tsx" || path.startsWith("src/features/dashboard/"),
     );
-    expect(dashboard).toHaveLength(4);
+    expect(dashboard.map(({ path }) => path).sort()).toEqual(
+      [
+        "src/routes/dashboard.tsx",
+        ...SINGLE_DASHBOARD_FILES.map((name) => "src/features/dashboard/" + name),
+      ].sort(),
+    );
     for (const generated of dashboard) {
       const limit = generated.path === "src/routes/dashboard.tsx" ? 120 : 150;
       expect(lineCount(generated.content), generated.path).toBeLessThanOrEqual(limit);
@@ -186,7 +213,12 @@ describe("generated settings and single-dashboard file budgets", () => {
         path === "apps/web/src/routes/dashboard.tsx" ||
         path.startsWith("apps/web/src/features/dashboard/"),
     );
-    expect(dashboard).toHaveLength(11);
+    expect(dashboard.map(({ path }) => path).sort()).toEqual(
+      [
+        "apps/web/src/routes/dashboard.tsx",
+        ...MONOREPO_DASHBOARD_FILES.map((name) => "apps/web/src/features/dashboard/" + name),
+      ].sort(),
+    );
     for (const generated of dashboard) {
       const orchestrator =
         generated.path.endsWith("/routes/dashboard.tsx") ||
@@ -216,7 +248,12 @@ describe("generated settings and single-dashboard file budgets", () => {
         path === "apps/web/src/app/dashboard/page.tsx" ||
         path.startsWith("apps/web/src/features/dashboard/"),
     );
-    expect(dashboard).toHaveLength(11);
+    expect(dashboard.map(({ path }) => path).sort()).toEqual(
+      [
+        "apps/web/src/app/dashboard/page.tsx",
+        ...MONOREPO_DASHBOARD_FILES.map((name) => "apps/web/src/features/dashboard/" + name),
+      ].sort(),
+    );
     for (const generated of dashboard) {
       const orchestrator =
         generated.path.endsWith("/app/dashboard/page.tsx") ||

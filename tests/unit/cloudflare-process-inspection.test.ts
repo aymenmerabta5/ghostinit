@@ -315,20 +315,30 @@ describe("generated Windows process inspection", () => {
   test.skipIf(process.platform !== "win32")(
     "reads real identities from a wrapper with the filtered fixture environment",
     () => {
-      const result = runWindowsQueryFixture(testEnvironment());
+      const environment = testEnvironment();
+      const result = runWindowsQueryFixture(environment);
       if (result.status !== 0 || !result.report?.success || !result.report.ownIdentity) {
+        const runnerModuleCache = process.env.PSModuleAnalysisCachePath;
         const diagnostics = {
           filtered: result,
           filteredStages: runWindowsQueryFixture(testEnvironment(), true),
+          runnerModuleCacheConfigured: runnerModuleCache !== undefined,
+          filteredWithRunnerModuleCache:
+            runnerModuleCache === undefined
+              ? null
+              : runWindowsQueryFixture(
+                  testEnvironment({ PSModuleAnalysisCachePath: runnerModuleCache }),
+                ),
           fullEnvironment: runWindowsQueryFixture({ ...process.env }, true),
         };
         console.error("Windows query fixture diagnostics: " + JSON.stringify(diagnostics));
       }
+      expect(environment.PSModuleAnalysisCachePath).toBe(process.env.PSModuleAnalysisCachePath);
       expect(result.status).toBe(0);
       expect(result.report?.success).toBe(true);
       expect(result.report?.ownIdentity).toBe(true);
     },
-    45_000,
+    60_000,
   );
 
   test.skipIf(process.platform !== "win32")(
