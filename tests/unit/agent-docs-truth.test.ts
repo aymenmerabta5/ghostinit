@@ -187,12 +187,9 @@ describe("generated agent instructions tell the truth", () => {
           ]
             .map((match) => match[1] ?? match[2])
             .filter(Boolean);
-          const nextWeb = config.apps.includes("web") && config.framework === "nextjs";
-          const expected =
-            nextWeb && config.mode === "monorepo"
-              ? new Set([v.typescript.typescriptNext, v.typescript.typescript])
-              : new Set([nextWeb ? v.typescript.typescriptNext : v.typescript.typescript]);
-          expect(new Set(claims), `agent doc TypeScript claims`).toEqual(expected);
+          expect(new Set(claims), `agent doc TypeScript claims`).toEqual(
+            new Set([v.typescript.typescript]),
+          );
         }
       });
 

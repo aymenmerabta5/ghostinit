@@ -82,12 +82,10 @@ for (const framework of ["nextjs", "tanstack-start"] as const) {
           framework === "nextjs"
             ? `Next.js ${v.nextStack.next}`
             : `TanStack Start ${v.tanstackStart["@tanstack/react-start"]}`;
-        const typescriptVersion =
-          framework === "nextjs" ? v.typescript.typescriptNext : v.typescript.typescript;
         for (const { content, path } of guidance) {
           expect(content, path).toContain(`Bun ${v.runtime.bun}`);
           expect(content, path).toContain(frameworkVersion);
-          expect(content, path).toContain(`TypeScript: ${typescriptVersion}`);
+          expect(content, path).toContain(`TypeScript: ${v.typescript.typescript}`);
           expect(content, path).toContain(`bunx --bun shadcn@${v.ui.shadcn} add`);
           expect(content, path).not.toContain("@latest");
           expect(content, path).not.toContain("oRPC for RSC zero latency");

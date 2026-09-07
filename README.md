@@ -69,7 +69,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 - Bun version sourced from `packages/versions` + retained Node runtime target, isolated linker host vs hoist=true generated
 - Next.js 16 + React 19 + TanStack Start 1.x (exact pins in `packages/versions`)
-- TypeScript 7.0.2 for Next 16.3's project-local tsc CLI; TypeScript 6.0.3 only for compiler-API-dependent TanStack/Expo tooling
+- TypeScript 7.0.2 across generated apps and shared tooling, including Next 16.3's project-local tsc CLI
 - Drizzle ORM + PostgreSQL / Convex
 - Better Auth (email/password, 2FA, admin)
 - oRPC 1.15 contract-first + OpenAPI (pure, no Elysia dual RPC)

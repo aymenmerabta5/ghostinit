@@ -72,6 +72,21 @@ test("TypeScript 7.0.2 obligations are enumerated and point to real sources", ()
       disposition: "proof-required",
     },
     {
+      id: "generated-typescript-cli",
+      sources: [
+        "packages/versions/src/index.ts",
+        "src/templates/root/package.ts",
+        "src/templates/apps/tanstack-core.ts",
+        "src/templates/apps/expo-core.ts",
+        "src/templates/apps/desktop/package.ts",
+        "src/templates/eve/package.ts",
+        "src/templates/database/convex.ts",
+        "src/templates/modes/single/package.ts",
+      ],
+      phase: "3",
+      disposition: "proof-required",
+    },
+    {
       id: "doctor-typescript-version",
       sources: [
         "src/commands/doctor/versions.ts",

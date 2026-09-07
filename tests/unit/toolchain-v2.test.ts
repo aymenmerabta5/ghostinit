@@ -19,7 +19,7 @@ describe("exact V2 host toolchain", () => {
     };
     expect(pkg.packageManager).toBe(`bun@${runtime.bun}`);
     expect(pkg.engines.bun).toBe(runtime.bun);
-    expect(pkg.devDependencies.typescript).toBe(typescriptVersions.typescriptNext);
+    expect(pkg.devDependencies.typescript).toBe(typescriptVersions.typescript);
     expect(pkg.devDependencies["@types/bun"]).toBe(runtime.bun);
     for (const spec of [
       ...Object.values(pkg.dependencies),

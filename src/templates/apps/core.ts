@@ -242,9 +242,8 @@ function webPackage(
         "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
         postcss: `^${v.styling.postcss}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
-        // Next 16.3 runs the project-local tsc CLI, so the web app can use TS7
-        // while shared compiler-API tooling remains on the TS6 catalog line.
-        typescript: `^${v.typescript.typescriptNext}`,
+        // Next 16.3 uses the project-local native tsc CLI by default.
+        typescript: `^${v.typescript.typescript}`,
         ...(hasCloudflare
           ? {
               "@opennextjs/cloudflare": `^${v.cloudflare["@opennextjs/cloudflare"]}`,

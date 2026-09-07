@@ -147,27 +147,28 @@ describe("Next 16.3 TypeScript 7 and Cache Components", () => {
     }
   });
 
-  test("uses the project-local TS7 CLI only for Next apps", () => {
-    const monorepoNext = generated(config("monorepo"));
+  test("shares one TS7 pin across generated packages and preserves Next's default CLI", () => {
+    const monorepoNext = generated({
+      ...config("monorepo"),
+      apps: ["web", "mobile", "desktop"],
+    });
     const singleNext = generated(config("single"));
-    const monorepoTanstack = generated(config("monorepo", "tanstack-start"));
+    const monorepoTanstack = generated({
+      ...config("monorepo", "tanstack-start"),
+      apps: ["web", "mobile", "desktop"],
+    });
     const singleTanstack = generated(config("single", "tanstack-start"));
 
-    expect(manifest(monorepoNext, "apps/web/package.json").devDependencies.typescript).toBe(
-      v.typescript.typescriptNext,
-    );
-    expect(manifest(monorepoNext, "package.json").devDependencies.typescript).toBe(
-      v.typescript.typescript,
-    );
-    expect(manifest(singleNext, "package.json").devDependencies.typescript).toBe(
-      v.typescript.typescriptNext,
-    );
-    expect(manifest(monorepoTanstack, "apps/web/package.json").devDependencies.typescript).toBe(
-      v.typescript.typescript,
-    );
-    expect(manifest(singleTanstack, "package.json").devDependencies.typescript).toBe(
-      v.typescript.typescript,
-    );
+    for (const files of [monorepoNext, singleNext, monorepoTanstack, singleTanstack]) {
+      expect(manifest(files, "package.json").devDependencies.typescript).toBe(
+        v.typescript.typescript,
+      );
+      for (const { path } of files.filter(({ path }) => path.endsWith("/package.json"))) {
+        const compiler = manifest(files, path).devDependencies?.typescript;
+        if (compiler !== undefined)
+          expect(compiler.replace(/^[~^]/, ""), path).toBe(v.typescript.typescript);
+      }
+    }
 
     for (const files of [monorepoNext, singleNext]) {
       const configPath = files.some(({ path }) => path === "apps/web/next.config.ts")

@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { parseSync } from "oxc-parser";
-import { convex, orpc as orpcVersions, tanstack } from "../../packages/versions/src/index.js";
+import {
+  convex,
+  orpc as orpcVersions,
+  tanstack,
+  typescript,
+} from "../../packages/versions/src/index.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
@@ -202,7 +207,7 @@ describe("generated Expo foundation", () => {
       );
       expect(manifest.devDependencies["@types/react"], mode).toBe("~19.2.18");
       expect(manifest.devDependencies["babel-preset-expo"], mode).toBe("~57.0.8");
-      expect(manifest.devDependencies.typescript, mode).toBe("~6.0.3");
+      expect(manifest.devDependencies.typescript, mode).toBe(`~${typescript.typescript}`);
       expect(unrange(manifest.dependencies["@orpc/react-query"]), mode).toBe(
         orpcVersions["@orpc/react-query"],
       );

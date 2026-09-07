@@ -113,10 +113,6 @@ interface VersionEvidence {
   };
 }
 
-const PACKAGE_ALIASES: Readonly<Record<string, string>> = {
-  typescriptNext: "typescript",
-};
-
 const PRERELEASE_IDENTIFIER = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
 const BUILD_IDENTIFIER = "[0-9A-Za-z-]+";
 const SEMVER =
@@ -303,7 +299,7 @@ function catalogPins(nonNpmEvidence: VersionEvidence["nonNpm"]): CollectedPins {
             scope,
             group,
             key,
-            package: PACKAGE_ALIASES[key] ?? key,
+            package: key,
             source: "catalog",
             spec: spec as string,
             version,

@@ -52,6 +52,22 @@
       "replacement": "Next 16.3.3 documents the project-local tsc CLI path for TypeScript 7.0.2; a fresh generated Next production build remains the release proof."
     },
     {
+      "id": "generated-typescript-cli",
+      "sources": [
+        "packages/versions/src/index.ts",
+        "src/templates/root/package.ts",
+        "src/templates/apps/tanstack-core.ts",
+        "src/templates/apps/expo-core.ts",
+        "src/templates/apps/desktop/package.ts",
+        "src/templates/eve/package.ts",
+        "src/templates/database/convex.ts",
+        "src/templates/modes/single/package.ts"
+      ],
+      "phase": "3",
+      "disposition": "proof-required",
+      "replacement": "All generated apps and shared packages use the single TypeScript 7.0.2 catalog pin. Installed TanStack/Vite/Nitro, Expo, Electron, Eve declaration/build, and Convex root/component codegen gates remain required; Convex must use --typecheck=enable. Source audits and manifest checks do not prove runtime compatibility."
+    },
+    {
       "id": "doctor-typescript-version",
       "sources": [
         "src/commands/doctor/versions.ts",

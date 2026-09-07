@@ -10,13 +10,13 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 164,
+    "auditedScopes": 163,
     "uniquePackages": 135,
     "latestScopes": 140,
-    "compatibilityHeldScopes": 24,
-    "uniqueCompatibilityHolds": 19,
+    "compatibilityHeldScopes": 23,
+    "uniqueCompatibilityHolds": 18,
     "auditedLockfiles": 4,
-    "lockedPackageVersions": 1071,
+    "lockedPackageVersions": 1070,
     "missingPins": 0,
     "unreviewedPins": 0
   },
@@ -80,6 +80,11 @@
       "reason": "Unused pins; stable TS7 replaced native-preview and no generated consumer used the TS5 alias."
     },
     {
+      "scope": "typescript",
+      "removed": ["typescriptNext"],
+      "reason": "Generated applications and shared packages now select the same 7.0.2 catalog pin. Exact-package source audits did not establish a mandatory TS6 API dependency in the emitted paths; installed migration gates remain proof-required in evidence/toolchain/typescript-7.0.2.json."
+    },
+    {
       "scope": "supplyChain.minimumReleaseAgeSeconds",
       "value": 604800,
       "reason": "Require every direct, emitted, and locked npm package release to mature for seven days; no release-age exceptions are approved."
@@ -137,14 +142,6 @@
         "host.overrides.@types/node",
         "runtime.@types/node"
       ]
-    },
-    {
-      "package": "typescript",
-      "pinned": "6.0.3",
-      "reasonCode": "typescript-compiler-api",
-      "detail": "TanStack, Vite, and Expo consumers still load lib/typescript.js; stable TS7 is the native CLI line and TS6.0.3 is the newest compatible JavaScript compiler-API release.",
-      "evidence": ["https://registry.npmjs.org/typescript"],
-      "scopes": ["typescript.typescript"]
     },
     {
       "package": "react",
@@ -6406,12 +6403,6 @@
     },
     {
       "package": "typescript",
-      "version": "6.0.3",
-      "publishedAt": "2026-04-16T23:38:27.905Z",
-      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="
-    },
-    {
-      "package": "typescript",
       "version": "7.0.2",
       "publishedAt": "2026-07-08T15:55:18.431Z",
       "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="
@@ -9032,22 +9023,6 @@
       "scope": "typescript.typescript",
       "group": "typescript",
       "key": "typescript",
-      "package": "typescript",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "compatibility-hold",
-      "pinned": "6.0.3",
-      "pinnedPublishedAt": "2026-04-16T23:38:27.905Z",
-      "registryLatest": "7.0.2",
-      "registryLatestPublishedAt": "2026-07-08T15:55:18.431Z",
-      "eligibleLatest": "7.0.2",
-      "eligibleLatestPublishedAt": "2026-07-08T15:55:18.431Z"
-    },
-    {
-      "scope": "typescript.typescriptNext",
-      "group": "typescript",
-      "key": "typescriptNext",
       "package": "typescript",
       "source": "catalog",
       "exists": true,

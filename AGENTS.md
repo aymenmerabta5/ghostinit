@@ -61,10 +61,11 @@ The versioned edge matrix in `src/lib/architecture/rules/layer-policy.ts` is aut
 - Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for the supported Next.js 16 TS resolution path. Both enforce the typed seven-day `supplyChain.minimumReleaseAgeSeconds` policy with an empty exclusion list; fixtures and temporary install probes must do the same.
 - Generated dependency SSOT is `packages/versions/src/index.ts`; host and generated compiler policies are verified independently.
 - Next development/build commands executed by Bun use the documented Webpack profile because Bun 1.4 cannot reliably resolve Turbopack's newly created external-package links on a cold start. Node keeps Turbopack. PDF-enabled Bun launchers preload their declared `@react-pdf/renderer` dependency before Next installs its require hook; React module conditions remain unchanged.
-- Generated Next apps use `typescriptNext` (TypeScript 7) through Next 16.3's
-  default project-local `tsc` CLI. Shared monorepo tooling, TanStack Start, and
-  Expo use the `typescript` TS6 pin while they still require JavaScript compiler
-  APIs. Never set `experimental.useTypeScriptCli` to `false` in Next config.
+- Generated apps and shared tooling use the same `typescript` catalog pin
+  (TypeScript 7). Next 16.3 uses its default project-local `tsc` CLI; never set
+  `experimental.useTypeScriptCli` to `false`. TypeScript 7 does not provide the
+  classic JavaScript compiler API. Changes to compiler consumers require real
+  installed build/runtime gates; source inspection alone is not compatibility proof.
 - Generated `turbo.json`: manifest-derived `globalEnv`, filtered to selected capabilities and app audiences — see the table below.
 
 **Env vars — 5 places (keep in sync):**

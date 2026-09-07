@@ -12,7 +12,7 @@ import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
 
 const repository = resolve(import.meta.dir, "../..");
 const require = createRequire(import.meta.url);
-// An explicit local probe can select the already-installed generated TS6 pin.
+// An explicit local probe can select another installed copy of the catalog compiler.
 // Normal host CI uses its own installed compiler; neither path installs anything.
 const compiler = process.env.GHOSTINIT_EVE_DECLARATION_COMPILER
   ? resolve(process.env.GHOSTINIT_EVE_DECLARATION_COMPILER)
@@ -45,7 +45,7 @@ function typecheck(root: string, options: string[]) {
 }
 
 test(`Eve sandbox exports portable checked declarations with TypeScript ${compilerVersion.version}`, async () => {
-  expect([typescript.typescript, typescript.typescriptNext]).toContain(compilerVersion.version);
+  expect(compilerVersion.version).toBe(typescript.typescript);
   const root = createTemporaryWorkspace("ghostinit-eve-declarations-");
   roots.push(root);
   const source = eveSandboxFile().content;

@@ -91,10 +91,6 @@ function buildAgentsMdContent(
     : usesCustomNextServer
       ? customNextServerCommand(runtime, "dev", "../..")
       : nextRuntimeCommand(runtime, "dev", options.pdf);
-  const typescriptSummary =
-    hasWeb && !isTanstack
-      ? `${v.typescript.typescriptNext} in apps/web via Next's project-local tsc CLI; TypeScript ${v.typescript.typescript} for shared compiler-API tooling`
-      : v.typescript.typescript;
   const nextBuildCommand = `${usesCustomNextServer ? "bun run build:server && " : ""}${nextRuntimeCommand(runtime, "build", options.pdf)}`;
   const frameworkLabel = isTanstack
     ? `TanStack Start ${v.tanstackStart["@tanstack/react-start"]}`
@@ -128,7 +124,7 @@ function buildAgentsMdContent(
     `- Frontend apps: ${apps.join(", ")}.`,
     `- Web framework: ${hasWeb ? frameworkLabel : "not emitted because the web app is disabled"}.`,
     `- Database: ${databaseDescription(database)}.`,
-    `- TypeScript: ${typescriptSummary}. React: ${v.nextStack.react}.`,
+    `- TypeScript: ${v.typescript.typescript}. React: ${v.nextStack.react}.`,
     ...(hasWeb && !isTanstack
       ? [
           "- Next development and builds executed by Bun use the supported Webpack compatibility profile; Node uses Turbopack. PDF-enabled Bun commands preload the declared renderer before Next initializes.",

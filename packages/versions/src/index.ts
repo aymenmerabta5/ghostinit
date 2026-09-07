@@ -29,12 +29,7 @@ export const runtime = {
 } as const;
 
 export const typescript = {
-  // TanStack/Vite and Expo tooling still load the JavaScript compiler API.
-  // Keep that tooling on TS6 until those consumers support the TS7 native port.
-  typescript: "6.0.3",
-  // Next 16.3 uses the project-local tsc CLI by default, which supports TS7
-  // without the JavaScript compiler API. Never set useTypeScriptCli=false.
-  typescriptNext: "7.0.2",
+  typescript: "7.0.2",
 } as const;
 
 export const nextStack = {

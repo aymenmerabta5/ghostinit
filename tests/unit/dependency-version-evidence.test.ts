@@ -88,7 +88,7 @@ function currentScopes(): Map<
       scopes.set(`${group}.${key}`, {
         group,
         key,
-        package: key === "typescriptNext" ? "typescript" : key,
+        package: key,
         source: "catalog",
         pinned: pinned!,
       });
@@ -463,6 +463,7 @@ describe("dependency version audit evidence", () => {
     expect(host.overrides["@types/node"]).toBe(versions.runtime["@types/node"]);
     expect(host.engines.node).toBe(">=22.12.0");
     expect("typescriptLegacy" in versions.typescript).toBe(false);
+    expect("typescriptNext" in versions.typescript).toBe(false);
     expect("@typescript/native-preview" in versions.typescript).toBe(false);
   });
 

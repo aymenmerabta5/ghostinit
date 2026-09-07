@@ -313,7 +313,7 @@ export function singlePackageJson(
       "bun-types": `^${v.runtime.bun}`,
       // Next 16.3 uses this package-local TS7 tsc CLI. Generated lint checks use
       // oxc-parser rather than TypeScript's removed JavaScript compiler API.
-      typescript: `^${v.typescript.typescriptNext}`,
+      typescript: `^${v.typescript.typescript}`,
       "@types/node": `^${v.runtime["@types/node"]}`,
       "@types/react": `^${v.nextStack["@types/react"]}`,
       "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
