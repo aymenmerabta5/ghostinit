@@ -5,15 +5,16 @@ import {
   marketingHeroFragment,
   marketingQuickStartFragment,
 } from "./sections.js";
-import type { RouterType } from "./shared.js";
+import { noMarketingCapabilities, type MarketingOptions, type RouterType } from "./shared.js";
 
-function wrapSection(
+export function wrapMarketingSection(
   router: RouterType,
   componentName: string,
   imports: string,
   body: string,
+  forceClient = false,
 ): string {
-  if (router === "next") {
+  if (router === "next" && !forceClient) {
     return `import type * as React from "react";
 ${imports}
 import { getSurfaceTranslations } from "@/lib/translations.server";
@@ -41,43 +42,61 @@ ${body}
 `;
 }
 
-export function marketingHeroComponentContent(router: RouterType): string {
-  const linkImport =
-    router === "next"
+export function marketingHeroComponentContent(
+  router: RouterType,
+  options: MarketingOptions = noMarketingCapabilities,
+): string {
+  const linkImport = !options.hasAuth
+    ? ""
+    : router === "next"
       ? 'import Link from "next/link";'
       : 'import { Link } from "@tanstack/react-router";';
-  return wrapSection(
+  return wrapMarketingSection(
     router,
     "MarketingHero",
     `${linkImport}
-import { Badge } from "@/components/ui/badge";
+import { ArrowRight, ArrowUpRight, Folder, FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";`,
-    marketingHeroFragment(router),
+    marketingHeroFragment(router, options),
   );
 }
 
-export function marketingFeaturesComponentContent(router: RouterType): string {
-  return wrapSection(
+export function marketingFeaturesComponentContent(
+  router: RouterType,
+  options: MarketingOptions = noMarketingCapabilities,
+): string {
+  return wrapMarketingSection(
     router,
     "MarketingFeatures",
-    'import { Badge } from "@/components/ui/badge";\nimport { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";',
-    marketingFeaturesFragment(router),
+    "",
+    marketingFeaturesFragment(router, options),
   );
 }
 
 export function marketingQuickStartComponentContent(router: RouterType): string {
-  return wrapSection(router, "MarketingQuickStart", "", marketingQuickStartFragment(router));
+  return wrapMarketingSection(
+    router,
+    "MarketingQuickStart",
+    "",
+    marketingQuickStartFragment(router),
+  );
 }
 
-export function marketingFooterComponentContent(router: RouterType, hasBilling = true): string {
+export function marketingFooterComponentContent(
+  router: RouterType,
+  hasBilling = true,
+  options: MarketingOptions = { ...noMarketingCapabilities, hasAuth: true },
+): string {
   const linkImport =
-    router === "next"
-      ? 'import Link from "next/link";'
-      : 'import { Link } from "@tanstack/react-router";';
-  return wrapSection(
+    !options.hasAuth && !hasBilling
+      ? ""
+      : router === "next"
+        ? 'import Link from "next/link";'
+        : 'import { Link } from "@tanstack/react-router";';
+  return wrapMarketingSection(
     router,
     "MarketingFooter",
     linkImport,
-    marketingFooterFragment(router, hasBilling),
+    marketingFooterFragment(router, hasBilling, options),
   );
 }

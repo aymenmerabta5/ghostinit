@@ -87,6 +87,7 @@ import { singleNextAdminFeatureFiles } from "../pages/admin.js";
 import { webIdentityWorkspaceFiles } from "../../../apps/fragments/identity-workspace/index.js";
 import { settingsActionsContent } from "../../../apps/fragments/settings/actions.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
+import { workspaceShellFiles } from "../../../apps/fragments/header.js";
 import { providersSingleContent, providersSingleContentConvex } from "../components/providers.js";
 import {
   headerActionsSingleContent,
@@ -443,19 +444,16 @@ export function buildNextFiles(
   }
   const hasTypedAdminNavigation = hasAdminApi;
   files.push(
-    file(
-      "src/components/header.tsx",
-      headerSingleContent(
-        hasI18n,
-        hasAuth,
-        hasBilling,
-        hasTypedAdminNavigation,
-        isConvex && hasTypedAdminNavigation ? "../../convex/_generated/api" : undefined,
-        hasPdf,
-        hasMessaging,
-        headerNavigation,
-      ),
-    ),
+    file("src/components/header.tsx", headerSingleContent(hasI18n, hasAuth)),
+    ...workspaceShellFiles("next", {
+      sourceRoot: "src",
+      hasAuth,
+      hasBilling,
+      hasAdminNavigation: hasTypedAdminNavigation,
+      hasPdf,
+      hasMessaging,
+      navigation: headerNavigation,
+    }),
   );
   if (hasAuth) {
     files.push(

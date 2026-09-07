@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { hasBroadWebSocketCspSource } from "../integration/e2e-csp.js";
+import { hasSelfHostedFontPolicy } from "../helpers/font-csp.js";
 
 const recordedCsp =
-  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com https://example.convex.cloud wss://example.convex.cloud; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
+  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com https://example.convex.cloud wss://example.convex.cloud; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
 
 function executeHarnessCspAssertions(csp: string): void {
   const harness = readFileSync(
@@ -20,6 +21,7 @@ function executeHarnessCspAssertions(csp: string): void {
     "label",
     "options",
     "hasBroadWebSocketCspSource",
+    "hasSelfHostedFontPolicy",
     harness.slice(start, end),
   ) as (...args: unknown[]) => void;
   run(
@@ -28,6 +30,7 @@ function executeHarnessCspAssertions(csp: string): void {
     "emitted-CSP-regression",
     { productionCsp: true },
     hasBroadWebSocketCspSource,
+    hasSelfHostedFontPolicy,
   );
 }
 
@@ -36,6 +39,23 @@ describe("production E2E websocket CSP acceptance", () => {
     expect(recordedCsp.includes(" wss:")).toBe(true);
     expect(hasBroadWebSocketCspSource(recordedCsp)).toBe(false);
     expect(() => executeHarnessCspAssertions(recordedCsp)).not.toThrow();
+  });
+
+  test("requires same-origin fonts and rejects the retired Google stylesheet allowlist", () => {
+    for (const [directive, remote] of [
+      ["font-src", "https://fonts.gstatic.com"],
+      ["style-src", "https://fonts.googleapis.com"],
+    ]) {
+      const stale = recordedCsp.replace(`${directive} 'self'`, `${directive} 'self' ${remote}`);
+      expect(() => executeHarnessCspAssertions(stale)).toThrow();
+    }
+    expect(hasSelfHostedFontPolicy("style-src 'self';")).toBe(false);
+    expect(hasSelfHostedFontPolicy("font-src 'self', font-src https://fonts.gstatic.com;")).toBe(
+      false,
+    );
+    expect(hasSelfHostedFontPolicy("FONT-SRC\t'self'; STYLE-SRC 'self' 'unsafe-inline';")).toBe(
+      true,
+    );
   });
 
   test("the actual production harness rejects every bare websocket scheme", () => {

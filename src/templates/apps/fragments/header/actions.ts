@@ -21,7 +21,7 @@ export function headerActionsContent(
           <Button size="sm" render={<Link to="/sign-up" />} nativeButton={false}>{t("signUp")}</Button>
         </div>`;
   const localeImport = hasI18n ? 'import { LocaleSwitcher } from "./locale-switcher.js";' : "";
-  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-20 shrink-0 sm:w-32" />' : "";
+  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-20 shrink-0 sm:w-28" />' : "";
   const notificationImport = hasNotifications
     ? 'import { NotificationInboxBell } from "@/features/notifications/bell";'
     : "";
@@ -48,7 +48,7 @@ export interface HeaderActionsProps {
 export function HeaderActions({ user, isAuthenticated, pending }: HeaderActionsProps): React.JSX.Element {
   const t = useSurfaceTranslations("header");
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
       ${localeSwitcher}
       <ThemeToggle />
       {pending ? (

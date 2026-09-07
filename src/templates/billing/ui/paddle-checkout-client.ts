@@ -116,7 +116,7 @@ export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): 
     return startPaddleCheckout(data.options, token, setStatus);
   }, [data, configured, token]);
   const description = data.state !== "ready" ? "paddleCheckoutInvalid" : !configured ? "paddleCheckoutUnavailable" : status === "error" ? "paddleCheckoutError" : status === "ready" ? "paddleCheckoutReady" : status === "canceled" ? "checkoutCancelledDescription" : status === "returning" ? "paddleCheckoutReturning" : "paddleCheckoutLoading";
-  return <main data-paddle-checkout-state={data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status} className="mx-auto flex min-h-screen max-w-xl items-center p-6"><Card className="w-full"><CardHeader><CardTitle as="h1">{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
+  return <main data-paddle-checkout-state={data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status} className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-xl items-start px-5 py-10 sm:px-8 sm:py-14"><Card className="w-full"><CardHeader><CardTitle as="h1" className="text-3xl tracking-tight">{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
     {configured && status === "error" ? <Button onClick={() => window.location.reload()}>{t("retryCheckout")}</Button> : null}
     <Button variant="outline" render={<a href="/billing" />} nativeButton={false}>{t("backToBilling")}</Button>
   </CardContent></Card></main>;
@@ -124,7 +124,7 @@ export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): 
 
 export function PaddleCheckoutLoading(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
-  return <main className="mx-auto flex min-h-screen max-w-xl items-center p-6" role="status" aria-busy="true">{t("paddleCheckoutLoading")}</main>;
+  return <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-xl items-start px-5 py-10 sm:px-8 sm:py-14" role="status" aria-busy="true">{t("paddleCheckoutLoading")}</main>;
 }
 `;
 }

@@ -88,7 +88,7 @@ ${convexSourceDeclaration}
     const contentSecurityPolicy =
       "default-src 'self'; script-src 'self' 'unsafe-inline'" +
       (allowsDevelopmentDiagnostics ? " 'unsafe-eval'" : "") +
-      "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com" + convexConnectSources + "; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
+      "; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com" + convexConnectSources + "; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';";
     return [
       {
         source: "/:path*",
@@ -169,9 +169,9 @@ ${convexSourceDeclaration}
   return [
     "default-src 'self'",
     \`script-src 'self' 'unsafe-inline'\${isDevelopment ? " 'unsafe-eval'" : ""}\`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
-    "font-src 'self' https://fonts.gstatic.com",
+    "font-src 'self'",
     \`connect-src 'self' https://us.i.posthog.com\${convexConnectSources}\${isDevelopment ? " ws: wss:" : ""}\`,
     "object-src 'none'",
     "frame-ancestors 'none'",

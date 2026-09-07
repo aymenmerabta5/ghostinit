@@ -30,7 +30,7 @@ export function DangerZoneCard(): React.JSX.Element {
     } catch { setError(t("danger.genericError")); }
     finally { setPending(false); }
   }
-  return <Card className="border-destructive/30"><CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.oauthDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <Card className="border-destructive/20 shadow-none"><CardHeader><CardTitle as="h2" className="text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.oauthDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col items-start gap-4">
     {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     <Button variant="destructive" disabled={pending} onClick={() => void deleteAccount()}>{pending ? t("danger.deleting") : t("danger.delete")}</Button>
   </CardContent></Card>;
@@ -44,11 +44,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
-import { Separator } from "@/components/ui/separator";
 import { createRequiredPasswordSchema, identityClient, isIdentityRecentAuthenticationError } from "@/lib/auth-client";
 import { getQueryClient, transitionQueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
@@ -75,13 +74,9 @@ export function DangerZoneCard(): React.JSX.Element {
   });
 
   return (
-    <Card className="border-destructive/30">
-      <CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription className="max-w-[65ch]">{t("danger.description")}</CardDescription></CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <Separator />
-        <p className="text-sm text-muted-foreground">{t("danger.passwordDescription")}</p>
-      </CardContent>
-      <CardFooter>
+    <Card className="flex flex-col gap-0 border-destructive/20 shadow-none md:flex-row md:items-center md:justify-between">
+      <CardHeader><CardTitle as="h2" className="text-destructive">{t("danger.title")}</CardTitle><CardDescription className="max-w-[65ch]">{t("danger.description")}</CardDescription></CardHeader>
+      <CardFooter className="shrink-0 pt-0 md:pt-6">
         <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); if (!nextOpen) form.reset(); }}>
           <DialogTrigger render={<Button variant="destructive" />}>{t("danger.delete")}</DialogTrigger>
           <DialogContent>
@@ -96,7 +91,7 @@ export function DangerZoneCard(): React.JSX.Element {
                 </FieldGroup>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("danger.cancel")}</Button>
-                  <form.SubmitButton variant="destructive" pendingLabel={t("danger.deleting")}>{t("danger.confirm")}</form.SubmitButton>
+                  <form.SubmitButton className="w-auto" variant="destructive" pendingLabel={t("danger.deleting")}>{t("danger.confirm")}</form.SubmitButton>
                 </DialogFooter>
               </Form>
             </form.AppForm>

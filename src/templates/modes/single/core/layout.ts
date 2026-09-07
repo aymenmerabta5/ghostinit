@@ -13,7 +13,7 @@ export function singleLayout(hasI18n = false): string {
         ]
       : []),
     "import { Providers } from '@/components/providers';",
-    "import { Header } from '@/components/header';",
+    "import { AppShell } from '@/components/app-shell';",
     "import './globals.css';",
     "",
     ...(hasI18n
@@ -25,8 +25,8 @@ export function singleLayout(hasI18n = false): string {
         ]
       : [
           "export const metadata: Metadata = {",
-          "  title: '__PROJECT_NAME__ — GhostInit App',",
-          "  description: 'Opinionated single all-in-one Next.js starter with Better Auth + Drizzle + Billing flexible and dark mode',",
+          "  title: '__PROJECT_NAME__ | GhostInit',",
+          "  description: 'A clear foundation for your next application',",
           "};",
         ]),
     "",
@@ -42,7 +42,7 @@ export function singleLayout(hasI18n = false): string {
           "  return <>",
           '    <script id="locale-request" dangerouslySetInnerHTML={{ __html: localeDocumentScript }} />',
           "    <NextIntlClientProvider locale={locale} messages={messages}>",
-          "      <Providers><Header />{children}</Providers>",
+          "      <Providers><AppShell>{children}</AppShell></Providers>",
           "    </NextIntlClientProvider>",
           "  </>;",
           "}",
@@ -68,7 +68,7 @@ export function singleLayout(hasI18n = false): string {
           "          <LocalizedApp>{children}</LocalizedApp>",
           "        </React.Suspense>",
         ]
-      : ["        <Providers><Header />{children}</Providers>"]),
+      : ["        <Providers><AppShell>{children}</AppShell></Providers>"]),
     "      </body>",
     "    </html>",
     "  );",

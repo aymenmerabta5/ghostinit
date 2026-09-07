@@ -5,50 +5,12 @@ import {
   type HeaderNavigationCapabilities,
 } from "../../../apps/fragments/header.js";
 
-export function headerSingleContent(
-  hasI18n = false,
-  hasAuth = true,
-  hasBilling = true,
-  hasAdminNavigation = true,
-  convexApiImport?: string,
-  hasPdf = false,
-  hasMessaging = false,
-  navigation: HeaderNavigationCapabilities = {},
-): string {
-  return headerFileContent(
-    "next",
-    hasI18n,
-    hasAuth,
-    hasBilling,
-    hasAdminNavigation,
-    convexApiImport,
-    hasPdf,
-    hasMessaging,
-    navigation,
-  );
+export function headerSingleContent(hasI18n = false, hasAuth = true): string {
+  return headerFileContent("next", hasI18n, hasAuth);
 }
 
-export function singleHeaderTanstackContent(
-  hasI18n = false,
-  hasAuth = true,
-  hasBilling = true,
-  hasAdminNavigation = true,
-  convexApiImport?: string,
-  hasPdf = false,
-  hasMessaging = false,
-  navigation: HeaderNavigationCapabilities = {},
-): string {
-  return headerFileContent(
-    "tanstack",
-    hasI18n,
-    hasAuth,
-    hasBilling,
-    hasAdminNavigation,
-    convexApiImport,
-    hasPdf,
-    hasMessaging,
-    navigation,
-  );
+export function singleHeaderTanstackContent(hasI18n = false, hasAuth = true): string {
+  return headerFileContent("tanstack", hasI18n, hasAuth);
 }
 
 export function headerActionsSingleContent(hasI18n = false, hasNotifications = false): string {

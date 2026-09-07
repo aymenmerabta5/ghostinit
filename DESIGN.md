@@ -1,93 +1,137 @@
-# DESIGN.md — GhostInit Design System
+# DESIGN.md - GhostInit Design System
 
-**Inspired by https://t3.codes/ — the open-source control plane for coding agents. Dark-first, terminal-native, high-contrast, developer-trusted.**
+## Direction
 
-## Scene
+GhostInit provides a clear, polished application foundation for builders and
+their users. The visual language is calm and precise: cool neutral surfaces,
+one cobalt accent, generous but useful spacing, and readable account workflows.
+The 2026-09-07 overhaul replaces the earlier dark-first terminal aesthetic at
+the user's request. It uses `design-taste-frontend`; Impeccable is not applied.
 
-A solo founder at 2am in a dim room, 14-inch MacBook, external monitor showing a monorepo with 12 packages, terminal at the bottom, browser with the app's dashboard. The light is low, the code is the focus, the design should disappear into the task after the initial impression. This is not a SaaS dashboard for a manager; it's a control plane for a builder.
+The existing Tailwind v4, owned shadcn/Base UI wrappers, TanStack forms, and
+Lucide icons remain the component system. The skill's marketing composition
+guidance applies to the landing page; application controls keep the mechanics
+appropriate to forms, lists, and tables. Product dials are DESIGN_VARIANCE 5,
+MOTION_INTENSITY 3, and VISUAL_DENSITY 3. Marketing uses variance 6 with the same
+restrained motion. No new motion or component library is required.
 
-## Color Strategy: Restrained with One Committed Accent
+## Color and elevation
 
-**Restrained base + Committed accent.** Tinted neutrals carry 90% of the surface; one saturated accent carries selection, primary actions, and code highlights.
+Design contract 1.1.0 records this visual overhaul; its schema and typed output
+share the same version. `semanticThemeCssContent()` owns the OKLCH palette emitted to
+`ResolvedUiLayout.stylesRoot/theme.css`. These approximate sRGB references
+describe the palette; implementation must consume the semantic tokens.
 
-**Why restrained?** Product surfaces (dashboard, settings, admin) need to be scannable for hours. A drenched palette would fatigue. The brand surface (marketing landing) can push to Committed/Drenched for the hero, but the product stays restrained.
+| Role           | Light   | Dark    |
+| -------------- | ------- | ------- |
+| Canvas         | #F6F7F9 | #11151C |
+| Surface        | #FDFEFF | #191F28 |
+| Main text      | #202127 | #EEF2F8 |
+| Muted text     | #626B79 | #A1ACBC |
+| Primary accent | #3155D9 | #9BB8FF |
 
-### OKLCH Tokens (Single Source: `ResolvedUiLayout.stylesRoot/theme.css`)
+Light is the initial web theme; the header toggle persists the user's choice.
+Electron retains its existing system-preference fallback. Dark mode is a complete charcoal palette with the same
+hierarchy; individual sections never invert the page theme. Success, warning,
+and destructive colors communicate actual state, not decorative categories.
 
-All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white are tinted toward the brand hue, never pure #000/#fff.
+Filled primary and destructive actions use near-white text in light mode and
+dark text in dark mode. Calculations from the emitted tokens give primary
+contrast of 6.06:1 light and 9.31:1 dark, destructive contrast of 6.01:1 and
+8.74:1, and input boundaries above 3:1. Rendered combinations, hover states,
+focus rings, and text on tinted surfaces still require browser review.
 
-**Dark (default):**
+Cards use a quiet 1px border and subtle tinted `shadow-surface`. Popovers use
+`shadow-popover`; modal containers use `shadow-modal`. Shadows express depth
+without glows. The shared radius scale is 6px for labels, 8px for controls,
+12px for cards and menus, and 16px for modals. Avatars remain circular.
 
-```css
---background: oklch(0.09 0.01 264); /* near-black, blue-tinted, like t3.codes */
---foreground: oklch(0.98 0.005 264); /* paper white, cool tint */
---card: oklch(0.13 0.01 264); /* slightly lifted from background for depth */
---card-foreground: oklch(0.98 0.005 264);
---popover: oklch(0.13 0.01 264);
---popover-foreground: oklch(0.98 0.005 264);
---primary: oklch(0.65 0.22 264); /* vibrant indigo, like t3's harness accent */
---primary-foreground: oklch(0.12 0.02 264); /* dark text maintains contrast on the bright accent */
---secondary: oklch(0.18 0.01 264);
---secondary-foreground: oklch(0.98 0.005 264);
---muted: oklch(0.18 0.01 264);
---muted-foreground: oklch(0.65 0.015 264); /* muted text, still tinted */
---accent: oklch(0.18 0.01 264);
---accent-foreground: oklch(0.98 0.005 264);
---border: oklch(0.22 0.01 264); /* visible but not harsh */
---input: oklch(0.22 0.01 264);
---ring: oklch(0.65 0.22 264);
---radius: 0.5rem; /* tighter than before (0.625 → 0.5) for more technical feel */
-```
-
-**Light (alternative):**
-
-```css
---background: oklch(0.99 0.005 264); /* paper white, cool tint */
---foreground: oklch(0.14 0.01 264);
---card: oklch(0.99 0.005 264);
---card-foreground: oklch(0.14 0.01 264);
---primary: oklch(0.55 0.22 264); /* slightly darker for light contrast */
---primary-foreground: oklch(0.99 0.005 264);
-...
---border: oklch(0.92 0.01 264);
-```
-
-**Chart & Sidebar:** Desaturate as lightness increases. `chart-1` is primary at 0.65/0.22, `chart-2` at 0.68/0.14, etc. Sidebar uses same tokens as card, slightly darker for dark mode.
-
-**@theme inline** maps `--color-*` to `var(--*)` for Tailwind. **@layer theme** with `@variant light`/`@variant dark` for Uniwind compat (mobile).
-
-### Elevation
-
-- No shadows as default. Borders carry the structure (like t3.codes). Shadows only on popovers/dialogs (`shadow-lg` on `DropdownMenuContent`, `DialogContent`).
-- Cards use `border bg-card` with no shadow, `rounded-lg` (0.5rem) not `xl`. Feels more tool-like, less marketing.
+Named layers live in the shared theme: navigation 20, overlay 40, modal 50,
+popover 60, tooltip 70, and toast 80. The header and navigation rail stay below
+modal scrims. Menus opened inside modals stay above the modal surface. Arbitrary
+layer numbers are not accepted in page code.
 
 ## Typography
 
-**Product: One family, system native.** `-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif` for everything except code. No display/body pairing; weight and size do the work.
+Web uses self-hosted Geist Variable and Geist Mono Variable from exact catalog
+dependencies. Web styles import their weight CSS; native uses the platform font
+fallback rather than importing browser font CSS. Code uses the mono family.
+Generated Next, TanStack, and Worker content-security policies permit local
+fonts; the obsolete Google Fonts stylesheet/font origins are removed. Production
+and Worker runtime checks assert this policy alongside existing security headers.
 
-- **Scale:** 1.2 ratio between steps (tighter than brand's 1.25+). More elements on product screens; exaggerated contrast creates noise.
-- **Headings:** `text-2xl font-semibold tracking-tight` for page titles, `text-base font-medium` for card titles. No fluid `clamp()` — fixed rem, users sit at consistent DPI.
-- **Body:** `text-sm` (14px) is the default for product UI, not `base`. `text-xs` for metadata. Line length 65ch for prose, denser for tables.
-- **Code:** `font-mono text-xs` with `oklch(0.65 0.015 264)` for muted, `primary` for highlights. Use for `turbo.json`, `ghostinit create`, `oRPC` snippets.
-- **Brand (marketing hero):** Can use larger `text-4xl md:text-5xl` with `tracking-tight` and `font-semibold`, but still system sans. No serif for this dev tool; serif would be Editorial reflex.
+- Product body: 15px with 1.6 line height; prose stays within 65 characters.
+- Controls and labels: 14px. Inputs use 16px on mobile to avoid browser focus zoom.
+- Page titles: 28-32px, semibold, with modest negative tracking.
+- Section titles: 18px; helpers and errors remain readable at 14px.
+- Marketing: responsive display type, a concise headline, and a short description.
 
-**Line height:** `leading-relaxed` for prose, `leading-none` for headings. Dark mode text gets `+0.05` line-height (light type reads lighter).
+Pages use this hierarchy through the existing Tailwind typography classes.
+Theme controls use the existing Lucide icon family through one shared web
+renderer. Long translated titles and workspace names wrap without pushing actions outside
+the viewport. Icon size belongs to its wrapper. Portable utilities are added only
+when used and verified by every selected platform adapter.
 
 ## Layout
 
-**Product: Predictable grids, familiar patterns.**
+The authenticated desktop workspace has a 232px navigation rail and 64px utility
+header. Content uses a 72rem maximum width and 20/32/40px responsive horizontal
+padding. A mobile Sheet exposes the same selected-capability destinations with
+an accessible name, keyboard support, Escape dismissal, and focus restoration.
+Navigation reads canonical identity and role; pending identity keeps stable
+chrome without exposing private links. Public and authentication pages use the
+public header. Unknown custom routes remain public until registered deliberately.
 
-- Top bar `h-14` with `max-w-6xl mx-auto px-6`, not full-bleed. Like t3.codes' header.
-- Sidebar (when present) `w-64` with `bg-card border-r`, not floating.
-- Cards in `grid-cols-1 md:grid-cols-3` for dashboard, `md:grid-cols-12` for marketing. Use `auto-fit minmax(280px,1fr)` when cards are the right affordance, but prefer lists/tables for dense data.
-- **No nested cards.** Ever. Use `Separator` or `border-t`.
-- **No identical card grids** with icon+heading+text repeated. Vary: one large `md:col-span-7` + one `md:col-span-5`, or a list with leading icons.
+The GhostInit wordmark, route paths, navigation labels, and role checks remain.
+Implementation badges such as "modular monolith" are removed from the header.
+Dashboard composition emphasizes actual account information and useful actions;
+technical project guidance is a secondary disclosure. No invented metrics or
+passing-health claims are presented as live data.
 
-**Brand (marketing):**
+Settings uses wrapping horizontal secondary navigation, a full-width profile
+surface with a desktop metadata/form split, two aligned security sections, and
+full-width passkey/session lists. Destructive account controls form a compact
+action row, with password confirmation and errors inside their dialog. Lists use
+dividers instead of a card around every row. Ordinary actions keep content width.
 
-- Hero with left-aligned, asymmetric: heading + sub + two CTAs + `Badge` + trust bar. Not centered-stack.
-- Code snippet as hero imagery: `ghostinit create demo --billing stripe,chargily` in a `pre` with `bg-card border` and `font-mono`, not a stock photo.
-- Social proof as a horizontal scroller (like t3.codes testimonials), not a grid.
+Auth and recovery use a focused 440px form surface, a 32px title, clear field
+spacing, and a quiet footer divider. Primary form submission intentionally spans
+the form width. Back arrows mirror in RTL. Loading skeletons match the form.
+Legal copy, field names, validation, and account-state behavior remain intact.
+
+Not-found, authorization, and unexpected-error views use the same focused width,
+heading scale, and compact actions. Route loading follows the workspace's two
+primary content regions instead of an unrelated three-card grid. Unexpected
+errors show translated recovery guidance rather than raw exception messages;
+diagnostic logging remains available. The document-level Next error boundary
+imports its stylesheet directly because it replaces the ordinary root layout.
+Monorepo renderers emit authorization fallback pages only with authentication,
+so direct-renderer output cannot offer a sign-in link to an absent route.
+
+Feature pages share the same heading rhythm and content bounds. Cards group
+meaningful work; nested cards and repeated equal feature grids are avoided.
+Tables and lists retain the density needed to compare real data. Empty, loading,
+failed, populated, and refreshing states have distinct presentations.
+The notification feature owns a controlled `NotificationComposer` beside its
+page. The presenter renders fields and forwards callbacks; the page retains
+mutation, ownership, navigation, and desktop notification effects. Both remain
+within their existing page/component size limits.
+Electron's local controls use the same heights, surfaces, radii, and readable
+field text. Product descriptions explain the user's action instead of internal
+server paths, transport boundaries, or scheduler ownership details.
+
+Marketing uses an asymmetric editorial hero with an actual project structure or
+code example, concise copy, and one label per action intent. Claims and links
+reflect selected capabilities. No fake terminal execution, version badge,
+fabricated testimonials, decorative metrics, or placeholder product screenshot
+is used. Existing section anchors and exported components stay stable.
+Default page metadata describes the general application foundation without
+claiming unselected authentication, data, or runtime capabilities.
+
+The Expo landing uses the complete two-part headline and the same concise copy
+through native primitives. Sign-in, API, and billing surfaces each follow their
+own resolved capability; selecting one never advertises another. The shared
+design explanation replaces unconditional backend claims in frontend-only apps.
 
 ## Components
 
@@ -136,8 +180,8 @@ Next.js and TanStack deletion use the public identity client so a successful
 operation also notifies the reactive session owner. After success, the private
 query scope is retired synchronously before navigating home; Next also refreshes
 the server-rendered route. Refused deletion leaves the dialog, credentials,
-session, and private cache intact. The password field, confirmation controls,
-spacing, colors, and theme treatment retain the existing settings design.
+session, and private cache intact. The password field and confirmation controls use the shared settings form
+patterns; their error and pending behavior remains unchanged by visual changes.
 
 Profile edits in Next.js and TanStack use the public identity client and refresh
 canonical identity after a successful save, so the header and settings agree
@@ -157,9 +201,8 @@ after sign-out. The vendor's global list subscription is not used. Registration,
 rename, and deletion feedback/refetches belong to the initiating mounted account.
 An initial list request shows a matching skeleton; a failed request exposes retry
 and keeps any available rows. Empty text and counts appear only after a successful
-list result. The passkey card retains its controls and spacing, while a separate
-management hook owns its local state and operations within the existing file-size
-limits.
+list result. The passkey card retains its controls, while a separate management hook owns
+its local state and operations within the existing file-size limits.
 
 ### Authentication and query ownership
 
@@ -173,10 +216,9 @@ query-provider path.
 
 ### Architecture review changes, 2026-09-07
 
-- Filled destructive controls and their hover states use dark text in the dark
-  theme. This raises the shared foreground/background contrast from 3.67:1 to
-  5.22:1 while preserving the red background and the light theme's 5.28:1 pairing.
-  Buttons, badges, and native danger-intent surfaces share the same token.
+- Destructive controls use contrast-safe semantic foregrounds in both themes.
+  The visual overhaul recalibrates these shared tokens; the earlier account
+  review first established the dark-foreground requirement.
 
 - Authentication routes compose focused `TwoFactorForm` and `ResetPasswordForm`
   components. Routes own layout and framework search adaptation; forms own
@@ -226,12 +268,8 @@ query-provider path.
   in plain language across web, desktop, and mobile instead of exposing internal
   service and tenancy terminology.
 
-This review uses `design-taste-frontend` as requested. The design read is a
-preserved product interface for developers, using the existing restrained
-shadcn/Base UI and native primitives. The contextual dials are design variance 3,
-motion intensity 2, and visual density 5: predictable layout, state feedback,
-and ordinary application density. Marketing composition rules do not override
-the needs of billing, settings, admin, or native screens.
+The behavioral repairs below remain required through the visual overhaul.
+Their earlier preserve-only visual direction is superseded by the system above.
 
 - TanStack billing distinguishes a failed snapshot from a successful empty
   account, offers retry, and retains available data during refresh failures.
@@ -308,20 +346,19 @@ the needs of billing, settings, admin, or native screens.
   packages are described as included. English, French, and Arabic follow the
   same design and meaning.
 
-These changes preserve the existing palette, navigation, component vocabulary,
-and feature folders. Their purpose is accurate state, recovery, and ownership.
+### Shared controls
 
-**Button:** `h-9` default (not `h-10`), `rounded-md`, `gap-2`. Variants: `default` (primary), `outline` (border), `ghost` (hover accent), `secondary`. No `destructive` heavy color on idle — only on hover. `asChild` maps to Base UI `render` with `nativeButton={false}` when wrapping `<a>`.
+Buttons default to 40px high, with 36px small and 44px large variants. Filled,
+outline, ghost, secondary, and destructive treatments preserve visible focus,
+accessible pending names, and contrast. `asChild` maps to Base UI `render` with
+`nativeButton={false}` for links. Inputs use the shared border, surface, and ring
+tokens; every input has an associated label and local helper/error text.
 
-**Input:** `h-9`, `border-input`, `bg-background`, `focus:ring-ring`. No inner shadows.
-
-**Card:** `rounded-lg border bg-card`, `p-6` header, `p-6 pt-0` content. No shadow by default. `CardTitle` `text-base font-medium`, `CardDescription` `text-sm text-muted-foreground`.
-
-**Badge:** `rounded-full` for status, `rounded-md` for tech. `variant=secondary` for muted.
-
-**Dialog/Dropdown:** Portal + Positioner + Popup with `shadow-lg` and `animate-in` (150ms ease-out-quart).
-
-**Empty States:** Teach, don't just say "nothing". `EmptyTitle` + `EmptyDescription` with `max-w-[60ch]` and a primary action.
+Cards have 20/24px responsive interiors and an explicit heading level. Form
+sections use spacing and a separator instead of another box. Menus and selects
+have 36px rows, clear selected/highlighted states, and bounded scrolling. Dialogs
+and Sheets use portals, named layers, viewport margins, and scrollable content.
+Empty states explain what the user can do next after a successful empty read.
 
 Localized Next client pages now have a thin server route entrypoint that marks
 request-localized metadata as intentional dynamic work. The static single-app
@@ -340,13 +377,10 @@ Both packaging modes use that same boundary and retain their existing layout
 and interaction behavior. Desktop authentication and workspace file composition
 also has a dedicated identity module; generated desktop routes are unchanged.
 
-The shared authenticated web header uses its account menu for navigation below
-the extra-large breakpoint. Inline navigation has a shrinkable scroll region for
-long translated labels, so it cannot push the locale, theme, and account controls
-outside the viewport. The existing destinations and role checks stay the same.
-Organization selectors stack the name above the slug and wrap long values within
-the card. These repairs address measured tablet header overflow and mobile
-workspace overflow while retaining the semantic colors, controls, and states.
+The workspace rail and mobile Sheet preserve every supported destination and
+its role gate. Header controls have shrink protection; organization selectors
+stack names above slugs and wrap long values. These rules address the earlier
+tablet header and mobile workspace overflow findings within the new shell.
 
 Dashboard authorization stays in the server route. The request's identity is
 used for server rendering and matching initial hydration; subsequent renders
@@ -368,8 +402,8 @@ with billing. Database badges distinguish Postgres/Drizzle from Convex and omit
 database claims when no database is selected. Directory badges follow the
 selected server and agent capabilities.
 
-The existing semantic colors, type scale, section order, and responsive card
-layout are preserved. Without authentication, the primary action goes to the
+The overhaul preserves the section anchors and capability-aware content while
+replacing the old visual composition with the shared editorial landing layout. Without authentication, the primary action goes to the
 page's quick-start section. English, French, and Arabic copy describes the
 selected foundation without claiming a universal runtime or port count. Quick
 start shows the generated project's bootstrap and development scripts, with
@@ -422,18 +456,26 @@ not a device or real-server runtime claim. Permanent operation regressions and
 formatted-size checks complement that proof. Eve keeps the SDK's existing
 per-hook abort cleanup.
 
-## Motion
+## Motion and imagery
 
-- **Product:** 150–200ms, ease-out-quart. Hover `transition-colors`, focus `ring-2`, dialog `animate-in fade-in zoom-in 95%`. No page-load choreography.
-- **Brand:** Can have one well-orchestrated hero reveal (staggered `animate-in` on heading, sub, CTAs), but not scattered.
+Interactions use 150-200ms feedback for hover, focus, disclosure, and overlays.
+Only opacity and transforms animate. Reduced-motion disables nonessential
+animation, including skeleton/spinner motion; there is no page-load choreography
+or continuous decorative effect. Static product/code content supplies the landing
+visual. Any future screenshot must show the actual generated interface. Raster
+imagery is optional and must serve the content rather than fill empty space.
 
-## Imagery
+## Overhaul verification, 2026-09-07
 
-**Code is imagery.** No stock photos. Hero is a terminal: `bunx ghostinit create demo --yes --no-install` with syntax highlighting (muted = comment gray, primary = command white, accent = flag). If you must add an image, use a real screenshot of the generated monorepo (like t3.codes' updated-screenshot.webp), not a colored div.
-
-## Theme
-
-Dark is the scene: 2am, dim room, code. Light is a toggle for those who need it, not the hero. The `ThemeToggle` is in the header, not hidden.
+Source work includes the shared tokens and web primitives, self-hosted fonts,
+workspace shell, dashboard, settings, auth/recovery, and landing/feature
+presentation. Existing account ownership, cancellation, validation, and permission
+contracts remain release requirements. Static token contrast is measured above;
+the redesigned generated app is not yet browser-accepted. Verification must cover
+both themes, EN/FR/AR, RTL, desktop/tablet/mobile, keyboard interaction, all route
+states, and the real generated install/build paths. Earlier screenshots and
+passing checks establish the functional baseline only, not visual approval of
+this new design. Final evidence belongs in the frontend engineering records.
 
 ## Cross-Platform Consistency
 

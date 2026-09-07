@@ -52,7 +52,7 @@ export function CreateUserForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{translate("create.cardTitle")}</CardTitle>
+        <CardTitle as="h2">{translate("create.cardTitle")}</CardTitle>
         <CardDescription className="max-w-[65ch]">
           {translate("create.cardDescription")}
         </CardDescription>
@@ -121,7 +121,7 @@ export function CreateUserForm({
                 </span>
               )}
             </form.Subscribe>
-            <form.SubmitButton pendingLabel={translate("create.creatingPending")}>
+            <form.SubmitButton className="w-auto self-start" pendingLabel={translate("create.creatingPending")}>
               {translate("create.submit")}
             </form.SubmitButton>
           </Form>
@@ -149,25 +149,23 @@ export function nextAdminCreateUserPage(options: AdminTemplateOptions): Template
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { AdminCreateUserFeature, useAdminUsersTranslations } from "@/features/admin-users";
 
 export default function AdminCreateUserPage(): React.JSX.Element {
   const router = useRouter();
   const translate = useAdminUsersTranslations();
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{translate("create.shellTitle")}</h1>
-          <p className="max-w-[65ch] text-sm text-muted-foreground">{translate("create.shellDescription")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{translate("create.shellTitle")}</h1>
+          <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{translate("create.shellDescription")}</p>
         </div>
-        <Button variant="ghost" size="sm" render={<Link href="/admin/users" />} nativeButton={false}>
+        <Button className="w-auto self-start" variant="outline" size="sm" render={<Link href="/admin/users" />} nativeButton={false}>
           {translate("create.back")}
         </Button>
       </header>
-      <Separator />
-      <AdminCreateUserFeature onCreated={() => router.push("/admin/users")} />
+      <div className="w-full max-w-2xl"><AdminCreateUserFeature onCreated={() => router.push("/admin/users")} /></div>
     </main>
   );
 }

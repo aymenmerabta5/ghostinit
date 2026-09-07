@@ -21,7 +21,7 @@ export const Route = createFileRoute("/settings/workspace")({
 });
 
 function WorkspacePage(): React.JSX.Element {
-  return <main className="mx-auto w-full max-w-6xl p-6"><IdentityWorkspace /></main>;
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10"><IdentityWorkspace /></main>;
 }
 `;
   }

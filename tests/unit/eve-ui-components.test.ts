@@ -135,11 +135,10 @@ describe("Eve chat component inventory", () => {
           'import { AgentTranscript } from "@/features/agent/agent-transcript"',
         );
         expect(route).toContain('import { AgentPrompt } from "@/features/agent/agent-prompt"');
-        expect(route).toContain(
-          `<AgentHeader agentRoot="${mode === "monorepo" ? "apps/eve/agent/" : "agent/"}" />`,
-        );
+        expect(route).toContain("<AgentHeader />");
         expect(header).toContain('useSurfaceTranslations("agent")');
-        expect(header).toContain('t("webDescription", { agentRoot })');
+        expect(header).toContain('t("webDescription")');
+        expect(header).not.toContain("agentRoot");
       });
     }
   }

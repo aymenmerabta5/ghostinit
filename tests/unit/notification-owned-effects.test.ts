@@ -79,6 +79,7 @@ function pageHarness(
           "EmptyHeader",
           "EmptyTitle",
           "EmptyDescription",
+          "NotificationComposer",
         ].map((name) => [name, name]),
       ),
       Platform: { OS: "ios" },

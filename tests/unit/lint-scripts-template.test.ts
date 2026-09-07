@@ -668,8 +668,8 @@ describe("emitted lint scripts", () => {
     const generated = generateProjectFiles(resolution.config);
     for (const file of generated) writeFixtureFile(directory, file.path, file.content);
 
-    const header = generated.find(
-      ({ path }) => path === "apps/web/src/components/header.tsx",
+    const shell = generated.find(
+      ({ path }) => path === "apps/web/src/components/app-shell.tsx",
     )?.content;
     const actions = generated.find(
       ({ path }) => path === "apps/web/src/components/header-actions.tsx",
@@ -677,7 +677,7 @@ describe("emitted lint scripts", () => {
     const menu = generated.find(
       ({ path }) => path === "apps/web/src/components/header-user-menu.tsx",
     )?.content;
-    expect(header).toContain("<HeaderActions");
+    expect(shell).toContain("<HeaderActions");
     expect(actions).toContain("<LocaleSwitcher");
     expect(actions).toContain("<HeaderUserMenu");
     expect(menu).toContain('t("users")');
@@ -686,6 +686,74 @@ describe("emitted lint scripts", () => {
     const navigation = runScript(directory, "check-navigation-imports.cjs");
     expect(navigation.exitCode, navigation.output).toBe(0);
     expect(navigation.output).toContain("I18n runtime check passed");
+    const brokenCompositions = [
+      {
+        path: "apps/web/src/app/layout.tsx",
+        mutate: (source: string) =>
+          source.replaceAll("<AppShell>", "<>").replaceAll("</AppShell>", "</>"),
+        error: "Root layout must mount AppShell exactly once",
+      },
+      {
+        path: "apps/web/src/components/app-shell.tsx",
+        mutate: (source: string) =>
+          source
+            .replace("<Header workspace=", "<section workspace=")
+            .replace("</Header>", "</section>"),
+        error: "AppShell must mount Header exactly once",
+      },
+      {
+        path: "apps/web/src/components/app-shell.tsx",
+        mutate: (source: string) => source.replace("<WorkspaceSidebar ", "<div "),
+        error: "AppShell must mount WorkspaceSidebar exactly once",
+      },
+      {
+        path: "apps/web/src/components/workspace-sidebar.tsx",
+        mutate: (source: string) =>
+          source.replace("<WorkspaceNavigation ", "<div ") + "\n// <WorkspaceNavigation />\n",
+        error: "Workspace sidebar must mount WorkspaceNavigation exactly once",
+      },
+      {
+        path: "apps/web/src/components/workspace-navigation-trigger.tsx",
+        mutate: (source: string) => source.replace("<WorkspaceNavigation ", "<div "),
+        error: "Workspace trigger must mount WorkspaceNavigation exactly once",
+      },
+      {
+        path: "apps/web/src/components/app-shell.tsx",
+        mutate: (source: string) =>
+          source.replace("canonical.currentRequest?.user", "session.user"),
+        error: "Canonical workspace identity is missing canonical.currentRequest?.user",
+      },
+      {
+        path: "apps/web/src/components/header-actions.tsx",
+        mutate: (source: string) =>
+          source.replace('<LocaleSwitcher className="', '<LocaleSwitcher className="hidden '),
+        error: "Locale switcher must remain reachable on mobile",
+      },
+      {
+        path: "apps/web/src/components/workspace-navigation-trigger.tsx",
+        mutate: (source: string) => source.replace('t("openNavigation")', '"Navigation"'),
+        error: 'Workspace trigger is missing t("openNavigation")',
+      },
+      {
+        path: "apps/web/src/components/workspace-navigation.tsx",
+        mutate: (source: string) =>
+          source.replace('label: "dashboard"', 'label: "missingTranslation"'),
+        error: "en header catalog is missing missingTranslation",
+      },
+    ];
+    for (const broken of brokenCompositions) {
+      const original = generated.find(({ path }) => path === broken.path)!.content;
+      const changed = broken.mutate(original);
+      expect(changed, broken.path).not.toBe(original);
+      try {
+        writeFixtureFile(directory, broken.path, changed);
+        const result = runScript(directory, "check-navigation-imports.cjs");
+        expect(result.exitCode, `${broken.path}\n${result.output}`).toBe(1);
+        expect(result.output).toContain(broken.error);
+      } finally {
+        writeFixtureFile(directory, broken.path, original);
+      }
+    }
   });
 
   test("cookie-only i18n requires a mounted provider and complete catalogs", () => {

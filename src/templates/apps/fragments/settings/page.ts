@@ -17,7 +17,9 @@ export function settingsPageContent(
     ? `import { PasswordCard } from "./components/password-card.js";
 import { TwoFactorCard } from "./components/two-factor-card.js";`
     : "";
-  const passwordCards = hasEmail ? "      <PasswordCard />\n      <TwoFactorCard />" : "";
+  const passwordCards = hasEmail
+    ? '<div className="grid items-start gap-6 xl:grid-cols-2"><PasswordCard /><TwoFactorCard /></div>'
+    : "";
   const passkeyImport = hasPasskey
     ? `import { PasskeyCard } from "./components/passkey-card.js";`
     : "";
@@ -48,7 +50,7 @@ async function SettingsData(): Promise<React.JSX.Element> {
     teamId: principal.activeTeamId,
   };
   const initialSessions = await application.identity.sessions.list();
-  return <RequestOwnedSnapshot scope={initialScope}><div className="flex flex-col gap-6 max-w-2xl">
+  return <RequestOwnedSnapshot scope={initialScope}><div className="flex min-w-0 flex-col gap-6">
     <ProfileCard initialUser={me.user} />
 ${passwordCards}
 ${passkeyCard}
@@ -71,7 +73,7 @@ import { DangerZoneCard } from "./components/danger-zone-card.js";
 ${sessionsImport}
 export default function SettingsPage(): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-6 max-w-2xl">
+    <div className="flex min-w-0 flex-col gap-6">
       <ProfileCard />
 ${passwordCards}
 ${passkeyCard}

@@ -117,6 +117,9 @@ describe("generated i18n runtime matrix", () => {
             read(files, `${root}/components/header.tsx`),
             read(files, `${root}/components/header-actions.tsx`),
             read(files, `${root}/components/header-user-menu.tsx`),
+            read(files, `${root}/components/app-shell.tsx`),
+            read(files, `${root}/components/workspace-navigation.tsx`),
+            read(files, `${root}/components/workspace-navigation-trigger.tsx`),
           ].join("\n");
           const switcherPath = `${root}/components/locale-switcher.tsx`;
           const switcher = read(files, switcherPath);
@@ -190,19 +193,15 @@ describe("generated i18n runtime matrix", () => {
             }
 
             expect(header).toContain("<LocaleSwitcher");
-            expect(header).toContain('className="w-20 shrink-0 sm:w-32"');
+            expect(header).toContain('className="w-20 shrink-0 sm:w-28"');
             expect(header).not.toContain('<LocaleSwitcher className="hidden');
-            for (const key of [
-              "dashboard",
-              "settings",
-              "admin",
-              "users",
-              "signIn",
-              "signUp",
-              "signOut",
-            ]) {
+            for (const key of ["dashboard", "settings", "users", "signIn", "signUp", "signOut"]) {
               expect(header).toContain(`t(${JSON.stringify(key)})`);
             }
+            const navigation = read(files, `${root}/components/workspace-navigation.tsx`);
+            expect(navigation).toContain('label: "admin"');
+            expect(navigation).toContain("{t(label)}");
+            expect(navigation).toContain('item.label !== "admin" || isAdmin');
             expect(switcher).toContain("<Select");
             expect(switcher).toContain("<SelectGroup>");
             expect(switcher).not.toContain("<select");

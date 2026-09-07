@@ -46,6 +46,7 @@ import {
 } from "../tests/helpers/process-tree.js";
 import { createTemporaryWorkspace } from "../tests/helpers/temporary-workspace.js";
 import { stageWorkerBindingFiles } from "../tests/helpers/worker-binding-files.js";
+import { hasSelfHostedFontPolicy } from "../tests/helpers/font-csp.js";
 import { WorkerPreviewReadiness } from "./worker-preview-readiness.js";
 import {
   isPublicPosthogProjectToken,
@@ -1695,8 +1696,7 @@ export async function hasValidWorkerResponse(
       csp.includes("frame-ancestors 'none'"));
   const hasProductionCsp =
     !csp.includes("'unsafe-eval'") &&
-    csp.includes("https://fonts.googleapis.com") &&
-    csp.includes("https://fonts.gstatic.com") &&
+    hasSelfHostedFontPolicy(csp) &&
     !csp.includes("*.convex.") &&
     (worker.expectedCspSources ?? []).every((source) => csp.includes(source));
   const hasWorkerHeaders =

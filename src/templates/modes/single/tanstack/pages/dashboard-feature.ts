@@ -25,7 +25,7 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardPage(): React.JSX.Element {
   const { session } = Route.useRouteContext();
-  return <main className="min-h-screen bg-background text-foreground">
+  return <main className="min-h-[calc(100dvh-4rem)] bg-background text-foreground">
     <DashboardOverview user={session.user} />
   </main>;
 }

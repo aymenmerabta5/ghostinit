@@ -5,7 +5,6 @@ function featureIndexContent(): string {
   return `"use client";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { CreateUserForm } from "./components/create-user-form";
 import { AdminUserFilters } from "./components/filters";
 import { AdminUsersResults } from "./components/user-results";
@@ -27,15 +26,15 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
   const admin = useAdminUsers(initialData);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{translate("list.title")}</h1>
-          <p className="max-w-[65ch] text-sm text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">{translate("list.title")}</h1>
+          <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">
             {translate("list.description")} {formatAdminUsersAccountCount(translate, admin.total, admin.totalIsExact)}
           </p>
         </div>
-        <Button render={<a href="/admin/users/create" />} nativeButton={false}>
+        <Button className="w-auto self-start" render={<a href="/admin/users/create" />} nativeButton={false}>
           {translate("list.create")}
         </Button>
       </header>
@@ -46,7 +45,6 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
         onApply={admin.applyFilters}
         onClear={admin.clearFilters}
       />
-      <Separator />
       <AdminUsersResults admin={admin} translate={translate} />
     </main>
   );

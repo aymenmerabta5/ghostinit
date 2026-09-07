@@ -150,9 +150,9 @@ const allowsDevelopmentDiagnostics = import.meta.env.DEV;
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'" + (allowsDevelopmentDiagnostics ? " 'unsafe-eval'" : ""),
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
-  "font-src 'self' https://fonts.gstatic.com",
+  "font-src 'self'",
   "connect-src 'self' https://us.i.posthog.com" + convexConnectSources + (allowsDevelopmentDiagnostics ? " ws: wss:" : ""),
   "object-src 'none'",
   "frame-ancestors 'none'",

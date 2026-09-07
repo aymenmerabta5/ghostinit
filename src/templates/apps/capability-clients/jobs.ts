@@ -94,13 +94,15 @@ ${i18n.hookLine}
     }, () => setError(${i18n.value("cancelError", "Cancel failed")}));
   }
 
-  return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-    <header><h1 className="text-2xl font-semibold">${i18n.child("title", "Background jobs")}</h1><p className="text-sm text-muted-foreground">${i18n.child("description", "Enqueue and inspect actor-owned runs through the shared scheduler.")}</p></header>
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">${i18n.child("title", "Background jobs")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">${i18n.child("description", "Run background work and check its progress.")}</p></header>
     {isPending ? <p role="status">${i18n.child("pending", "Working…")}</p> : null}
-    <Card><CardHeader><CardTitle>${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-echo-payload">${i18n.child("echoPayload", "Echo payload")}</FieldLabel><Input disabled={isPending} id="job-echo-payload" value={message} onChange={(event) => setMessage(event.target.value)} /></Field><Button disabled={isPending} aria-busy={isPending} className="w-fit" onClick={enqueue}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
-    <Card><CardHeader><CardTitle>${i18n.child("refresh", "Refresh")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-run-id">${i18n.child("runId", "Run ID")}</FieldLabel><Input disabled={isPending} id="job-run-id" value={runId} onChange={(event) => setRunId(event.target.value)} /></Field><div className="flex gap-2"><Button disabled={isPending} aria-busy={isPending} variant="outline" onClick={refresh}>${i18n.child("refresh", "Refresh")}</Button><Button disabled={isPending} aria-busy={isPending} variant="destructive" onClick={cancel}>${i18n.child("cancel", "Cancel")}</Button></div></CardContent></Card>
+    <div className="grid items-start gap-6 xl:grid-cols-2">
+    <Card><CardHeader><CardTitle as="h2">${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-echo-payload">${i18n.child("echoPayload", "Echo payload")}</FieldLabel><Input disabled={isPending} id="job-echo-payload" value={message} onChange={(event) => setMessage(event.target.value)} /></Field><Button disabled={isPending} aria-busy={isPending} className="w-fit" onClick={enqueue}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
+    <Card><CardHeader><CardTitle as="h2">${i18n.child("refresh", "Refresh")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-run-id">${i18n.child("runId", "Run ID")}</FieldLabel><Input disabled={isPending} id="job-run-id" value={runId} onChange={(event) => setRunId(event.target.value)} /></Field><div className="flex flex-wrap gap-2"><Button disabled={isPending} aria-busy={isPending} variant="outline" onClick={refresh}>${i18n.child("refresh", "Refresh")}</Button><Button disabled={isPending} aria-busy={isPending} variant="destructive" onClick={cancel}>${i18n.child("cancel", "Cancel")}</Button></div></CardContent></Card>
+    </div>
     {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {result !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Job result")}</CardTitle></CardHeader><CardContent><pre className="overflow-auto rounded bg-muted p-4 text-sm">{JSON.stringify(result, null, 2)}</pre></CardContent></Card> : null}
+    {result !== null ? <Card><CardHeader><CardTitle as="h2">${i18n.child("result", "Job result")}</CardTitle></CardHeader><CardContent><pre className="max-h-96 overflow-auto rounded-lg bg-muted/50 p-4 text-xs leading-6">{JSON.stringify(result, null, 2)}</pre></CardContent></Card> : null}
   </main>;
 }
 `;

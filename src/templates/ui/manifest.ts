@@ -45,7 +45,13 @@ function packageManifestContent(adapters: readonly UiAdapterId[]): string {
         clsx: `^${v.ui.clsx}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
-        ...(hasWeb ? { "tw-animate-css": `^${v.uniwind["tw-animate-css"]}` } : {}),
+        ...(hasWeb
+          ? {
+              "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
+              "@fontsource-variable/geist": v.ui["@fontsource-variable/geist"],
+              "@fontsource-variable/geist-mono": v.ui["@fontsource-variable/geist-mono"],
+            }
+          : {}),
       },
       devDependencies: { typescript: `^${v.typescript.typescript}` },
     }),

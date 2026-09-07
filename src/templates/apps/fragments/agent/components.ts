@@ -6,14 +6,14 @@ import type * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-export function AgentHeader({ agentRoot }: { agentRoot: string }): React.JSX.Element {
+export function AgentHeader(): React.JSX.Element {
   const t = useSurfaceTranslations("agent");
   return <div className="flex flex-col gap-3">
-    <div className="flex items-center gap-3">
-      <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-      <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {t("durableBadge")}</span></Badge>
+    <div className="flex flex-wrap items-center gap-3">
+      <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
+      <Badge variant="secondary">{t("durableBadge")}</Badge>
     </div>
-    <p className="text-sm text-muted-foreground max-w-[65ch] leading-relaxed">{t("webDescription", { agentRoot })}</p>
+    <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("webDescription")}</p>
   </div>;
 }
 `;
@@ -34,7 +34,7 @@ interface AgentMessage {
 
 export function AgentTranscript({ messages, streaming }: { messages: readonly AgentMessage[]; streaming: boolean }): React.JSX.Element {
   const t = useSurfaceTranslations("agent");
-  return <MessageScrollerProvider autoScroll><MessageScroller className="max-h-96"><MessageScrollerViewport><MessageScrollerContent role="log" aria-live="polite" aria-label={t("conversationLabel")}>
+  return <MessageScrollerProvider autoScroll><MessageScroller className="min-h-64 max-h-[52svh]"><MessageScrollerViewport><MessageScrollerContent role="log" aria-live="polite" aria-label={t("conversationLabel")}>
     {messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("empty")}</EmptyTitle><EmptyDescription>{t("conversationDescription")}</EmptyDescription></EmptyHeader></Empty> : messages.map((message) => (
       <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}><Message align={message.role === "user" ? "end" : "start"}><MessageContent><MessageHeader>{message.role}</MessageHeader><Bubble align={message.role === "user" ? "end" : "start"} variant={message.role === "user" ? "default" : "muted"}><BubbleContent>{message.parts.map((part, index) => part.type === "text" ? <p key={message.id + "-text-" + String(index)}>{part.text}</p> : null)}</BubbleContent></Bubble></MessageContent></Message></MessageScrollerItem>
     ))}
@@ -56,8 +56,8 @@ export function AgentPrompt({ busy, onSend }: { busy: boolean; onSend(input: str
   const t = useSurfaceTranslations("agent");
   const [input, setInput] = React.useState("");
   return <form onSubmit={(event) => { event.preventDefault(); if (!input.trim() || busy) return; void onSend(input); setInput(""); }}>
-    <FieldGroup><Field><FieldLabel className="sr-only" htmlFor="agent-message">{t("messageLabel")}</FieldLabel>
-      <div className="flex gap-2"><Input id="agent-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={busy ? t("workingPlaceholder") : t("messagePlaceholder")} disabled={busy} className="flex-1" /><Button type="submit" disabled={busy || !input.trim()}>{busy ? t("working") : t("send")}</Button></div>
+    <FieldGroup><Field><FieldLabel htmlFor="agent-message">{t("messageLabel")}</FieldLabel>
+      <div className="flex gap-3"><Input id="agent-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={busy ? t("workingPlaceholder") : t("messagePlaceholder")} disabled={busy} className="min-w-0 flex-1" /><Button className="shrink-0" type="submit" disabled={busy || !input.trim()}>{busy ? t("working") : t("send")}</Button></div>
     </Field></FieldGroup>
   </form>;
 }

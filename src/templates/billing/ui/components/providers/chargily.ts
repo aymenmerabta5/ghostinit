@@ -20,7 +20,7 @@ export function ChargilyPanel(): React.JSX.Element {
   const chargilySubs = subscriptions.filter((s) => s.provider === "chargily");
   return (
     <Card>
-      <CardHeader><div className="flex items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle>{t("chargilyTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("chargilyDescription")}</CardDescription></div><Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> chargily</span></Badge></div></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle as="h2">{t("chargilyTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("chargilyDescription")}</CardDescription></div><Badge variant="secondary">chargily</Badge></div></CardHeader>
       <CardContent className="flex flex-col gap-6">
         <Alert><AlertTitle>{t("algeriaMarketTitle")}</AlertTitle><AlertDescription className="max-w-[70ch]">{t("algeriaMarketDescription")}</AlertDescription></Alert>
         <Alert><AlertTitle>{t("serverOnlyTitle")}</AlertTitle><AlertDescription className="max-w-[70ch]">{t("chargilyServerDescription")}</AlertDescription></Alert>

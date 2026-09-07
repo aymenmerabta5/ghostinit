@@ -35,6 +35,7 @@ import {
   verifyNextDevelopmentConfig,
 } from "./e2e-next-config-stability.js";
 import { hasBroadWebSocketCspSource } from "./e2e-csp.js";
+import { hasSelfHostedFontPolicy } from "../helpers/font-csp.js";
 import { verifyNestedProductionApiRoutes } from "./e2e-api-route-dispatch.js";
 import { verifyAuthenticatedPdfTemplates, verifyPdfNextPreload } from "./e2e-pdf-runtime.js";
 import {
@@ -220,6 +221,10 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
           "script-src 'self' 'unsafe-inline'",
         );
         expect(csp, `${label}: production CSP must not allow eval`).not.toContain("'unsafe-eval'");
+        expect(
+          hasSelfHostedFontPolicy(csp ?? ""),
+          `${label}: generated fonts must remain self-hosted`,
+        ).toBe(true);
         expect(
           hasBroadWebSocketCspSource(csp ?? ""),
           `${label}: production CSP must not allow broad dev sockets`,

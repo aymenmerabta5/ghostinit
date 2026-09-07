@@ -162,6 +162,9 @@ describe("generated Query and oRPC foundation", () => {
       expect(router).not.toContain("setupRouterSsrQueryIntegration");
       expect(router).not.toContain("queryStream");
       expect(`${provider}\n${root}`).not.toContain('defaultTheme="light"');
+      const theme = read(files, `${base}src/components/theme-provider.tsx`);
+      expect(theme).toContain('defaultTheme="light"');
+      expect(provider).toContain("<ThemeProvider>");
     }
   });
 

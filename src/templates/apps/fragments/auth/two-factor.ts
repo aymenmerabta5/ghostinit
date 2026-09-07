@@ -7,6 +7,7 @@ export function twoFactorPageContent(router: RouterType): string {
 import type * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { TwoFactorForm } from "@/components/auth/two-factor-form";
+import { ArrowLeft } from "lucide-react";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export const Route = createFileRoute("/2fa")({ component: TwoFactorPage });`
@@ -14,21 +15,22 @@ export const Route = createFileRoute("/2fa")({ component: TwoFactorPage });`
 import type * as React from "react";
 import Link from "next/link";
 import { TwoFactorForm } from "@/components/auth/two-factor-form";
+import { ArrowLeft } from "lucide-react";
 import { useSurfaceTranslations } from "@/lib/translations";`;
   const backHome = isTanstack
-    ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("twoFactor.backHome")}</Link>`
-    : `<Link href="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("twoFactor.backHome")}</Link>`;
+    ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />{t("twoFactor.backHome")}</Link>`
+    : `<Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />{t("twoFactor.backHome")}</Link>`;
 
   return `${imports}
 
 ${isTanstack ? "function" : "export default function"} TwoFactorPage(): React.JSX.Element {
   const t = useSurfaceTranslations("auth");
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="flex w-full max-w-[420px] flex-col gap-6">
+    <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14">
+      <div className="flex w-full max-w-[440px] flex-col gap-8">
         ${backHome}
         <TwoFactorForm />
-        <p className="mx-auto max-w-[65ch] text-center text-xs text-muted-foreground">{t("twoFactor.securityNote")}</p>
+        <p className="mx-auto max-w-[48ch] text-center text-xs leading-5 text-muted-foreground">{t("twoFactor.securityNote")}</p>
       </div>
     </main>
   );
@@ -92,13 +94,13 @@ ${navigate}
   });
 
   return (
-        <Card>
-          <CardHeader className="gap-3">
-            <div className="flex items-center gap-2"><Badge variant="secondary">{t("twoFactor.badge")}</Badge><span className="text-xs text-muted-foreground">{t("twoFactor.securitySummary")}</span></div>
-            <CardTitle as="h1" className="text-2xl tracking-tight">{t("twoFactor.title")}</CardTitle>
+        <Card className="border-0 bg-transparent p-0 shadow-none">
+          <CardHeader className="gap-3 p-0 pb-6 sm:p-0 sm:pb-6">
+            <div className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{t("twoFactor.badge")}</Badge><span className="text-xs leading-5 text-muted-foreground">{t("twoFactor.securitySummary")}</span></div>
+            <CardTitle as="h1" className="text-3xl tracking-tight">{t("twoFactor.title")}</CardTitle>
             <CardDescription className="max-w-[60ch]">{t(useBackupCode ? "twoFactor.backupCodeDescription" : "twoFactor.description")}</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-6">
+          <CardContent className="flex flex-col gap-6 p-0 sm:p-0">
             {error ? <Alert variant="destructive"><AlertTitle>{t("twoFactor.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
             <form.AppForm>
               <Form form={form} className="flex flex-col gap-6">
@@ -112,18 +114,18 @@ ${navigate}
                     {(field) => <field.CheckboxField label={t("twoFactor.trustDeviceLabel")} description={t("twoFactor.trustDeviceDescription")} />}
                   </form.AppField>
                 </FieldGroup>
-                <form.SubmitButton className="w-full" pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.submit")}</form.SubmitButton>
+                <form.SubmitButton className="h-10 w-full" pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.submit")}</form.SubmitButton>
               </Form>
             </form.AppForm>
             <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => <Button variant="ghost" disabled={isSubmitting} onClick={() => {
+              {(isSubmitting) => <Button className="w-auto self-start" variant="ghost" disabled={isSubmitting} onClick={() => {
                 setUseBackupCode((current) => !current);
                 setError(null);
                 form.reset();
               }}>{t(useBackupCode ? "twoFactor.useAuthenticatorCode" : "twoFactor.useBackupCode")}</Button>}
             </form.Subscribe>
           </CardContent>
-          <CardFooter className="flex-col gap-3"><div className="flex w-full justify-between text-sm">${footer}</div></CardFooter>
+          <CardFooter className="mt-6 flex-col gap-3 border-t border-border/70 p-0 pt-5 sm:p-0 sm:pt-5"><div className="flex w-full flex-wrap justify-between gap-3 text-sm">${footer}</div></CardFooter>
         </Card>
   );
 }

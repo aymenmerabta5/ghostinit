@@ -280,6 +280,15 @@ describe("generated dependency and file closure", () => {
         const provider = files.find((entry) => entry.path === providerPath)?.content ?? "";
         const header =
           files.find((entry) => entry.path === `${prefix}src/components/header.tsx`)?.content ?? "";
+        const shell =
+          files.find((entry) => entry.path === `${prefix}src/components/app-shell.tsx`)?.content ??
+          "";
+        const sidebar =
+          files.find((entry) => entry.path === `${prefix}src/components/workspace-sidebar.tsx`)
+            ?.content ?? "";
+        const navigation =
+          files.find((entry) => entry.path === `${prefix}src/components/workspace-navigation.tsx`)
+            ?.content ?? "";
         const userMenu =
           files.find((entry) => entry.path === `${prefix}src/components/header-user-menu.tsx`)
             ?.content ?? "";
@@ -290,10 +299,16 @@ describe("generated dependency and file closure", () => {
         expect(provider).toContain("authClient.convex.token");
         expect(provider).not.toContain("ConvexBetterAuthProvider");
         expect(provider).not.toContain("as unknown as");
-        expect(header).toContain("useQuery(api.users.me");
-        expect(header).toContain('appUser?.role === "admin"');
-        expect(header).toContain("role: appUser?.role ?? null");
-        expect(header).not.toContain('user?.role === "admin"');
+        expect(header).not.toMatch(/useQuery\(|useAuth\(|api\.users/);
+        expect(shell).toContain("const canonical = useQueryAuthSession()");
+        expect(shell).toContain(
+          "canonical?.hasCanonicalApi ? canonical.currentRequest?.user : session.user",
+        );
+        expect(shell).toContain("const user = pending || error ? null : currentUser ?? null");
+        expect(shell).toContain("<HeaderActions user={user}");
+        expect(sidebar).toContain('isAdmin={user?.role === "admin"}');
+        expect(navigation).toContain('item.label !== "admin" || isAdmin');
+        expect(`${header}\n${shell}\n${sidebar}`).not.toContain("useQuery(api.users.me");
         expect(userMenu).toContain('user?.role === "admin"');
       }
     }
@@ -305,9 +320,9 @@ describe("generated dependency and file closure", () => {
       billing: ["polar"],
       apps: ["web"],
     });
-    expect(postgres.find((entry) => entry.path === "src/components/header.tsx")?.content).toContain(
-      'user?.role === "admin"',
-    );
+    expect(
+      postgres.find((entry) => entry.path === "src/components/workspace-sidebar.tsx")?.content,
+    ).toContain('isAdmin={user?.role === "admin"}');
   });
 
   test("TanStack Convex Polar installs only its framework-neutral SDK", () => {

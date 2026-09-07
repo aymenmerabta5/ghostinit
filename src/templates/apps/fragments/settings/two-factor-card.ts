@@ -90,8 +90,8 @@ export function TwoFactorCard(): React.JSX.Element {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">{t("twoFactor.title")}</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle as="h2">{t("twoFactor.title")}</CardTitle>
           <Badge variant={enabled ? "secondary" : "outline"}>
             {enabled ? t("twoFactor.enabled") : t("twoFactor.disabled")}
           </Badge>
@@ -104,13 +104,13 @@ export function TwoFactorCard(): React.JSX.Element {
           <disableForm.AppForm><Form form={disableForm} className="flex flex-col gap-4">
             <p className="max-w-[65ch] text-sm text-muted-foreground">{t("twoFactor.enabledDescription")}</p>
             <FieldGroup><disableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</disableForm.AppField></FieldGroup>
-            <disableForm.SubmitButton variant="outline" pendingLabel={t("twoFactor.disabling")}>{t("twoFactor.disable")}</disableForm.SubmitButton>
+            <disableForm.SubmitButton className="w-auto self-start" variant="outline" pendingLabel={t("twoFactor.disabling")}>{t("twoFactor.disable")}</disableForm.SubmitButton>
           </Form></disableForm.AppForm>
         ) : !totpUri ? (
           <enableForm.AppForm><Form form={enableForm} className="flex flex-col gap-4">
             <p className="max-w-[65ch] text-sm text-muted-foreground">{t("twoFactor.enableDescription")}</p>
             <FieldGroup><enableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</enableForm.AppField></FieldGroup>
-            <enableForm.SubmitButton pendingLabel={t("twoFactor.preparing")}>{t("twoFactor.enable")}</enableForm.SubmitButton>
+            <enableForm.SubmitButton className="w-auto self-start" pendingLabel={t("twoFactor.preparing")}>{t("twoFactor.enable")}</enableForm.SubmitButton>
           </Form></enableForm.AppForm>
         ) : (
           <verifyForm.AppForm><Form form={verifyForm} className="flex flex-col gap-4">
@@ -122,7 +122,7 @@ export function TwoFactorCard(): React.JSX.Element {
               <p className="max-w-[60ch] text-xs text-muted-foreground">{t("twoFactor.backupCodesDescription")}</p>
             </div> : null}
             <FieldGroup><verifyForm.AppField name="code">{(field) => <field.OtpField label={t("twoFactor.codeLabel")} description={t("twoFactor.codeDescription")} placeholder="000000" required length={6} />}</verifyForm.AppField></FieldGroup>
-            <verifyForm.SubmitButton pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.verify")}</verifyForm.SubmitButton>
+            <verifyForm.SubmitButton className="w-auto self-start" pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.verify")}</verifyForm.SubmitButton>
           </Form></verifyForm.AppForm>
         )}
       </CardContent>

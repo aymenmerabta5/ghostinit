@@ -6,6 +6,7 @@ import type { ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import {
   oklchDarkTokens,
+  oklchLightTokens,
   semanticThemeCssContent,
 } from "../../src/templates/apps/fragments/css.js";
 import { webUiFiles } from "../../src/templates/apps/fragments/web-ui/index.js";
@@ -66,7 +67,7 @@ function runRtlGate(directory: string): { exitCode: number; output: string } {
   };
 }
 
-describe("shared dark-first design and RTL contract", () => {
+describe("shared light-first design and RTL contract", () => {
   test("single and package modes render the exact same semantic token source", () => {
     const shared = semanticThemeCssContent();
     const packageTheme = themeCssContent();
@@ -74,16 +75,25 @@ describe("shared dark-first design and RTL contract", () => {
 
     expect(packageTheme).toBe(shared);
     expect(singleTheme).toContain(shared);
-    expect(shared.startsWith(":root,\n.dark {")).toBe(true);
-    expect(oklchDarkTokens).toContain("--background: oklch(0.09 0.01 264);");
-    expect(oklchDarkTokens).toContain("--foreground: oklch(0.98 0.005 264);");
-    expect(oklchDarkTokens).toContain("--card: oklch(0.13 0.01 264);");
-    expect(oklchDarkTokens).toContain("--primary: oklch(0.65 0.22 264);");
-    expect(oklchDarkTokens).toContain("--border: oklch(0.22 0.01 264);");
-    expect(shared).toContain("--background: oklch(0.99 0.005 264);");
-    expect(shared).toContain("--foreground: oklch(0.14 0.01 264);");
-    expect(shared).toContain("--primary: oklch(0.55 0.22 264);");
-    expect(shared).toContain("--radius: 0.5rem;");
+    expect(shared.startsWith(":root,\n.light {")).toBe(true);
+    expect(shared).toContain(oklchLightTokens);
+    expect(shared).toContain(oklchDarkTokens);
+    expect(oklchDarkTokens.startsWith(".dark {")).toBe(true);
+    expect(oklchDarkTokens).toContain("--background: oklch(0.1949 0.0155 261.6);");
+    expect(oklchDarkTokens).toContain("--foreground: oklch(0.9598 0.0091 258.3);");
+    expect(oklchDarkTokens).toContain("--card: oklch(0.2374 0.0195 258.4);");
+    expect(oklchDarkTokens).toContain("--popover: oklch(0.2860 0.0255 255.7);");
+    expect(oklchDarkTokens).toContain("--primary: oklch(0.7879 0.1066 266.9);");
+    expect(oklchDarkTokens).toContain("--border: oklch(0.3697 0.0418 260.8);");
+    expect(oklchLightTokens).toContain("--background: oklch(0.9759 0.0029 264.5);");
+    expect(oklchLightTokens).toContain("--foreground: oklch(0.2493 0.0114 278.0);");
+    expect(oklchLightTokens).toContain("--card: oklch(0.9965 0.0017 247.8);");
+    expect(oklchLightTokens).toContain("--primary: oklch(0.5084 0.2059 266.9);");
+    expect(shared).toContain("--radius: 0.75rem;");
+    expect(shared).toContain("--radius-sm: calc(var(--radius) - 6px);");
+    expect(shared).toContain("--radius-md: calc(var(--radius) - 4px);");
+    expect(shared).toContain("--radius-lg: var(--radius);");
+    expect(shared).toContain("--radius-xl: calc(var(--radius) + 4px);");
     expect(shared).toContain(
       '--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;',
     );
@@ -91,7 +101,7 @@ describe("shared dark-first design and RTL contract", () => {
     expect(shared).not.toMatch(/#(?:000|fff)\b/i);
   });
 
-  test("portable theme and base primitives contain no decorative elevation drift", () => {
+  test("portable theme and primitives use the approved elevation and layer scale", () => {
     const theme = themeCssContent();
     const primitives = primitivesFiles()
       .map((template) => template.content)
@@ -107,18 +117,54 @@ describe("shared dark-first design and RTL contract", () => {
     expect(theme).not.toContain("DM Sans");
     expect(primitives).not.toContain("shadow-sm");
     expect(primitives).not.toContain("rounded-xl");
-    expect(primitives).toContain('cn("rounded-lg border bg-card text-card-foreground"');
+    expect(primitives).toContain(
+      'cn("rounded-lg border border-border bg-card text-card-foreground shadow-surface"',
+    );
+    expect(primitives).toContain('default: "h-10 px-4 py-2"');
+    expect(primitives).toContain('sm: "h-9 px-3 text-sm"');
+    expect(primitives).toContain('lg: "h-11 px-6"');
+    expect(primitives).toContain('icon: "size-10"');
+    expect(primitives).toContain("p-5 sm:p-6");
     expect(primitives).toContain('cn("ms-auto flex items-center gap-2"');
     expect(primitives).not.toMatch(/\b(?:ml|mr|pl|pr)-/);
     expect(dialog).toContain("fixed start-[50%]");
     expect(dialog).toContain("absolute end-4");
-    expect(dialog).toContain("shadow-lg");
+    expect(dialog).toContain("shadow-modal");
+    expect(dialog).toContain("rounded-xl");
+    expect(dialog).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(dialog).toContain("overflow-y-auto");
     expect(dropdown).toContain("data-[inset]:ps-8");
     expect(dropdown).toContain('className="ms-auto rtl:rotate-180"');
     expect(sheet).toContain('side: "end"');
     expect(sheet).toContain("start-0");
     expect(sheet).toContain("end-0");
-    expect(sheet).toContain("shadow-lg");
+    expect(sheet).toContain("shadow-modal");
+    expect(dropdown).toContain("shadow-popover");
+    for (const overlay of [dialog, sheet]) {
+      expect(overlay).toContain("z-[var(--layer-overlay)] bg-scrim");
+      expect(overlay).toContain("z-[var(--layer-modal)]");
+      expect(overlay).not.toContain("bg-foreground/80");
+      expect(overlay).not.toContain("shadow-lg");
+    }
+    for (const overlay of [dialog, sheet, dropdown]) {
+      expect(overlay).toContain("motion-reduce:animate-none!");
+    }
+    expect(dropdown).toContain("z-[var(--layer-popover)]");
+    const layers = [...theme.matchAll(/--layer-([a-z]+): (\d+);/g)].map((match) => [
+      match[1],
+      Number(match[2]),
+    ]);
+    expect(layers).toEqual([
+      ["navigation", 20],
+      ["overlay", 40],
+      ["modal", 50],
+      ["popover", 60],
+      ["tooltip", 70],
+      ["toast", 80],
+    ]);
+    for (const elevation of ["control", "surface", "popover", "modal"]) {
+      expect(theme).toContain(`--shadow-${elevation}: var(--elevation-${elevation});`);
+    }
     expect(table).toContain("text-start");
     expect(table).toContain("pe-0");
   });

@@ -106,6 +106,7 @@ import {
   libUtils,
 } from "../server/db.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
+import { workspaceShellFiles } from "../../../apps/fragments/header.js";
 import {
   singleProvidersTanstackContent,
   singleProvidersTanstackContentConvex,
@@ -353,19 +354,16 @@ export function buildTanstackFiles(
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
   const hasTypedAdminNavigation = hasAdminApi;
   files.push(
-    file(
-      "src/components/header.tsx",
-      singleHeaderTanstackContent(
-        hasI18n,
-        hasAuth,
-        hasBilling,
-        hasTypedAdminNavigation,
-        isConvex && hasTypedAdminNavigation ? "../../convex/_generated/api" : undefined,
-        hasPdf,
-        hasMessaging,
-        headerNavigation,
-      ),
-    ),
+    file("src/components/header.tsx", singleHeaderTanstackContent(hasI18n, hasAuth)),
+    ...workspaceShellFiles("tanstack", {
+      sourceRoot: "src",
+      hasAuth,
+      hasBilling,
+      hasAdminNavigation: hasTypedAdminNavigation,
+      hasPdf,
+      hasMessaging,
+      navigation: headerNavigation,
+    }),
   );
   if (hasAuth) {
     files.push(

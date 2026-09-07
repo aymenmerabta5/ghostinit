@@ -124,6 +124,9 @@ function buildDeps(
         "server-only": `^${v.runtime["server-only"]}`,
       };
 
+  deps["@fontsource-variable/geist"] = v.ui["@fontsource-variable/geist"];
+  deps["@fontsource-variable/geist-mono"] = v.ui["@fontsource-variable/geist-mono"];
+
   if (hasApi) {
     deps["@orpc/server"] = `^${v.orpc["@orpc/server"]}`;
     deps["@orpc/contract"] = `^${v.orpc["@orpc/contract"]}`;

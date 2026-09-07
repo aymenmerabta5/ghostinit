@@ -49,11 +49,11 @@ export function PasswordCard(): React.JSX.Element {
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{t("password.title")}</CardTitle><CardDescription className="max-w-[60ch]">{t("password.description")}</CardDescription></CardHeader>
+      <CardHeader><CardTitle as="h2">{t("password.title")}</CardTitle><CardDescription className="max-w-[60ch]">{t("password.description")}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? <Alert variant="destructive"><AlertTitle>{t("password.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <form.AppForm>
-          <Form form={form} className="flex flex-col gap-4">
+          <Form form={form} className="flex flex-col gap-5">
             <FieldGroup>
               <form.AppField name="currentPassword">
                 {(field) => <field.PasswordField label={t("password.currentPasswordLabel")} autoComplete="current-password" required />}
@@ -62,7 +62,7 @@ export function PasswordCard(): React.JSX.Element {
                 {(field) => <field.PasswordField label={t("password.newPasswordLabel")} description={t("password.newPasswordDescription")} autoComplete="new-password" required minLength={8} maxLength={64} />}
               </form.AppField>
             </FieldGroup>
-            <form.SubmitButton pendingLabel={t("password.submitting")}>{t("password.submit")}</form.SubmitButton>
+            <form.SubmitButton className="w-auto self-start" pendingLabel={t("password.submitting")}>{t("password.submit")}</form.SubmitButton>
           </Form>
         </form.AppForm>
       </CardContent>

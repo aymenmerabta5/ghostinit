@@ -150,6 +150,8 @@ export const styling = {
 } as const;
 
 export const ui = {
+  "@fontsource-variable/geist": "5.3.0",
+  "@fontsource-variable/geist-mono": "5.3.0",
   shadcn: "4.19.0",
   "@base-ui/react": "1.7.0",
   "lucide-react": "1.34.0",

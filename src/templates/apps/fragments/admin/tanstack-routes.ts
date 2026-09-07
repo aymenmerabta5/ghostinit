@@ -23,7 +23,7 @@ export const Route = createFileRoute("/admin")({
 });
 
 function AdminRoute(): React.JSX.Element {
-  return <div className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8"><Outlet /></div>;
+  return <div className="min-w-0"><Outlet /></div>;
 }
 `;
 }
@@ -48,7 +48,6 @@ function AdminUsersPage(): React.JSX.Element {
 function createRouteContent(): string {
   return `import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { AdminCreateUserFeature, useAdminUsersTranslations } from "@/features/admin-users";
 
 export const Route = createFileRoute("/admin/users/create")({ component: AdminCreateUserPage });
@@ -57,18 +56,17 @@ function AdminCreateUserPage(): React.JSX.Element {
   const router = useRouter();
   const translate = useAdminUsersTranslations();
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{translate("create.shellTitle")}</h1>
-          <p className="max-w-[65ch] text-sm text-muted-foreground">{translate("create.shellDescription")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{translate("create.shellTitle")}</h1>
+          <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{translate("create.shellDescription")}</p>
         </div>
-        <Button variant="ghost" size="sm" render={<Link to="/admin/users" />} nativeButton={false}>
+        <Button className="w-auto self-start" variant="outline" size="sm" render={<Link to="/admin/users" />} nativeButton={false}>
           {translate("create.back")}
         </Button>
       </header>
-      <Separator />
-      <AdminCreateUserFeature onCreated={() => void router.navigate({ to: "/admin/users" })} />
+      <div className="w-full max-w-2xl"><AdminCreateUserFeature onCreated={() => void router.navigate({ to: "/admin/users" })} /></div>
     </main>
   );
 }

@@ -369,19 +369,23 @@ describe("generated locale control reachability", () => {
         const header = [
           read(files, `${root}/components/header.tsx`),
           read(files, `${root}/components/header-actions.tsx`),
+          read(files, `${root}/components/workspace-navigation.tsx`),
+          read(files, `${root}/components/workspace-navigation-trigger.tsx`),
         ].join("\n");
+        const appShell = read(files, `${root}/components/app-shell.tsx`);
         const marketing = surfaceSource(files, mode, framework, "marketing");
 
         expect(shell).toMatch(
-          /import\s+\{\s*Header\s*\}\s+from\s+["'][^"']*components\/header(?:\.js)?["']/,
+          /import\s+\{\s*AppShell\s*\}\s+from\s+["'][^"']*components\/app-shell(?:\.js)?["']/,
         );
-        expect(shell.match(/<Header\b/g) ?? []).toHaveLength(1);
+        expect(shell.match(/<AppShell\b/g) ?? []).toHaveLength(1);
+        expect(appShell.match(/<Header\b/g) ?? []).toHaveLength(1);
         expect(header).toMatch(/import\s+\{\s*LocaleSwitcher\s*\}/);
         expect(header).toMatch(/<LocaleSwitcher\b/);
         expect(marketing.match(/<header\b/g) ?? []).toHaveLength(0);
         const providerName = framework === "nextjs" ? "NextIntlClientProvider" : "AppProviders";
         const providerOpen = shell.indexOf(`<${providerName}`);
-        const headerUse = shell.indexOf("<Header");
+        const headerUse = shell.indexOf("<AppShell");
         const providerClose = shell.indexOf(`</${providerName}>`);
         expect(providerOpen).toBeGreaterThanOrEqual(0);
         expect(headerUse).toBeGreaterThan(providerOpen);
@@ -391,7 +395,8 @@ describe("generated locale control reachability", () => {
         const noAuthPaths = new Set(noAuthFiles.map(({ path }) => path));
         const noAuthShell = read(noAuthFiles, shellPath);
         const noAuthHeader = read(noAuthFiles, `${root}/components/header.tsx`);
-        expect(noAuthShell).toMatch(/<Header\b/);
+        expect(noAuthShell).toMatch(/<AppShell\b/);
+        expect(read(noAuthFiles, `${root}/components/app-shell.tsx`)).toMatch(/<Header\b/);
         expect(noAuthHeader).toMatch(/<LocaleSwitcher\b/);
         expect(noAuthHeader).not.toContain("useAuth");
         expect(noAuthHeader).not.toContain("authClient");

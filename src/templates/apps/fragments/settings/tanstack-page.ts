@@ -32,7 +32,7 @@ import { useSurfaceTranslations } from "@/lib/translations";
 
 export function SecurityNavigationSection(): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
-  return <Card><CardHeader><CardTitle className="text-base">{t("security.title")}</CardTitle><CardDescription>{t("security.oauthOnlyDescription")}</CardDescription></CardHeader><CardContent><Button variant="outline" render={<Link to="/dashboard" />} nativeButton={false}>{t("security.returnDashboard")}</Button></CardContent></Card>;
+    return <Card><CardHeader><CardTitle as="h2">{t("security.title")}</CardTitle><CardDescription>{t("security.oauthOnlyDescription")}</CardDescription></CardHeader><CardContent><Button className="w-auto" variant="outline" render={<Link to="/dashboard" />} nativeButton={false}>{t("security.returnDashboard")}</Button></CardContent></Card>;
 }
 `;
   }
@@ -67,8 +67,8 @@ export function SecurityNavigationSection(): React.JSX.Element {
   const securityActions = SETTINGS_ACTIONS.map((action) => ({
     label: t(action.labelKey), value: action.value,
   }));
-  return <>
-    <Card><CardHeader><CardTitle className="text-base">{t("security.title")}</CardTitle><CardDescription>{t("security.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <div className="grid items-start gap-6 xl:grid-cols-2">
+    <Card><CardHeader><CardTitle as="h2">{t("security.title")}</CardTitle><CardDescription>{t("security.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
       <Field><FieldLabel id="settings-action-label" htmlFor="settings-action">{t("security.actionLabel")}</FieldLabel>
         <Select items={securityActions} value={action} onValueChange={(value) => { if (isSettingsAction(value)) setAction(value); }}>
           <SelectTrigger id="settings-action" aria-labelledby="settings-action-label" aria-describedby="settings-action-description"><SelectValue /></SelectTrigger>
@@ -76,12 +76,12 @@ export function SecurityNavigationSection(): React.JSX.Element {
         </Select>
         <FieldDescription id="settings-action-description">{t("security.actionDescription")}</FieldDescription>
       </Field>
-      <Button variant="outline" onClick={() => void navigate({ to: action })}>{t("security.openDestination")}</Button>
+      <Button className="w-auto self-start" variant="outline" onClick={() => void navigate({ to: action })}>{t("security.openDestination")}</Button>
     </CardContent></Card>
-    <Empty className="rounded-lg border bg-card"><EmptyHeader><EmptyTitle>{t("security.connectedAccountsTitle")}</EmptyTitle><EmptyDescription>{t("security.connectedAccountsDescription")}</EmptyDescription></EmptyHeader><EmptyContent>
+    <Empty className="items-start rounded-lg border bg-card p-5 text-start sm:p-6"><EmptyHeader className="items-start text-start"><EmptyTitle>{t("security.connectedAccountsTitle")}</EmptyTitle><EmptyDescription>{t("security.connectedAccountsDescription")}</EmptyDescription></EmptyHeader><EmptyContent className="items-start">
       <Button variant="outline" render={<Link to="/dashboard" />} nativeButton={false}>{t("security.returnDashboard")}</Button>
     </EmptyContent></Empty>
-  </>;
+  </div>;
 }
 `;
 }
@@ -103,7 +103,6 @@ import { createFileRoute, Link, Outlet, redirect, useLocation } from "@tanstack/
 import { createServerFn } from "@tanstack/react-start";
 ${requestUserImports(isConvex, mode)}
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { SettingsController } from "@/features/settings/settings-controller";
 import { useSurfaceTranslations } from "@/lib/translations";
 
@@ -122,15 +121,16 @@ function SettingsPage(): React.JSX.Element {
   const location = useLocation();
   const t = useSurfaceTranslations("settings");
   if (location.pathname !== "/settings" && location.pathname !== "/settings/") return <Outlet />;
-  return <main className="min-h-screen bg-background p-6 md:p-8">
-    <div className="mx-auto flex max-w-5xl flex-col gap-8">
-      <div className="flex flex-col gap-2"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("description")}</p></div>
-      <Separator />
-      <div className="flex max-w-2xl flex-col gap-6"><SettingsController /><div className="flex gap-2">
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <div className="flex min-w-0 flex-col gap-7">
+      <div className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("description")}</p></div>
+      <nav aria-label={t("title")} className="flex flex-wrap items-center gap-2 border-b border-border/70 pb-3">
+        <span aria-current="page" className="inline-flex min-h-9 items-center rounded-lg bg-accent px-3 text-sm font-medium text-accent-foreground">{t("title")}</span>
         <Button variant="outline" size="sm" render={<Link to="/dashboard" />} nativeButton={false}>{t("dashboard")}</Button>
         ${workspaceAction}
         ${billingAction}
-      </div></div>
+      </nav>
+      <SettingsController />
     </div>
   </main>;
 }

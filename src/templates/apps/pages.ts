@@ -15,6 +15,7 @@ import {
   marketingHeroComponentContent,
   marketingQuickStartComponentContent,
 } from "./fragments/marketing.js";
+import type { MarketingOptions } from "./fragments/marketing/shared.js";
 import {
   authOAuthButtonsContent,
   signInFormContent,
@@ -43,9 +44,6 @@ import {
 import { nextInstrumentationContent } from "./fragments/instrumentation.js";
 
 export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] {
-  // The agent page imports `eve/react`. Emitting it unconditionally shipped a
-  // build-breaking import into every monorepo project that did not enable the
-  // eve feature (single mode already gated this correctly).
   const hasEve = resolveHasEve(addonsOrHasEve);
   const hasEmail =
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
@@ -82,8 +80,7 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
   return [
     layout(hasI18n),
     globalErrorPage(),
-    unauthorizedPage(),
-    forbiddenPage(),
+    ...(hasAuth ? [unauthorizedPage(), forbiddenPage()] : []),
     notFoundPage(),
     errorPage(),
     loadingPage(),
@@ -93,7 +90,13 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
     viewport(),
     opengraphImage(),
     instrumentation(),
-    ...marketingFiles(hasBilling),
+    ...marketingFiles({
+      hasAuth,
+      hasApi,
+      hasBilling,
+      hasEve,
+      database: isConvex ? "convex" : isPostgres ? "postgres" : "none",
+    }),
     ...(hasAuth
       ? [
           dashboardLoading(),
@@ -143,13 +146,16 @@ function loadingPage(): TemplateFile {
 function layout(hasI18n = false): TemplateFile {
   return file("apps/web/src/app/layout.tsx", nextRootLayoutContent(hasI18n));
 }
-function marketingFiles(hasBilling = true): TemplateFile[] {
+function marketingFiles(options: MarketingOptions): TemplateFile[] {
   return [
     file("apps/web/src/app/page.tsx", buildMarketingPageContent("next")),
-    file("apps/web/src/components/marketing/hero.tsx", marketingHeroComponentContent("next")),
+    file(
+      "apps/web/src/components/marketing/hero.tsx",
+      marketingHeroComponentContent("next", options),
+    ),
     file(
       "apps/web/src/components/marketing/features.tsx",
-      marketingFeaturesComponentContent("next"),
+      marketingFeaturesComponentContent("next", options),
     ),
     file(
       "apps/web/src/components/marketing/quick-start.tsx",
@@ -157,7 +163,7 @@ function marketingFiles(hasBilling = true): TemplateFile[] {
     ),
     file(
       "apps/web/src/components/marketing/footer.tsx",
-      marketingFooterComponentContent("next", hasBilling),
+      marketingFooterComponentContent("next", options.hasBilling, options),
     ),
   ];
 }

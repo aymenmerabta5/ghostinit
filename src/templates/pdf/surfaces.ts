@@ -40,12 +40,12 @@ export function PdfWorkspace(): React.JSX.Element {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-      <div className="flex flex-col gap-2"><p className="text-sm font-medium text-primary">{t("documentWorkspace")}</p><h1 className="text-3xl font-semibold tracking-tight">{t("secureTitle")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("webDescription")}</p></div>
-      <Card><CardHeader><CardTitle>{t("template")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <div className="flex flex-col gap-2"><p className="text-sm font-medium text-muted-foreground">{t("documentWorkspace")}</p><h1 className="text-3xl font-semibold tracking-tight">{t("secureTitle")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("webDescription")}</p></div>
+      <Card className="max-w-3xl"><CardHeader><CardTitle as="h2">{t("template")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-5">
         <Field><FieldLabel id="pdf-template-label">{t("template")}</FieldLabel><Select items={templateOptions} value={template} onValueChange={(value) => { if (value === "invoice" || value === "certificate" || value === "agreement") setTemplate(value); }}><SelectTrigger aria-labelledby="pdf-template-label"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{templateOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
         {error ? <Alert variant="destructive"><AlertDescription>{t("generationError")}</AlertDescription></Alert> : null}
-        <Button type="button" disabled={loading} aria-busy={loading} onClick={() => void download()}>{loading ? t("generating") : t("generateDownload")}</Button>
+        <Button className="w-auto self-start" type="button" disabled={loading} aria-busy={loading} onClick={() => void download()}>{loading ? t("generating") : t("generateDownload")}</Button>
       </CardContent></Card>
     </main>
   );

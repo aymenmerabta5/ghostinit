@@ -1,5 +1,6 @@
 import { file, type TemplateFile } from "../../shared.js";
 import { notificationNavigationContent } from "../fragments/lib/notifications.js";
+import { notificationComposerContent } from "./notifications-composer.js";
 import {
   appRoot,
   enabledTargets,
@@ -194,10 +195,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
+import { NotificationComposer } from "./components/notification-composer";
 import { useAuthOwnedEffect } from "${desktop && options.mode === "single" ? "@/renderer/hooks" : "@/hooks"}/use-auth-owned-effect";
 import { resolveNotificationDestination } from "${clientLibRoot(options, target)}/notifications";
 import { useInvalidateNotificationInbox, useNotificationInbox, type NotificationItem${next ? ", type NotificationScope" : ""} } from "./queries";
@@ -237,22 +236,20 @@ ${i18nState}${routerState}
     if (!isCurrent()) return;
 ${navigate}
   }
-  return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-    <header><h1 className="text-2xl font-semibold">${label("title", "Notifications")}</h1><p className="text-sm text-muted-foreground">${label("description", "Account-owned inbox shared across your apps.")}</p></header>
-    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle></CardHeader><CardContent><form onSubmit={(event) => {
-      event.preventDefault();
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">${label("title", "Notifications")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">${label("description", "Updates and activity for your account.")}</p></header>
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+    <NotificationComposer title={title} body={body} pending={pending} onTitleChange={setTitle} onBodyChange={setBody} onSubmit={() => {
       void runAction(async () => {
         ${publish}
       });
-    }}><FieldGroup>
-      <Field><FieldLabel htmlFor="notification-title">${label("titleLabel", "Title")}</FieldLabel><Input id="notification-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required /></Field>
-      <Field><FieldLabel htmlFor="notification-body">${label("bodyLabel", "Body")}</FieldLabel><Textarea id="notification-body" value={body} onChange={(event) => setBody(event.target.value)} maxLength={2000} /></Field>
-      <Button className="w-fit" type="submit" disabled={pending} aria-busy={pending}>${label("create", "Create notification")}{pending ? "…" : ""}</Button>
-    </FieldGroup></form></CardContent></Card>
-    {displayedError ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription>{displayedError}{inbox.error ? <Button type="button" size="sm" variant="outline" disabled={inbox.isFetching || pending} onClick={() => void refresh()}>${label("retry", "Retry")}</Button> : null}</AlertDescription></Alert> : null}
-    <section aria-label=${options.i18n ? '{t("title")}' : '"Notifications"'} className="flex flex-col gap-2" aria-busy={inbox.isFetching}>{inbox.isPending && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Empty><EmptyHeader><EmptyTitle>${label("empty", "No notifications yet.")}</EmptyTitle><EmptyDescription>${label("description", "Account-owned inbox shared across your apps.")}</EmptyDescription></EmptyHeader></Empty> : items.map((item) => {
+    }} />
+    <div className="flex min-w-0 flex-col gap-4">
+    {displayedError ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription className="flex flex-col items-start gap-3">{displayedError}{inbox.error ? <Button type="button" size="sm" variant="outline" disabled={inbox.isFetching || pending} onClick={() => void refresh()}>${label("retry", "Retry")}</Button> : null}</AlertDescription></Alert> : null}
+    <section aria-label=${options.i18n ? '{t("title")}' : '"Notifications"'} className="flex flex-col gap-2" aria-busy={inbox.isFetching}>{inbox.isPending && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Empty><EmptyHeader><EmptyTitle>${label("empty", "No notifications yet.")}</EmptyTitle><EmptyDescription>${label("description", "Updates and activity for your account.")}</EmptyDescription></EmptyHeader></Empty> : items.map((item) => {
       const destination = resolveNotificationDestination(item.href);
-      return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex gap-2">{destination ? <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={pending || item.readAt !== null} onClick={() => void runAction(async () => { await markNotificationRead(item.id); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>})}</section>
+      return <Card key={item.id}><CardHeader className="p-4 sm:p-5"><CardTitle as="h2" className="break-words text-base">{item.title}</CardTitle><CardDescription className="whitespace-pre-wrap break-words">{item.body}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2 px-4 pb-4 sm:px-5 sm:pb-5">{destination ? <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={pending || item.readAt !== null} onClick={() => void runAction(async () => { await markNotificationRead(item.id); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>})}</section>
+    </div></div>
   </main>;
 }
 `;
@@ -316,9 +313,9 @@ ${i18nState}  const router = useRouter();
   }
   return <ScrollView className="flex-1 bg-background"><View className="gap-4 p-5">
     <Text className="text-2xl font-bold">${label("title", "Notifications")}</Text>
-    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={title} onChangeText={setTitle} placeholder=${options.i18n ? '{t("titleLabel")}' : '"Title"'} maxLength={160} /><Input className="min-h-24 py-3" value={body} onChangeText={setBody} placeholder=${options.i18n ? '{t("bodyLabel")}' : '"Body"'} multiline maxLength={2000} /><Button disabled={pending || !title.trim()} isLoading={pending} onPress={() => void runAction(async () => { await publishSelfNotification({ title, body }); })}>${label("create", "Create notification")}</Button>{Platform.OS === "ios" || Platform.OS === "android" ? <Button variant="outline" disabled={pending} onPress={() => void runAction(async () => { const platform = Platform.OS; if (platform !== "ios" && platform !== "android") return; const token = await push.requestPermission(); if (token) await registerNotificationDevice(platform, token); })}>${label("enablePush", "Enable push notifications")}</Button> : null}</CardContent></Card>
+    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle><CardDescription>${label("description", "Updates and activity for your account.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={title} onChangeText={setTitle} placeholder=${options.i18n ? '{t("titleLabel")}' : '"Title"'} maxLength={160} /><Input className="min-h-24 py-3" value={body} onChangeText={setBody} placeholder=${options.i18n ? '{t("bodyLabel")}' : '"Body"'} multiline maxLength={2000} /><Button disabled={pending || !title.trim()} isLoading={pending} onPress={() => void runAction(async () => { await publishSelfNotification({ title, body }); })}>${label("create", "Create notification")}</Button>{Platform.OS === "ios" || Platform.OS === "android" ? <Button variant="outline" disabled={pending} onPress={() => void runAction(async () => { const platform = Platform.OS; if (platform !== "ios" && platform !== "android") return; const token = await push.requestPermission(); if (token) await registerNotificationDevice(platform, token); })}>${label("enablePush", "Enable push notifications")}</Button> : null}</CardContent></Card>
     {displayedError ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription>{displayedError}</AlertDescription>{inbox.error ? <Button variant="outline" size="sm" disabled={pending || inbox.isFetching} onPress={() => void refresh()}>${label("retry", "Retry")}</Button> : null}</Alert> : null}
-    {loading && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Card><CardHeader><CardTitle>${label("empty", "No notifications yet.")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader></Card> : items.map((item) => { const destination = resolveNotificationDestination(item.href); return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex-row gap-2">{destination ? <Button size="sm" variant="outline" disabled={pending} onPress={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button size="sm" variant="outline" disabled={pending || item.readAt !== null} onPress={() => void runAction(async () => { await markNotificationRead(item.id); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>; })}
+    {loading && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Card><CardHeader><CardTitle>${label("empty", "No notifications yet.")}</CardTitle><CardDescription>${label("description", "Updates and activity for your account.")}</CardDescription></CardHeader></Card> : items.map((item) => { const destination = resolveNotificationDestination(item.href); return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex-row gap-2">{destination ? <Button size="sm" variant="outline" disabled={pending} onPress={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button size="sm" variant="outline" disabled={pending || item.readAt !== null} onPress={() => void runAction(async () => { await markNotificationRead(item.id); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>; })}
   </View></ScrollView>;
 }
 `;
@@ -389,6 +386,14 @@ function notificationFilesForTarget(
       `${base}/page.tsx`,
       target === "mobile" ? expoPageContent(options) : domPageContent(target, options),
     ),
+    ...(target === "mobile"
+      ? []
+      : [
+          file(
+            `${base}/components/notification-composer.tsx`,
+            notificationComposerContent(target, options),
+          ),
+        ]),
     ...(target === "web" ? [file(`${base}/bell.tsx`, webBellContent(options.framework))] : []),
     ...(target === "web" && options.framework === "nextjs"
       ? [

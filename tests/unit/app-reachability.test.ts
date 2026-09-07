@@ -65,6 +65,19 @@ function routePath(root: string, framework: Framework, route: string): string {
 }
 
 describe("generated application reachability", () => {
+  for (const framework of ["nextjs", "tanstack-start"] as const) {
+    test(`${framework} emits authorization fallbacks only with authentication`, () => {
+      const base = config("monorepo", framework, ["web"], false);
+      const withAuth = generate(base);
+      const withoutAuth = generate({ ...base, database: "none", auth: false, api: false });
+      const directory = framework === "nextjs" ? "app" : "routes";
+      for (const name of ["unauthorized", "forbidden"]) {
+        const path = `apps/web/src/${directory}/${name}.tsx`;
+        expect(withAuth.some((file) => file.path === path)).toBe(true);
+        expect(withoutAuth.some((file) => file.path === path)).toBe(false);
+      }
+    });
+  }
   for (const mode of ["monorepo", "single"] as const) {
     for (const framework of ["nextjs", "tanstack-start"] as const) {
       test(`${mode}/${framework} gates every web application destination`, () => {
@@ -72,11 +85,11 @@ describe("generated application reachability", () => {
         const enabled = generate(config(mode, framework, ["web"]));
         const disabled = generate(config(mode, framework, ["web"], false));
         const enabledNavigation = [
-          read(enabled, `${root}src/components/header.tsx`),
+          read(enabled, `${root}src/components/workspace-navigation.tsx`),
           read(enabled, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
         const disabledNavigation = [
-          read(disabled, `${root}src/components/header.tsx`),
+          read(disabled, `${root}src/components/workspace-navigation.tsx`),
           read(disabled, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
 
@@ -210,7 +223,7 @@ describe("generated application reachability", () => {
         const files = generate(projectConfigSchema.parse({ ...input, jobsUserFacingApi: false }));
         const root = mode === "monorepo" ? "apps/web/" : "";
         const navigation = [
-          read(files, `${root}src/components/header.tsx`),
+          read(files, `${root}src/components/workspace-navigation.tsx`),
           read(files, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
         const servicePath =

@@ -25,7 +25,7 @@ export function ChartContainer({
 }
 
 export function ChartTooltip({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div data-slot="chart-tooltip" className={cn("rounded-lg border bg-background p-2 shadow-md", className)} {...props} />;
+  return <div data-slot="chart-tooltip" className={cn("rounded-lg border border-border bg-popover px-3 py-2 text-sm leading-6 text-popover-foreground shadow-popover", className)} {...props} />;
 }
 
 export function ChartTooltipContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

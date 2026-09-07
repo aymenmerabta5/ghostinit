@@ -48,6 +48,7 @@ export const EN_MESSAGES = {
     twoFactor: "Two-factor authentication",
   },
   header: {
+    openNavigation: "Open navigation",
     productName: "GhostInit",
     productBadge: "modular monolith",
     marketingBadge: "control plane",
@@ -88,7 +89,7 @@ export const EN_MESSAGES = {
   },
   notifications: {
     title: "Notifications",
-    description: "Account-owned inbox shared across your apps.",
+    description: "Updates and activity for your account.",
     defaultTitle: "Hello from GhostInit",
     defaultBody: "This notification is persisted for your account.",
     titleLabel: "Title",
@@ -107,8 +108,8 @@ export const EN_MESSAGES = {
     pending: "Working…",
     title: "Remote feature flags",
     description:
-      "Resolve provider-backed flags through the typed application boundary. Flags never grant authorization.",
-    shortDescription: "Provider-backed evaluation. Flags never grant authorization.",
+      "Check how a feature is configured for your account. Feature flags do not change permissions.",
+    shortDescription: "Check feature settings. Feature flags do not change permissions.",
     keyLabel: "Flag key",
     evaluate: "Evaluate",
     error: "Flag evaluation failed",
@@ -117,7 +118,7 @@ export const EN_MESSAGES = {
   storage: {
     pending: "Working…",
     title: "Storage",
-    description: "Upload, retrieve, and remove account-owned objects.",
+    description: "Upload, download, and manage your files.",
     defaultText: "Stored securely by GhostInit.",
     fileName: "File name",
     textContent: "Text content",
@@ -135,7 +136,7 @@ export const EN_MESSAGES = {
   jobs: {
     pending: "Working…",
     title: "Background jobs",
-    description: "Enqueue and inspect actor-owned runs through the shared scheduler.",
+    description: "Run background work and check its progress.",
     defaultMessage: "Hello worker",
     echoPayload: "Echo payload",
     enqueueError: "Enqueue failed",
@@ -205,8 +206,7 @@ export const EN_MESSAGES = {
     desktopDescription: "Uses the same authenticated, bounded renderer as the web and mobile apps.",
     generateDownload: "Generate and download",
     generationError: "PDF generation failed",
-    webDescription:
-      "The authenticated server renderer enforces bounded input, admission limits, and private no-store responses.",
+    webDescription: "Create an invoice, certificate, or agreement.",
     sample: {
       customer: "Example customer",
       recipient: "Example recipient",
@@ -331,22 +331,21 @@ export const EN_MESSAGES = {
     send: "Send",
     loadingAccount: "Loading account…",
     durableBadge: "durable",
-    webDescription:
-      "This chat uses the agent authored under {agentRoot}. Browser requests use only the authenticated application facade; Eve service credentials never reach this route.",
+    webDescription: "A place to ask questions, explore ideas, and work with your agent.",
     conversationTitle: "Conversation",
     conversationDescription: "Durable work continues when this page disconnects.",
     streaming: "Streaming durable workflow…",
   },
   transactionalEmail: {
     verification: {
-      subject: "Verify your email — {appName}",
+      subject: "Verify your email - {appName}",
       title: "Verify your email",
       body: "Thanks for signing up for {appName}. Verify your email address using the secure link below.",
       action: "Verify email",
       detail: "If you did not create an account, you can safely ignore this email.",
     },
     passwordReset: {
-      subject: "Reset your password — {appName}",
+      subject: "Reset your password - {appName}",
       title: "Reset your password",
       body: "We received a request to reset your {appName} password.",
       action: "Reset password",
@@ -606,16 +605,16 @@ export const EN_MESSAGES = {
       openAdmin: "Open admin",
     },
     identity: {
-      title: "Identity — Profile",
+      title: "Identity - Profile",
       emailLabel: "Email",
       nameLabel: "Name",
-      signedInAs: "Signed in as {email} — {name}",
+      signedInAs: "Signed in as {email} - {name}",
       nameNotSet: "not set",
       roleFallback: "user",
       editProfile: "Edit profile",
       billing: "Billing",
       admin: "Admin",
-      sessionComment: "session — Better Auth",
+      sessionComment: "session - Better Auth",
     },
     actions: {
       title: "Quick actions",
@@ -642,7 +641,7 @@ export const EN_MESSAGES = {
       environmentSummary: "defines task dependencies and capability-scoped environment inputs.",
     },
     single: {
-      description: "Welcome back. Manage your account, billing, and modules.",
+      description: "Your account, your workspace, and the tools to keep moving.",
       profileTitle: "Profile",
       quickActionsTitle: "Quick actions",
       billingTitle: "Billing",
@@ -701,124 +700,74 @@ export const EN_MESSAGES = {
     ar: "Arabic",
   },
   marketing: {
-    heroTitle: "GhostInit",
     heroSubtitle:
-      "Opinionated modular-monolith starter with DDD, oRPC, Better Auth, and durable agents.",
+      "A clear foundation for your next application, with shared design and the capabilities you choose.",
     ctaSignUp: "Sign up",
     ctaSignIn: "Sign in",
-    header: {
-      productName: "GhostInit",
-      productBadge: "control plane",
-      github: "GitHub",
-      signIn: "Sign in",
-      signUp: "Sign up",
-    },
     hero: {
-      eyebrow: "Bun only • oRPC • Better Auth",
-      eyebrowTanstack: "Bun only • oRPC • Better Auth • TanStack Start",
-      title: "The open-source control plane for your monorepo.",
+      eyebrow: "Your application starts here",
+      title: "Your next idea,",
+      titleAccent: "with a head start.",
       descriptionNext:
-        "Orchestrate Next.js, Drizzle, oRPC, and Better Auth from one surface. Bring your own billing. Fork the whole thing.",
+        "A Next.js foundation with the tools your project needs, ready for you to make it your own.",
       descriptionTanstack:
-        "Orchestrate TanStack Start, Drizzle, oRPC, and Better Auth from one surface. Bring your own stack. Fork the whole thing.",
-      primaryCta: "Start building",
+        "A TanStack Start foundation with the tools your project needs, ready for you to make it your own.",
+      primaryCta: "Sign up",
       secondaryCta: "View source",
-      terminalTitle: "~/code — zsh",
-      terminalScaffolded: "Scaffolded {project} in {duration} — {count} files, 0 drift",
-      terminalReady: "Ready on {url} — ghostinit check passed",
+    },
+    preview: {
+      title: "Your project, at a glance",
+      routes: "Routes",
+      components: "Components",
+      design: "Design system",
+      server: "Server code",
+      database: "Data schema",
+      agent: "Agent",
+      source: "The source is yours to shape.",
+      canvas: "Canvas",
+      surface: "Surface",
+      accent: "Accent",
+      footerNavigation: "Footer navigation",
     },
     features: {
-      title: "Why GhostInit",
+      title: "A foundation you can build on.",
       description:
-        "A well-structured monorepo with architectural linting that does not fight you. Like t3.codes for your app.",
-      architectureTitle: "Layered by design",
+        "Clear structure, considered details, and room to grow. Make the next part yours.",
+      architectureTitle: "Everything has its place",
       architectureDescription:
-        "Six enforceable layers keep UI, transport, domain, capabilities, vendors, and supporting code moving in one direction.",
-      authTitle: "Authentication included",
-      authDescription:
-        "Better Auth provides secure sessions, administration, and TOTP two-factor authentication.",
-      scaffoldTitle: "One command to scaffold",
-      scaffoldDescriptionNext:
-        "Create a complete Next.js workspace with consistent packages and no terminal dance.",
-      scaffoldDescriptionTanstack:
-        "Create a TanStack Start and Vite workspace with the same oRPC contracts and design tokens.",
-      apiTitle: "Pure oRPC only",
-      apiDescriptionNext: "One application port with typed oRPC and raw Next.js webhook routes.",
-      apiDescriptionTanstack:
-        "One application port with typed oRPC and TanStack Start server routes.",
-      billingTitle: "Flexible billing",
+        "Applications, shared packages, and business rules have clear responsibilities, with checks that help keep them separate.",
+      scaffoldTitle: "A place to begin",
+      apiTitle: "Connected, with confidence",
+      apiDescriptionNext: "Typed oRPC calls connect your interface to application operations.",
+      apiDescriptionTanstack: "Typed oRPC calls connect your interface to application operations.",
+      billingTitle: "Billing that fits",
       billingDescription:
-        "Choose any combination of Stripe, Chargily, Paddle, and Polar with shared contracts.",
-      toolingTitle: "Checks that understand the architecture",
-      toolingDescription:
-        "ghostinit check combines architecture validation, typechecking, and linting.",
-      forkTitle: "If you do not like it, fork it",
-      forkDescriptionNext: "MIT licensed. Change the UI, add a provider, and ship your own build.",
-      forkDescriptionTanstack:
-        "MIT licensed. Change the UI, add an agent, and ship your own build.",
-    },
-    quickStart: {
-      title: "Quick start",
-      descriptionNext: "Bun only. No npm fallback. Secrets must be at least 32 characters.",
-      descriptionTanstack: "Bun only. TanStack Start uses the Vite development server.",
-    },
-    cta: {
-      title: "Start with a production-minded foundation",
-      description: "Generate the workspace, inspect every file, and make it yours.",
-      primary: "Create account",
-      secondary: "View source",
+        "Your selected payment providers share consistent checkout and account workflows.",
     },
     footer: {
-      tagline: "Built with shadcn, Base UI, and Tailwind CSS v4.",
+      tagline: "Made with GhostInit. Make it your own.",
       signIn: "Sign in",
       billing: "Billing",
-      dashboard: "Dashboard",
     },
     single: {
-      projectBadgeNext: "single • flat src",
-      projectBadgeTanstack: "single • tanstack • flat src",
       signIn: "Sign in",
-      signUp: "Sign up",
-      eyebrowNext: "Single package · Clear boundaries",
-      eyebrowTanstack: "Single package · Clear boundaries",
-      heroTitle: "{project}",
-      heroDescriptionNext:
-        "A focused Next.js foundation with clear structure, reusable components, and the capabilities you selected.",
-      heroDescriptionTanstack:
-        "A focused TanStack Start foundation with clear structure, reusable components, and the capabilities you selected.",
-      startBuilding: "Start building",
-      whyTitleNext: "Why single mode",
-      whyTitleTanstack: "Why single mode with TanStack Start",
-      whyDescriptionNext:
-        "One package with clear boundaries and shared design tokens, ready for your application code.",
-      whyDescriptionTanstack:
-        "One package with clear boundaries and shared design tokens, ready for your application code.",
       flatTitle: "One project, clear structure",
       flatDescriptionNext:
-        "Routes and reusable components share one source tree. Selected backend modules stay behind explicit boundaries.",
+        "Routes, reusable components, and selected server modules have a clear place in one source tree.",
       flatDescriptionTanstack:
-        "Routes and reusable components share one source tree. Selected backend modules stay behind explicit boundaries.",
-      authTitle: "Identity and protected routes",
-      authDescriptionNext:
-        "Sign-in, account settings, and protected routes share the same application identity.",
-      authDescriptionTanstack:
-        "Sign-in, account settings, and protected routes share the same application identity.",
-      billingTitle: "Selected billing providers",
+        "Routes, reusable components, and selected server modules have a clear place in one source tree.",
+      authTitle: "An account that feels familiar",
+      authDescriptionNext: "Sign in, manage your profile, and keep your account secure.",
+      authDescriptionTanstack: "Sign in, manage your profile, and keep your account secure.",
+      billingTitle: "Billing that fits",
       billingDescription:
-        "Your selected providers connect through shared checkout and billing contracts.",
-      tokensTitle: "Shared design tokens",
+        "Your selected payment providers share consistent checkout and account workflows.",
+      tokensTitle: "One design, down to the details",
       tokensDescription:
-        "Semantic OKLCH tokens for backgrounds, text, actions, borders, inputs, and focus rings.",
+        "Shared colors, typography, and controls bring every screen together. Light and dark, from the start.",
       quickStartTitle: "Quick start",
-      quickStartDescriptionNext:
-        "For a fresh project created without dependencies, run bootstrap once before starting development.",
-      quickStartDescriptionTanstack:
-        "For a fresh project created without dependencies, run bootstrap once before starting development.",
-      footerTagline: "Built with shadcn, Base UI, Tailwind CSS v4, and OKLCH tokens.",
-      footerSignIn: "Sign in",
-      footerBilling: "Billing",
-      quickStartServices:
-        "Configure your selected services in README.md before using the application.",
+      quickStartDescriptionNext: "Open your project, install its dependencies, and start building.",
+      quickStartServices: "Your README explains how to configure the services you selected.",
     },
   },
   settings: {
@@ -941,7 +890,7 @@ export const EN_MESSAGES = {
       revokingOthers: "Revoking other sessions...",
       loading: "Loading sessions...",
       refresh: "Refresh",
-      empty: "No other active sessions — this device only.",
+      empty: "No other active sessions - this device only.",
       current: "current",
       revoke: "Revoke",
       revoking: "Revoking...",
@@ -1086,9 +1035,10 @@ export const EN_MESSAGES = {
   },
   metadata: {
     siteTitle: "GhostInit App",
-    siteDescription: "Your opinionated modular monolith with dark mode.",
-    marketingTitle: "GhostInit — Modular Monolith",
-    marketingDescription: "Bun, oRPC, and Better Auth starter with SEO-ready metadata.",
+    siteDescription: "A clear foundation for your next application.",
+    marketingTitle: "GhostInit - Your next application",
+    marketingDescription:
+      "A clear project structure, a shared design, and the capabilities you choose.",
     signInTitle: "Sign in",
     signInDescription: "Sign in to your GhostInit account.",
     signUpTitle: "Create account",
@@ -1193,7 +1143,7 @@ export const EN_MESSAGES = {
     providerChargily: "Chargily",
     providerPaddle: "Paddle",
     providerPolar: "Polar",
-    algeriaMarketTitle: "Algeria market — EDAHABIA/CIB only",
+    algeriaMarketTitle: "Algeria market - EDAHABIA/CIB only",
     algeriaMarketDescription:
       "Chargily serves the Algerian market with EDAHABIA/CIB checkout. It has no customer portal or automatic recurring charge: renewal requires a new customer-authorized checkout.",
     dualMarketTitle: "Algeria and global coverage",

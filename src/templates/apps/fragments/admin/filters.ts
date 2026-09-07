@@ -50,7 +50,7 @@ export function AdminUserFilters({
             )}
           </form.AppField>
         </FieldGroup>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <form.SubmitButton variant="outline" pendingLabel={translate("filters.searching")}>
             {translate("filters.search")}
           </form.SubmitButton>
@@ -95,7 +95,7 @@ export function AdminUsersPagination({
   const translate = useAdminUsersTranslations();
   const canGoNext = page < totalPages || hasMore;
   return (
-    <nav className="flex items-center justify-between gap-4" aria-label={translate("pagination.label")}>
+    <nav className="flex flex-wrap items-center justify-between gap-4" aria-label={translate("pagination.label")}>
       <p className="text-xs text-muted-foreground">
         {translate("pagination.position", { page, totalPages })}
       </p>

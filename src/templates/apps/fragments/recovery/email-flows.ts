@@ -46,11 +46,11 @@ ${route}${componentExport}function EmailFlowPage(): React.JSX.Element {
       setSent(true);
     },
   });
-  return <main className="grid min-h-screen place-items-center bg-background p-6"><Card className="w-full max-w-md"><CardHeader><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{t("emailFlow.kicker")}</p><CardTitle as="h1">{t("emailFlow.${catalogKey}.title")}</CardTitle><CardDescription>{t("emailFlow.${catalogKey}.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14"><Card className="w-full max-w-[440px] border-0 bg-transparent p-0 shadow-none"><CardHeader className="gap-2 p-0 pb-6 sm:p-0 sm:pb-6"><p className="text-sm font-medium text-muted-foreground">{t("emailFlow.kicker")}</p><CardTitle as="h1" className="text-3xl tracking-tight">{t("emailFlow.${catalogKey}.title")}</CardTitle><CardDescription>{t("emailFlow.${catalogKey}.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-6 p-0 sm:p-0">
     {error ? <Alert variant="destructive"><AlertTitle>{t("emailFlow.requestErrorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     {sent ? <Alert><AlertTitle>{t("emailFlow.requestedTitle")}</AlertTitle><AlertDescription>{t("emailFlow.${successKey}")}</AlertDescription></Alert> : null}
-    <form.AppForm><Form form={form} className="flex flex-col gap-4"><FieldGroup><form.AppField name="email">{(field) => <field.TextField label={t("emailFlow.emailLabel")} placeholder={t("emailFlow.emailPlaceholder")} type="email" autoComplete="email" required />}</form.AppField></FieldGroup><form.SubmitButton pendingLabel={t("emailFlow.sending")}>{t("emailFlow.sendLink")}</form.SubmitButton></Form></form.AppForm>
-    <div className="text-sm text-muted-foreground underline underline-offset-4">${homeLink}</div>
+    <form.AppForm><Form form={form} className="flex flex-col gap-5"><FieldGroup><form.AppField name="email">{(field) => <field.TextField label={t("emailFlow.emailLabel")} placeholder={t("emailFlow.emailPlaceholder")} type="email" autoComplete="email" required />}</form.AppField></FieldGroup><form.SubmitButton className="h-10 w-full" pendingLabel={t("emailFlow.sending")}>{t("emailFlow.sendLink")}</form.SubmitButton></Form></form.AppForm>
+    <div className="border-t border-border/70 pt-5 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">${homeLink}</div>
   </CardContent></Card></main>;
 }
 `;

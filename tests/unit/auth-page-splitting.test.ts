@@ -168,6 +168,7 @@ describe("extracted authentication form behavior", () => {
       let fail = true;
       const ui = generatedFormHarness(resetPasswordFormContent(router), ["ResetPasswordForm"], {
         CardFooter: "CardFooter",
+        ArrowLeft: "ArrowLeft",
         Link: "Link",
         createResetPasswordSchema: () => ({}),
         useRouter: () => ({ push: (to: string) => navigations.push(to) }),

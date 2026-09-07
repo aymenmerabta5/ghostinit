@@ -1,7 +1,6 @@
 import { semanticThemeCssContent } from "../apps/fragments/css.js";
 import { file, type TemplateFile } from "../shared.js";
 
-/** Package-mode entrypoint for the shared, dark-first semantic theme. */
 export function themeCssContent(): string {
   return semanticThemeCssContent();
 }

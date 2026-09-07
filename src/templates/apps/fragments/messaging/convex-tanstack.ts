@@ -73,16 +73,16 @@ export function ConvexMessagesPage(): React.JSX.Element {
     catch { setStartError(true); }
     finally { startInFlight.current = false; setStarting(false); }
   }
-  return <main className="min-h-screen bg-background p-6">
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
-    <header className="flex flex-col gap-2"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("desktopDescription")}</p></header>
-    <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
-      <Card><CardHeader><CardTitle className="text-base">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <div className="flex min-w-0 flex-col gap-7">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("desktopDescription")}</p></header>
+    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)]">
+      <Card><CardHeader><CardTitle as="h2">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">
         {conversationItems.map((conversation) => <Button key={conversation.key} type="button" variant={conversation.liveId !== null && selected === conversation.liveId ? "secondary" : "outline"} disabled={conversation.liveId === null} onClick={() => { if (conversation.liveId !== null) setSelected(conversation.liveId); }} className="w-full justify-start font-mono text-xs">{conversation.key.slice(0, 8)}</Button>)}
         <div className="flex flex-col gap-2"><Input value={peerId} aria-label={t("peerUserId")} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><Button variant="outline" disabled={starting || !peerId.trim()} aria-busy={starting} onClick={() => void startConversation()}>{starting ? t("starting") : t("startDirectMessage")}</Button></div>
         {startError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("operationError")}</AlertDescription></Alert> : null}
       </CardContent></Card>
-      {selected ? <Card><CardContent className="flex flex-col gap-3 p-4"><ConvexMessageThread conversationId={selected} /></CardContent></Card> : <Empty><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>}
+      {selected ? <Card><CardContent className="flex flex-col gap-3 p-4"><ConvexMessageThread conversationId={selected} /></CardContent></Card> : <Empty className="min-h-64 rounded-lg border bg-card"><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>}
     </div>
     </div>
   </main>;

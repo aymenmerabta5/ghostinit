@@ -680,8 +680,7 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
   );
   expect(source).toContain('response.headers.get("x-frame-options") === "DENY"');
   expect(source).toContain("!csp.includes(\"'unsafe-eval'\")");
-  expect(source).toContain('csp.includes("https://fonts.googleapis.com")');
-  expect(source).toContain('csp.includes("https://fonts.gstatic.com")');
+  expect(source).toContain("hasSelfHostedFontPolicy(csp)");
   expect(source).toContain('!csp.includes("*.convex.")');
   expect(source).toContain('const smokePaths = worker.smokePaths ?? ["/", "/api/health"]');
   expect(source).toContain('response.headers.get("content-type")?.includes("application/json")');

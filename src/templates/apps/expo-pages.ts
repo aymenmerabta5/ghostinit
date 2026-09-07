@@ -104,8 +104,9 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
       "apps/mobile/app/index.tsx",
       buildExpoMarketingContent({
         hasAuth: capabilities.hasAuth,
+        hasApi: capabilities.hasApi,
+        hasBilling: capabilities.hasBilling,
         hasI18n: capabilities.hasI18n,
-        reduceUnauthenticated: true,
       }),
     ),
     file("apps/mobile/app/+not-found.tsx", expoNotFoundContent(capabilities.hasI18n)),

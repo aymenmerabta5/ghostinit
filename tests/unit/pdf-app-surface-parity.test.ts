@@ -104,8 +104,13 @@ describe("PDF application-surface parity", () => {
                 : "src/routes/pdf.tsx";
           adapterPath =
             mode === "monorepo" ? "packages/pdf/src/client/usePdf.ts" : "src/hooks/usePdf.ts";
-          navigation = contentAt(files, `${prefix}src/components/header.tsx`);
-          expect(navigation).toContain(framework === "nextjs" ? 'href="/pdf"' : 'to="/pdf"');
+          navigation = contentAt(files, `${prefix}src/components/workspace-navigation.tsx`);
+          expect(navigation).toContain('path: "/pdf", label: "pdf"');
+          expect(navigation).toContain(framework === "nextjs" ? "href={path}" : "to={path}");
+          const userMenu = contentAt(files, `${prefix}src/components/header-user-menu.tsx`);
+          expect(userMenu).toContain(
+            framework === "nextjs" ? 'router.push("/pdf")' : 'router.navigate({ to: "/pdf" })',
+          );
           const routePath =
             mode === "monorepo"
               ? framework === "nextjs"

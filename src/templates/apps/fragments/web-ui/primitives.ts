@@ -12,22 +12,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils.js";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium leading-5 ring-offset-background transition-[background-color,color,border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "border border-destructive/50 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+        default: "border border-primary bg-primary text-primary-foreground shadow-control hover:bg-primary/90",
+        destructive: "border border-destructive/40 bg-card text-destructive shadow-control hover:border-destructive hover:bg-destructive hover:text-destructive-foreground",
+        outline: "border border-border bg-card text-card-foreground shadow-control hover:border-input hover:bg-muted",
+        secondary: "border border-transparent bg-secondary text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
+        ghost: "border border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-md px-8",
-        icon: "size-9",
+        default: "h-10 px-4 py-2",
+        sm: "h-9 px-3 text-sm",
+        lg: "h-11 px-6",
+        icon: "size-10",
       },
     },
     defaultVariants: {
@@ -71,7 +71,7 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       data-slot="card"
-      className={cn("rounded-lg border bg-card text-card-foreground", className)}
+      className={cn("rounded-lg border border-border bg-card text-card-foreground shadow-surface", className)}
       {...props}
     />
   ),
@@ -83,7 +83,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
     <div
       ref={ref}
       data-slot="card-header"
-      className={cn("flex flex-col gap-1.5 p-6", className)}
+      className={cn("flex flex-col gap-2 p-5 sm:p-6", className)}
       {...props}
     />
   ),
@@ -99,7 +99,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
     <Heading
       ref={ref}
       data-slot="card-title"
-      className={cn("text-base font-medium leading-none tracking-tight", className)}
+      className={cn("text-lg font-semibold leading-snug tracking-tight", className)}
       {...props}
     />
   ),
@@ -111,7 +111,7 @@ export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTML
     <p
       ref={ref}
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm leading-6 text-muted-foreground", className)}
       {...props}
     />
   ),
@@ -120,14 +120,14 @@ CardDescription.displayName = "CardDescription";
 
 export const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-content" className={cn("p-6 pt-0", className)} {...props} />
+    <div ref={ref} data-slot="card-content" className={cn("p-5 pt-0 sm:p-6 sm:pt-0", className)} {...props} />
   ),
 );
 CardContent.displayName = "CardContent";
 
 export const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-footer" className={cn("flex items-center p-6 pt-0", className)} {...props} />
+    <div ref={ref} data-slot="card-footer" className={cn("flex flex-wrap items-center gap-3 p-5 pt-0 sm:p-6 sm:pt-0", className)} {...props} />
   ),
 );
 CardFooter.displayName = "CardFooter";
@@ -154,14 +154,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils.js";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3 gap-1",
+  "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-medium leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive: "border-destructive/50 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground",
-        outline: "text-foreground border-input",
+        default: "border-primary/15 bg-primary/10 text-primary",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-destructive/20 bg-destructive/10 text-destructive",
+        outline: "border-border bg-card text-muted-foreground",
       },
     },
     defaultVariants: {
@@ -188,12 +188,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils.js";
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
+  "relative grid w-full grid-cols-[0_1fr] items-start gap-y-1 rounded-lg border px-4 py-3.5 text-sm leading-6 has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-1 [&>svg]:text-current",
   {
     variants: {
       variant: {
-        default: "bg-card text-card-foreground border",
-        destructive: "border-destructive/50 bg-card text-destructive [&>svg]:text-destructive",
+        default: "border-border bg-muted/50 text-card-foreground",
+        destructive: "border-destructive/25 bg-destructive/5 text-destructive [&>svg]:text-destructive",
       },
     },
     defaultVariants: {
@@ -212,7 +212,7 @@ Alert.displayName = "Alert";
 
 export const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} data-slot="alert-title" className={cn("col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight", className)} {...props} />
+    <h5 ref={ref} data-slot="alert-title" className={cn("col-start-2 min-h-4 font-semibold tracking-tight", className)} {...props} />
   ),
 );
 AlertTitle.displayName = "AlertTitle";

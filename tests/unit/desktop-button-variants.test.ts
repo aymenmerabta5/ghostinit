@@ -76,8 +76,13 @@ describe("generated desktop Button variants", () => {
 
       expect(button).toContain("VariantProps<typeof buttonVariants>");
       expect(button).toContain(
-        'destructive: "border border-destructive/50 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground"',
+        'destructive: "border border-destructive/40 bg-card text-destructive shadow-control hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"',
       );
+      expect(button).toContain('default: "h-10 px-4 py-2"');
+      expect(button).toContain('icon: "size-10 p-0"');
+      expect(button).toContain("data-loading={loading || undefined}");
+      expect(button).toContain("aria-busy={loading || undefined}");
+      expect(button).toContain("disabled={disabled || loading}");
 
       const variants = declaredVariants(button);
       const usedVariants = [...`${workspace}\n${settings}`.matchAll(/\bvariant="([a-z-]+)"/g)];

@@ -21,12 +21,12 @@ export function StripePanel(): React.JSX.Element {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <CardTitle>{t("stripeTitle")}</CardTitle>
+            <CardTitle as="h2">{t("stripeTitle")}</CardTitle>
             <CardDescription className="max-w-[65ch]">{t("stripeDescription")}</CardDescription>
           </div>
-          <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> stripe</span></Badge>
+          <Badge variant="secondary">stripe</Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">

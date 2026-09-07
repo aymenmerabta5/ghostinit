@@ -85,7 +85,7 @@ export function AppProviders({ children, queryClient${initialLocaleParameter} }:
     <QueryClientProvider client={client}>
         ${i18nOpen}
           ${convexOpen}
-            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+            <ThemeProvider>
               ${queryAuthOpen}
               ${analyticsOpen}
                 ${pageView}

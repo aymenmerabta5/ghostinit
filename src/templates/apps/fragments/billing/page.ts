@@ -14,7 +14,6 @@ export function billingPresentationContent(
   return `"use client";
 import * as React from "react";
 ${hasSnapshotState ? 'import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";' : ""}
-import { Separator } from "@/components/ui/separator";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,24 +33,23 @@ ${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransiti
   const hasSubs = subscriptions.length > 0;
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground max-w-[65ch]">{t("description")}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("description")}</p>
         </div>
         {!subsLoading${hasSnapshotState ? " && !snapshotError" : ""} ? <Badge variant={pastDue ? "destructive" : hasSubs ? "secondary" : "outline"}>{pastDue ? t("paymentPastDue") : hasSubs ? t("activeSubscriptions", { count: subscriptions.length }) : t("noSubscriptionsBadge")}</Badge> : null}
       </div>
-      <Separator />
       ${hasSnapshotState ? '{snapshotError ? <Alert variant="destructive" role="alert"><AlertTitle>{t("dataUnavailable")}</AlertTitle><AlertDescription><Button type="button" size="sm" variant="outline" disabled={refreshPending} aria-busy={refreshPending} onClick={() => startRefresh(async () => { await refresh(); })}>{t("refresh")}</Button></AlertDescription></Alert> : null}' : ""}
       <BillingEmptyState disabled={isCheckoutLoading} onCheckout={handleCheckout} />
       ${hasPaymentLinks ? '<BillingPaymentLinkForm provider="chargily" />' : ""}
       {subsLoading ? <div className="flex flex-col gap-3" aria-label={t("loadingSubscriptions")}><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : (
         <div className="grid gap-4">
           ${hasSnapshotState ? "{!snapshotError || hasSubs ? (" : ""}<Card>
-            <CardHeader><CardTitle className="text-base">{t("subscriptions")}</CardTitle><CardDescription>{t("configuredProviders")}</CardDescription></CardHeader>
+            <CardHeader><CardTitle as="h2">{t("subscriptions")}</CardTitle><CardDescription>{t("configuredProviders")}</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-2">
               {subscriptions.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noSubscriptionsTitle")}</EmptyTitle><EmptyDescription>{t("noSubscriptionsDescription")}</EmptyDescription></EmptyHeader></Empty> : subscriptions.map((subscription) => (
-                <div key={subscription.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <div key={subscription.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
                   <div className="flex items-center gap-2"><Badge variant="secondary">{subscription.provider}</Badge><span className="font-mono text-xs">{subscription.status}</span></div>
                   {supportsBillingPortal(subscription.provider) ? <Button size="sm" variant="outline" onClick={() => handlePortal(subscription.provider)}>{t("customerPortal")}</Button> : null}
                 </div>
@@ -67,8 +65,8 @@ ${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransiti
 
 export function BillingPage(): React.JSX.Element {
   return (
-    <main className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-5xl flex flex-col gap-8">
+    <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <div className="flex min-w-0 flex-col gap-7">
         <BillingContent />
       </div>
     </main>
@@ -92,7 +90,7 @@ export function BillingEmptyState({ disabled, onCheckout }: { disabled: boolean;
   const t = useSurfaceTranslations("billing");
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{t("configuredProviders")}</CardTitle><CardDescription>{t("providerDescription")}</CardDescription></CardHeader>
+      <CardHeader><CardTitle as="h2">{t("configuredProviders")}</CardTitle><CardDescription>{t("providerDescription")}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-2">
               {BILLING_PROVIDERS.map((provider) => <Button key={provider.id} size="sm" variant="outline" disabled={disabled} onClick={() => onCheckout(provider.id)}>{provider.label} · {t("checkout")}</Button>)}

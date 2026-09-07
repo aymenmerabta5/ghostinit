@@ -30,6 +30,7 @@ function lineCount(content: string): number {
 }
 
 const SINGLE_DASHBOARD_FILES = [
+  "types.ts",
   "queries.ts",
   "identity-state.tsx",
   "identity-card.tsx",

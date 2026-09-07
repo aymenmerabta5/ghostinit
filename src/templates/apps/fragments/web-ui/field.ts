@@ -45,7 +45,7 @@ export const Field = React.forwardRef<HTMLDivElement, FieldProps>(
       data-disabled={disabled || undefined}
       data-invalid={invalid || undefined}
       className={cn(
-        "group/field flex w-full flex-col gap-2 data-[orientation=horizontal]:flex-row data-[orientation=horizontal]:items-start data-[disabled=true]:opacity-70 data-[invalid=true]:text-destructive",
+        "group/field flex w-full min-w-0 flex-col gap-2 data-[orientation=horizontal]:flex-row data-[orientation=horizontal]:items-start data-[orientation=horizontal]:gap-3 data-[disabled=true]:opacity-70 data-[invalid=true]:text-destructive",
         className,
       )}
       {...props}
@@ -59,7 +59,7 @@ export const FieldContent = React.forwardRef<HTMLDivElement, React.HTMLAttribute
     <div
       ref={ref}
       data-slot="field-content"
-      className={cn("flex flex-1 flex-col gap-1.5", className)}
+      className={cn("flex min-w-0 flex-1 flex-col gap-1.5", className)}
       {...props}
     />
   ),
@@ -74,7 +74,7 @@ export const FieldLabel = React.forwardRef<
     ref={ref}
     data-slot="field-label"
     className={cn(
-      "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 group-data-[disabled=true]/field:cursor-not-allowed group-data-[invalid=true]/field:text-destructive",
+      "text-sm font-medium leading-5 text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70 group-data-[disabled=true]/field:cursor-not-allowed group-data-[invalid=true]/field:text-destructive",
       className,
     )}
     {...props}
@@ -89,7 +89,7 @@ export const FieldDescription = React.forwardRef<
   <p
     ref={ref}
     data-slot="field-description"
-    className={cn("text-xs text-muted-foreground", className)}
+    className={cn("text-sm leading-6 text-muted-foreground", className)}
     {...props}
   />
 ));
@@ -105,7 +105,7 @@ export const FieldError = React.forwardRef<
       ref={ref}
       data-slot="field-error"
       aria-live="polite"
-      className={cn("text-xs font-medium text-destructive", className)}
+      className={cn("text-sm font-medium leading-5 text-destructive", className)}
       {...props}
     >
       {children}
@@ -134,7 +134,7 @@ export const FieldLegend = React.forwardRef<
   <legend
     ref={ref}
     data-slot="field-legend"
-    className={cn("text-sm font-medium leading-none", className)}
+    className={cn("text-base font-semibold leading-6", className)}
     {...props}
   />
 ));
@@ -162,7 +162,7 @@ export const InputGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
       ref={ref}
       data-slot="input-group"
       className={cn(
-        "flex items-center rounded-md border border-input bg-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-destructive/20 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50",
+        "flex min-w-0 items-center rounded-md border border-input bg-card text-card-foreground shadow-control ring-offset-background transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-destructive/20 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50",
         className,
       )}
       {...props}
@@ -179,7 +179,7 @@ export const InputGroupInput = React.forwardRef<
     ref={ref}
     data-slot="input-group-input"
     className={cn(
-      "flex h-9 w-full min-w-0 bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed",
+      "flex h-10 w-full min-w-0 bg-transparent px-3 py-2 text-base leading-6 placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed md:text-sm",
       className,
     )}
     {...props}
@@ -195,7 +195,7 @@ export const InputGroupTextarea = React.forwardRef<
     ref={ref}
     data-slot="input-group-textarea"
     className={cn(
-      "flex min-h-20 w-full resize-y bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed",
+      "flex min-h-28 w-full min-w-0 resize-y bg-transparent px-3 py-2.5 text-base leading-6 placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed md:text-sm",
       className,
     )}
     {...props}
@@ -210,7 +210,7 @@ export const InputGroupAddon = React.forwardRef<
   <div
     ref={ref}
     data-slot="input-group-addon"
-    className={cn("flex shrink-0 items-center px-1 text-sm text-muted-foreground", className)}
+    className={cn("flex shrink-0 items-center px-1 text-sm text-muted-foreground [&>[data-slot=button]]:size-8", className)}
     {...props}
   />
 ));
@@ -237,7 +237,7 @@ export const ToggleGroup = React.forwardRef<HTMLDivElement, ToggleGroupProps>(
       data-slot="toggle-group"
       style={{ gap: spacing * 4, ...style }}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+        "inline-flex max-w-full items-center justify-center rounded-lg border border-border bg-muted p-1 text-muted-foreground",
         className,
       )}
       {...props}
@@ -254,7 +254,7 @@ export const ToggleGroupItem = React.forwardRef<
     ref={ref}
     data-slot="toggle-group-item"
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-background data-[state=on]:text-foreground data-[active]:bg-background data-[active]:text-foreground",
+      "inline-flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-control data-[active]:bg-card data-[active]:text-foreground data-[active]:shadow-control",
       className,
     )}
     {...props}

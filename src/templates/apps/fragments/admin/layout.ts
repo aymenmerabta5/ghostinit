@@ -12,12 +12,12 @@ import { getRequestUser } from "${authImport}";
 async function AuthorizedAdminLayout({ children }: { children: React.ReactNode }): Promise<React.JSX.Element> {
   const user = await getRequestUser();
   if (!user || user.role !== "admin") redirect("/");
-  return <div className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">{children}</div>;
+  return <div className="min-w-0">{children}</div>;
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" aria-busy="true" />}>
+    <Suspense fallback={<div className="min-h-64" aria-busy="true" />}>
       <AuthorizedAdminLayout>{children}</AuthorizedAdminLayout>
     </Suspense>
   );
@@ -39,12 +39,12 @@ ${accessImport}
 async function AuthorizedAdminLayout({ children }: { children: React.ReactNode }): Promise<React.JSX.Element> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user || !isAdminRole(session.user.role) || session.user.banned === true) redirect("/");
-  return <div className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">{children}</div>;
+  return <div className="min-w-0">{children}</div>;
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background" aria-busy="true" />}>
+    <Suspense fallback={<div className="min-h-64" aria-busy="true" />}>
       <AuthorizedAdminLayout>{children}</AuthorizedAdminLayout>
     </Suspense>
   );

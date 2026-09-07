@@ -156,17 +156,17 @@ ${i18n.hookLine}${initialState}
   }
 
 ${displayedResult}
-  return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-    <header><h1 className="text-2xl font-semibold">${i18n.child("title", "Remote feature flags")}</h1><p className="text-sm text-muted-foreground">${i18n.child("description", "Resolve provider-backed flags through the typed application boundary. Flags never grant authorization.")}</p></header>
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">${i18n.child("title", "Remote feature flags")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">${i18n.child("description", "Check how a feature is configured for your account. Feature flags do not change permissions.")}</p></header>
     {isPending ? <p role="status">${i18n.child("pending", "Working…")}</p> : null}
-    <Card><CardHeader><CardTitle>${i18n.child("evaluate", "Evaluate")}</CardTitle></CardHeader><CardContent>
-      <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); evaluate(); }}>
-        <Field className="flex-1"><FieldLabel htmlFor="feature-flag-key">${i18n.child("keyLabel", "Flag key")}</FieldLabel><Input disabled={isPending} id="feature-flag-key" value={key} onChange={(event) => setKey(event.target.value)} maxLength={128} required /></Field>
-        <Button disabled={isPending} aria-busy={isPending} type="submit">${i18n.child("evaluate", "Evaluate")}</Button>
+    <Card className="max-w-3xl"><CardHeader><CardTitle as="h2">${i18n.child("evaluate", "Evaluate")}</CardTitle></CardHeader><CardContent>
+      <form className="flex flex-col items-start gap-3 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); evaluate(); }}>
+        <Field className="w-full min-w-0 sm:flex-1"><FieldLabel htmlFor="feature-flag-key">${i18n.child("keyLabel", "Flag key")}</FieldLabel><Input disabled={isPending} id="feature-flag-key" value={key} onChange={(event) => setKey(event.target.value)} maxLength={128} required /></Field>
+        <Button className="shrink-0" disabled={isPending} aria-busy={isPending} type="submit">${i18n.child("evaluate", "Evaluate")}</Button>
       </form>
     </CardContent></Card>
     {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {displayedResult !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Evaluation result")}</CardTitle></CardHeader><CardContent><pre className="overflow-auto rounded bg-muted p-4 text-sm">{JSON.stringify(displayedResult, null, 2)}</pre></CardContent></Card> : null}
+    {displayedResult !== null ? <Card className="max-w-3xl"><CardHeader><CardTitle as="h2">${i18n.child("result", "Evaluation result")}</CardTitle></CardHeader><CardContent><pre className="max-h-96 overflow-auto rounded-lg bg-muted/50 p-4 text-xs leading-6">{JSON.stringify(displayedResult, null, 2)}</pre></CardContent></Card> : null}
   </main>;
 }
 `;

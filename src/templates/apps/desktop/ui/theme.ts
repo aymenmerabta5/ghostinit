@@ -13,7 +13,7 @@ const ThemeContext = React.createContext<{
 } | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeRaw] = React.useState<Theme>("dark");
+  const [theme, setThemeRaw] = React.useState<Theme>("light");
 
   React.useEffect(() => {
     let mounted = true;

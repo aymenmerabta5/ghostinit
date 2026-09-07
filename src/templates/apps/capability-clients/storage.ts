@@ -92,11 +92,12 @@ ${i18n.hookLine}
     }, () => setStatus(${i18n.value("removeError", "Remove failed")}));
   }
 
-  return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-    <header><h1 className="text-2xl font-semibold">${i18n.child("title", "Storage")}</h1><p className="text-sm text-muted-foreground">${i18n.child("description", "Upload, retrieve, and remove account-owned objects.")}</p></header>
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">${i18n.child("title", "Storage")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">${i18n.child("description", "Upload, download, and manage your files.")}</p></header>
     {isPending ? <p role="status">${i18n.child("pending", "Working…")}</p> : null}
+    <div className="grid items-start gap-6 xl:grid-cols-2">
     <Card>
-      <CardHeader><CardTitle>${i18n.child("upload", "Upload")}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2">${i18n.child("upload", "Upload")}</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Field><FieldLabel htmlFor="storage-file-name">${i18n.child("fileName", "File name")}</FieldLabel><Input disabled={isPending} id="storage-file-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={255} /></Field>
         <Field><FieldLabel htmlFor="storage-text-content">${i18n.child("textContent", "Text content")}</FieldLabel><Textarea disabled={isPending} id="storage-text-content" value={text} onChange={(event) => setText(event.target.value)} /></Field>
@@ -104,13 +105,14 @@ ${i18n.hookLine}
       </CardContent>
     </Card>
     <Card>
-      <CardHeader><CardTitle>${i18n.child("download", "Download")}</CardTitle></CardHeader>
+      <CardHeader><CardTitle as="h2">${i18n.child("download", "Download")}</CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Field><FieldLabel htmlFor="storage-object-id">${i18n.child("objectId", "Object ID")}</FieldLabel><Input disabled={isPending} id="storage-object-id" value={objectId} onChange={(event) => setObjectId(event.target.value)} /></Field>
-        <div className="flex gap-2"><Button disabled={isPending} aria-busy={isPending} variant="outline" onClick={download}>${i18n.child("download", "Download")}</Button><Button disabled={isPending} aria-busy={isPending} variant="destructive" onClick={remove}>${i18n.child("remove", "Remove")}</Button></div>
-        {downloaded ? <pre className="overflow-auto rounded bg-muted p-3 text-sm">{downloaded}</pre> : null}
+        <div className="flex flex-wrap gap-2"><Button disabled={isPending} aria-busy={isPending} variant="outline" onClick={download}>${i18n.child("download", "Download")}</Button><Button disabled={isPending} aria-busy={isPending} variant="destructive" onClick={remove}>${i18n.child("remove", "Remove")}</Button></div>
+        {downloaded ? <pre className="max-h-80 overflow-auto rounded-lg bg-muted/50 p-4 text-xs leading-6">{downloaded}</pre> : null}
       </CardContent>
     </Card>
+    </div>
     {status ? <Alert><AlertDescription role="status">{status}</AlertDescription></Alert> : null}
   </main>;
 }

@@ -79,7 +79,7 @@ export function webBaseCssContent(): string {
 export function nativeBaseTsContent(): string {
   return `export const nativeBaseRoles = {
   canvas: "flex-1 bg-background",
-  content: "text-sm text-foreground",
+  content: "text-base text-foreground",
   surface: "rounded-lg border border-border bg-card text-card-foreground",
   mutedContent: "text-muted-foreground",
   action: "bg-primary text-primary-foreground",
@@ -103,6 +103,8 @@ export type NativeInteractionState = keyof typeof nativeInteractionStates;
 
 export function webCompositionCssContent(): string {
   return `@import "tailwindcss";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
 @import "tw-animate-css";
 @import "./theme.css";
 @import "./utilities.css";

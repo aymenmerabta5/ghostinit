@@ -72,7 +72,7 @@ ${singleBranches}
     )
     .join("\n");
   const dualAlert = `      {hasChargily && hasGlobal ? (<Alert className="border-primary/20 bg-primary/[0.04]"><AlertTitle>{t("dualMarketTitle")}</AlertTitle><AlertDescription className="max-w-[75ch]">{t("dualMarketDescription", { providers: "${selected.join(", ")}" })}</AlertDescription></Alert>) : null}`;
-  const badgeRow = `      <div className="flex flex-wrap gap-2">{hasChargily ? <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {t("algeriaCoverage")}</span></Badge> : null}{hasGlobal ? <Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {t("globalCoverage", { providers: "${selected.filter((p) => ["stripe", "paddle", "polar"].includes(p)).join(", ")}" })}</span></Badge> : null}</div>`;
+  const badgeRow = `      <div className="flex flex-wrap gap-2">{hasChargily ? <Badge variant="secondary"><span className="flex items-center gap-1.5">{t("algeriaCoverage")}</span></Badge> : null}{hasGlobal ? <Badge variant="secondary"><span className="flex items-center gap-1.5">{t("globalCoverage", { providers: "${selected.filter((p) => ["stripe", "paddle", "polar"].includes(p)).join(", ")}" })}</span></Badge> : null}</div>`;
 
   return `"use client";
 import * as React from "react";
@@ -109,7 +109,7 @@ ${singleBranches
 ${dualAlert}
 ${badgeRow}
       <Tabs defaultValue={list[0]} className="flex flex-col gap-4">
-        <TabsList>
+        <TabsList className="h-auto w-full flex-wrap justify-start">
 ${tabsTriggers}
         </TabsList>
 ${tabsContents}

@@ -175,6 +175,13 @@ describe("notification inbox and bell consistency", () => {
         const page = generatedFormHarness(
           testCase.output.read(`${testCase.output.root}/features/notifications/page.tsx`),
           ["NotificationsPage"],
+          { ...testCase.bindings, NotificationComposer: "NotificationComposer" },
+        );
+        const composer = generatedFormHarness(
+          testCase.output.read(
+            `${testCase.output.root}/features/notifications/components/notification-composer.tsx`,
+          ),
+          ["NotificationComposer"],
           testCase.bindings,
         );
         const bell = generatedFormHarness(
@@ -182,8 +189,24 @@ describe("notification inbox and bell consistency", () => {
           ["NotificationInboxBell"],
           { ...testCase.bindings, NotificationBell: "NotificationBell" },
         );
-        const render = () =>
-          page.render("NotificationsPage", { initialItems: [], initialScope: scopeA });
+        const render = () => {
+          const tree = page.render("NotificationsPage", { initialItems: [], initialScope: scopeA });
+          const controlled = elements(tree).find((node) => node.type === "NotificationComposer");
+          if (!controlled) throw new Error("Missing controlled notification composer");
+          return [tree, composer.render("NotificationComposer", controlled.props)];
+        };
+        const titleInput = elements(render()).find(
+          (node) => node.props.id === "notification-title",
+        )!;
+        const bodyInput = elements(render()).find((node) => node.props.id === "notification-body")!;
+        expect(titleInput.props).toMatchObject({ required: true, maxLength: 160 });
+        expect(bodyInput.props.maxLength).toBe(2000);
+        (titleInput.props.onChange as (event: unknown) => void)({
+          target: { value: "Reviewed title" },
+        });
+        (bodyInput.props.onChange as (event: unknown) => void)({
+          target: { value: "Reviewed body" },
+        });
         const form = elements(render()).find((node) => node.type === "form")!;
         const submit = form.props.onSubmit as (event: unknown) => void;
         submit({ preventDefault() {} });
@@ -196,12 +219,22 @@ describe("notification inbox and bell consistency", () => {
         testCase.first.reject(new Error("Notification endpoint unavailable"));
         await flush();
         expect(textContent(render())).toContain("Notification endpoint unavailable");
+        expect(
+          elements(render()).find((node) => node.props.id === "notification-title")?.props.value,
+        ).toBe("Reviewed title");
+        expect(
+          elements(render()).find((node) => node.props.id === "notification-body")?.props.value,
+        ).toBe("Reviewed body");
         expect(testCase.invalidations).toHaveLength(0);
         const retryForm = elements(render()).find((node) => node.type === "form")!;
         (retryForm.props.onSubmit as (event: unknown) => void)({ preventDefault() {} });
         testCase.second.resolve();
         await flush();
         expect(testCase.creates()).toBe(2);
+        expect(testCase.records[0]).toMatchObject({
+          title: "Reviewed title",
+          body: "Reviewed body",
+        });
         expect(testCase.invalidations).toEqual([
           { queryKey: [scopeA.userId, "notifications", "inbox"] },
         ]);

@@ -621,8 +621,9 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       "app/index.tsx",
       buildExpoMarketingContent({
         hasAuth,
+        hasApi,
+        hasBilling,
         hasI18n: effectiveHasI18n,
-        reduceUnauthenticated: true,
       }),
     ),
   );

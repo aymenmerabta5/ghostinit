@@ -15,12 +15,31 @@ const headers = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "content-security-policy":
-    "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none';",
+    "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; frame-ancestors 'none';",
 };
 
 describe("complete Worker HTML response acceptance", () => {
   test("accepts a completed generated landing document with the required headers", async () => {
     expect(await hasValidWorkerResponse(new Response(html, { headers }), "/", worker)).toBe(true);
+  });
+
+  test("rejects obsolete remote font and stylesheet permissions", async () => {
+    for (const [directive, remote] of [
+      ["font-src", "https://fonts.gstatic.com"],
+      ["style-src", "https://fonts.googleapis.com"],
+    ]) {
+      const csp = headers["content-security-policy"].replace(
+        `${directive} 'self'`,
+        `${directive} 'self' ${remote}`,
+      );
+      expect(
+        await hasValidWorkerResponse(
+          new Response(html, { headers: { ...headers, "content-security-policy": csp } }),
+          "/",
+          worker,
+        ),
+      ).toBe(false);
+    }
   });
 
   for (const [name, body] of [

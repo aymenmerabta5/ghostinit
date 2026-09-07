@@ -57,10 +57,24 @@ describe("formatted notification and Convex messaging boundaries", () => {
               !file.path.startsWith("apps/mobile/"),
           );
           expect(pages).toHaveLength(mode === "single" ? 1 : 2);
+          const composers = files.filter((file) =>
+            file.path.endsWith("/features/notifications/components/notification-composer.tsx"),
+          );
+          expect(composers).toHaveLength(pages.length);
+          for (const composer of composers) {
+            expect(
+              formattedLineCount(composer.path, composer.content),
+              composer.path,
+            ).toBeLessThanOrEqual(150);
+            expect(composer.content).not.toMatch(
+              /useNotificationInbox|publishSelfNotification|useAuthOwnedEffect/,
+            );
+          }
           for (const page of pages) {
             expect(formattedLineCount(page.path, page.content), page.path).toBeLessThanOrEqual(200);
             expect(page.content.match(/\buseNotificationInbox\(/g)).toHaveLength(1);
             expect(page.content).toContain("const isCurrent = captureEffect();");
+            expect(page.content).toContain('from "./components/notification-composer"');
             expect(page.content).not.toContain("const loading = inbox.isPending;");
             expect(page.content).not.toContain(
               '<CardDescription>{t("description")}</CardDescription>',

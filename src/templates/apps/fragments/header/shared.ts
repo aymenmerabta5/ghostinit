@@ -1,6 +1,3 @@
-/**
- * Header shared – getInitials + shared structure constants
- */
 export type RouterType = "next" | "tanstack";
 
 export interface HeaderNavigationCapabilities {
@@ -11,42 +8,7 @@ export interface HeaderNavigationCapabilities {
   readonly jobs?: boolean;
 }
 
-export const getInitialsFunction = `function getInitials(name?: string | null, email?: string | null): string {
-  if (name) {
-    const parts = name.trim().split(/\\s+/);
-    if (parts.length >= 2) {
-      return \`\${parts[0][0]}\${parts[parts.length - 1][0]}\`.toUpperCase();
-    }
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-  if (email) return email.slice(0, 2).toUpperCase();
-  return "U";
-}`;
-
-export function getInitialsTanstackVariant(): string {
-  return `function getInitials(name?: string | null, email?: string | null): string {
-  if (name) {
-    const parts = name.trim().split(/\\s+/)
-    if (parts.length >= 2) {
-      return \`\${parts[0][0]}\${parts[parts.length - 1][0]}\`.toUpperCase()
-    }
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-  if (email) return email.slice(0, 2).toUpperCase()
-  return 'U'
-}`;
-}
-
 export const sharedHeaderStructure = {
-  // Opaque background, border carries the structure (DESIGN.md bans glass-by-default)
-  shellClass: "sticky top-0 z-40 w-full border-b bg-background",
-  innerClass: "mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8",
-  logo: `<span className="text-sm font-semibold tracking-tight">GhostInit</span>`,
-  badge: `<Badge variant="secondary" className="hidden sm:inline-flex">modular monolith</Badge>`,
-  navItems: [
-    { label: "Dashboard", href: "/dashboard", to: "/dashboard" },
-    { label: "Billing", href: "/billing", to: "/billing" },
-    { label: "Settings", href: "/settings", to: "/settings" },
-    { label: "Admin", href: "/admin/users", to: "/admin", adminOnly: true },
-  ],
+  shellClass: "sticky top-0 z-[var(--layer-navigation)] w-full border-b bg-card",
+  innerClass: "mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-5 sm:px-8",
 };

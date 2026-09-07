@@ -7,6 +7,7 @@ import { ui as uiVersions } from "../../packages/versions/src/index.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
+import { generatedLayerViolations } from "../helpers/generated-layer-contract.js";
 
 type PrimitiveCategory =
   | "ad-hoc-empty-state"
@@ -368,20 +369,8 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     }
   }
 
-  for (const name of [
-    "alert-dialog.tsx",
-    "dialog.tsx",
-    "dropdown-menu.tsx",
-    "popover.tsx",
-    "select.tsx",
-    "sheet.tsx",
-    "surface-styles.ts",
-    "tooltip.tsx",
-  ]) {
-    const [path, content] = ui(name);
-    for (const match of content.matchAll(/\bz-(?:\d+|auto|\[[^\]]+\])/g)) {
-      records.push({ category: "manual-overlay-z-index", path, evidence: match[0] });
-    }
+  for (const violation of generatedLayerViolations(target)) {
+    records.push({ category: "manual-overlay-z-index", ...violation });
   }
 
   for (const name of ["button.tsx", "dialog.tsx", "dropdown-menu.tsx", "sheet.tsx"]) {
@@ -421,8 +410,14 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     "<BaseSelect.Portal>",
     "<BaseSelect.Positioner",
     "<BaseSelect.Popup",
-    "<BaseSelect.List>",
+    "</BaseSelect.List>",
   ]);
+  if (!/<BaseSelect\.List(?:\s|>)/.test(select))
+    records.push({
+      category: "nonfunctional-select",
+      path: selectPath,
+      evidence: "missing BaseSelect.List opening",
+    });
   addMissingTokens(records, "partial-notification-bell", notificationPath, notification, [
     "<Popover>",
     "<PopoverTrigger",

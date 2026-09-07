@@ -111,14 +111,14 @@ export function PasskeyCard(): JSX.Element {
   const t = useSurfaceTranslations("settings");
   const common = useSurfaceTranslations("common");
   const { passkeyQuery, passkeys, newName, setNewName, names, setNames, pending, error, success, errorMessage, register, rename, remove } = usePasskeyManagement();
-  return <Card><CardHeader><div className="flex items-center justify-between gap-3">
-    <CardTitle className="text-base">{t("passkeys.title")}</CardTitle>{passkeyQuery.data ? <Badge variant="secondary">{passkeys.length}</Badge> : null}
+  return <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-3">
+    <CardTitle as="h2">{t("passkeys.title")}</CardTitle>{passkeyQuery.data ? <Badge variant="secondary">{passkeys.length}</Badge> : null}
   </div><CardDescription className="max-w-[65ch]">{t("passkeys.description")}</CardDescription></CardHeader>
     <CardContent className="flex flex-col gap-4">
       {error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
       {passkeyQuery.error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{errorMessage(passkeyQuery.error)}</AlertDescription><Button variant="outline" disabled={passkeyQuery.isFetching} onClick={() => void passkeyQuery.refetch()}>{common("retry")}</Button></Alert> : null}
       {success ? <Alert><AlertTitle>{t("passkeys.successTitle")}</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
-      <Field><FieldLabel htmlFor="passkey-registration-name">{t("passkeys.namePlaceholder")}</FieldLabel><div className="flex flex-col gap-2 sm:flex-row"><Input id="passkey-registration-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("passkeys.namePlaceholder")} maxLength={64} /><Button disabled={pending !== null} onClick={() => void register()}>{pending === "register" ? t("passkeys.registering") : t("passkeys.register")}</Button></div></Field>
+      <Field><FieldLabel htmlFor="passkey-registration-name">{t("passkeys.namePlaceholder")}</FieldLabel><div className="flex flex-col items-start gap-3 sm:flex-row"><Input id="passkey-registration-name" className="sm:max-w-sm" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("passkeys.namePlaceholder")} maxLength={64} /><Button className="shrink-0" disabled={pending !== null} onClick={() => void register()}>{pending === "register" ? t("passkeys.registering") : t("passkeys.register")}</Button></div></Field>
       {passkeyQuery.isPending ? <div role="status" aria-label={common("loading")} aria-busy={true}><Skeleton className="h-24 w-full" /></div> : passkeyQuery.data ? <PasskeyList passkeys={passkeys} names={names} pending={pending} onNameChange={(id, name) => setNames((current) => ({ ...current, [id]: name }))} onRename={rename} onDelete={remove} /> : null}
     </CardContent>
   </Card>;
@@ -155,9 +155,9 @@ interface PasskeyListProps {
 export function PasskeyList(props: PasskeyListProps): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   if (props.passkeys.length === 0) return <p className="text-sm text-muted-foreground">{t("passkeys.empty")}</p>;
-  return <div className="flex flex-col gap-3">{props.passkeys.map((passkey) => {
+  return <div className="divide-y rounded-lg border">{props.passkeys.map((passkey) => {
     const fallback = passkey.name ?? t("passkeys.unnamed");
-    return <div key={passkey.id} className="flex flex-col gap-3 rounded-lg border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-medium">{fallback}</p><p className="text-xs text-muted-foreground">{t("passkeys.createdAt", { date: new Date(passkey.createdAt).toLocaleDateString() })}</p></div><Badge variant="outline">{passkey.backedUp ? t("passkeys.synced") : passkey.deviceType}</Badge></div><div className="flex flex-col gap-2 sm:flex-row"><Input aria-label={t("passkeys.renameLabel")} value={props.names[passkey.id] ?? fallback} onChange={(event) => props.onNameChange(passkey.id, event.target.value)} maxLength={64} /><Button variant="outline" disabled={props.pending !== null} onClick={() => void props.onRename(passkey.id, fallback)}>{t("passkeys.rename")}</Button><Button variant="destructive" disabled={props.pending !== null} onClick={() => void props.onDelete(passkey.id)}>{t("passkeys.delete")}</Button></div></div>;
+    return <div key={passkey.id} className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-center"><div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{fallback}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{t("passkeys.createdAt", { date: new Date(passkey.createdAt).toLocaleDateString() })}</p></div><Badge variant="outline">{passkey.backedUp ? t("passkeys.synced") : passkey.deviceType}</Badge></div><div className="flex flex-wrap items-center gap-2"><Input className="min-w-0 flex-[1_1_12rem]" aria-label={t("passkeys.renameLabel")} value={props.names[passkey.id] ?? fallback} onChange={(event) => props.onNameChange(passkey.id, event.target.value)} maxLength={64} /><Button size="sm" variant="outline" disabled={props.pending !== null} onClick={() => void props.onRename(passkey.id, fallback)}>{t("passkeys.rename")}</Button><Button size="sm" variant="destructive" disabled={props.pending !== null} onClick={() => void props.onDelete(passkey.id)}>{t("passkeys.delete")}</Button></div></div>;
   })}</div>;
 }
 `;

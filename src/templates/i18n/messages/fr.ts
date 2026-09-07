@@ -50,6 +50,7 @@ export const FR_MESSAGES = {
     twoFactor: "Authentification à deux facteurs",
   },
   header: {
+    openNavigation: "Ouvrir la navigation",
     productName: "GhostInit",
     productBadge: "monolithe modulaire",
     marketingBadge: "plan de contrôle",
@@ -90,7 +91,7 @@ export const FR_MESSAGES = {
   },
   notifications: {
     title: "Notifications",
-    description: "Boîte de réception liée à votre compte et partagée entre vos applications.",
+    description: "Les nouveautés et l’activité de votre compte.",
     defaultTitle: "Bonjour de GhostInit",
     defaultBody: "Cette notification est conservée pour votre compte.",
     titleLabel: "Titre",
@@ -109,9 +110,9 @@ export const FR_MESSAGES = {
     pending: "Opération en cours…",
     title: "Indicateurs de fonctionnalité distants",
     description:
-      "Résolvez les indicateurs du fournisseur par la frontière applicative typée. Ils n’accordent jamais d’autorisation.",
+      "Consultez les fonctionnalités configurées pour votre compte. Les indicateurs ne modifient pas les permissions.",
     shortDescription:
-      "Évaluation par le fournisseur. Les indicateurs n’accordent jamais d’autorisation.",
+      "Consultez les fonctionnalités. Les indicateurs ne modifient pas les permissions.",
     keyLabel: "Clé d’indicateur",
     evaluate: "Évaluer",
     error: "Échec de l’évaluation de l’indicateur",
@@ -120,7 +121,7 @@ export const FR_MESSAGES = {
   storage: {
     pending: "Opération en cours…",
     title: "Stockage",
-    description: "Téléversez, récupérez et supprimez les objets appartenant au compte.",
+    description: "Téléversez, téléchargez et gérez vos fichiers.",
     defaultText: "Stocké en sécurité par GhostInit.",
     fileName: "Nom du fichier",
     textContent: "Contenu texte",
@@ -138,8 +139,7 @@ export const FR_MESSAGES = {
   jobs: {
     pending: "Opération en cours…",
     title: "Tâches en arrière-plan",
-    description:
-      "Mettez en file et consultez les exécutions liées à l’acteur avec le planificateur partagé.",
+    description: "Lancez des tâches en arrière-plan et suivez leur progression.",
     defaultMessage: "Bonjour worker",
     echoPayload: "Charge utile à renvoyer",
     enqueueError: "Échec de la mise en file",
@@ -213,8 +213,7 @@ export const FR_MESSAGES = {
       "Utilise le même moteur authentifié et limité que les applications web et mobile.",
     generateDownload: "Générer et télécharger",
     generationError: "Échec de la génération du PDF",
-    webDescription:
-      "Le moteur serveur authentifié limite les entrées et les admissions, et renvoie des réponses privées non mises en cache.",
+    webDescription: "Créez une facture, un certificat ou un accord.",
     sample: {
       customer: "Client exemple",
       recipient: "Destinataire exemple",
@@ -341,21 +340,21 @@ export const FR_MESSAGES = {
     loadingAccount: "Chargement du compte…",
     durableBadge: "durable",
     webDescription:
-      "Cette discussion utilise l’agent défini dans {agentRoot}. Les requêtes du navigateur passent uniquement par la façade applicative authentifiée ; les identifiants Eve n’atteignent jamais cette route.",
+      "Un espace pour poser vos questions, explorer vos idées et travailler avec votre agent.",
     conversationTitle: "Conversation",
     conversationDescription: "Le travail durable continue lorsque cette page est déconnectée.",
     streaming: "Diffusion du flux de travail durable…",
   },
   transactionalEmail: {
     verification: {
-      subject: "Vérifiez votre adresse e-mail — {appName}",
+      subject: "Vérifiez votre adresse e-mail - {appName}",
       title: "Vérifiez votre adresse e-mail",
       body: "Merci de vous être inscrit sur {appName}. Vérifiez votre adresse e-mail avec le lien sécurisé ci-dessous.",
       action: "Vérifier l’adresse e-mail",
       detail: "Si vous n’avez pas créé de compte, vous pouvez ignorer cet e-mail.",
     },
     passwordReset: {
-      subject: "Réinitialisez votre mot de passe — {appName}",
+      subject: "Réinitialisez votre mot de passe - {appName}",
       title: "Réinitialisez votre mot de passe",
       body: "Nous avons reçu une demande de réinitialisation du mot de passe {appName}.",
       action: "Réinitialiser le mot de passe",
@@ -631,16 +630,16 @@ export const FR_MESSAGES = {
       openAdmin: "Ouvrir l'administration",
     },
     identity: {
-      title: "Identité — Profil",
+      title: "Identité - Profil",
       emailLabel: "E-mail",
       nameLabel: "Nom",
-      signedInAs: "Connecté avec {email} — {name}",
+      signedInAs: "Connecté avec {email} - {name}",
       nameNotSet: "non défini",
       roleFallback: "utilisateur",
       editProfile: "Modifier le profil",
       billing: "Facturation",
       admin: "Administration",
-      sessionComment: "session — Better Auth",
+      sessionComment: "session - Better Auth",
     },
     actions: {
       title: "Actions rapides",
@@ -668,7 +667,7 @@ export const FR_MESSAGES = {
         "définit les dépendances des tâches et les variables d’environnement adaptées aux capacités.",
     },
     single: {
-      description: "Bon retour. Gérez votre compte, la facturation et les modules.",
+      description: "Votre compte, votre espace de travail et les outils pour avancer.",
       profileTitle: "Profil",
       quickActionsTitle: "Actions rapides",
       billingTitle: "Facturation",
@@ -732,128 +731,77 @@ export const FR_MESSAGES = {
     ar: "Arabe",
   },
   marketing: {
-    heroTitle: "GhostInit",
     heroSubtitle:
-      "Starter monolithe modulaire structuré avec DDD, oRPC, Better Auth et agents durables.",
+      "Un socle clair pour votre prochaine application, avec un design commun et les fonctionnalités de votre choix.",
     ctaSignUp: "S'inscrire",
     ctaSignIn: "Se connecter",
-    header: {
-      productName: "GhostInit",
-      productBadge: "plan de contrôle",
-      github: "GitHub",
-      signIn: "Se connecter",
-      signUp: "S'inscrire",
-    },
     hero: {
-      eyebrow: "Bun uniquement • oRPC • Better Auth",
-      eyebrowTanstack: "Bun uniquement • oRPC • Better Auth • TanStack Start",
-      title: "Le plan de contrôle open source pour votre monorepo.",
+      eyebrow: "Votre application commence ici",
+      title: "Votre prochaine idée,",
+      titleAccent: "prend de l’avance.",
       descriptionNext:
-        "Orchestrez Next.js, Drizzle, oRPC et Better Auth depuis une seule interface. Choisissez votre facturation. Forkez l'ensemble.",
+        "Un socle Next.js avec les outils nécessaires à votre projet, prêt à devenir le vôtre.",
       descriptionTanstack:
-        "Orchestrez TanStack Start, Drizzle, oRPC et Better Auth depuis une seule interface. Choisissez votre pile. Forkez l'ensemble.",
-      primaryCta: "Commencer à construire",
-      secondaryCta: "Voir le code source",
-      terminalTitle: "~/code — zsh",
-      terminalScaffolded: "Projet {project} généré en {duration} — {count} fichiers, aucune dérive",
-      terminalReady: "Prêt sur {url} — ghostinit check réussi",
+        "Un socle TanStack Start avec les outils nécessaires à votre projet, prêt à devenir le vôtre.",
+      primaryCta: "S'inscrire",
+      secondaryCta: "Voir le code",
+    },
+    preview: {
+      title: "Votre projet en un regard",
+      routes: "Routes",
+      components: "Composants",
+      design: "Système de design",
+      server: "Code serveur",
+      database: "Schéma de données",
+      agent: "Agent",
+      source: "Le code est à vous. À vous de le façonner.",
+      canvas: "Fond",
+      surface: "Surface",
+      accent: "Accent",
+      footerNavigation: "Navigation de pied de page",
     },
     features: {
-      title: "Pourquoi GhostInit",
+      title: "Un socle pour aller plus loin.",
       description:
-        "Un monorepo bien structuré avec un lint architectural qui ne vous gêne pas. Comme t3.codes pour votre application.",
-      architectureTitle: "Des couches dès la conception",
+        "Une structure claire, des détails soignés et de la place pour évoluer. La suite vous appartient.",
+      architectureTitle: "Chaque chose à sa place",
       architectureDescription:
-        "Six couches vérifiables maintiennent l'interface, le transport, le domaine, les capacités, les fournisseurs et le support dans un seul sens.",
-      authTitle: "Authentification incluse",
-      authDescription:
-        "Better Auth fournit des sessions sécurisées, l'administration et l'authentification TOTP à deux facteurs.",
-      scaffoldTitle: "Une seule commande pour tout générer",
-      scaffoldDescriptionNext:
-        "Créez un espace de travail Next.js complet avec des paquets cohérents, sans jongler avec le terminal.",
-      scaffoldDescriptionTanstack:
-        "Créez un espace TanStack Start et Vite avec les mêmes contrats oRPC et jetons de conception.",
-      apiTitle: "Uniquement oRPC",
+        "Applications, paquets partagés et règles métier ont leurs responsabilités, avec des contrôles pour maintenir leurs limites.",
+      scaffoldTitle: "Un point de départ",
+      apiTitle: "Des échanges bien définis",
       apiDescriptionNext:
-        "Un port applicatif avec oRPC typé et des routes webhook Next.js en données brutes.",
+        "Les appels oRPC typés relient votre interface aux opérations de l’application.",
       apiDescriptionTanstack:
-        "Un port applicatif avec oRPC typé et des routes serveur TanStack Start.",
-      billingTitle: "Facturation flexible",
+        "Les appels oRPC typés relient votre interface aux opérations de l’application.",
+      billingTitle: "Une facturation adaptée",
       billingDescription:
-        "Choisissez toute combinaison de Stripe, Chargily, Paddle et Polar avec des contrats partagés.",
-      toolingTitle: "Des vérifications qui comprennent l'architecture",
-      toolingDescription:
-        "ghostinit check combine la validation de l'architecture, la vérification des types et le lint.",
-      forkTitle: "Si cela ne vous convient pas, forkez-le",
-      forkDescriptionNext:
-        "Sous licence MIT. Modifiez l'interface, ajoutez un fournisseur et livrez votre propre version.",
-      forkDescriptionTanstack:
-        "Sous licence MIT. Modifiez l'interface, ajoutez un agent et livrez votre propre version.",
-    },
-    quickStart: {
-      title: "Démarrage rapide",
-      descriptionNext:
-        "Bun uniquement. Aucun repli vers npm. Les secrets doivent contenir au moins 32 caractères.",
-      descriptionTanstack:
-        "Bun uniquement. TanStack Start utilise le serveur de développement Vite.",
-    },
-    cta: {
-      title: "Commencez sur des fondations pensées pour la production",
-      description: "Générez l'espace de travail, inspectez chaque fichier et adaptez-le.",
-      primary: "Créer un compte",
-      secondary: "Voir le code source",
+        "Vos prestataires sélectionnés partagent des parcours cohérents de paiement et de gestion du compte.",
     },
     footer: {
-      tagline: "Construit avec shadcn, Base UI et Tailwind CSS v4.",
+      tagline: "Créé avec GhostInit. À vous de le façonner.",
       signIn: "Se connecter",
       billing: "Facturation",
-      dashboard: "Tableau de bord",
     },
     single: {
-      projectBadgeNext: "single • src à plat",
-      projectBadgeTanstack: "single • tanstack • src à plat",
       signIn: "Se connecter",
-      signUp: "S'inscrire",
-      eyebrowNext: "Un seul package · Des limites claires",
-      eyebrowTanstack: "Un seul package · Des limites claires",
-      heroTitle: "{project}",
-      heroDescriptionNext:
-        "Un socle Next.js clair, avec une structure lisible, des composants réutilisables et les fonctionnalités que vous avez choisies.",
-      heroDescriptionTanstack:
-        "Un socle TanStack Start clair, avec une structure lisible, des composants réutilisables et les fonctionnalités que vous avez choisies.",
-      startBuilding: "Commencer à construire",
-      whyTitleNext: "Pourquoi le mode single",
-      whyTitleTanstack: "Pourquoi le mode single avec TanStack Start",
-      whyDescriptionNext:
-        "Un seul package, des limites explicites et des jetons de conception partagés pour développer votre application.",
-      whyDescriptionTanstack:
-        "Un seul package, des limites explicites et des jetons de conception partagés pour développer votre application.",
       flatTitle: "Un projet, une structure claire",
       flatDescriptionNext:
-        "Les routes et composants réutilisables partagent le même arbre source. Les modules serveur sélectionnés restent derrière des limites explicites.",
+        "Routes, composants réutilisables et modules serveur sélectionnés trouvent leur place dans une seule arborescence.",
       flatDescriptionTanstack:
-        "Les routes et composants réutilisables partagent le même arbre source. Les modules serveur sélectionnés restent derrière des limites explicites.",
-      authTitle: "Identité et routes protégées",
-      authDescriptionNext:
-        "La connexion, les paramètres du compte et les routes protégées utilisent la même identité applicative.",
-      authDescriptionTanstack:
-        "La connexion, les paramètres du compte et les routes protégées utilisent la même identité applicative.",
-      billingTitle: "Prestataires de paiement sélectionnés",
+        "Routes, composants réutilisables et modules serveur sélectionnés trouvent leur place dans une seule arborescence.",
+      authTitle: "Un compte facile à prendre en main",
+      authDescriptionNext: "Connectez-vous, gérez votre profil et protégez votre compte.",
+      authDescriptionTanstack: "Connectez-vous, gérez votre profil et protégez votre compte.",
+      billingTitle: "Une facturation adaptée",
       billingDescription:
-        "Vos prestataires sélectionnés utilisent des contrats communs pour le paiement et la facturation.",
-      tokensTitle: "Jetons de conception partagés",
+        "Vos prestataires sélectionnés partagent des parcours cohérents de paiement et de gestion du compte.",
+      tokensTitle: "Un design cohérent, dans chaque détail",
       tokensDescription:
-        "Jetons OKLCH sémantiques pour les arrière-plans, le texte, les actions, les bordures, les champs et les anneaux de focus.",
+        "Couleurs, typographie et contrôles communs relient tous les écrans. En mode clair comme en mode sombre.",
       quickStartTitle: "Démarrage rapide",
       quickStartDescriptionNext:
-        "Pour un nouveau projet créé sans dépendances, exécutez bootstrap une fois avant de démarrer le développement.",
-      quickStartDescriptionTanstack:
-        "Pour un nouveau projet créé sans dépendances, exécutez bootstrap une fois avant de démarrer le développement.",
-      footerTagline: "Construit avec shadcn, Base UI, Tailwind CSS v4 et des jetons OKLCH.",
-      footerSignIn: "Se connecter",
-      footerBilling: "Facturation",
-      quickStartServices:
-        "Configurez les services sélectionnés dans README.md avant d’utiliser l’application.",
+        "Ouvrez votre projet, installez ses dépendances et commencez à créer.",
+      quickStartServices: "Votre README explique comment configurer les services sélectionnés.",
     },
   },
   settings: {
@@ -979,7 +927,7 @@ export const FR_MESSAGES = {
       revokingOthers: "Révocation des autres sessions...",
       loading: "Chargement des sessions...",
       refresh: "Actualiser",
-      empty: "Aucune autre session active — uniquement cet appareil.",
+      empty: "Aucune autre session active - uniquement cet appareil.",
       current: "actuelle",
       revoke: "Révoquer",
       revoking: "Révocation...",
@@ -1127,10 +1075,10 @@ export const FR_MESSAGES = {
   },
   metadata: {
     siteTitle: "Application GhostInit",
-    siteDescription: "Votre monolithe modulaire structuré avec mode sombre.",
-    marketingTitle: "GhostInit — Monolithe modulaire",
+    siteDescription: "Un socle clair pour votre prochaine application.",
+    marketingTitle: "GhostInit - Votre prochaine application",
     marketingDescription:
-      "Starter Bun, oRPC et Better Auth avec métadonnées SEO prêtes à l'emploi.",
+      "Une structure claire, un design commun et les fonctionnalités de votre choix.",
     signInTitle: "Se connecter",
     signInDescription: "Connectez-vous à votre compte GhostInit.",
     signUpTitle: "Créer un compte",
@@ -1239,7 +1187,7 @@ export const FR_MESSAGES = {
     providerChargily: "Chargily",
     providerPaddle: "Paddle",
     providerPolar: "Polar",
-    algeriaMarketTitle: "Marché algérien — EDAHABIA/CIB uniquement",
+    algeriaMarketTitle: "Marché algérien - EDAHABIA/CIB uniquement",
     algeriaMarketDescription:
       "Chargily dessert le marché algérien avec le paiement EDAHABIA/CIB. Sans portail client ni prélèvement récurrent automatique, le renouvellement nécessite un nouveau paiement autorisé par le client.",
     dualMarketTitle: "Couverture algérienne et mondiale",

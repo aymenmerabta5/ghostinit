@@ -46,16 +46,13 @@ import type { BillingInitialData } from "./hooks/use-billing-page";`
 
   return `import type * as React from "react";
 ${serverImports}
-import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
 import { BillingHeader } from "./components/billing-header";
 ${bodyImport}
 ${providersConst}${dataComponent}export default function BillingPage(): React.JSX.Element {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className={cn("mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8 lg:p-10")}>
+    <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+      <div className="flex min-w-0 flex-col gap-7">
         <BillingHeader />
-        <Separator />
         ${body}
       </div>
     </main>

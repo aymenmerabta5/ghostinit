@@ -17,7 +17,7 @@ export const Avatar = React.forwardRef<
   <BaseAvatar.Root
     ref={ref}
     data-slot="avatar"
-    className={cn("relative flex size-10 shrink-0 overflow-hidden rounded-full", className)}
+    className={cn("relative flex size-10 shrink-0 overflow-hidden rounded-full border border-border", className)}
     {...props}
   />
 ));
@@ -44,7 +44,7 @@ export const AvatarFallback = React.forwardRef<
     ref={ref}
     data-slot="avatar-fallback"
     className={cn(
-      "flex size-full items-center justify-center rounded-full bg-muted text-muted-foreground text-sm font-medium",
+      "flex size-full items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground",
       className,
     )}
     {...props}
@@ -69,12 +69,12 @@ export function Toaster({ ...props }: ToasterProps) {
   return (
     <SonnerToaster
       theme={theme}
-      className="toaster group"
+      className="toaster group !z-[var(--layer-toast)]"
       toastOptions={{
         classNames: {
           toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
+            "group toast group-[.toaster]:rounded-lg group-[.toaster]:bg-popover group-[.toaster]:text-popover-foreground group-[.toaster]:border-border group-[.toaster]:shadow-popover",
+          description: "group-[.toast]:text-muted-foreground group-[.toast]:leading-6",
           actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
@@ -99,7 +99,7 @@ export const Empty = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
       ref={ref}
       data-slot="empty"
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-6 rounded-lg border border-dashed p-6 text-center text-balance md:p-12 bg-card",
+        "flex min-w-0 flex-1 flex-col items-center justify-center gap-5 rounded-lg border border-border bg-card px-6 py-10 text-center text-balance sm:py-14",
         className,
       )}
       {...props}
@@ -116,12 +116,12 @@ export const EmptyHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes
 EmptyHeader.displayName = "EmptyHeader";
 
 const emptyMediaVariants = cva(
-  "mb-2 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "mb-1 flex shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-transparent",
-        icon: "flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground [&_svg:not([class*='size-'])]:size-6",
+        icon: "flex size-12 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-muted-foreground [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: { variant: "default" },
@@ -145,14 +145,14 @@ export function EmptyMedia({
 
 export const EmptyTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="empty-title" className={cn("text-lg font-medium tracking-tight", className)} {...props} />
+    <div ref={ref} data-slot="empty-title" className={cn("text-lg font-semibold leading-snug tracking-tight", className)} {...props} />
   ),
 );
 EmptyTitle.displayName = "EmptyTitle";
 
 export const EmptyDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="empty-description" className={cn("text-sm text-muted-foreground", className)} {...props} />
+    <div ref={ref} data-slot="empty-description" className={cn("text-sm leading-6 text-muted-foreground", className)} {...props} />
   ),
 );
 EmptyDescription.displayName = "EmptyDescription";
@@ -207,7 +207,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils.js";
 
 export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div data-slot="skeleton" className={cn("animate-pulse rounded-md bg-muted", className)} {...props} />;
+  return <div data-slot="skeleton" className={cn("rounded-md bg-muted motion-safe:animate-pulse", className)} {...props} />;
 }
 `,
     ),
@@ -226,7 +226,7 @@ export function Spinner({ className, ...props }: React.HTMLAttributes<HTMLDivEle
       role="status"
       aria-label={t("loading")}
       data-slot="spinner"
-      className={cn("size-4 animate-spin rounded-full border-2 border-muted border-t-foreground", className)}
+      className={cn("size-4 rounded-full border-2 border-current border-e-transparent motion-safe:animate-spin", className)}
       {...props}
     >
       <span className="sr-only">{t("loading")}</span>
