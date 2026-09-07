@@ -194,14 +194,14 @@ export function buildNextFiles(
   files.push(
     file(
       "next.config.ts",
-      singleNextConfigContent(
+      singleNextConfigContent({
         hasEve,
         hasI18n,
         hasPdf,
         hasCloudflare,
-        isConvex,
-        effectiveBilling.includes("paddle"),
-      ),
+        hasConvex: isConvex,
+        billingProviders: effectiveBilling,
+      }),
     ),
   );
   files.push(file("tsconfig.json", singleTsConfigContent()));

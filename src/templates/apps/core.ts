@@ -5,7 +5,7 @@
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
-import { hasAddon, isAddonInstallerMap } from "../../lib/addons.js";
+import { BILLING_PROVIDERS, hasAddon, isAddonInstallerMap } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import {
   cacheComponentsConfigBlock,
@@ -19,6 +19,7 @@ import { webLibFiles } from "./fragments/web-lib.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 import { customNextServerCommand, nextRuntimeCommand } from "../root/next-server-runtime.js";
 import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../tooling/next-memory.js";
+import { nextServerExternalPackagesBlock, type NextConfigOptions } from "../tooling/next-config.js";
 
 type FeatureInput =
   | boolean
@@ -71,14 +72,16 @@ export function coreFiles(
   const hasConvex = addonMap ? hasAddon(addonMap, "convex") : false;
   return [
     webPackage(runtime, hasEve, effectiveHasI18n, addonMap, hasEmail),
-    nextConfig(
+    nextConfig({
       hasEve,
-      effectiveHasI18n,
+      hasI18n: effectiveHasI18n,
       hasPdf,
       hasCloudflare,
       hasConvex,
-      Boolean(addonMap && hasAddon(addonMap, "paddle")),
-    ),
+      billingProviders: addonMap
+        ? BILLING_PROVIDERS.filter((provider) => hasAddon(addonMap, provider))
+        : [],
+    }),
     postcssConfig(),
     globalCss(runtime),
     ...webUiFiles(),
@@ -257,17 +260,19 @@ function webPackage(
   );
 }
 
-function nextConfig(
+function nextConfig({
   hasEve = false,
   hasI18n = false,
   hasPdf = false,
   hasCloudflare = false,
   hasConvex = false,
-  hasPaddle = false,
-): TemplateFile {
+  billingProviders = [],
+}: NextConfigOptions = {}): TemplateFile {
+  const hasPaddle = billingProviders.includes("paddle");
   const baseHeaders = nextConfigHeadersFunction(hasConvex, hasPaddle);
   const transpile = transpilePackagesList;
   const rewritesBlock = posthogRewritesBlock();
+  const serverPackagesBlock = nextServerExternalPackagesBlock(billingProviders, hasCloudflare);
   const imagesBlock = `  images: {
     remotePatterns: [],
   },`;
@@ -292,6 +297,7 @@ ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloud
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
 ${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -331,6 +337,7 @@ ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloud
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
 ${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -368,6 +375,7 @@ ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloud
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
 ${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -391,6 +399,7 @@ ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloud
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
 ${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}

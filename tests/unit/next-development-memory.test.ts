@@ -7,6 +7,7 @@ interface Config {
   cacheComponents?: boolean;
   headers?: unknown;
   rewrites?: unknown;
+  serverExternalPackages?: string[];
   intl?: boolean;
   eve?: boolean;
 }
@@ -68,7 +69,7 @@ describe("generated Next development memory policy", () => {
               apps: ["web"],
               auth: true,
               api: true,
-              billing: [],
+              billing: ["stripe", "chargily", "paddle", "polar"],
               features: [...(eve ? ["eve"] : []), ...(i18n ? ["i18n"] : [])],
               cache: "none",
               deploy: "none",
@@ -87,6 +88,12 @@ describe("generated Next development memory policy", () => {
             expect(config.cacheComponents).toBe(true);
             expect(typeof config.headers).toBe("function");
             expect(typeof config.rewrites).toBe("function");
+            expect(config.serverExternalPackages).toEqual([
+              "stripe",
+              "@chargily/chargily-pay",
+              "@paddle/paddle-node-sdk",
+              "@polar-sh/sdk",
+            ]);
             expect(Boolean(config.intl)).toBe(i18n);
             expect(Boolean(config.eve)).toBe(eve);
             if (eve) {

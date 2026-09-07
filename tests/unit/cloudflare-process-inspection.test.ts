@@ -316,7 +316,8 @@ describe("generated Windows process inspection", () => {
     "reads real identities from a wrapper with the filtered fixture environment",
     () => {
       const environment = testEnvironment();
-      const result = runWindowsQueryFixture(environment);
+      const result = runWindowsQueryFixture(environment, true);
+      console.info("Windows first-call process discovery: " + JSON.stringify(result));
       if (result.status !== 0 || !result.report?.success || !result.report.ownIdentity) {
         const runnerModuleCache = process.env.PSModuleAnalysisCachePath;
         const diagnostics = {
@@ -337,6 +338,7 @@ describe("generated Windows process inspection", () => {
       expect(result.status).toBe(0);
       expect(result.report?.success).toBe(true);
       expect(result.report?.ownIdentity).toBe(true);
+      expect(result.report?.nativeClosed).toBe(true);
     },
     60_000,
   );

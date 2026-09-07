@@ -5,15 +5,20 @@ import {
 } from "../../../apps/fragments/core/security.js";
 import { NEXT_COMPILER_OPTIONS, NEXT_TYPE_INCLUDES } from "../../../tooling/next-typescript.js";
 import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../../../tooling/next-memory.js";
+import {
+  nextServerExternalPackagesBlock,
+  type NextConfigOptions,
+} from "../../../tooling/next-config.js";
 
-export function singleNextConfigContent(
-  hasEve: boolean,
+export function singleNextConfigContent({
+  hasEve = false,
   hasI18n = false,
   hasPdf = false,
   hasCloudflare = false,
   hasConvex = false,
-  hasPaddle = false,
-): string {
+  billingProviders = [],
+}: NextConfigOptions = {}): string {
+  const hasPaddle = billingProviders.includes("paddle");
   const headers = nextConfigHeadersFunction(hasConvex, hasPaddle);
   const rewrites = posthogRewritesBlock();
   const imports = [
@@ -55,6 +60,7 @@ export function singleNextConfigContent(
     "const config: NextConfig = {",
     cacheComponentsConfigBlock(hasCloudflare),
     NEXT_DEVELOPMENT_MEMORY_CONFIG,
+    nextServerExternalPackagesBlock(billingProviders, hasCloudflare),
     "  reactStrictMode: true,",
     "  poweredByHeader: false,",
     ...(hasPdf

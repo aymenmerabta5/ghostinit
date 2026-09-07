@@ -31,6 +31,12 @@ retention; process isolation also releases module-level fixtures. Preserve the
 complete test manifest and report interrupted files as failed verification.
 CI retains the full workload without a local machine's memory limits.
 
+Native Next configurations externalize only the selected billing SDKs through
+`serverExternalPackages`, using the same provider/package map as dependency
+emission. Keep Cloudflare Worker configurations bundled. Local Turbopack cache
+eviction happens after filesystem snapshots and is not a process memory cap;
+measure complete route workloads and retain installed runtime/build checks.
+
 `test:convex-codegen` installs an isolated backend fixture with the catalog pins
 and seven-day policy, audits it, and uses public Convex `init`/`env set`/`dev --once`/`codegen`
 commands. A bounded `--start` helper retains one local backend while the explicit
