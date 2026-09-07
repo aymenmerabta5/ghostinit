@@ -1,3 +1,9 @@
+import {
+  errorFileContent,
+  loadingFileContent,
+  notFoundFileContent,
+} from "../../../apps/fragments/layout.js";
+
 export function singleLayout(hasI18n = false): string {
   return [
     "import * as React from 'react';",
@@ -78,94 +84,13 @@ export function singleLayout(hasI18n = false): string {
 }
 
 export function singleNotFoundPage(): string {
-  return [
-    "import * as React from 'react';",
-    "import { Suspense } from 'react';",
-    "import Link from 'next/link';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { getSurfaceTranslations } from '@/lib/translations.server';",
-    "",
-    "async function NotFoundContent(): Promise<React.JSX.Element> {",
-    "  const t = await getSurfaceTranslations('errors');",
-    "  return (",
-    "    <main className='min-h-screen bg-background flex items-center justify-center p-6'>",
-    "      <Card className='w-full max-w-[420px] shadow-sm'>",
-    "        <CardHeader>",
-    "          <CardTitle as='h1' className='text-2xl tracking-tight'>{t('notFound.title')}</CardTitle>",
-    "          <CardDescription className='max-w-[60ch]'>{t('notFound.description')}</CardDescription>",
-    "        </CardHeader>",
-    "        <CardContent className='flex flex-col gap-3'>",
-    "          <Button render={<Link href='/' />} nativeButton={false}>{t('notFound.backHome')}</Button>",
-    "        </CardContent>",
-    "      </Card>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-    "export default function NotFound(): React.JSX.Element {",
-    "  return <Suspense fallback={<main className='min-h-screen bg-background flex items-center justify-center p-6' aria-busy='true' />}><NotFoundContent /></Suspense>;",
-    "}",
-    "",
-  ].join("\n");
+  return notFoundFileContent("next");
 }
 
 export function singleErrorPage(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import { useEffect } from 'react';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { useSurfaceTranslations } from '@/lib/translations';",
-    "",
-    "export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void; }): React.JSX.Element {",
-    "  const t = useSurfaceTranslations('errors');",
-    "  useEffect(() => { console.error(error); }, [error]);",
-    "  return (",
-    "    <main className='min-h-screen bg-background flex items-center justify-center p-6'>",
-    "      <Card className='w-full max-w-[480px]'>",
-    "        <CardHeader>",
-    "          <CardTitle as='h1'>{t('unexpected.title')}</CardTitle>",
-    "          <CardDescription className='max-w-[60ch]'>{t('unexpected.description')}</CardDescription>",
-    "        </CardHeader>",
-    "        <CardContent className='flex flex-col gap-4'>",
-    "          <Alert variant='destructive'>",
-    "            <AlertTitle>{t('unexpected.alertTitle')}</AlertTitle>",
-    "            <AlertDescription className='truncate max-w-[65ch]'>{error.message}</AlertDescription>",
-    "          </Alert>",
-    "          <Button onClick={() => reset()}>{t('unexpected.retry')}</Button>",
-    "        </CardContent>",
-    "      </Card>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-  ].join("\n");
+  return errorFileContent("next");
 }
 
 export function singleLoadingPage(): string {
-  return [
-    "import * as React from 'react';",
-    "import { Skeleton } from '@/components/ui/skeleton';",
-    "",
-    "export default function Loading(): React.JSX.Element {",
-    "  return (",
-    "    <main className='min-h-screen bg-background'>",
-    "      <div className='mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8'>",
-    "        <Skeleton className='h-8 w-32' />",
-    "        <Skeleton className='h-64 w-full' />",
-    "        <div className='grid gap-4 md:grid-cols-3'>",
-    "          <Skeleton className='h-32' />",
-    "          <Skeleton className='h-32' />",
-    "          <Skeleton className='h-32' />",
-    "        </div>",
-    "      </div>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-  ].join("\n");
+  return loadingFileContent();
 }

@@ -67,13 +67,14 @@ export function SessionList({
     const isCurrent = session.id === currentSessionId;
     const isRevoking = pendingSessionId === session.id;
     const device = sessionDevice(session.userAgent);
+    const ipAddress = session.ipAddress?.trim();
     const deviceLabel = device.browser && device.platform
       ? t("sessions.deviceSummary", { browser: device.browser, platform: device.platform })
       : device.browser ?? device.platform ?? t("sessions.unknownDevice");
     return <div key={session.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-1.5">
         <span className="truncate text-sm font-medium"><bdi>{deviceLabel}</bdi></span>
-        <span className="text-xs leading-5 text-muted-foreground">{session.ipAddress ?? t("sessions.unknownIp")} • {t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
+        <span className="text-xs leading-5 text-muted-foreground">{ipAddress ? <><bdi>{ipAddress}</bdi>{" • "}</> : null}{t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {isCurrent ? <Badge variant="secondary">{t("sessions.current")}</Badge> : null}

@@ -16,6 +16,7 @@ import { analyticsFiles } from "../../../analytics.js";
 import { i18nFiles } from "../../../i18n.js";
 import { surfaceTranslationFiles } from "../../../i18n/surface.js";
 import { emailFlowPageContent } from "../../../apps/fragments/recovery/index.js";
+import { globalErrorFileContent } from "../../../apps/fragments/layout.js";
 
 import { singlePackageJson } from "../package.js";
 import { filteredEnvExample, filteredEnvLocal } from "../config.js";
@@ -259,6 +260,7 @@ export function buildNextFiles(
   }
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
   files.push(file("src/app/error.tsx", singleErrorPage()));
+  files.push(file("src/app/global-error.tsx", globalErrorFileContent()));
   files.push(file("src/app/loading.tsx", singleLoadingPage()));
   if (hasAuth && hasEmail) {
     files.push(file("src/app/2fa/page.tsx", singleTwoFactorPageContent()));

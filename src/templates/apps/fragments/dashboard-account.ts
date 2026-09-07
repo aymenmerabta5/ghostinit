@@ -36,11 +36,14 @@ export function ${name}({ user: initialUser }: { user: DashboardUser }): React.J
   const { user, pending, error } = useDashboardIdentity(initialUser);
   if (!user) return <DashboardIdentityStatus pending={pending} error={error} className="lg:col-span-7" />;
   const name = String(user.name || t("identity.nameNotSet"));
+  const role = user.role ?? "user";
+  const roleLabel = role === "user" ? t("identity.roleUser")
+    : role === "admin" ? t("identity.roleAdmin") : String(role);
   const initials = String(user.name || user.email || "U").trim().split(/\\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
   return <section className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-surface lg:col-span-7" aria-labelledby="dashboard-profile-title">
     <div className="flex items-center justify-between gap-3 border-b px-6 py-4">
       <h2 id="dashboard-profile-title" className="text-base font-semibold tracking-tight">{t("single.profileTitle")}</h2>
-      <Badge variant="secondary" className="shrink-0 capitalize">{String(user.role ?? t("identity.roleFallback"))}</Badge>
+      <Badge variant="secondary" className="shrink-0"><bdi>{roleLabel}</bdi></Badge>
     </div>
     <div className="space-y-7 p-6 sm:p-8">
       <div className="flex min-w-0 items-center gap-4">

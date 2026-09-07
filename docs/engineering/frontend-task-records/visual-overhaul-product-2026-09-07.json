@@ -18,6 +18,7 @@
     "src/templates/apps/desktop/shell/renderer.ts",
     "src/templates/apps/desktop/shell/root.ts",
     "src/templates/apps/desktop/ui/primitives.ts",
+    "src/templates/apps/desktop/ui/surfaces.ts",
     "src/templates/apps/desktop/ui/theme.ts",
     "src/templates/apps/expo-components.ts",
     "src/templates/apps/expo-core.ts",
@@ -111,6 +112,7 @@
     "src/templates/billing/ui/components/providers/chargily.ts",
     "src/templates/billing/ui/components/providers/paddle.ts",
     "src/templates/billing/ui/components/providers/polar.ts",
+    "src/templates/billing/ui/components/providers/stripe-invoices.ts",
     "src/templates/billing/ui/components/providers/stripe.ts",
     "src/templates/billing/ui/components/tabs.ts",
     "src/templates/billing/ui/paddle-checkout-client.ts",
@@ -173,7 +175,7 @@
     "context": [
       {
         "path": "DESIGN.md",
-        "sha256": "ef1b821331b1dca2c60a654aa960bcfa4ad9a1036de45b8cf073f1db7d7cd782"
+        "sha256": "5dcf07c81f3a906511b8fe458a0082ca7f3e0396989fd571c256ad129a5411ad"
       },
       {
         "path": "VISION.md",
@@ -198,10 +200,12 @@
     ],
     "evidence": [
       "docs/engineering/visual-overhaul-2026-09-07.md",
+      "tests/integration/generated-web-primitives.test.ts",
       "tests/unit/backend-capabilities/locale-routing-behavior.test.ts",
       "tests/unit/brand-wordmark.test.ts",
       "tests/unit/design-system-app-integration.test.ts",
       "tests/unit/design-system-contract.test.ts",
+      "tests/unit/desktop-card-title.test.ts",
       "tests/unit/desktop-theme-persistence.test.ts",
       "tests/unit/expo-marketing-capabilities.test.ts",
       "tests/unit/generated-layer-policy.test.ts",
@@ -209,6 +213,8 @@
       "tests/unit/lint-scripts-template.test.ts",
       "tests/unit/maintenance-bypass-security.test.ts",
       "tests/unit/marketing-capabilities.test.ts",
+      "tests/unit/next-fallback-parity.test.ts",
+      "tests/unit/passkey-device-label.test.ts",
       "tests/unit/session-device-label.test.ts",
       "tests/unit/workspace-data-adapter-architecture.test.ts",
       "tests/unit/workspace-removal-scope-recovery.test.ts",

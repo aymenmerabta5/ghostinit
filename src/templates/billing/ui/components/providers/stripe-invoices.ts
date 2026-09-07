@@ -15,7 +15,7 @@ export function StripeInvoices({ invoices }: { invoices: Inv[] }): React.JSX.Ele
     <div className="flex flex-col gap-3">
       <h3 className="text-sm font-medium">{t("invoices")}</h3>
       {invoices.length === 0 ? (
-        <Empty><EmptyHeader><EmptyTitle>{t("noInvoices")}</EmptyTitle><EmptyDescription>{t("securityNote")}</EmptyDescription></EmptyHeader></Empty>
+        <Empty><EmptyHeader><EmptyTitle>{t("noInvoices")}</EmptyTitle><EmptyDescription>{t("noInvoicesDescription")}</EmptyDescription></EmptyHeader></Empty>
       ) : (
         <Table>
             <TableHeader>

@@ -1,4 +1,4 @@
-// @allow-long 580: one bounded cross-platform harness owns two generated targets, server readiness, browser interaction, and process-tree cleanup
+// @allow-long 750: one bounded cross-platform harness owns two generated targets, interaction/layout contracts, server readiness, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -11,6 +11,10 @@ import type { ProjectConfig } from "../../src/lib/config.js";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { redact } from "../../src/lib/logger.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
+import { desktopUiAlertContent } from "../../src/templates/apps/desktop/ui/surfaces.js";
+import { adminFiltersFile } from "../../src/templates/apps/fragments/admin/filters.js";
+import { adminSchemaFiles } from "../../src/templates/apps/fragments/admin/feature-schema.js";
+import { adminTranslationsFile } from "../../src/templates/apps/fragments/admin/translations.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
 import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwright-cli.js";
 import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
@@ -43,6 +47,7 @@ type CommandResult =
 
 const REQUIRED_BUN_VERSION = runtime.bun;
 const BUN_EXECUTABLE = process.execPath;
+const DIAGNOSTIC_TAIL_LENGTH = 128 * 1024;
 
 const fixtureRoute = `"use client";
 
@@ -67,6 +72,11 @@ import {
   type NotificationItem,
 } from "@/components/NotificationBell";
 import { PasswordField } from "@/components/form-fields/PasswordField";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Alert as DesktopAlert, AlertTitle as DesktopAlertTitle, AlertDescription as DesktopAlertDescription } from "@/components/desktop-alert-contract";
+import { AdminUserFilters } from "@/features/admin-users/components/filters";
+import { TriangleAlert } from "lucide-react";
 
 const roles: readonly SelectOption[] = [
   { label: "User", value: "user" },
@@ -86,6 +96,8 @@ const notifications: NotificationItem[] = [
 export default function PrimitiveContractPage(): React.JSX.Element {
   const [role, setRole] = useState("user");
   const [marked, setMarked] = useState("none");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [alertActions, setAlertActions] = useState(0);
   const [hydrationState, setHydrationState] = useState("waiting");
   useEffect(() => setHydrationState("ready"), []);
 
@@ -129,6 +141,23 @@ export default function PrimitiveContractPage(): React.JSX.Element {
       <output data-testid="disabled-role-value">user</output>
       <output data-testid="marked-value">{marked}</output>
       <output data-testid="hydration-state" className="sr-only">{hydrationState}</output>
+      <section data-testid="admin-layout" aria-label="Admin filter alignment">
+        <AdminUserFilters search={appliedSearch} isFetching={false} onApply={(input) => setAppliedSearch(input.search)} onClear={() => setAppliedSearch("")} />
+        <output data-testid="applied-search">{appliedSearch}</output>
+      </section>
+      <section id="layout-controls" className="grid gap-4">
+        {[{ kind: "web", Root: Alert, Title: AlertTitle, Description: AlertDescription }, { kind: "desktop", Root: DesktopAlert, Title: DesktopAlertTitle, Description: DesktopAlertDescription }].flatMap(({ kind, Root, Title, Description }) => [false, true].map((icon) => {
+          const id = kind + (icon ? "-icon" : "-plain");
+          return <Root key={id} data-testid={id}>
+            {icon ? <TriangleAlert data-testid={id + "-icon"} aria-hidden /> : null}
+            <Title data-testid={id + "-title"}>Unable to complete the operation</Title>
+            <Description>Retry the operation or review its details.</Description>
+            <Button data-testid={id + "-retry"} variant="outline" onClick={() => setAlertActions((value) => value + 1)}>Retry operation</Button>
+            <Button data-testid={id + "-link"} variant="outline" render={<a href="#layout-controls" />} nativeButton={false}>View details</Button>
+          </Root>;
+        }))}
+        <output data-testid="alert-actions">{alertActions}</output>
+      </section>
     </main>
   );
 }
@@ -259,6 +288,66 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
   await expect(disabledReveal).toBeDisabled();
   await disabledReveal.click({ force: true });
   await expect(disabledPassword).toHaveAttribute("type", "password");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const direction of ["ltr", "rtl"]) {
+      await page.evaluate((value) => { document.documentElement.dir = value; }, direction);
+      const filter = page.getByTestId("admin-layout");
+      const input = filter.getByRole("searchbox");
+      const submit = filter.getByRole("button", { name: "Search", exact: true });
+      await filter.locator("label").click();
+      await expect(input).toBeFocused();
+      const descriptionIds = (await input.getAttribute("aria-describedby"))!.split(" ");
+      expect(descriptionIds.length).toBeGreaterThan(0);
+      const description = page.locator('[id="' + descriptionIds[0] + '"]');
+      await expect(description).toBeVisible();
+      const inputBox = (await input.boundingBox())!;
+      const submitBox = (await submit.boundingBox())!;
+      if (width >= 640) expect(Math.abs(inputBox.y - submitBox.y)).toBeLessThanOrEqual(1);
+      else expect(submitBox.y).toBeGreaterThanOrEqual((await description.boundingBox())!.y + (await description.boundingBox())!.height);
+      await input.fill("x".repeat(121));
+      await submit.click();
+      await expect(input).toHaveAttribute("aria-invalid", "true");
+      const errorId = await input.getAttribute("aria-errormessage");
+      const fieldError = page.locator('[id="' + errorId + '"]');
+      await expect(fieldError).toBeVisible();
+      expect((await input.getAttribute("aria-describedby"))!.split(" ")).toContain(errorId);
+      if (width >= 640) expect(Math.abs((await input.boundingBox())!.y - (await submit.boundingBox())!.y)).toBeLessThanOrEqual(1);
+      else expect((await submit.boundingBox())!.y).toBeGreaterThanOrEqual((await fieldError.boundingBox())!.y + (await fieldError.boundingBox())!.height);
+      await input.fill("review@example.test");
+      await submit.click();
+      await expect(page.getByTestId("applied-search")).toHaveText("review@example.test");
+      await filter.getByRole("button", { name: /Clear/ }).click();
+      await expect(input).toHaveValue("");
+      for (const id of ["web-plain", "web-icon", "desktop-plain", "desktop-icon"]) {
+        const titleBox = (await page.getByTestId(id + "-title").boundingBox())!;
+        const alertBox = (await page.getByTestId(id).boundingBox())!;
+        for (const suffix of ["-retry", "-link"]) {
+          const control = page.getByTestId(id + suffix);
+          const box = (await control.boundingBox())!;
+          const size = await control.evaluate((element) => {
+            const css = getComputedStyle(element);
+            const range = document.createRange(); range.selectNodeContents(element);
+            return { text: range.getBoundingClientRect().width, padding: parseFloat(css.paddingLeft) + parseFloat(css.paddingRight) };
+          });
+          expect(size.padding).toBeGreaterThanOrEqual(24);
+          expect(box.width).toBeGreaterThanOrEqual(size.text + size.padding - 1);
+          expect(box.width).toBeLessThan(alertBox.width - 32);
+          const start = direction === "rtl" ? box.x + box.width : box.x;
+          const titleStart = direction === "rtl" ? titleBox.x + titleBox.width : titleBox.x;
+          expect(Math.abs(start - titleStart)).toBeLessThanOrEqual(1);
+        }
+        if (id.endsWith("-icon")) {
+          const icon = (await page.getByTestId(id + "-icon").boundingBox())!;
+          if (direction === "rtl") expect(icon.x).toBeGreaterThan(titleBox.x + titleBox.width);
+          else expect(icon.x + icon.width).toBeLessThan(titleBox.x);
+        }
+        await page.getByTestId(id + "-retry").click();
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
+    }
+  }
+  await expect(page.getByTestId("alert-actions")).toHaveText("16");
   expect(pageErrors).toEqual([]);
   expect(consoleErrors, JSON.stringify(failedResponses)).toEqual([]);
 });
@@ -267,7 +356,8 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
 function projectConfig(kind: BrowserTargetKind): ProjectConfig {
   return {
     name: "primitive-contract",
-    runtime: "bun",
+    // CI retains Bun coverage; local Next leaves memory for the in-process database.
+    runtime: kind === "next-monorepo" && !process.env.CI ? "node" : "bun",
     version: "0.1.0",
     mode: kind === "next-monorepo" ? "monorepo" : "single",
     preset: kind === "next-monorepo" ? "saas" : "custom",
@@ -297,6 +387,24 @@ async function writeGeneratedFixture(
       ? "apps/web/src/app/primitive-contract/page.tsx"
       : "src/routes/primitive-contract.tsx";
   await transaction.write(fixturePath, fixtureRouteFor(kind));
+  const adminOptions = {
+    database: "postgres",
+    i18n: false,
+    mode: kind === "next-monorepo" ? "monorepo" : "single",
+    framework: kind === "next-monorepo" ? "next" : "tanstack",
+    sourceRoot: kind === "next-monorepo" ? "apps/web/src" : "src",
+  } as const;
+  for (const file of [
+    adminFiltersFile(adminOptions),
+    ...adminSchemaFiles(adminOptions),
+    adminTranslationsFile(adminOptions),
+  ]) {
+    await transaction.write(file.path, file.content);
+  }
+  await transaction.write(
+    adminOptions.sourceRoot + "/components/desktop-alert-contract.tsx",
+    desktopUiAlertContent(adminOptions.mode),
+  );
   if (kind === "next-monorepo") {
     await transaction.write("apps/web/e2e/__primitive-contract.spec.ts", playwrightSpec);
   }
@@ -340,10 +448,10 @@ function capture(child: ChildProcessWithoutNullStreams): {
   child.stdout.setEncoding("utf8");
   child.stderr.setEncoding("utf8");
   child.stdout.on("data", (chunk: string) => {
-    stdout += chunk;
+    stdout = (stdout + chunk).slice(-DIAGNOSTIC_TAIL_LENGTH);
   });
   child.stderr.on("data", (chunk: string) => {
-    stderr += chunk;
+    stderr = (stderr + chunk).slice(-DIAGNOSTIC_TAIL_LENGTH);
   });
   return { stdout: () => stdout, stderr: () => stderr };
 }
@@ -362,6 +470,7 @@ async function runBounded(
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
   });
+  console.log(`[generated-web-primitives] child: pid=${child.pid} executable=${basename(command)}`);
   const output = capture(child);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const exit: Promise<CommandResult> = new Promise((resolveResult) => {
@@ -413,6 +522,9 @@ export function startServer(target: BrowserTarget): RunningServer {
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
   });
+  console.log(
+    `[generated-web-primitives] ${target.kind} server: pid=${child.pid} runtime=${projectConfig(target.kind).runtime}`,
+  );
   const output = capture(child);
   return { kind: target.kind, child, ...output };
 }
@@ -456,11 +568,13 @@ export async function runLocalPlaywright(
 
 async function runStage(label: string, operation: () => Promise<void>): Promise<void> {
   const startedAt = Date.now();
-  console.log(`[generated-web-primitives] ${label}: start`);
+  const memory = () =>
+    `parentPid=${process.pid} parentRssMiB=${Math.round(process.memoryUsage().rss / 1024 ** 2)}`;
+  console.log(`[generated-web-primitives] ${label}: start ${memory()}`);
   try {
     await operation();
   } finally {
-    console.log(`[generated-web-primitives] ${label}: ${Date.now() - startedAt}ms`);
+    console.log(`[generated-web-primitives] ${label}: ${Date.now() - startedAt}ms ${memory()}`);
   }
 }
 

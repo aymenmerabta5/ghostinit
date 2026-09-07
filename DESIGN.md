@@ -94,6 +94,9 @@ image, or generated-art favicon accompanies it. Rejected image concepts and thei
 temporary generation files are removed from the workspace.
 The desktop wordmark lives inside the renderer's component source root, matching
 its import alias and keeping presentation out of the main-process source tree.
+Desktop card titles share the web component's typed `h1`-`h6` heading selection.
+They keep the default `h3` and shared typography while capability pages select
+the heading level appropriate to their page hierarchy.
 Dashboard composition emphasizes actual account information and useful actions;
 technical project guidance is a secondary disclosure. No invented metrics or
 passing-health claims are presented as live data.
@@ -115,6 +118,10 @@ primary content regions instead of an unrelated three-card grid. Unexpected
 errors show translated recovery guidance rather than raw exception messages;
 diagnostic logging remains available. The document-level Next error boundary
 imports its stylesheet directly because it replaces the ordinary root layout.
+Single and monorepo Next applications use the same not-found, route-error,
+global-error, and loading templates. Single mode retains its own root providers;
+global errors use the standalone locale adapter so recovery remains available
+when those providers fail.
 Monorepo renderers emit authorization fallback pages only with authentication,
 so direct-renderer output cannot offer a sign-in link to an absent route.
 
@@ -315,6 +322,18 @@ query-provider path.
   page reload. Next synchronizes `html.lang` and `html.dir` in the existing locale
   switcher's layout effect, while retaining cookie persistence and server refresh.
   TanStack retains its document synchronization in the locale provider.
+- Alert icons occupy the first grid column. Titles, descriptions and actions
+  occupy the content column; direct action buttons and links retain their natural
+  width in both web and Electron renderers.
+- Administrator search places its label, control and supporting messages on
+  separate grid tracks. Search and clear actions align with the control on
+  desktop and follow the field on mobile, including when validation adds an error.
+- Dashboard role labels and passkey device labels use the selected language.
+  Unknown role identifiers remain readable as isolated data. Passkey wording
+  distinguishes current backup state from the ability to be backed up.
+- Session metadata adds an IP separator only when an address is present. Invoice
+  empty states explain invoice availability. Two-factor footer guidance describes
+  single-use backup codes in both challenge modes.
 - Full-page authentication, account-recovery, checkout-return, and error cards expose their title as the
   page's H1. `CardTitle` accepts a typed heading level while retaining its shared
   visual styling, so semantic hierarchy does not require duplicated components.

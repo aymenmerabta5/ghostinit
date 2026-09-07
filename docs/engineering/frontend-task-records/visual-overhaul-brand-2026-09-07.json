@@ -11,6 +11,7 @@
     "src/templates/apps/desktop/shell/renderer.ts",
     "src/templates/apps/desktop/shell/root.ts",
     "src/templates/apps/desktop/ui/primitives.ts",
+    "src/templates/apps/desktop/ui/surfaces.ts",
     "src/templates/apps/desktop/ui/theme.ts",
     "src/templates/apps/expo-pages.ts",
     "src/templates/apps/fragments/css.ts",
@@ -32,6 +33,7 @@
     "src/templates/billing/ui/components/providers/chargily.ts",
     "src/templates/billing/ui/components/providers/paddle.ts",
     "src/templates/billing/ui/components/providers/polar.ts",
+    "src/templates/billing/ui/components/providers/stripe-invoices.ts",
     "src/templates/billing/ui/components/providers/stripe.ts",
     "src/templates/billing/ui/components/tabs.ts",
     "src/templates/billing/ui/paddle-checkout-client.ts",
@@ -66,7 +68,7 @@
     "context": [
       {
         "path": "DESIGN.md",
-        "sha256": "ef1b821331b1dca2c60a654aa960bcfa4ad9a1036de45b8cf073f1db7d7cd782"
+        "sha256": "5dcf07c81f3a906511b8fe458a0082ca7f3e0396989fd571c256ad129a5411ad"
       },
       {
         "path": "VISION.md",
