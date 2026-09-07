@@ -537,10 +537,24 @@ describe("generated TanStack authenticated Query boundary", () => {
     })
       .map(({ content }) => content)
       .join("\n");
-    const nextIdentity = webIdentityWorkspaceDataFiles("monorepo", "next")
-      .map(({ content }) => content)
-      .join("\n");
+    const nextIdentity = new Map(
+      webIdentityWorkspaceDataFiles("monorepo", "next").map(({ path, content }) => [path, content]),
+    );
+    const nextQueries =
+      nextIdentity.get("apps/web/src/features/identity-workspace/queries.ts") ?? "";
+    const nextMutations =
+      nextIdentity.get("apps/web/src/features/identity-workspace/mutations.ts") ?? "";
+    const nextActions = nextIdentity.get("apps/web/src/app/settings/workspace/actions.ts") ?? "";
     expect(nextAdmin).not.toContain("authScopedQueryKey");
-    expect(nextIdentity).not.toContain("authScopedQueryKey");
+    expect(nextQueries).toContain("authScopedQueryKey(scope, meOptions.queryKey)");
+    expect(nextQueries).toContain("authScopedQueryKey(scope, options.queryKey)");
+    expect(nextMutations).toContain(
+      'authScopedQueryKey(scope, orpc.identity.organizations.hasPermission.key({ type: "query" }))',
+    );
+    expect(nextMutations).toContain('from "@/app/settings/workspace/actions"');
+    expect(nextMutations).not.toContain(".mutationOptions(");
+    expect(nextActions).toContain('"use server";');
+    expect(nextActions).toContain("createRequestApplicationForRequest");
+    expect(nextActions).not.toContain("authScopedQueryKey");
   });
 });
