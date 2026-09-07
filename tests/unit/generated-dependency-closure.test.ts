@@ -289,6 +289,9 @@ describe("generated dependency and file closure", () => {
         const navigation =
           files.find((entry) => entry.path === `${prefix}src/components/workspace-navigation.tsx`)
             ?.content ?? "";
+        const identity =
+          files.find((entry) => entry.path === `${prefix}src/components/workspace-identity.ts`)
+            ?.content ?? "";
         const userMenu =
           files.find((entry) => entry.path === `${prefix}src/components/header-user-menu.tsx`)
             ?.content ?? "";
@@ -304,9 +307,16 @@ describe("generated dependency and file closure", () => {
         expect(shell).toContain(
           "canonical?.hasCanonicalApi ? canonical.currentRequest?.user : session.user",
         );
-        expect(shell).toContain("const user = pending || error ? null : currentUser ?? null");
-        expect(shell).toContain("<HeaderActions user={user}");
-        expect(sidebar).toContain('isAdmin={user?.role === "admin"}');
+        expect(shell).toContain(
+          "resolveWorkspaceIdentity({ pending, error, user: currentUser ?? null, retry })",
+        );
+        expect(identity).toMatch(
+          /if \(input.pending\)[\s\S]*if \(input.error\)[\s\S]*if \(input.user\)/,
+        );
+        expect(shell).toContain("<HeaderActions identity={identity}");
+        expect(sidebar).toContain("identity={identity}");
+        expect(navigation).toContain('identity.status !== "authenticated"');
+        expect(navigation).toContain('const isAdmin = identity.user.role === "admin"');
         expect(navigation).toContain('item.label !== "admin" || isAdmin');
         expect(`${header}\n${shell}\n${sidebar}`).not.toContain("useQuery(api.users.me");
         expect(userMenu).toContain('user?.role === "admin"');
@@ -322,7 +332,7 @@ describe("generated dependency and file closure", () => {
     });
     expect(
       postgres.find((entry) => entry.path === "src/components/workspace-sidebar.tsx")?.content,
-    ).toContain('isAdmin={user?.role === "admin"}');
+    ).toContain("identity={identity}");
   });
 
   test("TanStack Convex Polar installs only its framework-neutral SDK", () => {

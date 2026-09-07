@@ -97,10 +97,10 @@ describe("transactional email localization", () => {
     expect(runtime.emailDirection("ar")).toBe("rtl");
     expect(runtime.emailDirection("fr")).toBe("ltr");
     expect(runtime.transactionalEmailSubject("verification", "fr", "Acme")).toBe(
-      "Vérifiez votre adresse e-mail — Acme",
+      "Vérifiez votre adresse e-mail - Acme",
     );
     expect(runtime.transactionalEmailSubject("password-reset", "ar", "Acme")).toBe(
-      "إعادة تعيين كلمة المرور — Acme",
+      "إعادة تعيين كلمة المرور - Acme",
     );
   });
 

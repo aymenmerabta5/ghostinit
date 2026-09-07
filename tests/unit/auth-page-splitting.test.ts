@@ -5,6 +5,7 @@ import { formatGenerationText } from "../../src/generation/plan-formatter.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 import { twoFactorFormContent } from "../../src/templates/apps/fragments/auth/two-factor.js";
 import { resetPasswordFormContent } from "../../src/templates/apps/fragments/recovery/reset-password-form.js";
+import { expoTwoFactorContent } from "../../src/templates/apps/fragments/expo/auth.js";
 import {
   deferred,
   elements,
@@ -137,7 +138,11 @@ describe("extracted authentication form behavior", () => {
           subscription.children[0] as (pending: boolean) => { props: Record<string, unknown> }
         )(ui.forms[0]!.isSubmitting);
       };
-      render();
+      expect(
+        elements(render())
+          .filter((node) => node.type === "Link")
+          .map((node) => node.props.href ?? node.props.to),
+      ).toEqual(["/sign-in"]);
       const form = ui.forms[0]!;
       expect(form.values.trustDevice).toBe(false);
       Object.assign(form.values, { code: " 123456 ", trustDevice: true });
@@ -209,5 +214,16 @@ describe("extracted authentication form behavior", () => {
       ]);
       expect(navigations).toEqual([router === "next" ? "/sign-in?reset=success" : "/sign-in"]);
     });
+  }
+});
+
+test("Expo two-factor challenge offers the sign-in return without a protected recovery-code link", () => {
+  for (const i18n of [false, true]) {
+    const source = expoTwoFactorContent(i18n);
+    expect(source).toContain('<Link href="/sign-in"');
+    expect(source).not.toContain('<Link href="/settings"');
+    expect(source).not.toContain("twoFactor.recoveryCodes");
+    expect(source).toContain("identityClient.verifyTwoFactor");
+    expect(parseSync("two-factor.tsx", source).errors).toEqual([]);
   }
 });

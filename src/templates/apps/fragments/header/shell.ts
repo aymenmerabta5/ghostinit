@@ -2,6 +2,7 @@ import { file, type TemplateFile } from "../../../shared.js";
 import type { HeaderNavigationCapabilities, RouterType } from "./shared.js";
 import { workspaceNavigationContent } from "./navigation.js";
 import { workspaceSidebarContent, workspaceNavigationTriggerContent } from "./sidebar.js";
+import { workspaceIdentityContent, workspaceIdentityStatusContent } from "./identity.js";
 
 interface WorkspaceShellOptions {
   sourceRoot: string;
@@ -35,6 +36,8 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
     ];
   return [
     file(`${root}/app-shell.tsx`, appShellContent(router)),
+    file(`${root}/workspace-identity.ts`, workspaceIdentityContent()),
+    file(`${root}/workspace-identity-status.tsx`, workspaceIdentityStatusContent()),
     file(
       `${root}/workspace-navigation.tsx`,
       workspaceNavigationContent(
@@ -64,6 +67,7 @@ import { HeaderActions } from "./header-actions";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import { WorkspaceNavigationTrigger } from "./workspace-navigation-trigger";
 import { workspaceSection } from "./workspace-navigation";
+import { resolveWorkspaceIdentity } from "./workspace-identity";
 
 export function AppShell({ children }: { children: React.ReactNode }): React.JSX.Element {
   const session = useAuth();
@@ -73,16 +77,17 @@ export function AppShell({ children }: { children: React.ReactNode }): React.JSX
   const pending = canonical?.hasCanonicalApi ? canonical.isPending : session.isPending;
   const error = canonical?.hasCanonicalApi ? canonical.error : session.error;
   const currentUser = canonical?.hasCanonicalApi ? canonical.currentRequest?.user : session.user;
-  const user = pending || error ? null : currentUser ?? null;
+  const retry = canonical?.retry ?? (() => { void session.refetch(); });
+  const identity = resolveWorkspaceIdentity({ pending, error, user: currentUser ?? null, retry });
   const section = workspaceSection(pathname);
   const workspace = section !== undefined;
-  const navigationProps = { pathname, user, pending };
+  const navigationProps = { pathname, identity };
 
   return <div className="min-h-dvh">
     {workspace ? <WorkspaceSidebar {...navigationProps} /> : null}
     <div className={workspace ? "min-w-0 lg:ps-[232px]" : "min-w-0"}>
       <Header workspace={workspace} title={section ? t(section) : undefined} navigation={workspace ? <WorkspaceNavigationTrigger {...navigationProps} /> : undefined}>
-        <HeaderActions user={user} isAuthenticated={!!user} pending={pending} />
+        <HeaderActions identity={identity} />
       </Header>
       {children}
     </div>

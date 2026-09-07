@@ -1,3 +1,4 @@
+import { uiUtilsContent } from "../ui/utils.js";
 import { file, type TemplateFile } from "../shared.js";
 import { expoAuthClientContent, expoOrpcClientContent } from "./fragments/expo/orpc.js";
 import { expoHeaderContent, expoSignOutButtonContent } from "./fragments/expo/header.js";
@@ -33,7 +34,7 @@ function headerContent(
 export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFile[] {
   const capabilities = resolveExpoCapabilities(input, true);
   const files: TemplateFile[] = [
-    file("apps/mobile/src/lib/utils.ts", expoLibUtilsContent()),
+    file("apps/mobile/src/lib/utils.ts", uiUtilsContent()),
     file("apps/mobile/src/lib/query-client.ts", expoNativeQueryClientContent()),
     nativeQueryRegressionFile(),
     ...rnrAllFiles(),
@@ -105,16 +106,6 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
   }
 
   return files;
-}
-
-function expoLibUtilsContent(): string {
-  return `import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs));
-}
-`;
 }
 
 function expoUseAuthHook(): string {

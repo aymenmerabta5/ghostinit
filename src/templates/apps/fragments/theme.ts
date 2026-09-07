@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export function ThemeToggle(): React.JSX.Element {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const t = useSurfaceTranslations("theme");
   const [mounted, setMounted] = React.useState(false);
 
@@ -45,7 +45,7 @@ export function ThemeToggle(): React.JSX.Element {
       variant="ghost"
       size="icon"
       className="relative"
-      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
       aria-label={t("toggle")}
     >
       <Sun className="size-4 rotate-0 scale-100 transition-transform motion-reduce:transition-none dark:-rotate-90 dark:scale-0" data-icon="inline-start" aria-hidden />

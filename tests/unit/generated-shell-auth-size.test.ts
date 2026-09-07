@@ -75,6 +75,7 @@ function casesFor(router: Router): SizeCase[] {
       name: `${router}-${path}`,
       source: content,
       maximum: 150,
+      extension: path.endsWith(".tsx") ? "tsx" : "ts",
     })),
     { name: `${router}-header`, source: headerFileContent(router, true, true), maximum: 120 },
     {

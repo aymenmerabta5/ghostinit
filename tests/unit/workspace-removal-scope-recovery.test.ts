@@ -6,6 +6,7 @@ import {
 } from "../../src/templates/apps/fragments/identity-workspace/web-data.js";
 import { desktopWorkspaceRouteContent } from "../../src/templates/apps/fragments/identity-workspace/desktop.js";
 import { expoWorkspaceContent } from "../../src/templates/apps/fragments/identity-workspace/expo.js";
+import { identityWorkspaceControllerContent } from "../../src/templates/apps/fragments/identity-workspace/web-controller.js";
 
 interface Scope {
   userId: string;
@@ -154,5 +155,132 @@ describe("workspace self-removal scope recovery", () => {
         unsubscribe();
       });
     }
+  }
+});
+
+interface TeamCallbacks {
+  teamCreated(id: string, organizationId: string): void;
+}
+
+interface WorkspaceView {
+  organizationId: string;
+  teamId: string | null;
+  teamName: string;
+  setSelectedOrganizationId(id: string): void;
+  setTeamName(name: string): void;
+}
+
+function workspaceController() {
+  const cells: unknown[] = [];
+  const effects: Array<() => void> = [];
+  let cursor = 0;
+  let callbacks: TeamCallbacks | undefined;
+  const react = {
+    useState<T>(initial: T): [T, (value: T) => void] {
+      const index = cursor++;
+      if (!(index in cells)) cells[index] = initial;
+      return [
+        cells[index] as T,
+        (value) => {
+          cells[index] = value;
+        },
+      ];
+    },
+    useRef<T>(initial: T): { current: T } {
+      const index = cursor++;
+      if (!(index in cells)) cells[index] = { current: initial };
+      return cells[index] as { current: T };
+    },
+    useLayoutEffect(effect: () => void): void {
+      effects.push(effect);
+    },
+  };
+  const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(
+    identityWorkspaceControllerContent()
+      .replace(/^import .*;\n/gm, "")
+      .replace(/^export /gm, ""),
+  );
+  const renderController = new Function(
+    "React",
+    "useIdentityWorkspaceQueries",
+    "useIdentityWorkspaceMutations",
+    "workspaceAccess",
+    `${javascript}; return useIdentityWorkspaceController;`,
+  )(
+    react,
+    (organizationId: string | null, teamId: string | null) => ({
+      organizationId: organizationId ?? "org-a",
+      teamId,
+      permissions: {},
+      members: { data: [], isSuccess: true },
+      teamMembers: { data: [], isSuccess: true },
+    }),
+    (value: TeamCallbacks) => {
+      callbacks = value;
+      return {};
+    },
+    () => ({}),
+  ) as (error: string) => WorkspaceView;
+  return {
+    render() {
+      cursor = 0;
+      const view = renderController("Failed");
+      for (const effect of effects.splice(0)) effect();
+      return view;
+    },
+    callbacks: () => {
+      if (!callbacks) throw new Error("Render the workspace before starting a mutation");
+      return callbacks;
+    },
+  };
+}
+
+function teamCreationSuccess(source: string, callbacks: TeamCallbacks) {
+  const prefix = "const createTeam = ";
+  const declaration = source.split("\n").find((line) => line.trimStart().startsWith(prefix));
+  if (!declaration) throw new Error("Missing emitted createTeam mutation");
+  const expression = declaration.trim().slice(prefix.length).replace(/;$/, "");
+  const identity = (value: unknown) => value;
+  return (
+    new Function(
+      "useMutation",
+      "orpc",
+      "callbacks",
+      "invalidateWorkspace",
+      "createTeamAction",
+      `return ${expression};`,
+    )(
+      identity,
+      { identity: { teams: { create: { mutationOptions: identity } } } },
+      callbacks,
+      async () => {},
+      async () => {},
+    ) as { onSuccess(value: { team: { id: string; organizationId: string } }): Promise<void> }
+  ).onSuccess;
+}
+
+describe("workspace team creation selection ownership", () => {
+  for (const [platform, source] of sources.slice(0, 2)) {
+    test(`${platform} late team creation cannot replace another organization's selection or draft`, async () => {
+      const controller = workspaceController();
+      const first = controller.render();
+      const completeFirst = teamCreationSuccess(source, controller.callbacks());
+      first.setSelectedOrganizationId("org-b");
+      const second = controller.render();
+      second.setTeamName("Draft for B");
+      await completeFirst({ team: { id: "team-a", organizationId: "org-a" } });
+      const afterLateResponse = controller.render();
+      expect(afterLateResponse.organizationId).toBe("org-b");
+      expect(afterLateResponse.teamId).toBeNull();
+      expect(afterLateResponse.teamName).toBe("Draft for B");
+
+      await teamCreationSuccess(
+        source,
+        controller.callbacks(),
+      )({ team: { id: "team-b", organizationId: "org-b" } });
+      const afterCurrentResponse = controller.render();
+      expect(afterCurrentResponse.teamId).toBe("team-b");
+      expect(afterCurrentResponse.teamName).toBe("");
+    });
   }
 });

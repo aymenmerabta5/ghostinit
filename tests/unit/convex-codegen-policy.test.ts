@@ -58,15 +58,25 @@ describe("generated Convex compiler policy", () => {
   }
 });
 
-async function listener(): Promise<{ server: Server; port: number }> {
-  const server = createServer((socket) => socket.destroy());
+async function listener(options: { reset?: boolean; closeAfter?: number } = {}): Promise<{
+  server: Server;
+  port: number;
+  connections: () => number;
+}> {
+  let connections = 0;
+  const server = createServer((socket) => {
+    connections++;
+    if (options.reset) socket.resetAndDestroy();
+    else socket.destroy();
+    if (connections === options.closeAfter) server.close();
+  });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("No listener port");
-  return { server, port: address.port };
+  return { server, port: address.port, connections: () => connections };
 }
 
 async function close(server: Server): Promise<void> {
@@ -95,6 +105,30 @@ describe("bounded Convex shutdown verification", () => {
       await expect(
         assertLocalBackendStopped({ version: "test", sha256: "test", ports: [port] }, 100),
       ).rejects.toThrow("did not close within 100 ms");
+      expect(server.listening).toBe(true);
+    } finally {
+      await close(server);
+    }
+  });
+
+  test("retries reset connections until the listener has actually shut down", async () => {
+    const { server, port, connections } = await listener({ reset: true, closeAfter: 3 });
+    try {
+      await assertLocalBackendStopped({ version: "test", sha256: "test", ports: [port] }, 1_000);
+      expect(connections()).toBe(3);
+      expect(server.listening).toBe(false);
+    } finally {
+      await close(server);
+    }
+  });
+
+  test("never accepts reset responses as closure while the listener remains open", async () => {
+    const { server, port, connections } = await listener({ reset: true });
+    try {
+      await expect(
+        assertLocalBackendStopped({ version: "test", sha256: "test", ports: [port] }, 100),
+      ).rejects.toThrow("did not close within 100 ms");
+      expect(connections()).toBeGreaterThan(0);
       expect(server.listening).toBe(true);
     } finally {
       await close(server);

@@ -5,6 +5,9 @@
   "role": "implementer",
   "recordedOn": "2026-09-07",
   "changedGlobs": [
+    "evidence/compatibility/dependency-versions.json",
+    "packages/versions/src/index.ts",
+    "schemas/design-system-contract.schema.json",
     "src/templates/apps/capability-clients/feature-flags.ts",
     "src/templates/apps/capability-clients/jobs.ts",
     "src/templates/apps/capability-clients/notifications-composer.ts",
@@ -12,8 +15,12 @@
     "src/templates/apps/capability-clients/storage.ts",
     "src/templates/apps/components.ts",
     "src/templates/apps/desktop/package.ts",
+    "src/templates/apps/desktop/shell/renderer.ts",
+    "src/templates/apps/desktop/shell/root.ts",
     "src/templates/apps/desktop/ui/primitives.ts",
     "src/templates/apps/desktop/ui/theme.ts",
+    "src/templates/apps/expo-components.ts",
+    "src/templates/apps/expo-core.ts",
     "src/templates/apps/expo-pages.ts",
     "src/templates/apps/fragments/admin/create-user-page.ts",
     "src/templates/apps/fragments/admin/filters.ts",
@@ -34,15 +41,28 @@
     "src/templates/apps/fragments/dashboard-identity.ts",
     "src/templates/apps/fragments/dashboard-next.ts",
     "src/templates/apps/fragments/dashboard-tanstack.ts",
+    "src/templates/apps/fragments/expo/auth.ts",
+    "src/templates/apps/fragments/expo/header.ts",
     "src/templates/apps/fragments/expo/marketing.ts",
     "src/templates/apps/fragments/header.ts",
     "src/templates/apps/fragments/header/actions.ts",
     "src/templates/apps/fragments/header/header.ts",
+    "src/templates/apps/fragments/header/identity.ts",
     "src/templates/apps/fragments/header/index.ts",
     "src/templates/apps/fragments/header/navigation.ts",
     "src/templates/apps/fragments/header/shared.ts",
     "src/templates/apps/fragments/header/shell.ts",
     "src/templates/apps/fragments/header/sidebar.ts",
+    "src/templates/apps/fragments/identity-workspace/web-access.ts",
+    "src/templates/apps/fragments/identity-workspace/web-controller.ts",
+    "src/templates/apps/fragments/identity-workspace/web-data.ts",
+    "src/templates/apps/fragments/identity-workspace/web-feature.ts",
+    "src/templates/apps/fragments/identity-workspace/web-invitation-row.ts",
+    "src/templates/apps/fragments/identity-workspace/web-invitations.ts",
+    "src/templates/apps/fragments/identity-workspace/web-member-identity.ts",
+    "src/templates/apps/fragments/identity-workspace/web-members.ts",
+    "src/templates/apps/fragments/identity-workspace/web-presentation.ts",
+    "src/templates/apps/fragments/identity-workspace/web-teams.ts",
     "src/templates/apps/fragments/identity-workspace/web.ts",
     "src/templates/apps/fragments/layout.ts",
     "src/templates/apps/fragments/marketing.ts",
@@ -76,6 +96,7 @@
     "src/templates/apps/fragments/web-ui/field.ts",
     "src/templates/apps/fragments/web-ui/form-fields.ts",
     "src/templates/apps/fragments/web-ui/forms.ts",
+    "src/templates/apps/fragments/web-ui/index.ts",
     "src/templates/apps/fragments/web-ui/layout.ts",
     "src/templates/apps/fragments/web-ui/missing.ts",
     "src/templates/apps/fragments/web-ui/overlays.ts",
@@ -107,17 +128,21 @@
     "src/templates/modes/single/package.ts",
     "src/templates/modes/single/pages/dashboard-feature.ts",
     "src/templates/modes/single/pages/dashboard.ts",
+    "src/templates/modes/single/server/db.ts",
     "src/templates/modes/single/tanstack/core.ts",
     "src/templates/modes/single/tanstack/pages/dashboard-feature.ts",
     "src/templates/pdf/surfaces.ts",
     "src/templates/proxy.ts",
     "src/templates/root/cloudflare.ts",
     "src/templates/tooling/lint-scripts.ts",
+    "src/templates/ui/brand.ts",
     "src/templates/ui/contract-foundation.ts",
     "src/templates/ui/contract.ts",
+    "src/templates/ui/design-system.ts",
     "src/templates/ui/manifest.ts",
     "src/templates/ui/styles.ts",
-    "src/templates/ui/theme.ts"
+    "src/templates/ui/theme.ts",
+    "src/templates/ui/utils.ts"
   ],
   "register": "product",
   "appliedRules": [
@@ -146,7 +171,7 @@
     "context": [
       {
         "path": "DESIGN.md",
-        "sha256": "b44757abf6a2dac5475a5939f7ace6e28fc46554391b1bfc47de597201919d4b"
+        "sha256": "169df8169aaa4dbd9eeea99bd1dff1eb66f7e21c55d49973fa6e0eeeabbda64d"
       },
       {
         "path": "VISION.md",
@@ -162,17 +187,29 @@
       }
     ],
     "decisions": [
-      "DESIGN.md#direction",
       "DESIGN.md#color-and-elevation",
+      "DESIGN.md#direction",
       "DESIGN.md#layout",
-      "DESIGN.md#ownership-and-composition"
+      "DESIGN.md#ownership-and-composition",
+      "DESIGN.md#refinements-from-browser-review",
+      "DESIGN.md#typography"
     ],
     "evidence": [
       "docs/engineering/visual-overhaul-2026-09-07.md",
-      "tests/unit/workspace-shell.test.ts",
+      "tests/unit/brand-wordmark.test.ts",
+      "tests/unit/design-system-app-integration.test.ts",
       "tests/unit/design-system-contract.test.ts",
+      "tests/unit/desktop-theme-persistence.test.ts",
+      "tests/unit/expo-marketing-capabilities.test.ts",
+      "tests/unit/generated-layer-policy.test.ts",
+      "tests/unit/generated-shell-auth-size.test.ts",
+      "tests/unit/lint-scripts-template.test.ts",
+      "tests/unit/maintenance-bypass-security.test.ts",
       "tests/unit/marketing-capabilities.test.ts",
-      "tests/unit/expo-marketing-capabilities.test.ts"
+      "tests/unit/session-device-label.test.ts",
+      "tests/unit/workspace-removal-scope-recovery.test.ts",
+      "tests/unit/workspace-shell.test.ts",
+      "tests/unit/workspace-ui-permissions.test.ts"
     ]
   }
 }

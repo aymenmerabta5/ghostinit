@@ -20,16 +20,17 @@ interface InvitationsCardProps {
 
 export function InvitationsCard({ workspace }: InvitationsCardProps): React.JSX.Element {
 ${i18n.hookLine}
-  const { acceptInvitation, cancelInvitation, invitations, inviteEmail, inviteMember, inviteRole,
-    organizationId, pending, run, setInviteEmail, setInviteRole } = workspace;
+  const { acceptInvitation, access, cancelInvitation, invitations, inviteEmail, inviteMember, inviteRole,
+    organizationId, pending, permissions, run, setInviteEmail, setInviteRole } = workspace;
   const roleItems = [{ label: t("roles.admin"), value: "admin" }, { label: t("roles.member"), value: "member" }] as const;
   return <Card><CardHeader><CardTitle>${i18n.child("invitations")}</CardTitle><CardDescription>${i18n.child("invitationsDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-    <FieldGroup className="grid sm:grid-cols-[1fr_9rem_auto] sm:items-end">
+    {access.canWriteInvitations ? <FieldGroup className="grid sm:grid-cols-[1fr_9rem_auto] sm:items-end">
       <Field><FieldLabel htmlFor="invitation-email">${i18n.child("inviteEmail")}</FieldLabel><Input id="invitation-email" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder={${i18n.value("inviteEmailPlaceholder")}} /></Field>
       <Field><FieldLabel htmlFor="invitation-role">${i18n.child("roleLabel")}</FieldLabel><Select items={roleItems} value={inviteRole} onValueChange={(value) => setInviteRole(organizationRole(value))}><SelectTrigger id="invitation-role"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{roleItems.map((role) => <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
       <Button disabled={pending || !organizationId || !inviteEmail.includes("@")} onClick={() => organizationId && void run(() => inviteMember.mutateAsync({ organizationId, email: inviteEmail.trim(), role: inviteRole }))}>${i18n.child("invite")}</Button>
-    </FieldGroup>
-    {(invitations.data ?? []).map((invitation) => <InvitationRow key={invitation.id} invitation={invitation} pending={pending} onAccept={(invitationId) => run(() => acceptInvitation.mutateAsync({ invitationId }))} onCancel={(invitationId) => run(() => cancelInvitation.mutateAsync({ invitationId }))} />)}
+    </FieldGroup> : null}
+    {!permissions.isPending && !permissions.hasError && !permissions.canReadInvitations ? <p className="text-sm text-muted-foreground">${i18n.child("invitationsRestricted")}</p> : null}
+    {permissions.canReadInvitations ? (invitations.data ?? []).map((invitation) => <InvitationRow key={invitation.id} invitation={invitation} pending={pending} canCancel={access.canWriteInvitations && invitations.isSuccess} canAccept={invitations.isSuccess && invitation.email.trim().toLocaleLowerCase("en-US") === permissions.currentUser?.email.trim().toLocaleLowerCase("en-US")} onAccept={(invitationId) => run(() => acceptInvitation.mutateAsync({ invitationId }))} onCancel={(invitationId) => run(() => cancelInvitation.mutateAsync({ invitationId }))} />) : null}
   </CardContent></Card>;
 }
 `;

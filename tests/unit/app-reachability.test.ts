@@ -336,7 +336,9 @@ describe("generated application reachability", () => {
     expect(headerActions).toContain(
       'import { NotificationInboxBell } from "@/features/notifications/bell";',
     );
-    expect(headerActions).toMatch(/\) : isAuthenticated \? \([\s\S]*?<NotificationInboxBell \/>/);
+    expect(headerActions).toMatch(
+      /\) : identity.status === "authenticated" \? \([\s\S]*?<NotificationInboxBell \/>/,
+    );
 
     expect(push).toContain("addNotificationResponseReceivedListener(navigateResponse)");
     expect(push).toContain('if (Platform.OS === "web") return;');

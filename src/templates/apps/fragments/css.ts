@@ -3,6 +3,7 @@
 export const tailwindImports = `@import "tailwindcss";
 @import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";
+@import "@fontsource-variable/noto-sans-arabic/wght.css";
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));`;
 
@@ -179,7 +180,7 @@ export const baseLayer = `@theme inline {
 
 @layer base {
   :root {
-    --font-geist-sans: "Geist Variable";
+    --font-geist-sans: "Geist Variable", "Noto Sans Arabic Variable";
     --font-geist-mono: "Geist Mono Variable";
   }
   * {
@@ -228,6 +229,7 @@ export function globalCssContent(): string {
   return `@import "tailwindcss";
 @import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";
+@import "@fontsource-variable/noto-sans-arabic/wght.css";
 @import "@repo/ui/theme.css";
 @import "tw-animate-css";
 @custom-variant dark (&:is(.dark *));

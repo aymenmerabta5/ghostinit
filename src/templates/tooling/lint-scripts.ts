@@ -322,7 +322,7 @@ function flatten(value,prefix="",out={}){ if(!value||typeof value!=="object") re
 function placeholders(message){ return [...message.matchAll(/[{]([A-Za-z_][A-Za-z0-9_]*)[}]/g)].map(match=>match[1]).sort(); }
 function checkCatalogs(root,violations){ const dir=catalogDir(root); if(!dir){ violations.push("missing en/fr/ar message catalogs under "+root); return; } const catalogs=Object.fromEntries(["en","fr","ar"].map(locale=>[locale,JSON.parse(read(path.join(dir,locale+".json")))])); const expected=leaves(catalogs.en); const flat=Object.fromEntries(Object.entries(catalogs).map(([locale,catalog])=>[locale,flatten(catalog)])); if(!expected.some(key=>key.startsWith("adminUsers."))) violations.push("English catalog is missing adminUsers keys"); for(const locale of ["fr","ar"]){ if(JSON.stringify(leaves(catalogs[locale]))!==JSON.stringify(expected)) violations.push(locale+" catalog keys differ from English"); for(const key of expected){ if(JSON.stringify(placeholders(flat[locale][key]||""))!==JSON.stringify(placeholders(flat.en[key]||""))) violations.push(locale+" catalog placeholders differ for "+key); } } }
 function requireText(source,token,label,violations){ if(!source.includes(token)) violations.push(label+" is missing "+token); }
-function headerParts(root){ return Object.fromEntries(Object.entries({root:"header",shell:"app-shell",actions:"header-actions",menu:"header-user-menu",navigation:"workspace-navigation",sidebar:"workspace-sidebar",trigger:"workspace-navigation-trigger"}).map(([name,file])=>[name,read(path.join(root,"components",file+".tsx"))])); }
+function headerParts(root){ return Object.fromEntries(Object.entries({root:"header.tsx",shell:"app-shell.tsx",actions:"header-actions.tsx",menu:"header-user-menu.tsx",navigation:"workspace-navigation.tsx",sidebar:"workspace-sidebar.tsx",trigger:"workspace-navigation-trigger.tsx",identity:"workspace-identity.ts",status:"workspace-identity-status.tsx"}).map(([name,file])=>[name,read(path.join(root,"components",file))])); }
 function openings(source){ return jsxOpenings(parseOwned("header-part.tsx",source)); }
 function requireMount(source,tag,label,violations){ if(openings(source).filter(opening=>jsxName(opening.name)===tag).length!==1) violations.push(label+" must mount "+tag+" exactly once"); }
 function checkHeader(parts,root,layout,violations){
@@ -336,10 +336,17 @@ function checkHeader(parts,root,layout,violations){
   for(const control of controls){ if((jsxAttributeString(control,"className")||"").split(/\\s+/).includes("hidden")) violations.push("Locale switcher must remain reachable on mobile"); }
   const authenticated=Boolean(parts.actions||parts.menu||parts.navigation||parts.shell.includes("useAuth"));
   if(authenticated){
-    for(const [source,tag,label] of [[parts.shell,"HeaderActions","AppShell"],[parts.shell,"WorkspaceSidebar","AppShell"],[parts.shell,"WorkspaceNavigationTrigger","AppShell"],[parts.actions,"HeaderUserMenu","Header actions"],[parts.sidebar,"WorkspaceNavigation","Workspace sidebar"],[parts.trigger,"WorkspaceNavigation","Workspace trigger"],[parts.trigger,"Sheet","Workspace trigger"],[parts.trigger,"SheetTrigger","Workspace trigger"],[parts.trigger,"SheetContent","Workspace trigger"]]) requireMount(source,tag,label,violations);
-    for(const token of ["useQueryAuthSession()","canonical?.hasCanonicalApi","canonical.currentRequest?.user","user={user}"]) requireText(parts.shell,token,"Canonical workspace identity",violations);
+    for(const [source,tag,label] of [[parts.shell,"HeaderActions","AppShell"],[parts.shell,"WorkspaceSidebar","AppShell"],[parts.shell,"WorkspaceNavigationTrigger","AppShell"],[parts.actions,"HeaderUserMenu","Header actions"],[parts.sidebar,"WorkspaceNavigation","Workspace sidebar"],[parts.trigger,"WorkspaceNavigation","Workspace trigger"],[parts.navigation,"WorkspaceIdentityStatus","Workspace navigation"],[parts.trigger,"Sheet","Workspace trigger"],[parts.trigger,"SheetTrigger","Workspace trigger"],[parts.trigger,"SheetContent","Workspace trigger"]]) requireMount(source,tag,label,violations);
+    for(const token of ["useQueryAuthSession()","canonical?.hasCanonicalApi","canonical.currentRequest?.user","canonical?.retry","identity={identity}"]) requireText(parts.shell,token,"Canonical workspace identity",violations);
     const compactShell=parts.shell.replace(/\\s+/g,"");
-    for(const token of ["pending||error?null:","currentUser??null"]) requireText(compactShell,token,"Canonical workspace identity",violations);
+    for(const token of ["resolveWorkspaceIdentity({","currentUser??null"]) requireText(compactShell,token,"Canonical workspace identity",violations);
+    const identity=parts.identity.replace(/\\s+/g,"");
+    for(const token of ["if(input.pending)","if(input.error)","if(input.user)",'status:"pending"','status:"error",retry:input.retry','status:"authenticated",user:input.user','status:"anonymous"']) requireText(identity,token,"Workspace identity states",violations);
+    if(identity.indexOf("if(input.pending)")>identity.indexOf("if(input.error)")||identity.indexOf("if(input.error)")>identity.indexOf("if(input.user)")) violations.push("Workspace identity must settle pending and error before exposing its user");
+    requireText(parts.navigation,'identity.status !== "authenticated"',"Private workspace navigation",violations);
+    requireText(parts.actions,'identity.status === "authenticated"',"Private account controls",violations);
+    for(const source of [parts.sidebar,parts.trigger]) requireText(source,"identity={identity}","Workspace identity handoff",violations);
+    for(const token of ['t("accountLoading")','t("accountUnavailable")','t("notSignedIn")',"onClick={identity.retry}"]) requireText(parts.status,token,"Workspace identity status",violations);
     requireText(parts.navigation,'useSurfaceTranslations("header")',"Workspace navigation",violations);
     requireText(parts.navigation,"{t(label)}","Workspace navigation",violations);
     requireText(parts.trigger,'t("openNavigation")',"Workspace trigger",violations);
@@ -350,9 +357,10 @@ function checkHeader(parts,root,layout,violations){
     for(const label of ["dashboard","settings"]) if(!labels.includes(label)) violations.push("Workspace navigation is missing "+label);
     if(labels.includes("admin")){
       requireText(parts.navigation,'item.label !== "admin" || isAdmin',"Workspace admin admission",violations);
-      for(const source of [parts.sidebar,parts.trigger]) requireText(source,'isAdmin={user?.role === "admin"}',"Workspace admin admission",violations);
+      requireText(parts.navigation,'identity.user.role === "admin"',"Workspace admin admission",violations);
       requireText(parts.menu,'t("users")',"Translated admin menu",violations);
     }
+    if(labels.includes("billing")&&!/path:\\s*"\\/billing"[^}]*match:\\s*"exact"/.test(parts.navigation)) violations.push("Billing navigation must preserve public checkout return pages");
   }
   const keys=new Set([...labels,...[...header.matchAll(/\\bt\\("([A-Za-z][A-Za-z0-9]*)"\\)/g)].map(match=>match[1])]);
   const dir=catalogDir(root);

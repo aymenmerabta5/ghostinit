@@ -8,9 +8,14 @@ type Framework = "nextjs" | "tanstack-start";
 type Mode = "monorepo" | "single";
 
 const FEATURE_FILES = [
+  "access.ts",
+  "permissions.ts",
   "components/invitations-card.tsx",
   "components/invitation-row.tsx",
   "components/members-card.tsx",
+  "components/member-identity.tsx",
+  "components/member-row.tsx",
+  "components/team-members.tsx",
   "components/organizations-card.tsx",
   "components/teams-card.tsx",
   "controller.ts",
@@ -84,7 +89,10 @@ describe("generated identity workspace boundaries", () => {
         const featureRoot = `${sourceRoot}/features/identity-workspace`;
         const featureFiles = generated.filter(({ path }) => path.startsWith(`${featureRoot}/`));
 
-        const expectedFeatureFiles = [...FEATURE_FILES];
+        const expectedFeatureFiles = [
+          ...FEATURE_FILES,
+          ...(framework === "tanstack-start" ? ["load-initial-workspace.ts"] : []),
+        ];
         expect(featureFiles.map(({ path }) => path).sort()).toEqual(
           expectedFeatureFiles.map((name) => `${featureRoot}/${name}`).sort(),
         );

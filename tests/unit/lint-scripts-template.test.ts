@@ -724,6 +724,17 @@ describe("emitted lint scripts", () => {
         error: "Canonical workspace identity is missing canonical.currentRequest?.user",
       },
       {
+        path: "apps/web/src/components/workspace-identity.ts",
+        mutate: (source: string) => source.replace("if (input.error)", "if (false)"),
+        error: "Workspace identity states is missing if(input.error)",
+      },
+      {
+        path: "apps/web/src/components/workspace-sidebar.tsx",
+        mutate: (source: string) =>
+          source.replace("identity={identity}", 'identity={{ status: "pending" }}'),
+        error: "Workspace identity handoff is missing identity={identity}",
+      },
+      {
         path: "apps/web/src/components/header-actions.tsx",
         mutate: (source: string) =>
           source.replace('<LocaleSwitcher className="', '<LocaleSwitcher className="hidden '),

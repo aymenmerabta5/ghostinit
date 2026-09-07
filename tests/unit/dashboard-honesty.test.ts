@@ -167,7 +167,9 @@ describe("generated dashboard operational honesty", () => {
         expect(dashboard).not.toMatch(
           /systemLive|environmentLocal|statusPass|checks\.(?:blockers|highs|mediums)/,
         );
-        expect(dashboard).toContain("identity.signedInAs");
+        expect(dashboard).toContain("useDashboardIdentity(initialUser)");
+        expect(dashboard).toContain('String(user.email ?? "")');
+        expect(dashboard).not.toContain("identity.signedInAs");
       });
     }
   }

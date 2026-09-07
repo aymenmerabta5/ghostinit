@@ -48,6 +48,9 @@ export const EN_MESSAGES = {
     twoFactor: "Two-factor authentication",
   },
   header: {
+    retryAccount: "Retry loading account",
+    accountUnavailable: "Account unavailable",
+    accountLoading: "Loading account…",
     openNavigation: "Open navigation",
     productName: "GhostInit",
     productBadge: "modular monolith",
@@ -134,13 +137,15 @@ export const EN_MESSAGES = {
     remove: "Remove",
   },
   jobs: {
+    statusTitle: "Job status",
+    runTitle: "Start a sample job",
     pending: "Working…",
     title: "Background jobs",
     description: "Run background work and check its progress.",
     defaultMessage: "Hello worker",
-    echoPayload: "Echo payload",
+    echoPayload: "Message",
     enqueueError: "Enqueue failed",
-    enqueue: "Enqueue system.echo",
+    enqueue: "Run sample job",
     runId: "Run ID",
     lookupError: "Lookup failed",
     refresh: "Refresh",
@@ -149,6 +154,8 @@ export const EN_MESSAGES = {
     result: "Job result",
   },
   messaging: {
+    peerUserIdHelp: "Enter the existing user ID of the person you want to message.",
+    conversation: "Conversation",
     privateChannel: "Private channel",
     title: "Messages",
     mobileDescription: "Private conversations with secure attachment transfer.",
@@ -202,7 +209,7 @@ export const EN_MESSAGES = {
     generating: "Generating…",
     generateShare: "Generate and share",
     documentWorkspace: "Document workspace",
-    secureTitle: "Generate a secure PDF",
+    secureTitle: "Create a PDF",
     desktopDescription: "Uses the same authenticated, bounded renderer as the web and mobile apps.",
     generateDownload: "Generate and download",
     generationError: "PDF generation failed",
@@ -248,6 +255,17 @@ export const EN_MESSAGES = {
     },
   },
   workspace: {
+    teamMembershipRequired: "You must belong to this team to make it active.",
+    invitationsRestricted: "Only workspace owners and administrators can manage invitations.",
+    retry: "Retry",
+    permissionsUnavailableDescription:
+      "You can still view this workspace. Retry to check which changes you can make.",
+    permissionsUnavailable: "Workspace permissions are unavailable",
+    checkingPermissions: "Checking workspace permissions…",
+    noEligibleMembers: "Every organization member is already on this team.",
+    selectMember: "Select an organization member",
+    memberLabel: "Member",
+    you: "You",
     kicker: "Workspace",
     title: "Organizations and teams",
     webDescription: "Manage your organizations, members, teams, and invitations.",
@@ -415,15 +433,13 @@ export const EN_MESSAGES = {
     signUpFailed: "Sign up failed",
     signIn: {
       title: "Sign in",
-      description:
-        "Enter your credentials to access your account. Your session is protected with secure httpOnly cookies.",
+      description: "Continue to your workspace.",
       emailLabel: "Email",
       emailPlaceholder: "you@example.com",
       emailDescription: "Your account email address.",
       passwordLabel: "Password",
       passwordDescription: "Enter your current account password.",
-      emailDisabled:
-        "Email/password sign-in is unavailable because the email capability is not selected. Use a configured OAuth-capable surface or enable email.",
+      emailDisabled: "Use one of the sign-in options below.",
       forgotPassword: "Forgot password?",
       magicLink: "Magic link",
       verifyEmail: "Verify email",
@@ -444,13 +460,11 @@ export const EN_MESSAGES = {
       createAccountLink: "Create account",
       backHome: "Back to home",
       resetSuccess: "Your password was reset. Sign in with your new password.",
-      securityNote:
-        "Secure session with httpOnly cookies, sameSite lax protection, and rate limiting. Powered by Better Auth.",
+      securityNote: "Sign out when you’re finished on a shared device.",
     },
     signUp: {
       title: "Create account",
-      description:
-        "Start your workspace with a securely hashed password and server-side validation.",
+      description: "Create an account and make this workspace yours.",
       nameLabel: "Name",
       namePlaceholder: "Ada Lovelace",
       nameDescription: "Your display name.",
@@ -459,8 +473,7 @@ export const EN_MESSAGES = {
       emailDescription: "Your account email address.",
       passwordLabel: "Password",
       passwordDescription: "Use at least 8 characters. Longer is stronger.",
-      emailDisabled:
-        "Password signup is unavailable because the email capability is not selected. Enable email or use an OAuth-capable surface.",
+      emailDisabled: "Choose an option below to create your account.",
       submit: "Create account",
       submitting: "Creating account...",
       errorTitle: "Unable to create account",
@@ -476,7 +489,7 @@ export const EN_MESSAGES = {
       signInPrompt: "Already have an account?",
       signInLink: "Sign in",
       backHome: "Back to home",
-      securityNote: "Sessions are protected with secure httpOnly cookies. Powered by Better Auth.",
+      securityNote: "Manage your profile and security in Settings.",
     },
     twoFactor: {
       badge: "2FA",
@@ -484,8 +497,7 @@ export const EN_MESSAGES = {
       trustDeviceLabel: "Trust this device for 30 days",
       trustDeviceDescription: "Only select this on a private device you control.",
       title: "Two-factor authentication",
-      description:
-        "Enter the 6-digit code from your authenticator app. Verification is rate limited and protected against replay.",
+      description: "Enter the six-digit code from your authenticator app.",
       codeLabel: "Authentication code",
       codePlaceholder: "000000",
       codeDescription:
@@ -501,9 +513,7 @@ export const EN_MESSAGES = {
       setupUriLabel: "Authenticator setup URI",
       backHome: "Back to home",
       backSignIn: "Back to sign in",
-      recoveryCodes: "Recovery codes",
-      securityNote:
-        "Trusted devices use a secure httpOnly cookie for 30 days. TOTP works offline with RFC 6238.",
+      securityNote: "Use a backup code if you can’t access your authenticator.",
     },
     emailFlow: {
       kicker: "Email security",
@@ -882,6 +892,7 @@ export const EN_MESSAGES = {
       backSettings: "Back to settings",
     },
     sessions: {
+      deviceSummary: "{browser} on {platform}",
       title: "Active sessions",
       description:
         "Manage your active sessions. Revoke any session you do not recognize. The current session is highlighted.",
@@ -1025,10 +1036,11 @@ export const EN_MESSAGES = {
       backHome: "Back to home",
     },
     maintenance: {
+      administratorAccess: "Administrator access",
       status: "503",
       metadataTitle: "Maintenance",
       title: "Down for maintenance",
-      description: "We are applying changes and will be back shortly. Your data is safe.",
+      description: "This service is temporarily unavailable. Please try again later.",
       accessLabel: "Maintenance access token",
       accessAction: "Continue securely",
     },

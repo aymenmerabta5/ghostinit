@@ -184,8 +184,9 @@ function readClientQueries(
   const read = new Function(
     "useQuery",
     "orpc",
+    "useWorkspacePermissions",
     `${javascript(querySource)}; return useIdentityWorkspaceQueries;`,
-  )(useQuery, orpc) as (
+  )(useQuery, orpc, () => ({ canReadInvitations })) as (
     organizationId: string | null,
     teamId: string | null,
     initialData: Snapshot,

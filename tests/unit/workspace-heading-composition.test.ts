@@ -42,19 +42,19 @@ describe("workspace route heading composition", () => {
         expect(next("app/settings/workspace/page.tsx")).toContain(
           "<IdentityWorkspace initialData={initialData}",
         );
-        expect(next("features/identity-workspace/identity-workspace.tsx")).toContain(
-          '<h2 className="text-3xl font-semibold tracking-tight">',
-        );
+        const nextWorkspace = next("features/identity-workspace/identity-workspace.tsx");
+        expect(nextWorkspace).toMatch(/<h2\b[^>]*>/);
+        expect(nextWorkspace).not.toMatch(/<h1\b/);
 
         const tanstack = output(mode, "tanstack-start", database);
         expect(tanstack("routes/settings.tsx")).toContain(
           'if (location.pathname !== "/settings" && location.pathname !== "/settings/") return <Outlet />;',
         );
-        expect(tanstack("routes/settings.workspace.tsx")).toContain(
-          '<main className="mx-auto w-full max-w-6xl p-6"><IdentityWorkspace /></main>',
+        expect(tanstack("routes/settings.workspace.tsx")).toMatch(
+          /<main\b[^>]*>\s*<IdentityWorkspace\s*\/>\s*<\/main>/,
         );
-        expect(tanstack("features/identity-workspace/identity-workspace.tsx")).toContain(
-          '<h1 className="text-3xl font-semibold tracking-tight">',
+        expect(tanstack("features/identity-workspace/identity-workspace.tsx")).toMatch(
+          /<h1\b[^>]*>/,
         );
       });
     }

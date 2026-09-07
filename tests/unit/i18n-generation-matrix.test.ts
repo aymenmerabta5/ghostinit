@@ -120,6 +120,7 @@ describe("generated i18n runtime matrix", () => {
             read(files, `${root}/components/app-shell.tsx`),
             read(files, `${root}/components/workspace-navigation.tsx`),
             read(files, `${root}/components/workspace-navigation-trigger.tsx`),
+            read(files, `${root}/components/workspace-identity-status.tsx`),
           ].join("\n");
           const switcherPath = `${root}/components/locale-switcher.tsx`;
           const switcher = read(files, switcherPath);

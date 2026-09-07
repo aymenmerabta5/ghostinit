@@ -23,6 +23,29 @@ interface SessionListProps {
   onRevoke: (sessionId: string) => void;
 }
 
+const SESSION_BROWSERS = [
+  ["Edge", ["edg/", "edge/", "edga/", "edgios/"]],
+  ["Opera", ["opr/", "opios/", "opera/"]],
+  ["Samsung Internet", ["samsungbrowser/"]],
+  ["Firefox", ["firefox/", "fxios/"]],
+  ["Chrome", ["chrome/", "chromium/", "crios/"]],
+  ["Safari", ["safari/"]],
+] as const;
+const SESSION_PLATFORMS = [
+  ["Android", ["android"]], ["iOS", ["iphone", "ipad", "ipod"]],
+  ["Windows", ["windows"]], ["ChromeOS", ["cros"]],
+  ["macOS", ["macintosh", "mac os x"]], ["Linux", ["linux"]],
+] as const;
+
+export function sessionDevice(userAgent: string | null | undefined) {
+  const value = (userAgent ?? "").toLowerCase();
+  // User-agent labels are display hints; session admission never depends on them.
+  return {
+    browser: SESSION_BROWSERS.find(([, tokens]) => tokens.some((token) => value.includes(token)))?.[0] ?? null,
+    platform: SESSION_PLATFORMS.find(([, tokens]) => tokens.some((token) => value.includes(token)))?.[0] ?? null,
+  };
+}
+
 export function SessionList({
   currentSessionId,
   isLoading,
@@ -43,10 +66,14 @@ export function SessionList({
   return <div className="divide-y rounded-lg border">{sessions.map((session) => {
     const isCurrent = session.id === currentSessionId;
     const isRevoking = pendingSessionId === session.id;
+    const device = sessionDevice(session.userAgent);
+    const deviceLabel = device.browser && device.platform
+      ? t("sessions.deviceSummary", { browser: device.browser, platform: device.platform })
+      : device.browser ?? device.platform ?? t("sessions.unknownDevice");
     return <div key={session.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-1.5">
-        <span className="truncate text-sm font-medium">{session.userAgent ?? t("sessions.unknownDevice")}</span>
-        <span className="text-xs leading-5 text-muted-foreground"><span className="font-mono">{session.id.slice(0, 8)}…</span> • {session.ipAddress ?? t("sessions.unknownIp")} • {t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
+        <span className="truncate text-sm font-medium"><bdi>{deviceLabel}</bdi></span>
+        <span className="text-xs leading-5 text-muted-foreground">{session.ipAddress ?? t("sessions.unknownIp")} • {t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {isCurrent ? <Badge variant="secondary">{t("sessions.current")}</Badge> : null}

@@ -69,8 +69,8 @@ export function DashboardView({ user }: { user: DashboardUser }): React.JSX.Elem
   return <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
     <DashboardHeader />
     <IdentityActions user={user} />
-    <details id="project-guide" className="group scroll-mt-24 rounded-xl border bg-card shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl p-6 text-base font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+    <details id="project-guide" className="group scroll-mt-24 rounded-lg border bg-card shadow-surface">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg p-6 text-base font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
         {t("header.setupGuide")}<ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="space-y-7 border-t p-6 sm:p-8"><ArchitectureStatus user={user} /><ModulesCard /></div>

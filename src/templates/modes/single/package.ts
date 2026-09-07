@@ -126,6 +126,7 @@ function buildDeps(
 
   deps["@fontsource-variable/geist"] = v.ui["@fontsource-variable/geist"];
   deps["@fontsource-variable/geist-mono"] = v.ui["@fontsource-variable/geist-mono"];
+  deps["@fontsource-variable/noto-sans-arabic"] = v.ui["@fontsource-variable/noto-sans-arabic"];
 
   if (hasApi) {
     deps["@orpc/server"] = `^${v.orpc["@orpc/server"]}`;

@@ -54,8 +54,10 @@ layer numbers are not accepted in page code.
 ## Typography
 
 Web uses self-hosted Geist Variable and Geist Mono Variable from exact catalog
-dependencies. Web styles import their weight CSS; native uses the platform font
-fallback rather than importing browser font CSS. Code uses the mono family.
+dependencies. Noto Sans Arabic Variable follows Geist in the sans fallback stack
+so Arabic has a deliberate typeface while Latin keeps Geist. Web styles import
+their weight CSS; native uses the platform font fallback rather than importing
+browser font CSS. Code uses the mono family.
 Generated Next, TanStack, and Worker content-security policies permit local
 fonts; the obsolete Google Fonts stylesheet/font origins are removed. Production
 and Worker runtime checks assert this policy alongside existing security headers.
@@ -84,6 +86,14 @@ public header. Unknown custom routes remain public until registered deliberately
 
 The GhostInit wordmark, route paths, navigation labels, and role checks remain.
 Implementation badges such as "modular monolith" are removed from the header.
+The brand is a text-only `GhostInit` wordmark. `Ghost` uses `text-primary` and
+`Init` uses `text-secondary-foreground`, so both remain readable in light and dark
+themes. The words are adjacent, with one font family and weight; the brand keeps
+its left-to-right reading order in RTL interfaces. No symbol, enclosing tile,
+image, or generated-art favicon accompanies it. Rejected image concepts and their
+temporary generation files are removed from the workspace.
+The desktop wordmark lives inside the renderer's component source root, matching
+its import alias and keeping presentation out of the main-process source tree.
 Dashboard composition emphasizes actual account information and useful actions;
 technical project guidance is a secondary disclosure. No invented metrics or
 passing-health claims are presented as live data.
@@ -149,6 +159,53 @@ or a readable section. Do not create a hook for every expression or split files
 solely to meet a line count. An orchestration component should show the screen's
 states and composition; it should not hide transport work in a supposedly
 presentational child. Domain and server implementations stay outside feature UI.
+
+### Refinements from browser review
+
+The shared web provider uses `next-themes`; the toggle reads `resolvedTheme` so
+it also behaves correctly if a consumer enables system mode. The default remains
+light with an explicit persisted choice. Electron's HTML and provider share the
+same initial light theme. Restoring its preferences finishes before persistence,
+and asynchronous writes preserve the latest user choice without overwriting
+unrelated saved settings.
+
+Header and page content share the 72rem alignment. Mobile hides the redundant
+breadcrumb title and compacts the brand at narrow widths while keeping its
+accessible name. Dashboard surfaces use the shared 12px radius and elevation;
+the duplicate account-description paragraph is removed. The central class merger
+registers the four owned shadow names, allowing `shadow-none` and other caller
+overrides to work without adding `!important` to individual screens.
+
+Shell identity explicitly distinguishes pending, authenticated, anonymous, and
+error. Only pending identity renders skeletons. Settled anonymous/error states
+do not expose private navigation or claim to be loading; unavailable identity
+offers a bounded retry. Billing matches its workspace root exactly, leaving its
+public return routes outside the private shell. Unknown web routes do not inherit
+unused native route aliases.
+
+Session labels use best-effort browser/platform names for recognition, never for
+authentication. Underlying IDs and session/revocation operations remain unchanged.
+Authentication copy explains the user's task instead of cookie flags or protocol
+details. The backup-code method remains available during two-factor sign-in;
+the misleading link to protected Settings is removed. Legal and consent wording,
+device-trust choice, and all verification controls remain unchanged.
+
+Maintenance presents its unavailability message first. Its unchanged token POST
+form is inside a closed native administrator-access disclosure. The page promises
+neither a restoration time nor data safety that it cannot verify. PDF and sample
+job headings describe their tasks without repeating field labels or exposing the
+internal job-kind name as a primary action.
+
+Workspace management uses the existing selected-organization permission API.
+Pending or failed grants keep mutations unavailable while preserving readable
+content and retry. Owner and final-owner restrictions remain reflected in the UI;
+team activation requires actual membership. Ordinary members can still create
+and switch organizations. Canonical application IDs identify the current user,
+including Convex; provider IDs are not substituted. No directory access or new
+profile data is exposed. The current user's existing name may label their own
+row; other identifiers remain compact references, and team additions select from
+already available organization members. Messaging keeps its explicit recipient-ID
+contract with a visible label and guidance.
 
 ### Read and mutation states
 

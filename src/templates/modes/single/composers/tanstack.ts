@@ -1,4 +1,5 @@
 // @allow-long 312: single-mode TanStack Start composer; the file list is a linear manifest
+import { uiUtilsContent } from "../../../ui/utils.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
 import { tanstackSettingsFeatureFiles } from "../../../apps/fragments/settings/index.js";
 import { webIdentityWorkspaceFiles } from "../../../apps/fragments/identity-workspace/index.js";
@@ -103,7 +104,6 @@ import {
   serverDbEmptySchema,
   serverDrizzleConfigSingle,
   serverObservabilitySingle,
-  libUtils,
 } from "../server/db.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
 import { workspaceShellFiles } from "../../../apps/fragments/header.js";
@@ -458,7 +458,7 @@ export function buildTanstackFiles(
   }
   if (hasAuth && !isConvex) files.push(transactionalAccountDeletionFile("src/server/auth"));
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
-  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/utils.ts", uiUtilsContent()));
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   files.push(...singleWebUiFiles());
   for (const f of webLibFiles("src", "tanstack-start")) {

@@ -1,3 +1,4 @@
+import { uiUtilsContent } from "../../../ui/utils.js";
 import { file, type TemplateFile } from "../../../shared.js";
 import { transactionalAccountDeletionFile } from "../../../auth-deletion.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
@@ -36,7 +37,6 @@ import {
   serverDbEmptySchema,
   serverDrizzleConfigSingle,
   serverObservabilitySingle,
-  libUtils,
 } from "../server/db.js";
 import {
   authClientSingle,
@@ -408,7 +408,7 @@ export function buildNextFiles(
   }
   if (hasAuth && !isConvex) files.push(transactionalAccountDeletionFile("src/server/auth"));
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
-  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/utils.ts", uiUtilsContent()));
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   files.push(...singleWebUiFiles());
   for (const f of webLibFiles("src", "nextjs")) {

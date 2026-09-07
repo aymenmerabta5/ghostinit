@@ -216,7 +216,6 @@ function maintenancePageContent(): string {
   return `import * as React from "react";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -236,8 +235,9 @@ async function MaintenanceContent(): Promise<React.JSX.Element> {
       <p className="max-w-[60ch] text-sm leading-6 text-muted-foreground">
         {t("maintenance.description")}
       </p>
-      <Card className="mt-5 w-full border-0 bg-transparent p-0 shadow-none">
-        <CardContent className="p-0 sm:p-0">
+      <details className="mt-5 w-full rounded-lg border border-border/70 bg-card">
+        <summary className="cursor-pointer rounded-lg px-5 py-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("maintenance.administratorAccess")}</summary>
+        <div className="border-t border-border/70 p-5">
           <form action="/maintenance/access" method="post" rel="noreferrer">
             <FieldGroup>
               <Field>
@@ -257,8 +257,8 @@ async function MaintenanceContent(): Promise<React.JSX.Element> {
               <Button className="w-auto self-start" type="submit">{t("maintenance.accessAction")}</Button>
             </FieldGroup>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </main>
   );
 }

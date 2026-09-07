@@ -1,4 +1,5 @@
 // @allow-long 667: single-mode Expo composition keeps capability closure and flat-path ownership together
+import { uiUtilsContent } from "../../../ui/utils.js";
 import { file, type TemplateFile } from "../../../shared.js";
 import { nativeQueryRegressionFile } from "../../../apps/fragments/expo/query-tests.js";
 import { authRouteBoundaryCode } from "../../../apps/fragments/api/auth-boundary.js";
@@ -79,7 +80,6 @@ import {
   serverDbAuthSchemaStub,
   serverDrizzleConfigSingle,
   serverObservabilitySingle,
-  libUtils,
 } from "../server/db.js";
 import { hasAddon } from "../../../../lib/addons.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
@@ -702,7 +702,7 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       ),
     );
   }
-  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/utils.ts", uiUtilsContent()));
   files.push(file("src/components/ui/text.tsx", rnrTextContent()));
   files.push(file("src/components/ui/button.tsx", rnrButtonContent()));
   files.push(file("src/components/ui/card.tsx", rnrCardContent()));

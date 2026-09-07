@@ -1,3 +1,4 @@
+import { uiUtilsContent } from "./utils.js";
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 import type { ResolvedUiLayout, UiAdapterId } from "./layout.js";
@@ -50,6 +51,8 @@ function packageManifestContent(adapters: readonly UiAdapterId[]): string {
               "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
               "@fontsource-variable/geist": v.ui["@fontsource-variable/geist"],
               "@fontsource-variable/geist-mono": v.ui["@fontsource-variable/geist-mono"],
+              "@fontsource-variable/noto-sans-arabic":
+                v.ui["@fontsource-variable/noto-sans-arabic"],
             }
           : {}),
       },
@@ -70,23 +73,13 @@ export const themePath = "./styles/theme.css";
 `;
 }
 
-export function designSystemUtilsContent(): string {
-  return `import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs));
-}
-`;
-}
-
 export function designSystemModuleFiles(
   layout: ResolvedUiLayout,
   adapters: readonly UiAdapterId[],
 ): TemplateFile[] {
   const files = [
     file(`${layout.sourceRoot}/index.ts`, designSystemIndexContent()),
-    file(`${layout.sourceRoot}/lib/utils.ts`, designSystemUtilsContent()),
+    file(`${layout.sourceRoot}/lib/utils.ts`, uiUtilsContent()),
     file(`${layout.sourceRoot}/theme.css`, compatibilityThemeCssContent()),
   ];
 

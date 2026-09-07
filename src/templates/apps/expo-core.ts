@@ -486,20 +486,6 @@ export function expoEnvDtsSingle(): TemplateFile {
 }
 
 /* ------------------------------------------------------------------ */
-/* src/lib/utils.ts — cn helper                                      */
-/* ------------------------------------------------------------------ */
-
-export function expoLibUtilsContent(): string {
-  return `import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs));
-}
-`;
-}
-
-/* ------------------------------------------------------------------ */
 /* tsconfig.json — extends @repo/typescript-config/expo.json         */
 /* ------------------------------------------------------------------ */
 

@@ -279,7 +279,7 @@ describe("machine-defined design-system foundation", () => {
     expect(baseContract).not.toMatch(/(^|[\s,{])(html|body|\*)(?=[\s,{])/m);
     expect(baseContract).toContain("@custom-variant ui-disabled");
     expect(webBase).toContain("body {");
-    expect(webBase).toContain('--font-geist-sans: "Geist Variable";');
+    expect(webBase).toContain('--font-geist-sans: "Geist Variable", "Noto Sans Arabic Variable";');
     expect(webBase).toContain('--font-geist-mono: "Geist Mono Variable";');
     expect(webBase).toContain("font-size: 0.9375rem;");
     expect(webBase).toContain("line-height: 1.6;");
@@ -290,6 +290,7 @@ describe("machine-defined design-system foundation", () => {
     expect(baseContract).not.toContain("@fontsource-variable/");
     expect(web).toContain('@import "@fontsource-variable/geist/wght.css";');
     expect(web).toContain('@import "@fontsource-variable/geist-mono/wght.css";');
+    expect(web).toContain('@import "@fontsource-variable/noto-sans-arabic/wght.css";');
     for (const composition of [web, native]) {
       expect(composition).toContain('@import "./theme.css";');
       expect(composition).toContain("@custom-variant dark (&:is(.dark *));");

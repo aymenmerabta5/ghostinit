@@ -315,7 +315,6 @@ ${i18n.hookLine}
             <Button onPress={handleVerify} disabled={pending}>{pending ? <ActivityIndicator /> : <Text>${i18n.child("twoFactor.submit", "Verify and continue")}</Text>}</Button>
             <View className="flex-row justify-between mt-3">
               <Link href="/sign-in" asChild><Text className="text-xs text-muted-foreground underline">${i18n.child("twoFactor.backSignIn", "Back to sign in")}</Text></Link>
-              <Link href="/settings" asChild><Text className="text-xs text-muted-foreground underline">${i18n.child("twoFactor.recoveryCodes", "Recovery codes")}</Text></Link>
             </View>
             <Text className="text-xs text-muted-foreground text-center mt-6">${i18n.child("twoFactor.securityNote", "Secure two-factor authentication powered by Better Auth.")}</Text>
           </View>

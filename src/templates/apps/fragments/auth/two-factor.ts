@@ -63,8 +63,8 @@ import { useSurfaceTranslations } from "@/lib/translations";`;
     ? `      void navigate({ to: "/dashboard" });`
     : `      router.push("/dashboard");`;
   const footer = isTanstack
-    ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link><Link to="/settings" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.recoveryCodes")}</Link>`
-    : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link><Link href="/settings" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.recoveryCodes")}</Link>`;
+    ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link>`
+    : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link>`;
 
   return `${imports}
 

@@ -50,6 +50,9 @@ export const FR_MESSAGES = {
     twoFactor: "Authentification à deux facteurs",
   },
   header: {
+    retryAccount: "Réessayer de charger le compte",
+    accountUnavailable: "Compte indisponible",
+    accountLoading: "Chargement du compte…",
     openNavigation: "Ouvrir la navigation",
     productName: "GhostInit",
     productBadge: "monolithe modulaire",
@@ -137,13 +140,15 @@ export const FR_MESSAGES = {
     remove: "Supprimer",
   },
   jobs: {
+    statusTitle: "État de la tâche",
+    runTitle: "Lancer une tâche d’exemple",
     pending: "Opération en cours…",
     title: "Tâches en arrière-plan",
     description: "Lancez des tâches en arrière-plan et suivez leur progression.",
     defaultMessage: "Bonjour worker",
-    echoPayload: "Charge utile à renvoyer",
+    echoPayload: "Message",
     enqueueError: "Échec de la mise en file",
-    enqueue: "Mettre system.echo en file",
+    enqueue: "Exécuter la tâche",
     runId: "ID d’exécution",
     lookupError: "Échec de la recherche",
     refresh: "Actualiser",
@@ -152,6 +157,9 @@ export const FR_MESSAGES = {
     result: "Résultat de la tâche",
   },
   messaging: {
+    peerUserIdHelp:
+      "Saisissez l’identifiant utilisateur de la personne à qui vous souhaitez écrire.",
+    conversation: "Conversation",
     privateChannel: "Canal privé",
     title: "Messages",
     mobileDescription: "Conversations privées avec transfert sécurisé des pièces jointes.",
@@ -208,7 +216,7 @@ export const FR_MESSAGES = {
     generating: "Génération…",
     generateShare: "Générer et partager",
     documentWorkspace: "Espace documentaire",
-    secureTitle: "Générer un PDF sécurisé",
+    secureTitle: "Créer un PDF",
     desktopDescription:
       "Utilise le même moteur authentifié et limité que les applications web et mobile.",
     generateDownload: "Générer et télécharger",
@@ -255,6 +263,18 @@ export const FR_MESSAGES = {
     },
   },
   workspace: {
+    teamMembershipRequired: "Vous devez appartenir à cette équipe pour la rendre active.",
+    invitationsRestricted:
+      "Seuls les propriétaires et administrateurs peuvent gérer les invitations.",
+    retry: "Réessayer",
+    permissionsUnavailableDescription:
+      "Vous pouvez toujours consulter cet espace. Réessayez pour vérifier les modifications autorisées.",
+    permissionsUnavailable: "Permissions de l’espace de travail indisponibles",
+    checkingPermissions: "Vérification des permissions…",
+    noEligibleMembers: "Tous les membres de l’organisation font déjà partie de cette équipe.",
+    selectMember: "Sélectionnez un membre de l’organisation",
+    memberLabel: "Membre",
+    you: "Vous",
     kicker: "Espace de travail",
     title: "Organisations et équipes",
     webDescription: "Gérez vos organisations, membres, équipes et invitations.",
@@ -427,15 +447,13 @@ export const FR_MESSAGES = {
     signUpFailed: "Échec de l'inscription",
     signIn: {
       title: "Se connecter",
-      description:
-        "Saisissez vos identifiants pour accéder à votre compte. Votre session est protégée par des cookies httpOnly sécurisés.",
+      description: "Connectez-vous à votre espace de travail.",
       emailLabel: "E-mail",
       emailPlaceholder: "vous@exemple.com",
       emailDescription: "L'adresse e-mail de votre compte.",
       passwordLabel: "Mot de passe",
       passwordDescription: "Saisissez le mot de passe actuel de votre compte.",
-      emailDisabled:
-        "La connexion par e-mail et mot de passe est indisponible, car la capacité e-mail n’est pas sélectionnée. Utilisez une interface OAuth configurée ou activez l’e-mail.",
+      emailDisabled: "Utilisez l’une des options de connexion ci-dessous.",
       forgotPassword: "Mot de passe oublié ?",
       magicLink: "Lien magique",
       verifyEmail: "Vérifier l’adresse e-mail",
@@ -456,13 +474,11 @@ export const FR_MESSAGES = {
       createAccountLink: "Créer un compte",
       backHome: "Retour à l'accueil",
       resetSuccess: "Votre mot de passe a été réinitialisé. Connectez-vous avec le nouveau.",
-      securityNote:
-        "Session sécurisée par des cookies httpOnly, la protection sameSite lax et une limitation du débit. Propulsé par Better Auth.",
+      securityNote: "Déconnectez-vous après utilisation d’un appareil partagé.",
     },
     signUp: {
       title: "Créer un compte",
-      description:
-        "Créez votre espace de travail avec un mot de passe haché de façon sécurisée et une validation côté serveur.",
+      description: "Créez un compte pour commencer dans votre espace de travail.",
       nameLabel: "Nom",
       namePlaceholder: "Ada Lovelace",
       nameDescription: "Votre nom d'affichage.",
@@ -472,8 +488,7 @@ export const FR_MESSAGES = {
       passwordLabel: "Mot de passe",
       passwordDescription:
         "Utilisez au moins 8 caractères. Un mot de passe plus long est plus sûr.",
-      emailDisabled:
-        "L’inscription par mot de passe est indisponible, car la capacité e-mail n’est pas sélectionnée. Activez l’e-mail ou utilisez une interface OAuth.",
+      emailDisabled: "Choisissez une option ci-dessous pour créer votre compte.",
       submit: "Créer un compte",
       submitting: "Création du compte...",
       errorTitle: "Impossible de créer le compte",
@@ -489,8 +504,7 @@ export const FR_MESSAGES = {
       signInPrompt: "Vous avez déjà un compte ?",
       signInLink: "Se connecter",
       backHome: "Retour à l'accueil",
-      securityNote:
-        "Les sessions sont protégées par des cookies httpOnly sécurisés. Propulsé par Better Auth.",
+      securityNote: "Gérez votre profil et votre sécurité dans les paramètres.",
     },
     twoFactor: {
       badge: "2FA",
@@ -498,8 +512,7 @@ export const FR_MESSAGES = {
       trustDeviceLabel: "Faire confiance à cet appareil pendant 30 jours",
       trustDeviceDescription: "À sélectionner uniquement sur un appareil privé que vous contrôlez.",
       title: "Authentification à deux facteurs",
-      description:
-        "Saisissez le code à 6 chiffres de votre application d'authentification. La vérification est limitée et protégée contre la réutilisation.",
+      description: "Saisissez le code à six chiffres de votre application d’authentification.",
       codeLabel: "Code d'authentification",
       codePlaceholder: "000000",
       codeDescription:
@@ -515,9 +528,8 @@ export const FR_MESSAGES = {
       setupUriLabel: "URI de configuration de l’application d’authentification",
       backHome: "Retour à l'accueil",
       backSignIn: "Retour à la connexion",
-      recoveryCodes: "Codes de récupération",
       securityNote:
-        "Les appareils approuvés utilisent un cookie httpOnly sécurisé pendant 30 jours. TOTP fonctionne hors ligne selon RFC 6238.",
+        "Utilisez un code de secours si vous n’avez plus accès à votre application d’authentification.",
     },
     emailFlow: {
       kicker: "Sécurité de l’adresse e-mail",
@@ -738,7 +750,7 @@ export const FR_MESSAGES = {
     hero: {
       eyebrow: "Votre application commence ici",
       title: "Votre prochaine idée,",
-      titleAccent: "prend de l’avance.",
+      titleAccent: "déjà bien partie.",
       descriptionNext:
         "Un socle Next.js avec les outils nécessaires à votre projet, prêt à devenir le vôtre.",
       descriptionTanstack:
@@ -919,6 +931,7 @@ export const FR_MESSAGES = {
       backSettings: "Retour aux paramètres",
     },
     sessions: {
+      deviceSummary: "{browser} sur {platform}",
       title: "Sessions actives",
       description:
         "Gérez vos sessions actives. Révoquez toute session que vous ne reconnaissez pas. La session actuelle est mise en évidence.",
@@ -1064,11 +1077,11 @@ export const FR_MESSAGES = {
       backHome: "Retour à l'accueil",
     },
     maintenance: {
+      administratorAccess: "Accès administrateur",
       status: "503",
       metadataTitle: "Maintenance",
       title: "Maintenance en cours",
-      description:
-        "Nous appliquons des modifications et serons bientôt de retour. Vos données sont en sécurité.",
+      description: "Ce service est temporairement indisponible. Veuillez réessayer plus tard.",
       accessLabel: "Jeton d’accès de maintenance",
       accessAction: "Continuer en toute sécurité",
     },

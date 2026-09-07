@@ -24,3 +24,5 @@ test-results/
 # Local package builds (prevent stale artifacts)
 tooling/typescript-config/dist/
 packages/versions/dist/
+Temp
+evidence

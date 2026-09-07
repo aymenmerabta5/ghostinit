@@ -37,7 +37,7 @@ export function ${name}({ user: initialUser }: { user: DashboardUser }): React.J
   if (!user) return <DashboardIdentityStatus pending={pending} error={error} className="lg:col-span-7" />;
   const name = String(user.name || t("identity.nameNotSet"));
   const initials = String(user.name || user.email || "U").trim().split(/\\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
-  return <section className="min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm lg:col-span-7" aria-labelledby="dashboard-profile-title">
+  return <section className="min-w-0 overflow-hidden rounded-lg border bg-card shadow-surface lg:col-span-7" aria-labelledby="dashboard-profile-title">
     <div className="flex items-center justify-between gap-3 border-b px-6 py-4">
       <h2 id="dashboard-profile-title" className="text-base font-semibold tracking-tight">{t("single.profileTitle")}</h2>
       <Badge variant="secondary" className="shrink-0 capitalize">{String(user.role ?? t("identity.roleFallback"))}</Badge>
@@ -47,7 +47,6 @@ export function ${name}({ user: initialUser }: { user: DashboardUser }): React.J
         <div aria-hidden className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xl font-semibold text-primary">{initials}</div>
         <div className="min-w-0"><p className="break-words text-2xl font-semibold tracking-tight">{name}</p><p className="mt-1 break-all text-sm leading-6 text-muted-foreground">{String(user.email ?? "")}</p></div>
       </div>
-      <p className="text-sm leading-6 text-muted-foreground">{t("identity.signedInAs", { email: String(user.email ?? ""), name })}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" render={<Link ${link}="/settings" />} nativeButton={false}>{t("identity.editProfile")}</Button>
         ${hasAdminNavigation ? `{user.role === "admin" ? <Button variant="outline" size="sm" render={<Link ${link}="/admin" />} nativeButton={false}>{t("identity.admin")}</Button> : null}` : ""}
@@ -72,7 +71,7 @@ import { useSurfaceTranslations } from "@/lib/translations";
 
 export function ${name}(): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
-  return <section className="min-w-0 rounded-xl border bg-card p-6 shadow-sm lg:col-span-5" aria-labelledby="dashboard-actions-title">
+  return <section className="min-w-0 rounded-lg border bg-card p-6 shadow-surface lg:col-span-5" aria-labelledby="dashboard-actions-title">
     <h2 id="dashboard-actions-title" className="mb-5 text-base font-semibold tracking-tight">{t("actions.title")}</h2>
     <div className="divide-y">
       <Link ${link}="/settings" className="group flex min-h-20 items-center gap-3 rounded-lg py-4 text-sm font-medium outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-ring">

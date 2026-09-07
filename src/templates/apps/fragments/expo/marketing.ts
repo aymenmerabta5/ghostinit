@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button';`
   return `import { View, ScrollView } from 'react-native';
 ${authImports}
 import { Text } from '@/components/ui/text';
+${hasAuth ? "" : "import { BrandWordmark } from '@/components/brand-wordmark';"}
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 ${i18nImport}
 
@@ -46,7 +47,8 @@ ${i18n.hookLine}
   return (
     <ScrollView className="flex-1 bg-background">
       <View className="w-full max-w-xl self-center px-6 pb-10 pt-16 gap-5">
-${localeSwitcher}        <Text className="text-sm text-muted-foreground">${i18n.child("hero.eyebrow", "Your application starts here")}</Text>
+${localeSwitcher}${hasAuth ? "" : "        <BrandWordmark />\n"}
+        <Text className="text-sm text-muted-foreground">${i18n.child("hero.eyebrow", "Your application starts here")}</Text>
         <Text accessibilityRole="header" className="text-4xl font-semibold tracking-tight text-foreground">
           ${i18n.child("hero.title", "Your next idea,")}{"\\n"}
           <Text className="text-4xl font-semibold tracking-tight text-primary">${i18n.child("hero.titleAccent", "with a head start.")}</Text>

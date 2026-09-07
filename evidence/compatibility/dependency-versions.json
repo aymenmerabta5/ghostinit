@@ -10,9 +10,9 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 167,
-    "uniquePackages": 138,
-    "latestScopes": 142,
+    "auditedScopes": 168,
+    "uniquePackages": 139,
+    "latestScopes": 143,
     "compatibilityHeldScopes": 25,
     "uniqueCompatibilityHolds": 19,
     "auditedLockfiles": 4,
@@ -9125,6 +9125,22 @@
       "registryLatestPublishedAt": "2026-07-19T03:50:13.385Z",
       "eligibleLatest": "5.3.0",
       "eligibleLatestPublishedAt": "2026-07-19T03:50:13.385Z"
+    },
+    {
+      "scope": "ui.@fontsource-variable/noto-sans-arabic",
+      "group": "ui",
+      "key": "@fontsource-variable/noto-sans-arabic",
+      "package": "@fontsource-variable/noto-sans-arabic",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "5.3.0",
+      "pinnedPublishedAt": "2026-07-19T03:50:53.927Z",
+      "registryLatest": "5.3.0",
+      "registryLatestPublishedAt": "2026-07-19T03:50:53.927Z",
+      "eligibleLatest": "5.3.0",
+      "eligibleLatestPublishedAt": "2026-07-19T03:50:53.927Z"
     },
     {
       "scope": "ui.@types/react-is",

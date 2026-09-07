@@ -22,7 +22,6 @@ import {
 
 export interface ConversationSummary {
   id: string;
-  peerName?: string;
 }
 
 export interface MessageSummary {
@@ -41,7 +40,6 @@ function toConversation(value: unknown): ConversationSummary | undefined {
   if (!isRecord(value) || typeof value.id !== "string") return undefined;
   return {
     id: value.id,
-    ...(typeof value.peerName === "string" ? { peerName: value.peerName } : {}),
   };
 }
 
@@ -453,7 +451,6 @@ function messagingConversationListContent(
   return `"use client";
 import type { JSX } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -475,8 +472,8 @@ ${displayedConversations}
     return <>{failure ?? <Empty><EmptyHeader><EmptyTitle>{t("noConversations")}</EmptyTitle><EmptyDescription>{t("noConversationsDescription")}</EmptyDescription></EmptyHeader></Empty>}</>;
   }
   return <div className="flex flex-col gap-2">{failure}{conversations.map((conversation) => (
-    <Button key={conversation.id} type="button" variant={selectedId === conversation.id ? "secondary" : "outline"} onClick={() => onSelect(conversation.id)} aria-pressed={selectedId === conversation.id} className="w-full justify-between text-start">
-      <span className="font-mono text-xs truncate">{conversation.id.slice(0, 8)}</span><Badge variant="secondary">{t("directMessage")}</Badge>
+    <Button key={conversation.id} type="button" variant={selectedId === conversation.id ? "secondary" : "outline"} onClick={() => onSelect(conversation.id)} aria-pressed={selectedId === conversation.id} className="h-auto min-h-14 w-full flex-col items-start gap-1 py-3 text-start">
+      <span className="text-sm font-medium">{t("conversation")}</span><code dir="ltr" title={conversation.id} className="text-xs text-muted-foreground">{conversation.id.slice(0, 8)}</code>
     </Button>
   ))}</div>;
 }
@@ -673,6 +670,7 @@ ${routeImport}import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { ConversationList } from "${componentImport}/conversation-list";
@@ -703,7 +701,7 @@ ${defaultExport}function MessagesPage(${pageParameters}): React.JSX.Element {
       <Card><CardHeader><CardTitle as="h2">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-3">
         <ConversationList onSelect={setSelected} selectedId={selected}${initialConversationProp} />
         <div className="flex flex-col gap-2">
-          <Input value={peerId} aria-label={t("peerUserId")} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
+          <Field><FieldLabel htmlFor="message-recipient">{t("peerUserId")}</FieldLabel><Input id="message-recipient" value={peerId} aria-describedby="message-recipient-help" onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><FieldDescription id="message-recipient-help">{t("peerUserIdHelp")}</FieldDescription></Field>
           <Button variant="outline" disabled={isPending || !peerId.trim()} aria-busy={isPending} onClick={() => void startConversation()}>{isPending ? t("starting") : t("startDirectMessage")}</Button>
         </div>
         {startError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("operationError")}</AlertDescription></Alert> : null}
@@ -896,6 +894,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Id } from "${dataModelImport}";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useSurfaceTranslations } from "@/lib/translations";
 
@@ -946,13 +945,13 @@ export function ConvexConversationSidebar({
             variant={conversation.liveId !== null && selected === conversation.liveId ? "secondary" : "outline"}
             disabled={conversation.liveId === null}
             onClick={() => { if (conversation.liveId !== null) onSelect(conversation.liveId); }}
-            className="w-full justify-start font-mono text-xs"
+            className="h-auto min-h-14 w-full flex-col items-start gap-1 py-3 text-start"
           >
-            {conversation.key.slice(0, 8)}
+            <span className="text-sm font-medium">{t("conversation")}</span><code dir="ltr" title={conversation.key} className="text-xs text-muted-foreground">{conversation.key.slice(0, 8)}</code>
           </Button>
         ))}
         <div className="flex flex-col gap-2">
-          <Input value={peerId} aria-label={t("peerUserId")} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
+          <Field><FieldLabel htmlFor="message-recipient">{t("peerUserId")}</FieldLabel><Input id="message-recipient" value={peerId} aria-describedby="message-recipient-help" onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><FieldDescription id="message-recipient-help">{t("peerUserIdHelp")}</FieldDescription></Field>
           <Button type="button" variant="outline" disabled={!peerId.trim() || starting} aria-busy={starting} onClick={() => void start()}>
             {starting ? t("starting") : t("startDirectMessage")}
           </Button>

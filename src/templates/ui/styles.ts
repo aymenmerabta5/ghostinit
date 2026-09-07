@@ -105,6 +105,7 @@ export function webCompositionCssContent(): string {
   return `@import "tailwindcss";
 @import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";
+@import "@fontsource-variable/noto-sans-arabic/wght.css";
 @import "tw-animate-css";
 @import "./theme.css";
 @import "./utilities.css";

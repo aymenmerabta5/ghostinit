@@ -177,6 +177,8 @@ function portAcceptsConnections(port: number, timeoutMs: number): Promise<boolea
     socket.once("error", (error: NodeJS.ErrnoException) => {
       socket.destroy();
       if (error.code === "ECONNREFUSED") resolve(false);
+      // A reset can race listener shutdown; it is not evidence of a closed port.
+      else if (error.code === "ECONNRESET") resolve(true);
       else reject(new Error(`Convex port closure check failed: ${error.code ?? "unknown"}`));
     });
   });

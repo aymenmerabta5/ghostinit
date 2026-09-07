@@ -371,6 +371,7 @@ describe("generated locale control reachability", () => {
           read(files, `${root}/components/header-actions.tsx`),
           read(files, `${root}/components/workspace-navigation.tsx`),
           read(files, `${root}/components/workspace-navigation-trigger.tsx`),
+          read(files, `${root}/components/workspace-identity-status.tsx`),
         ].join("\n");
         const appShell = read(files, `${root}/components/app-shell.tsx`);
         const marketing = surfaceSource(files, mode, framework, "marketing");

@@ -38,41 +38,44 @@ export function workspaceNavigationContent(
   ].filter((entry) => entry.enabled);
   const icons = entries.map((entry) => entry.icon).join(", ");
   const items = entries
-    .map(({ path, label, icon }) => `  { path: "${path}", label: "${label}", icon: ${icon} },`)
+    .map(
+      ({ path, label, icon }) =>
+        `  { path: "${path}", label: "${label}", icon: ${icon}, match: "${path === "/billing" ? "exact" : "subtree"}" },`,
+    )
     .join("\n");
   return `"use client";
 
 import type * as React from "react";
 ${router === "next" ? 'import Link from "next/link";' : 'import { Link } from "@tanstack/react-router";'}
 import { ${icons} } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useSurfaceTranslations } from "@/lib/translations";
+import type { WorkspaceIdentity } from "./workspace-identity";
+import { WorkspaceIdentityStatus } from "./workspace-identity-status";
 
 const NAVIGATION = [
 ${items}
 ] as const;
 
-function isCurrentPath(pathname: string, destination: string): boolean {
+function isCurrentPath(pathname: string, destination: string, match: "exact" | "subtree"): boolean {
+  const normalized = pathname.replace(/\\/+$/, "") || "/";
   const root = destination.startsWith("/admin") ? "/admin" : destination;
-  return pathname === root || pathname.startsWith(root + "/");
+  return normalized === root || (match === "subtree" && normalized.startsWith(root + "/"));
 }
 
-export function workspaceSection(pathname: string): (typeof NAVIGATION)[number]["label"] | "workspace" | undefined {
-  const item = NAVIGATION.find((entry) => isCurrentPath(pathname, entry.path));
-  if (item) return item.label;
-  // Add custom protected route roots here; unknown routes retain the public layout.
-  if (isCurrentPath(pathname, "/workspace") || isCurrentPath(pathname, "/two-factor")) return "workspace";
-  return undefined;
+// Register custom protected routes above; unknown routes retain the public layout.
+export function workspaceSection(pathname: string): (typeof NAVIGATION)[number]["label"] | undefined {
+  return NAVIGATION.find((entry) => isCurrentPath(pathname, entry.path, entry.match))?.label;
 }
 
-export function WorkspaceNavigation({ pathname, ${hasAdminNavigation ? "isAdmin, " : ""}pending = false, onNavigate }: {
-  pathname: string; isAdmin: boolean; pending?: boolean; onNavigate?: () => void;
+export function WorkspaceNavigation({ pathname, identity, onNavigate }: {
+  pathname: string; identity: WorkspaceIdentity; onNavigate?: () => void;
 }): React.JSX.Element {
   const t = useSurfaceTranslations("header");
-  if (pending) return <div aria-hidden className="flex flex-col gap-3 px-3"><Skeleton className="h-9 w-full" /><Skeleton className="h-9 w-4/5" /><Skeleton className="h-9 w-full" /></div>;
+  if (identity.status !== "authenticated") return <WorkspaceIdentityStatus identity={identity} />;
+  ${hasAdminNavigation ? 'const isAdmin = identity.user.role === "admin";' : ""}
   return <nav aria-label={t("primaryNavigation")} className="flex flex-col gap-1">
-    {NAVIGATION${hasAdminNavigation ? '.filter((item) => item.label !== "admin" || isAdmin)' : ""}.map(({ path, label, icon: Icon }) => {
-      const active = isCurrentPath(pathname, path);
+    {NAVIGATION${hasAdminNavigation ? '.filter((item) => item.label !== "admin" || isAdmin)' : ""}.map(({ path, label, icon: Icon, match }) => {
+      const active = isCurrentPath(pathname, path, match);
       return <Link key={path} ${router === "next" ? "href" : "to"}={path} onClick={onNavigate} aria-current={active ? "page" : undefined}
         className={"flex min-h-10 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>
         <Icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden /><span className="min-w-0 break-words">{t(label)}</span>

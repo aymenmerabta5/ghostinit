@@ -107,6 +107,7 @@ async function requireAuthenticatedDesktopRoute(pathname: string): Promise<void>
 import * as React from "react";
 import { ThemeToggle } from "../components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { BrandWordmark } from "@/components/brand-wordmark";
 ${authImport}
 ${i18nImport}
 ${analyticsImport}
@@ -163,10 +164,9 @@ ${authState}
       <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="flex h-14 items-center justify-between border-b bg-card px-4" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
         <div className="flex min-w-0 items-center gap-3" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">G</div>
-          <div className="hidden sm:block">
-            <h1 className="text-sm font-semibold leading-none">{branding.name}</h1>
-            <p className="text-xs text-muted-foreground">{branding.version ? \`v\${branding.version}\` : "Electron ${v.electron.electron.split(".")[0]} • TanStack Router"}</p>
+          <div className="shrink-0">
+            <h1 className="text-sm font-semibold leading-none" title={branding.name}><BrandWordmark /></h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">{branding.version ? \`v\${branding.version}\` : "Electron ${v.electron.electron.split(".")[0]} • TanStack Router"}</p>
           </div>
           <nav aria-label={${capabilities.hasI18n ? 't("primaryNavigation")' : '"Primary"'}} className="ms-2 flex min-w-0 items-center gap-1 overflow-x-auto sm:ms-4">${navigation}
           </nav>
