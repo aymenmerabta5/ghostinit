@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { projectConfigSchema } from "../../../src/lib/config.js";
 import { generateProjectFiles } from "../../../src/templates/default.js";
+import { nextLocaleSwitcherComponent } from "../../../src/templates/i18n/next/switcher.js";
 
 const transpiler = new Bun.Transpiler({ loader: "ts", target: "bun" });
 function executable(source: string): string {
@@ -17,6 +18,114 @@ type Config = {
 };
 
 describe("generated web locale request operation", () => {
+  test("Next synchronizes live EN to AR to EN direction with the resolved locale before paint", () => {
+    interface Element {
+      type: string;
+      props: { value?: string; onValueChange?(value: string): void };
+      children: Element[];
+    }
+    for (const root of ["apps/web/src", "src"]) {
+      const source = nextLocaleSwitcherComponent(`${root}/components/locale-switcher.tsx`).content;
+      const compiled = new Bun.Transpiler({
+        loader: "tsx",
+        tsconfig: { compilerOptions: { jsx: "react" } },
+      }).transformSync(source.replace(/^import[^;]+;\s*/gm, "").replace(/^export /gm, ""));
+      let locale: string = "en";
+      let refreshes = 0;
+      const effects: Array<() => void> = [];
+      const document = { cookie: "", documentElement: { lang: "fr", dir: "ltr" } };
+      const component = new Function(
+        "React",
+        "useLocale",
+        "useTranslations",
+        "useRouter",
+        "document",
+        "window",
+        "defaultLocale",
+        "isValidLocale",
+        "localeCookieName",
+        "localeCookieMaxAge",
+        "localeDirection",
+        "locales",
+        "localeLabels",
+        "Select",
+        "SelectContent",
+        "SelectGroup",
+        "SelectItem",
+        "SelectTrigger",
+        "SelectValue",
+        `${compiled}; return LocaleSwitcher;`,
+      )(
+        {
+          createElement: (type: string, props: Element["props"], ...children: Element[]) => ({
+            type,
+            props,
+            children,
+          }),
+          useTransition: () => [false, (task: () => void) => task()],
+          useLayoutEffect: (effect: () => void) => {
+            effects.push(effect);
+          },
+        },
+        () => locale,
+        () => (key: string) => key,
+        () => ({
+          refresh: () => {
+            refreshes += 1;
+          },
+        }),
+        document,
+        { location: { protocol: "https:" } },
+        "en",
+        (value: unknown) => value === "en" || value === "fr" || value === "ar",
+        "NEXT_LOCALE",
+        31536000,
+        { en: "ltr", fr: "ltr", ar: "rtl" },
+        ["en", "fr", "ar"],
+        { en: "EN", fr: "FR", ar: "AR" },
+        "Select",
+        "SelectContent",
+        "SelectGroup",
+        "SelectItem",
+        "SelectTrigger",
+        "SelectValue",
+      ) as (props: Record<string, unknown>) => Element;
+      function render(): Element {
+        const element = component({});
+        expect(effects).toHaveLength(1);
+        for (const effect of effects.splice(0)) effect();
+        return element.children.find((child) => child.type === "Select")!;
+      }
+      const english = render();
+      expect(document.documentElement).toEqual({ lang: "en", dir: "ltr" });
+      english.props.onValueChange!("ar");
+      expect(document.cookie).toContain("NEXT_LOCALE=ar;");
+      expect(document.cookie).toContain("SameSite=Lax; Secure");
+      expect(refreshes).toBe(1);
+      expect(document.documentElement.dir).toBe("ltr");
+      locale = "ar";
+      const arabic = render();
+      expect(arabic.props.value).toBe("ar");
+      expect(document.documentElement).toEqual({ lang: "ar", dir: "rtl" });
+      arabic.props.onValueChange!("en");
+      locale = "en";
+      render();
+      expect(document.documentElement).toEqual({ lang: "en", dir: "ltr" });
+      expect(document.cookie).toContain("NEXT_LOCALE=en;");
+      expect(refreshes).toBe(2);
+      locale = "unsupported";
+      document.documentElement = { lang: "ar", dir: "rtl" };
+      const fallback = render();
+      expect(fallback.props.value).toBe("en");
+      expect(document.documentElement).toEqual({ lang: "en", dir: "ltr" });
+      const cookie = document.cookie;
+      fallback.props.onValueChange!("invalid");
+      fallback.props.onValueChange!("en");
+      expect(document.cookie).toBe(cookie);
+      expect(refreshes).toBe(2);
+    }
+  });
+
   test("resolves request locale after persisted switches and preserves weighted fallback", async () => {
     for (const mode of ["monorepo", "single"] as const) {
       for (const framework of ["nextjs", "tanstack-start"] as const) {

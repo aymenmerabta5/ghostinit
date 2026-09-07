@@ -309,6 +309,12 @@ query-provider path.
 - Mobile language controls reserve enough width for the complete locale code and
   use the shared 16px select chevron. The control cannot shrink below that width;
   the previous 64px trigger clipped the selected language beside a 24px icon.
+- Switching language updates document language and writing direction with the
+  resolved translation locale before paint. Arabic immediately uses RTL text and
+  logical shell placement; switching back to English restores LTR without a full
+  page reload. Next synchronizes `html.lang` and `html.dir` in the existing locale
+  switcher's layout effect, while retaining cookie persistence and server refresh.
+  TanStack retains its document synchronization in the locale provider.
 - Full-page authentication, account-recovery, checkout-return, and error cards expose their title as the
   page's H1. `CardTitle` accepts a typed heading level while retaining its shared
   visual styling, so semantic hierarchy does not require duplicated components.

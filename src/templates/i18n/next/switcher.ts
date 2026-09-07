@@ -20,6 +20,7 @@ import {
   isValidLocale,
   localeCookieMaxAge,
   localeCookieName,
+  localeDirection,
   localeLabels,
   locales,
   type Locale,
@@ -48,6 +49,10 @@ export function LocaleSwitcher({ className }: LocaleSwitcherProps): React.JSX.El
   const locale = isValidLocale(currentLocale) ? currentLocale : defaultLocale;
   const router = useRouter();
   const [isPending, startTransition] = React.useTransition();
+  React.useLayoutEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = localeDirection[locale];
+  }, [locale]);
   const items = locales.map((availableLocale) => ({
     label: localeLabels[availableLocale],
     value: availableLocale,

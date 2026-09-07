@@ -118,6 +118,7 @@
     "src/templates/i18n/messages/ar.ts",
     "src/templates/i18n/messages/en.ts",
     "src/templates/i18n/messages/fr.ts",
+    "src/templates/i18n/next/switcher.ts",
     "src/templates/modes/single/components/header.ts",
     "src/templates/modes/single/components/providers.ts",
     "src/templates/modes/single/components/theme.ts",
@@ -171,7 +172,7 @@
     "context": [
       {
         "path": "DESIGN.md",
-        "sha256": "169df8169aaa4dbd9eeea99bd1dff1eb66f7e21c55d49973fa6e0eeeabbda64d"
+        "sha256": "ef1b821331b1dca2c60a654aa960bcfa4ad9a1036de45b8cf073f1db7d7cd782"
       },
       {
         "path": "VISION.md",
@@ -196,6 +197,7 @@
     ],
     "evidence": [
       "docs/engineering/visual-overhaul-2026-09-07.md",
+      "tests/unit/backend-capabilities/locale-routing-behavior.test.ts",
       "tests/unit/brand-wordmark.test.ts",
       "tests/unit/design-system-app-integration.test.ts",
       "tests/unit/design-system-contract.test.ts",

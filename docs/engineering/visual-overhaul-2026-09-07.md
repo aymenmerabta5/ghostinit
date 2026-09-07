@@ -133,3 +133,11 @@ release artifact. The earlier fully green CI for commit
 `2f2a734353af086c6b37347aca491fe564dab00f` belongs to the pre-overhaul functional
 baseline and does not certify this design. User authorization to commit, push and
 merge after green checks does not replace those outstanding results.
+
+Candidate v13 completed its installed gates and a production build without
+changing generated source. Four initial desktop screenshots passed review.
+An in-place language-switch probe then reproduced Arabic content retaining
+English document direction. The Next locale control now synchronizes `lang`
+and `dir` in a layout effect when the resolved locale changes, before paint;
+cookie persistence and server refresh remain intact. TanStack already performs
+this synchronization. A fresh production replay must verify the correction.

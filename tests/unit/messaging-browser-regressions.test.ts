@@ -134,6 +134,9 @@ describe("messaging browser regressions", () => {
         const ui = generatedFormHarness(source, ["MessagesPage"], {
           createFileRoute: () => (options: unknown) => options,
           Input: "Input",
+          Field: "Field",
+          FieldLabel: "FieldLabel",
+          FieldDescription: "FieldDescription",
           ConversationList: "ConversationList",
           MessageThread: "MessageThread",
           Empty: "Empty",
@@ -149,8 +152,19 @@ describe("messaging browser regressions", () => {
         });
         const render = () => ui.render("MessagesPage", { initialConversations: [] });
         expect(elements(render()).filter((node) => node.type === "h1")).toHaveLength(1);
-        const input = elements(render()).find((node) => node.type === "Input")!;
-        expect(input.props["aria-label"]).toBe("peerUserId");
+        const pageElements = elements(render());
+        const input = pageElements.find((node) => node.type === "Input")!;
+        expect(input.props.id).toBeTruthy();
+        const label = pageElements.find(
+          (node) => node.type === "FieldLabel" && node.props.htmlFor === input.props.id,
+        );
+        expect(textContent(label)).toBe("peerUserId");
+        expect(input.props["aria-describedby"]).toBeTruthy();
+        const description = pageElements.find(
+          (node) =>
+            node.type === "FieldDescription" && node.props.id === input.props["aria-describedby"],
+        );
+        expect(textContent(description)).toBe("peerUserIdHelp");
         (input.props.onChange as (event: unknown) => void)({ target: { value: "spare" } });
         const button = elements(render()).find((node) => node.type === "Button")!;
         (button.props.onClick as () => void)();
