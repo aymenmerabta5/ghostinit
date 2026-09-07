@@ -8,6 +8,8 @@ import {
   settingsPasskeyCardContent,
   settingsPasskeyList,
   settingsPasskeyListContent,
+  settingsPasskeyManagement,
+  settingsPasskeyManagementContent,
 } from "./passkey-card.js";
 import {
   settingsTwoFactorCard,
@@ -23,6 +25,7 @@ import {
   settingsSessionsListContent,
 } from "./sessions-card.js";
 import { settingsSessionsData, settingsSessionsDataContent } from "./sessions-data.js";
+import { settingsPasskeyData, settingsPasskeyDataContent } from "./passkey-data.js";
 import { settingsPage, settingsPageContent } from "./page.js";
 import { settingsActionsContent } from "./actions.js";
 import {
@@ -41,6 +44,8 @@ export {
   settingsPasswordCard,
   settingsPasskeyCard,
   settingsPasskeyList,
+  settingsPasskeyData,
+  settingsPasskeyManagement,
   settingsTwoFactorCard,
   settingsTwoFactorHook,
   settingsDangerZoneCard,
@@ -54,6 +59,8 @@ export {
   settingsPasswordCardContent,
   settingsPasskeyCardContent,
   settingsPasskeyListContent,
+  settingsPasskeyDataContent,
+  settingsPasskeyManagementContent,
   settingsTwoFactorCardContent,
   settingsTwoFactorHookContent,
   settingsDangerZoneCardContent,
@@ -87,7 +94,14 @@ export function settingsFiles(
       : []),
     settingsProfileCard(),
     ...(hasEmail ? [settingsPasswordCard(), settingsTwoFactorCard(), settingsTwoFactorHook()] : []),
-    ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
+    ...(hasPasskey
+      ? [
+          settingsPasskeyCard(),
+          settingsPasskeyList(),
+          settingsPasskeyData(),
+          settingsPasskeyManagement(),
+        ]
+      : []),
     ...(hasIdentityTransport
       ? [settingsSessionsCard(), settingsSessionsList(), settingsSessionsData(true)]
       : []),

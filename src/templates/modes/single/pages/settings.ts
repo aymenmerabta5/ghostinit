@@ -5,6 +5,8 @@ import {
   settingsPageContent,
   settingsPasskeyCardContent,
   settingsPasskeyListContent,
+  settingsPasskeyDataContent,
+  settingsPasskeyManagementContent,
   settingsPasswordCardContent,
   settingsProfileCardContent,
   settingsSessionsCardContent,
@@ -36,6 +38,14 @@ export function settingsPasskeyCardSingle(): string {
 
 export function settingsPasskeyListSingle(): string {
   return settingsPasskeyListContent();
+}
+
+export function settingsPasskeyDataSingle(): string {
+  return settingsPasskeyDataContent();
+}
+
+export function settingsPasskeyManagementSingle(): string {
+  return settingsPasskeyManagementContent();
 }
 
 export function settingsTwoFactorCardSingle(): string {

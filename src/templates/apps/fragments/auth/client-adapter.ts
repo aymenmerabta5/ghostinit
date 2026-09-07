@@ -107,11 +107,8 @@ const identityEmailFlowClient = authClient as typeof authClient & IdentityEmailF
   register(input: { name?: string } = {}) {
     return authClient.passkey.addPasskey(input);
   },
-  useList() {
-    return authClient.useListPasskeys();
-  },
-  list() {
-    return authClient.passkey.listUserPasskeys();
+  list(options: { signal?: AbortSignal } = {}) {
+    return authClient.passkey.listUserPasskeys({ fetchOptions: options });
   },
   rename(input: { id: string; name: string }) {
     return authClient.passkey.updatePasskey(input);

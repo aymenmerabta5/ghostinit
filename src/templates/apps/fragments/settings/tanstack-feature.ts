@@ -1,6 +1,11 @@
 // @allow-long 640: typed settings adapters and prop-driven component renderers share one feature contract
 import { file, type TemplateFile } from "../../../shared.js";
-import { settingsPasskeyCardContent, settingsPasskeyListContent } from "./passkey-card.js";
+import {
+  settingsPasskeyCardContent,
+  settingsPasskeyListContent,
+  settingsPasskeyManagementContent,
+} from "./passkey-card.js";
+import { passkeyQueryHelpersContent, passkeyQueryImports } from "./passkey-data.js";
 import { settingsSessionsListContent } from "./sessions-card.js";
 
 function settingsTypesContent(): string {
@@ -70,11 +75,18 @@ export function createTotpSchema(codeSixDigits: string) {
 }
 
 function settingsQueriesContent(hasIdentityTransport: boolean, hasPasskey: boolean): string {
-  const imports = hasIdentityTransport
-    ? `import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope, type QueryAuthScope } from "@/lib/query-client";`
-    : "";
+  const imports = [
+    hasIdentityTransport || hasPasskey
+      ? 'import { useQuery, useQueryClient } from "@tanstack/react-query";'
+      : "",
+    hasIdentityTransport ? 'import { orpc } from "@/lib/orpc";' : "",
+    hasIdentityTransport || hasPasskey
+      ? `import { authScopedQueryKey${hasIdentityTransport ? ", currentQueryAuthScope, type QueryAuthScope" : ""}${hasPasskey ? ", currentQueryAuthGeneration, queryAuthIdentityFromSession, queryAuthIdentitySignature, type QueryAuthIdentity" : ""} } from "@/lib/query-client";`
+      : "",
+    hasPasskey ? passkeyQueryImports : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const helpers = hasIdentityTransport
     ? `export function identitySessionsQueryOptions(scope: QueryAuthScope | null) {
   const options = orpc.identity.sessions.list.queryOptions({ input: {} });
@@ -89,11 +101,7 @@ export function identitySessionsQueryKey(scope: QueryAuthScope) {
   return authScopedQueryKey(scope, orpc.identity.sessions.list.key({ type: "query" }));
 }`
     : "";
-  const passkeyHelper = hasPasskey
-    ? `export function usePasskeyListQuery() {
-  return identityPasskeyClient.useList();
-}`
-    : "";
+  const passkeyHelper = hasPasskey ? passkeyQueryHelpersContent() : "";
   const query = hasIdentityTransport
     ? `  const queryClient = useQueryClient();
   const queryScope = currentQueryAuthScope(queryClient);
@@ -642,8 +650,12 @@ export function tanstackSettingsDataFeatureFiles(
       : []),
     ...(hasPasskey
       ? [
-          file(`${root}/passkey-card.tsx`, settingsPasskeyCardContent("feature-adapter")),
+          file(`${root}/passkey-card.tsx`, settingsPasskeyCardContent()),
           file(`${root}/passkey-list.tsx`, settingsPasskeyListContent()),
+          file(
+            `${root}/use-passkey-management.ts`,
+            settingsPasskeyManagementContent("feature-adapter"),
+          ),
         ]
       : []),
     ...(hasIdentityTransport

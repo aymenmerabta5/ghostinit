@@ -1,16 +1,15 @@
 import { file, type TemplateFile } from "../../../shared.js";
 
 /** Browser-only WebAuthn management surface. Emitted only for Postgres web clients. */
-export function settingsPasskeyCardContent(
+export function settingsPasskeyManagementContent(
   dataAccess: "direct" | "feature-adapter" = "direct",
 ): string {
   const dataImport =
     dataAccess === "feature-adapter"
       ? `import { usePasskeyListQuery } from "./queries";
 import * as passkeyMutations from "./mutations";`
-      : `import { identityPasskeyClient, isIdentityRecentAuthenticationError } from "@/lib/auth-client";`;
-  const listQuery =
-    dataAccess === "feature-adapter" ? "usePasskeyListQuery" : "identityPasskeyClient.useList";
+      : `import { identityPasskeyClient, isIdentityRecentAuthenticationError } from "@/lib/auth-client";
+import { usePasskeyListQuery } from "../passkeys";`;
   const recentAuthenticationError =
     dataAccess === "feature-adapter"
       ? "passkeyMutations.isPasskeyRecentAuthenticationError"
@@ -29,20 +28,16 @@ import * as passkeyMutations from "./mutations";`
       : "identityPasskeyClient.delete";
   return `"use client";
 
-import { useState, type JSX } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { useState } from "react";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 ${dataImport}
 import { useSurfaceTranslations } from "@/lib/translations";
-import { PasskeyList, type PasskeySummary } from "./passkey-list";
+import type { PasskeySummary } from "./passkey-list";
 
-export function PasskeyCard(): JSX.Element {
+export function usePasskeyManagement() {
   const t = useSurfaceTranslations("settings");
-  const passkeyQuery = ${listQuery}();
+  const captureOwner = useAuthOwnedEffect();
+  const passkeyQuery = usePasskeyListQuery();
   const passkeys: PasskeySummary[] = passkeyQuery.data ?? [];
   const [newName, setNewName] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
@@ -56,46 +51,75 @@ export function PasskeyCard(): JSX.Element {
       : t("passkeys.genericError");
 
   async function register(): Promise<void> {
+    const isCurrent = captureOwner(); if (!isCurrent()) return;
     setPending("register"); setError(null); setSuccess(null);
     try {
       const result = await ${register}({ name: newName.trim() || undefined });
+      if (!isCurrent()) return;
       if (result.error) { setError(errorMessage(result.error)); return; }
       setNewName(""); setSuccess(t("passkeys.registered")); await passkeyQuery.refetch();
-    } catch (cause) { setError(errorMessage(cause)); }
-    finally { setPending(null); }
+    } catch (cause) { if (isCurrent()) setError(errorMessage(cause)); }
+    finally { if (isCurrent()) setPending(null); }
   }
 
   async function rename(id: string, fallback: string): Promise<void> {
+    const isCurrent = captureOwner(); if (!isCurrent()) return;
     const name = (names[id] ?? fallback).trim();
     if (!name) { setError(t("passkeys.nameRequired")); return; }
     setPending(id + ":rename"); setError(null); setSuccess(null);
     try {
       const result = await ${rename}({ id, name });
+      if (!isCurrent()) return;
       if (result.error) { setError(errorMessage(result.error)); return; }
       setSuccess(t("passkeys.renamed")); await passkeyQuery.refetch();
-    } catch (cause) { setError(errorMessage(cause)); }
-    finally { setPending(null); }
+    } catch (cause) { if (isCurrent()) setError(errorMessage(cause)); }
+    finally { if (isCurrent()) setPending(null); }
   }
 
   async function remove(id: string): Promise<void> {
+    const isCurrent = captureOwner(); if (!isCurrent()) return;
     setPending(id + ":delete"); setError(null); setSuccess(null);
     try {
       const result = await ${remove}({ id });
+      if (!isCurrent()) return;
       if (result.error) { setError(errorMessage(result.error)); return; }
       setSuccess(t("passkeys.deleted")); await passkeyQuery.refetch();
-    } catch (cause) { setError(errorMessage(cause)); }
-    finally { setPending(null); }
+    } catch (cause) { if (isCurrent()) setError(errorMessage(cause)); }
+    finally { if (isCurrent()) setPending(null); }
   }
 
+  return { passkeyQuery, passkeys, newName, setNewName, names, setNames, pending, error, success, errorMessage, register, rename, remove };
+}
+`;
+}
+
+export function settingsPasskeyCardContent(): string {
+  return `"use client";
+import type { JSX } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSurfaceTranslations } from "@/lib/translations";
+import { PasskeyList } from "./passkey-list";
+import { usePasskeyManagement } from "./use-passkey-management";
+
+export function PasskeyCard(): JSX.Element {
+  const t = useSurfaceTranslations("settings");
+  const common = useSurfaceTranslations("common");
+  const { passkeyQuery, passkeys, newName, setNewName, names, setNames, pending, error, success, errorMessage, register, rename, remove } = usePasskeyManagement();
   return <Card><CardHeader><div className="flex items-center justify-between gap-3">
-    <CardTitle className="text-base">{t("passkeys.title")}</CardTitle><Badge variant="secondary">{passkeys.length}</Badge>
+    <CardTitle className="text-base">{t("passkeys.title")}</CardTitle>{passkeyQuery.data ? <Badge variant="secondary">{passkeys.length}</Badge> : null}
   </div><CardDescription className="max-w-[65ch]">{t("passkeys.description")}</CardDescription></CardHeader>
     <CardContent className="flex flex-col gap-4">
       {error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-      {passkeyQuery.error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{errorMessage(passkeyQuery.error)}</AlertDescription></Alert> : null}
+      {passkeyQuery.error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{errorMessage(passkeyQuery.error)}</AlertDescription><Button variant="outline" disabled={passkeyQuery.isFetching} onClick={() => void passkeyQuery.refetch()}>{common("retry")}</Button></Alert> : null}
       {success ? <Alert><AlertTitle>{t("passkeys.successTitle")}</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
       <Field><FieldLabel htmlFor="passkey-registration-name">{t("passkeys.namePlaceholder")}</FieldLabel><div className="flex flex-col gap-2 sm:flex-row"><Input id="passkey-registration-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("passkeys.namePlaceholder")} maxLength={64} /><Button disabled={pending !== null} onClick={() => void register()}>{pending === "register" ? t("passkeys.registering") : t("passkeys.register")}</Button></div></Field>
-      <PasskeyList passkeys={passkeys} names={names} pending={pending} onNameChange={(id, name) => setNames((current) => ({ ...current, [id]: name }))} onRename={rename} onDelete={remove} />
+      {passkeyQuery.isPending ? <div role="status" aria-label={common("loading")} aria-busy={true}><Skeleton className="h-24 w-full" /></div> : passkeyQuery.data ? <PasskeyList passkeys={passkeys} names={names} pending={pending} onNameChange={(id, name) => setNames((current) => ({ ...current, [id]: name }))} onRename={rename} onDelete={remove} /> : null}
     </CardContent>
   </Card>;
 }
@@ -150,5 +174,12 @@ export function settingsPasskeyList(): TemplateFile {
   return file(
     "apps/web/src/app/settings/components/passkey-list.tsx",
     settingsPasskeyListContent(),
+  );
+}
+
+export function settingsPasskeyManagement(): TemplateFile {
+  return file(
+    "apps/web/src/app/settings/components/use-passkey-management.ts",
+    settingsPasskeyManagementContent(),
   );
 }

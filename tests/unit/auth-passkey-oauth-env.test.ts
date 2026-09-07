@@ -87,7 +87,12 @@ describe("generated Better Auth passkey and OAuth env contracts", () => {
         expect(server).toContain("const configuredAuth = betterAuth({");
         expect(server).toContain("export const auth: Auth = configuredAuth;");
         expect(server).not.toContain("export const auth = betterAuth({");
-        expect(server).not.toContain("BetterAuthPlugin");
+        expect(server).toMatch(
+          /type PortableAuthOptions\s*=\s*BetterAuthOptions\s*&\s*\{\s*plugins:\s*\[AdminPlugin\]\s*;?\s*\}/,
+        );
+        expect(server).not.toMatch(
+          /(?:\bas\s+|:\s*)(?:(?:readonly\s+)?BetterAuthPlugin\s*\[\]|(?:Readonly)?Array\s*<\s*BetterAuthPlugin\s*>)/,
+        );
         if (mode === "monorepo") {
           expect(server).toContain("type AppAdminOptions = {");
           expect(server).toContain("type AdminPlugin = ReturnType<typeof admin<AppAdminOptions>>");

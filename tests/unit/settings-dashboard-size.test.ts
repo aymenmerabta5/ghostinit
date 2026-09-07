@@ -138,6 +138,7 @@ describe("generated settings and single-dashboard file budgets", () => {
           `${root}/features/settings/two-factor-card.tsx`,
           `${root}/features/settings/types.ts`,
           `${root}/features/settings/use-two-factor-settings.ts`,
+          `${root}/features/settings/use-passkey-management.ts`,
           `${root}/routes/settings.tsx`,
         ].sort(),
       );

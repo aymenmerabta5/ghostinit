@@ -111,14 +111,20 @@ describe("generated passkey and native OAuth parity", () => {
           : read(files, "apps/web/src/features/settings/passkey-list.tsx");
       const passkeyDataAccess =
         framework === "nextjs"
-          ? passkeyCard
+          ? `${read(files, "apps/web/src/app/settings/passkeys.ts")}\n${read(files, "apps/web/src/app/settings/components/use-passkey-management.ts")}`
           : `${read(files, "apps/web/src/features/settings/queries.ts")}\n${read(files, "apps/web/src/features/settings/mutations.ts")}`;
+      const passkeyManagement = read(
+        files,
+        framework === "nextjs"
+          ? "apps/web/src/app/settings/components/use-passkey-management.ts"
+          : "apps/web/src/features/settings/use-passkey-management.ts",
+      );
 
       expect(packageClient).toContain("passkeyClient()");
       for (const call of [
         "authClient.signIn.passkey()",
         "authClient.passkey.addPasskey(input)",
-        "authClient.passkey.listUserPasskeys()",
+        "authClient.passkey.listUserPasskeys({ fetchOptions: options })",
         "authClient.passkey.updatePasskey(input)",
         "authClient.passkey.deletePasskey(input)",
       ]) {
@@ -128,12 +134,14 @@ describe("generated passkey and native OAuth parity", () => {
       expect(passkeyCard).toContain('<FieldLabel htmlFor="passkey-registration-name">');
       expect(passkeyCard).toContain('<Input id="passkey-registration-name"');
       expect(passkeyCard).toContain('{t("passkeys.namePlaceholder")}</FieldLabel>');
-      for (const operation of ["register", "useList", "rename", "delete"])
+      for (const operation of ["register", "list", "rename", "delete"])
         expect(passkeyDataAccess, operation).toContain(`identityPasskeyClient.${operation}`);
+      expect(webClient).not.toContain("useListPasskeys");
+      expect(passkeyCard).toContain('from "./use-passkey-management"');
       if (framework === "tanstack-start") {
-        expect(passkeyCard).not.toContain('from "@/lib/auth-client"');
-        expect(passkeyCard).toContain('from "./queries"');
-        expect(passkeyCard).toContain('from "./mutations"');
+        expect(passkeyManagement).not.toContain('from "@/lib/auth-client"');
+        expect(passkeyManagement).toContain('from "./queries"');
+        expect(passkeyManagement).toContain('from "./mutations"');
       }
       for (const source of [signIn, passkeyCard, passkeyList]) {
         expect(source).toContain("<Button");
@@ -222,11 +230,10 @@ const authClient = {
   signUp: { email: ok },
   passkey: {
     addPasskey: (input: unknown) => { calls.push(["register", input]); return ok({ id: "pk" }); },
-    listUserPasskeys: () => { calls.push(["list"]); return ok([]); },
+    listUserPasskeys: (input: unknown) => { calls.push(["list", input]); return ok([]); },
     updatePasskey: (input: unknown) => { calls.push(["rename", input]); return ok({ passkey: input }); },
     deletePasskey: (input: unknown) => { calls.push(["delete", input]); return ok({ status: true }); },
   },
-  useListPasskeys: () => ({ data: [], error: null, refetch: async () => undefined }),
   useSession: () => ({ data: null }), requestPasswordReset: ok, resetPassword: ok,
   sendVerificationEmail: ok, updateUser: ok, changePassword: ok, deleteUser: ok,
   twoFactor: { enable: ok, verifyTotp: ok, disable: ok },
@@ -259,10 +266,20 @@ const authClient = {
     expect(Reflect.get(module, "calls")).toEqual([
       ["authenticate"],
       ["register", { name: "Laptop" }],
-      ["list"],
+      ["list", { fetchOptions: {} }],
       ["rename", { id: "pk", name: "Security key" }],
       ["delete", { id: "pk" }],
     ]);
+  });
+
+  test("forwards the list abort signal through the public auth client", async () => {
+    const client = Reflect.get(module, "identityPasskeyClient") as {
+      list(options: { signal: AbortSignal }): Promise<unknown>;
+    };
+    const controller = new AbortController();
+    await client.list({ signal: controller.signal });
+    const calls = Reflect.get(module, "calls") as unknown[][];
+    expect(calls.at(-1)).toEqual(["list", { fetchOptions: { signal: controller.signal } }]);
   });
 
   test("attributes passkey authentication to sign-in and management to settings only", () => {

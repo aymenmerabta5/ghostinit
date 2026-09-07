@@ -148,6 +148,19 @@ The public auth endpoint preserves the prior server rule for supplied names:
 trim whitespace and require 1–50 characters. Other user fields keep their existing
 admission rules; client forms retain their existing 2–50 character validation.
 
+Passkey lists belong to the provider user and session, including projects that
+select authentication without the application API. Their queries consume an
+abort signal, retire on account or session changes, and reject obsolete manual
+refetches. When the application API is present, a settled matching canonical
+identity is required as well, so a delayed vendor session cannot restart a list
+after sign-out. The vendor's global list subscription is not used. Registration,
+rename, and deletion feedback/refetches belong to the initiating mounted account.
+An initial list request shows a matching skeleton; a failed request exposes retry
+and keeps any available rows. Empty text and counts appear only after a successful
+list result. The passkey card retains its controls and spacing, while a separate
+management hook owns its local state and operations within the existing file-size
+limits.
+
 ### Authentication and query ownership
 
 Personalized query data belongs to the authenticated user, session, and active

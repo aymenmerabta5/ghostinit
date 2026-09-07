@@ -73,6 +73,8 @@ import {
   settingsPasswordCardSingle,
   settingsPasskeyCardSingle,
   settingsPasskeyListSingle,
+  settingsPasskeyDataSingle,
+  settingsPasskeyManagementSingle,
   settingsTwoFactorCardSingle,
   settingsTwoFactorHookSingle,
   settingsSessionsCardSingle,
@@ -328,6 +330,11 @@ export function buildNextFiles(
       files.push(
         file("src/app/settings/components/passkey-card.tsx", settingsPasskeyCardSingle()),
         file("src/app/settings/components/passkey-list.tsx", settingsPasskeyListSingle()),
+        file("src/app/settings/passkeys.ts", settingsPasskeyDataSingle()),
+        file(
+          "src/app/settings/components/use-passkey-management.ts",
+          settingsPasskeyManagementSingle(),
+        ),
       );
     }
     if (apiCapabilities.identity) {
