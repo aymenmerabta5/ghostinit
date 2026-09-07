@@ -263,7 +263,8 @@ describe("Next 16.3 TypeScript 7 and Cache Components", () => {
       expect(translations).toContain("await connection()");
 
       const resetPassword = read(files, `${appRoot}/reset-password/page.tsx`);
-      expect(resetPassword).toContain("<Suspense");
+      expect(resetPassword).toContain("<RequestLocalizedMetadataBoundary />");
+      expect(read(files, `${appRoot}/reset-password/page.client.tsx`)).toContain("<Suspense");
       expect(read(files, `${appRoot}/maintenance/page.tsx`)).toContain("<Suspense");
       expect(read(files, `${appRoot}/not-found.tsx`)).toContain("<Suspense");
       if (mode === "monorepo") {

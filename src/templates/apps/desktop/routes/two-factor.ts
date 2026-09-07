@@ -53,7 +53,7 @@ ${i18n.hookLine}
       setError(null);
       const parsed = codeSchema.safeParse(value);
       if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? ${i18n.value("twoFactor.genericError", "Invalid")}); return; }
-      const res = await authClient.twoFactor.verifyTotp({ code: parsed.data.code, trustDevice: true });
+      const res = await authClient.twoFactor.verifyTotp({ code: parsed.data.code, trustDevice: false });
       if (res.error) setError(${hasI18n ? 't("errors.invalidCode")' : 'res.error.message ?? "Invalid code"'}); else setSuccess(${i18n.value("twoFactor.enabledDescription", "2FA enabled")});
     },
   });

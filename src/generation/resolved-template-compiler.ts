@@ -182,8 +182,11 @@ function lifecycleForPath(path: string, capability: CapabilityId | null): FileLi
     // transport entrypoints are executable generator wiring.  Treating Next
     // `app/api/**/route.ts` as seed-once left stale handlers behind whenever a
     // capability changed and also prevented security fixes from reaching an
-    // otherwise untouched generated route.
-    /^(?:apps\/[^/]+\/)?src\/app\/(?!api\/).*(?:page|layout|route)\.tsx?$/.test(path)
+    // otherwise untouched generated route. Request-localized client companions
+    // retain the original page's product ownership after composition.
+    /^(?:apps\/[^/]+\/)?src\/app\/(?!api\/)(?:[^/]+\/)*(?:(?:page|layout|route)\.tsx?|page\.client\.tsx)$/.test(
+      path,
+    )
   ) {
     return "seed-once";
   }

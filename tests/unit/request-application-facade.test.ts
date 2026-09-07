@@ -333,7 +333,7 @@ describe("generated request application facade", () => {
   test("redirects anonymous settings requests before invoking protected identity services", () => {
     const settings = read(generate("monorepo", "postgres"), "apps/web/src/app/settings/page.tsx");
     const me = settings.indexOf("const me = await application.me()");
-    const redirect = settings.indexOf('if (!me.user) redirect("/sign-in")');
+    const redirect = settings.indexOf('if (!me.user || !principal) redirect("/sign-in")');
     const sessions = settings.indexOf("await application.identity.sessions.list()");
     expect(me).toBeGreaterThanOrEqual(0);
     expect(redirect).toBeGreaterThan(me);

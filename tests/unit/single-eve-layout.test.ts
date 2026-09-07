@@ -70,11 +70,11 @@ describe("single-mode Eve application root", () => {
       expect(manifest.scripts?.["eve:build"]).toBe(
         framework === "tanstack-start" ? "bun scripts/eve-command.mjs build" : "eve build",
       );
-      expect(manifest.scripts?.["eve:dev"]).toBe(
-        framework === "tanstack-start" ? "bun scripts/eve-command.mjs dev" : "eve dev",
-      );
+      expect(manifest.scripts?.["eve:dev"]).toBe("node scripts/eve-dev.mjs");
       expect(manifest.scripts?.["eve:start"]).toBe(
-        framework === "tanstack-start" ? "bun scripts/eve-command.mjs start" : "eve start",
+        framework === "tanstack-start"
+          ? "bun scripts/eve-command.mjs start"
+          : "node .output/server/index.mjs",
       );
 
       const instructions = files.find((file) => file.path === "agent/instructions.md")?.content;

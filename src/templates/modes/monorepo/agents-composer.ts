@@ -1,5 +1,6 @@
 // @allow-long 345: one configuration-aware agent-document template keeps every conditional claim in one audited place
 import * as v from "../../versions.js";
+import { customNextServerCommand, nextRuntimeCommand } from "../../root/next-server-runtime.js";
 import type { TemplateFile } from "../../shared.js";
 import { file } from "../../shared.js";
 import type {
@@ -85,17 +86,16 @@ function buildAgentsMdContent(
   const isTanstack = framework === "tanstack-start";
   const usesCustomNextServer =
     hasWeb && !isTanstack && database === "postgres" && options.messaging === true;
-  const nextDevCommand = usesCustomNextServer
-    ? runtime === "bun"
-      ? "bun --conditions=react-server server.ts"
-      : "node --import ../../scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts"
-    : runtime === "bun"
-      ? "bun ./node_modules/next/dist/bin/next dev"
-      : "next dev";
+  const nextDevCommand = hasEve
+    ? "bun scripts/start-development.mjs"
+    : usesCustomNextServer
+      ? customNextServerCommand(runtime, "dev", "../..")
+      : nextRuntimeCommand(runtime, "dev", options.pdf);
   const typescriptSummary =
     hasWeb && !isTanstack
       ? `${v.typescript.typescriptNext} in apps/web via Next's project-local tsc CLI; TypeScript ${v.typescript.typescript} for shared compiler-API tooling`
       : v.typescript.typescript;
+  const nextBuildCommand = `${usesCustomNextServer ? "bun run build:server && " : ""}${nextRuntimeCommand(runtime, "build", options.pdf)}`;
   const frameworkLabel = isTanstack
     ? `TanStack Start ${v.tanstackStart["@tanstack/react-start"]}`
     : `Next.js ${v.nextStack.next}`;
@@ -129,6 +129,11 @@ function buildAgentsMdContent(
     `- Web framework: ${hasWeb ? frameworkLabel : "not emitted because the web app is disabled"}.`,
     `- Database: ${databaseDescription(database)}.`,
     `- TypeScript: ${typescriptSummary}. React: ${v.nextStack.react}.`,
+    ...(hasWeb && !isTanstack
+      ? [
+          "- Next development and builds executed by Bun use the supported Webpack compatibility profile; Node uses Turbopack. PDF-enabled Bun commands preload the declared renderer before Next initializes.",
+        ]
+      : []),
     `- Enabled capabilities: ${capabilities.length > 0 ? capabilities.join(", ") : "foundation only"}.`,
     `- Billing providers: ${selectedBilling.length > 0 ? selectedBilling.join(", ") : hasWeb && hasAuth ? "none; the web billing UI is an empty state and provider adapters/webhooks are absent" : "none; billing UI, provider adapters, and webhooks are absent"}.`,
     "",
@@ -220,7 +225,7 @@ function buildAgentsMdContent(
         ? `- \`apps/web\` uses the generated Cloudflare ${isTanstack ? "Vite" : "OpenNext"} adapter. Use repository \`build:worker\`, \`cloudflare:dry-run\`, \`preview\`, and \`deploy\`; there is no long-lived Node/Bun production process.`
         : isTanstack
           ? `- \`apps/web\` scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
-          : `- \`apps/web\` development runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build and package-local start remain \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\` and \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next start" : "next start"}\`; repository-level \`bun run start\` owns any generated custom production server.`,
+          : `- \`apps/web\` development runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build and package-local start run \`${nextBuildCommand}\` and \`${nextRuntimeCommand(runtime, "start", options.pdf)}\`; repository-level \`bun run start\` owns any generated custom production server.${usesCustomNextServer ? " Production start executes the existing custom server artifact without compiling or writing build output." : ""}`,
     );
   }
 

@@ -238,7 +238,7 @@ describe("generated identity forms and queries", () => {
       .map(({ content }) => content)
       .join("\n");
     for (const source of [settingsSessionsCardContent(), tanstackSessions ?? ""]) {
-      expect(source).toContain("orpc.identity.sessions.list.queryOptions({ input: {}");
+      expect(source).toMatch(/orpc\.identity\.sessions\.list\.queryOptions\(\{\s*input: \{\}/);
       expect(source).toContain('orpc.identity.sessions.list.key({ type: "query" })');
       expect(source).toContain("orpc.identity.sessions.revoke.mutationOptions");
       expect(source).toContain("orpc.identity.sessions.revokeOthers.mutationOptions");

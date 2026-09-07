@@ -122,10 +122,9 @@ export function providersFileContent(
     router === "tanstack" && hasI18n
       ? `import { I18nProvider, type Locale } from "@/lib/i18n";`
       : "";
-  const queryAuthBoundaryImport =
-    router === "tanstack" && hasAuth
-      ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary.js";`
-      : "";
+  const queryAuthBoundaryImport = hasAuth
+    ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary.js";`
+    : "";
   const analyticsOpen = hasAnalytics ? "<PostHogProvider>" : "";
   const analyticsClose = hasAnalytics ? "</PostHogProvider>" : "";
   const pageView = hasAnalytics
@@ -139,9 +138,8 @@ export function providersFileContent(
   const initialLocaleProperty =
     router === "tanstack" && hasI18n ? "  initialLocale: Locale;\n" : "";
   const initialLocaleParameter = router === "tanstack" && hasI18n ? ", initialLocale" : "";
-  const queryAuthOpen =
-    router === "tanstack" && hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
-  const queryAuthClose = router === "tanstack" && hasAuth ? `</QueryAuthCacheBoundary>` : "";
+  const queryAuthOpen = hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
+  const queryAuthClose = hasAuth ? `</QueryAuthCacheBoundary>` : "";
   return `"use client";
 
 import * as React from "react";
@@ -163,19 +161,19 @@ export function AppProviders({ children, queryClient${initialLocaleParameter} }:
   const client = queryClient ?? getQueryClient();
   return (
     <QueryClientProvider client={client}>
-      ${queryAuthOpen}
         ${i18nOpen}
           ${convexOpen}
             <ThemeProvider>
+              ${queryAuthOpen}
               ${analyticsOpen}
                 ${pageView}
                 {children}
                 <Toaster richColors position="bottom-right" />
               ${analyticsClose}
+              ${queryAuthClose}
             </ThemeProvider>
           ${convexClose}
         ${i18nClose}
-      ${queryAuthClose}
     </QueryClientProvider>
   );
 }

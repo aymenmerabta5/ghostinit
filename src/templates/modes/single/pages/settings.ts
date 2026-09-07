@@ -25,8 +25,8 @@ export function settingsProfileCardSingle(useServerActions = false): string {
   return settingsProfileCardContent(useServerActions);
 }
 
-export function settingsPasswordCardSingle(useServerActions = false): string {
-  return settingsPasswordCardContent(useServerActions);
+export function settingsPasswordCardSingle(): string {
+  return settingsPasswordCardContent();
 }
 
 export function settingsPasskeyCardSingle(): string {

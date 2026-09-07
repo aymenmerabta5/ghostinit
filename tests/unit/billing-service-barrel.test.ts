@@ -48,7 +48,7 @@ describe("generated billing service barrel", () => {
   it("re-exports the single-project Result type from its local kernel", () => {
     const content = billingIndex("single");
 
-    expect(content).toContain('export type { Result } from "@/server/kernel/result.js";');
+    expect(content).toContain('export type { Result } from "@/server/kernel/result";');
     expect(content).toContain("PortalProviderPort");
     expect(content).toContain("BillingSnapshot");
     expect(content).not.toContain("export { billingCheckoutRepository }");

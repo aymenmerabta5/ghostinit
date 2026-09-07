@@ -1,6 +1,3 @@
-/**
- * Billing UI shim — split 1099 LOC god file into components/ folder.
- */
 export { billingUiFiles } from "./components/composer.js";
 export { billingIconsContent } from "./components/icons.js";
 export { billingHeaderContent } from "./components/header.js";

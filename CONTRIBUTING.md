@@ -1,60 +1,78 @@
 # Contributing to Ghostinit
 
-> Production-grade CLI that scaffolds well-structured monorepos with architectural linting (inspired by modular monolith, build-time enforcement via oxc-parser, not runtime isolation, single DB shared, separate deployables) for Next.js/TanStack Start. This guide is the 10/10 DX onboarding for contributors.
+GhostInit compiles a project specification into a conventional TypeScript application with explicit ownership, safe updates, and architectural checks. Read [VISION.md](./VISION.md) for the product direction and this guide for the implementation boundaries.
 
 ## Architecture Overview
 
 ### Host vs Generated Distinction
 
-**Host** = this CLI package (`ghostinit`). Single package with internal **composers** (not god file). It generates projects, it is not the project.
+**Host** is the publishable `ghostinit` CLI package. Its compiler and filesystem operations run during generation and maintenance.
 
-**Generated** = output monorepo (exemplary GhostInit Layered Architecture UI->Supporting pragmatic inspired by DDD — well-structured monorepo with architectural linting, build-time only via oxc-parser, single DB shared, separate deployables, not runtime isolation): `apps/*`, `packages/*`, `tooling/*` with `turbo.json`, `bunfig.toml` (hoist=true), oRPC contract-first, Better Auth, Drizzle.
+**Generated** projects contain application runtime code. Monorepos use `apps/*`, `packages/*`, and `tooling/*`; single projects colocate the same logical boundaries under `src/`. Applications share domain semantics while using framework-native rendering, transport, and platform adapters.
 
 ```
 Host (ghostinit CLI)                Generated (your scaffolded app)
 ----------------                    --------------------------------
 src/cli.ts + commands/              apps/web (UI), apps/api (optional transport)
-src/lib/ (FsTransaction, logger)    packages/database, auth, api, ui, billing
-src/templates/ (vendors/composers)  packages/modules/src/<bounded-context>
-src/generators/                     packages/services (capabilities)
+src/domain/ + application/ports/   packages/modules/src/<bounded-context>
+src/generation/ + templates/       packages/services, api, ui, billing
+src/lib/ (FsTransaction, state)    packages/database, auth, config
 packages/versions (SSOT)            tooling/* shared configs
 ```
 
 ### Host Internal Layering
 
 ```
-cli.ts (Presentation)
-   ↓ parses args → dispatches registry
-commands/ (Application): create, add, sync, status, check, doctor
-   ↓ uses
-lib/ (Supporting): errors, fs, logger, architecture, addons, constants, config
-   ↓ + uses
-templates/ + generators/ (Vendors = generation composers):
-   modes/monorepo/*, modes/single/*, billing/providers/*, apps/*, shared/env.ts
+CLI arguments
+  -> command orchestration
+  -> domain validation and capability resolution
+  -> immutable resolved configuration
+  -> renderer ports and template compiler
+  -> validated GenerationPlan with ownership and provenance
+  -> formatting, verification, transactional application, persisted state
 ```
 
-**Enforcer:** `src/lib/architecture.ts` ~1330 LOC via `oxc-parser` (no TS compiler). Checks domain/application purity, vendor-isolation, capability-isolation, GhostInit Layered Architecture dependency (6 layers pragmatic UI->Supporting inspired by DDD, NOT canonical DDD), client-boundary, database-isolation.
+`src/domain/` owns compatibility decisions and plan invariants. It does not import the CLI, templates, filesystem, or process adapters. `src/application/ports/` defines the contracts implemented by `src/generation/`; `src/lib/` supplies supporting adapters. Commands coordinate these pieces. The template bridge remains an implementation boundary while emitters are migrated; it must not bypass resolved policy or write outside the plan.
 
-### GhostInit Layered Architecture (pragmatic UI->Supporting, inspired by DDD)
+### Generated application boundaries
 
-Pragmatic linear chain, NOT canonical DDD where Domain is center. UI(1) top depends on everything downwards, Supporting(6) bottom depends on nothing. Allowed downward only (source.level <= target.level), forbidden upward (source.level > target.level). Domain at 3 CAN import Capabilities at 4 (3→4 allowed) — inverted vs canonical DDD where Application → Domain. Intentionally inverted: cross-package Capabilities→Domain (4→3) is FORBIDDEN by checker to enforce isolation via @repo/contracts and Supporting. Intra-module same bounded context skip (e.g., application/ports → ../domain/types within same module) is allowed. See the [contributor architecture guide](./AGENTS.md#architecture) for the full rationale.
+The checker in `src/lib/architecture/` parses imports with `oxc-parser`, resolves their actual targets, and combines an explicit dependency matrix with domain, module, database, vendor, and client isolation rules.
 
-```
-1. UI          apps/web/src/*, src/routes/* (tanstack) — React components
-   ↓ imports (allowed downward)
-2. Transport   apps/api/src/*, packages/api/src/*, apps/web/src/app/api/*, src/routes/api/* — oRPC routers
-   ↓ imports
-3. Domain      **/domain/*, @repo/modules/<m>/domain, packages/core — entities, value objects, pure logic
-   ↓ imports (3→4 allowed intentional inversion, intra-module skip)
-4. Capabilities packages/services/*, packages/billing (non-providers), packages/email, **/application/*
-   ↓ imports
-5. Vendors      packages/billing/src/providers/*, stripe, @chargily/chargily-pay, @paddle, @polar-sh — SDK wrappers
-   ↓ imports
-6. Supporting   packages/database, config, kernel, observability, contracts, ui, typescript-config, tooling/*
+| Category    | Responsibility                          | Typical location                                    |
+| ----------- | --------------------------------------- | --------------------------------------------------- |
+| UI          | Rendering and interaction               | Routes, feature components, native screens          |
+| Transport   | Protocol and platform boundaries        | `packages/api`, route handlers, Server Actions, IPC |
+| Application | Use cases, authorization, orchestration | `application/`, `packages/services`                 |
+| Domain      | Business types, policies, and ports     | `domain/`, `packages/core`                          |
+| Vendors     | Provider implementations                | `billing/providers`, Convex functions               |
+| Supporting  | Shared contracts and infrastructure     | Database, config, kernel, observability, tooling    |
 
-Allowed flow: 1→2→3→4→5→6 — NO upward imports (downward only, upward forbidden).
-Design choice: UI->Transport->Domain->Capabilities->Vendors->Supporting linear for simplicity, not hexagonal center. Cross-package Capabilities->Domain forbidden via contracts/Supporting, intra-module same BC skipped.
-```
+Application services depend on domain contracts; domain code does not depend on application services or vendors. Provider adapters may implement domain-owned contracts. Supporting is a classification, not permission to import a database or secret into any layer: the specific purity and isolation rules still apply.
+
+Single and monorepo packaging have the same module rules. A use case may import its own domain, while cross-module internals remain private and database access stays in an adapter. Public contracts belong at deliberate module entrypoints. See `src/lib/architecture/rules/layer-policy.ts` for the complete versioned edge matrix.
+
+Do not add a pass-through layer just to traverse every category. Next.js server reads call application services directly; client islands use typed transports. The architecture should make dependencies and authorization easier to understand, not increase the number of files a developer must visit.
+
+### Managed updates
+
+`upgrade` can replace unchanged tracked manifests and other managed infrastructure.
+Planning checks the stored content hash; the filesystem transaction checks it
+again before committing. Edited and untracked managed-file collisions require
+review, including when `--force` is present. Structured manifests are rewritten
+only when unchanged; their lifecycle does not permit automatic removal.
+The editable `ghostinit.config.json` input is normalized when its validated
+desired configuration matches the plan, even after formatting or key-order
+changes. Its actual bytes are checked before writing, so a concurrent edit
+requires a fresh plan. This exception does not apply to other managed files.
+
+Actual Next.js `page.tsx`, `layout.tsx`, and non-API `route.ts` entrypoints are
+seeded for product work. Request-localized `page.client.tsx` companions retain
+that ownership when page content moves behind a server entrypoint.
+A helper such as `use-billing-page.ts` is managed code,
+not a route entrypoint. Seeded README and contributor guidance remain developer
+owned after creation. Preserved user edits never become the generated checksum
+baseline; updates record planned or transaction-written bytes. Local environment
+files follow their separate field-preserving reconciliation policy.
 
 Violation examples:
 
@@ -79,7 +97,7 @@ src/lib/
   errors.ts                      ExitCode, GhostinitError, envelope
   fs.ts                          FsTransaction atomic FS + cleanupStaleStaging
   logger.ts                      Secret-safe logger (SECRET_SUBSTRINGS)
-  architecture.ts                6-layer enforcer via oxc-parser
+  architecture/                  Import resolution, graph analysis, and boundary rules
   addons.ts                      SSOT for modes, billing, features, frameworks, databases
   constants.ts                   BILLING_PROVIDERS, SECRET_SUBSTRINGS, RESERVED_WORKSPACE_PACKAGES, STAGING_*
   config.ts, interactive.ts, reserved.ts, json.ts
@@ -87,7 +105,7 @@ src/generators/
   module.ts, use-case.ts, procedure.ts, action.ts, shared.ts (AST extraction)
 src/templates/
   root.ts                        package.json, turbo.json, bunfig.toml (generated hoist=true), oxlint, env via shared/env.ts
-  packages.ts, database.ts, auth.ts, api.ts, ui.ts, modules.ts, services.ts, email.ts, analytics.ts, i18n.ts, eve.ts, agentic.ts
+  packages.ts, database.ts, auth.ts, api.ts, ui.ts, modules.ts, services.ts, email.ts, analytics.ts, i18n.ts, eve.ts
   versions.ts                    Re-exports from @repo/versions ghostinitVersion
   billing/
     index.ts, domain/, schema/, providers/{stripe,paddle,chargily,polar}/{client,checkout,customer,portal,webhook,subscriptions,mappers}.ts
@@ -320,6 +338,7 @@ Same pattern as billing but simpler — feature flags.
 - **`bunfig.toml`**
   - Host: `linker = "isolated", hoist = false, frozenLockfile = true` — hermetic reproducibility.
   - Generated: `hoist = true` (default, explicit comment) — because the supported Next.js 16 TS resolution path breaks with the isolated linker (`"It looks like you're trying to use TypeScript but do not have the required package(s) installed"` + workspace:* npm fallback). See `src/templates/root/package.ts` `bunfig()`.
+  - Next commands executed by Bun use the supported Webpack development/build profile; Node keeps Turbopack. This avoids Bun 1.4's cold-start resolution failure for newly created Turbopack external-package links. PDF-enabled Bun commands preload the explicitly declared renderer before Next initializes, without changing React module conditions.
   - Host, generated, deployment, temporary-test, and compatibility-fixture installs use the typed `supplyChain.minimumReleaseAgeSeconds` policy: seven days (`604800` seconds), with `minimumReleaseAgeExcludes = []` so there is no default bypass.
 
 - **tsconfig hierarchy** `src/tsconfig.json` extends `../tsconfig.base.json` with `composite:true`, `emitDeclarationOnly:true`, `outDir:../dist`, `rootDir:.` Plus `tooling/typescript-config/base.json` has `target ES2024, module ESNext, moduleResolution bundler, strict:true, paths: {"@/*": ["src/*"], "@repo/*": ["packages/*/src"]}`. Host uses project references. Generated uses same base.

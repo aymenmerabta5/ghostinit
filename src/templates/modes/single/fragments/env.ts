@@ -74,15 +74,3 @@ export function singleEnvFiles(
     file("src/lib/env/index.ts", configSafeIndexContent()),
   ];
 }
-
-/** @deprecated Use singleEnvFiles so every runtime entrypoint is emitted together. */
-export function singleEnvFile(
-  addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
-  framework: SingleEnvFramework = "nextjs",
-  hasEmail = true,
-): TemplateFile {
-  const files = singleEnvFiles(addonMap, framework, hasEmail);
-  const server = files.find(({ path }) => path === "src/lib/env/server.ts");
-  if (!server) throw new Error("Single server environment entry was not emitted");
-  return server;
-}

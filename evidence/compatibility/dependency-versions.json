@@ -10,9 +10,9 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 166,
-    "uniquePackages": 137,
-    "latestScopes": 142,
+    "auditedScopes": 164,
+    "uniquePackages": 135,
+    "latestScopes": 140,
     "compatibilityHeldScopes": 24,
     "uniqueCompatibilityHolds": 19,
     "auditedLockfiles": 4,
@@ -83,6 +83,11 @@
       "scope": "supplyChain.minimumReleaseAgeSeconds",
       "value": 604800,
       "reason": "Require every direct, emitted, and locked npm package release to mature for seven days; no release-age exceptions are approved."
+    },
+    {
+      "scope": "eve.just-bash",
+      "value": "3.4.2",
+      "reason": "Install the eligible optional sandbox engine through audited generated manifests; explicit justbash autoInstall:false prevents runtime graph mutation."
     }
   ],
   "holds": [
@@ -6816,54 +6821,6 @@
       "eligibleLatestPublishedAt": "2026-08-18T18:52:43.420Z"
     },
     {
-      "scope": "backend.@elysiajs/cors",
-      "group": "backend",
-      "key": "@elysiajs/cors",
-      "package": "@elysiajs/cors",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.4.2",
-      "pinnedPublishedAt": "2026-04-23T21:01:31.091Z",
-      "registryLatest": "1.4.2",
-      "registryLatestPublishedAt": "2026-04-23T21:01:31.091Z",
-      "eligibleLatest": "1.4.2",
-      "eligibleLatestPublishedAt": "2026-04-23T21:01:31.091Z"
-    },
-    {
-      "scope": "backend.@elysiajs/swagger",
-      "group": "backend",
-      "key": "@elysiajs/swagger",
-      "package": "@elysiajs/swagger",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.3.1",
-      "pinnedPublishedAt": "2025-06-27T21:24:09.771Z",
-      "registryLatest": "1.3.1",
-      "registryLatestPublishedAt": "2025-06-27T21:24:09.771Z",
-      "eligibleLatest": "1.3.1",
-      "eligibleLatestPublishedAt": "2025-06-27T21:24:09.771Z"
-    },
-    {
-      "scope": "backend.elysia",
-      "group": "backend",
-      "key": "elysia",
-      "package": "elysia",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.4.29",
-      "pinnedPublishedAt": "2026-06-16T22:28:07.079Z",
-      "registryLatest": "1.4.30",
-      "registryLatestPublishedAt": "2026-08-26T17:14:43.181Z",
-      "eligibleLatest": "1.4.29",
-      "eligibleLatestPublishedAt": "2026-06-16T22:28:07.079Z"
-    },
-    {
       "scope": "billing.@chargily/chargily-pay",
       "group": "billing",
       "key": "@chargily/chargily-pay",
@@ -7310,6 +7267,22 @@
       "registryLatestPublishedAt": "2026-09-01T14:55:52.471Z",
       "eligibleLatest": "0.44.4",
       "eligibleLatestPublishedAt": "2026-08-24T22:34:09.967Z"
+    },
+    {
+      "scope": "eve.just-bash",
+      "group": "eve",
+      "key": "just-bash",
+      "package": "just-bash",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "3.4.2",
+      "pinnedPublishedAt": "2026-08-22T03:28:27.717Z",
+      "registryLatest": "3.4.2",
+      "registryLatestPublishedAt": "2026-08-22T03:28:27.717Z",
+      "eligibleLatest": "3.4.2",
+      "eligibleLatestPublishedAt": "2026-08-22T03:28:27.717Z"
     },
     {
       "scope": "expo.@expo/metro-runtime",

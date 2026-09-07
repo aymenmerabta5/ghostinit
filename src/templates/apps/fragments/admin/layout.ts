@@ -56,12 +56,3 @@ export function adminLayoutFile(options: AdminTemplateOptions): TemplateFile {
   const root = options.sourceRoot === "src" ? "src/app" : "apps/web/src/app";
   return file(`${root}/admin/layout.tsx`, layoutContent(options));
 }
-
-export function adminLayout(isConvex = false): TemplateFile {
-  return adminLayoutFile({
-    database: isConvex ? "convex" : "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
-}

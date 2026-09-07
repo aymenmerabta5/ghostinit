@@ -26,6 +26,7 @@ Help developers working on ${projectName} scaffold DDD modules, run architecture
 - UI code lives under \`src/\`; backend capabilities live under \`src/server/\`.
 - ${integrationDescription}
 - Run project and Eve commands from the project root.
+- Hosted Vercel uses Vercel Sandbox. Other hosts use the installed just-bash interpreter, which provides a virtual filesystem and shell commands without host binaries or network isolation. Run \`bun run install:bootstrap\` to install its pinned dependency; startup never installs application packages.
 - Quality gates: \`bun run typecheck\`, \`bun run lint\`, \`bun test\`, \`bun run build\`, \`ghostinit check\`, and \`ghostinit sync --check\`.
 
 ## Capabilities
@@ -47,6 +48,8 @@ Help developers working on ${projectName} scaffold DDD modules, run architecture
 function toSingleEvePath(path: string, framework: FrameworkName): string | undefined {
   if (!path.startsWith(EVE_APPLICATION_PREFIX)) return undefined;
   const relativePath = path.slice(EVE_APPLICATION_PREFIX.length);
+  if (relativePath === "tests/eve-sandbox.test.ts" || relativePath === "tests/eve-sandbox.node.mjs")
+    return relativePath;
   if (SINGLE_EVE_ROOT_FILES.has(relativePath)) {
     // TanStack Start already owns nitro.config.ts. Its composer injects the
     // same cross-platform resolver hook into that canonical config instead.

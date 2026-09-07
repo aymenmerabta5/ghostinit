@@ -11,12 +11,14 @@ function generated(
   framework: Framework,
   pdf = true,
   deploy: "none" | "vercel" | "fly" | "docker" = "none",
+  runtime: "bun" | "node" = "bun",
 ) {
   return generateProjectFiles(
     projectConfigSchema.parse({
       name: "pdf-production-resolution",
       mode,
       framework,
+      runtime,
       database: "postgres",
       preset: "custom",
       auth: true,
@@ -41,6 +43,7 @@ function manifestAt(files: ReturnType<typeof generated>, path: string) {
   return JSON.parse(contentAt(files, path)) as {
     dependencies?: Record<string, string>;
     overrides?: Record<string, string>;
+    scripts?: Record<string, string>;
   };
 }
 
@@ -49,6 +52,26 @@ function expectPin(actual: string | undefined, expected: string): void {
 }
 
 describe("PDF production dependency resolution", () => {
+  test("only PDF-enabled Bun Next commands preload their declared renderer dependency", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const runtime of ["bun", "node"] as const) {
+        for (const pdf of [false, true]) {
+          const files = generated(mode, "nextjs", pdf, "none", runtime);
+          const app = manifestAt(
+            files,
+            mode === "single" ? "package.json" : "apps/web/package.json",
+          );
+          for (const phase of ["dev", "build", "start"]) {
+            expect(app.scripts?.[phase]?.includes("--preload @react-pdf/renderer")).toBe(
+              runtime === "bun" && pdf,
+            );
+          }
+          if (pdf) expect(app.dependencies?.["@react-pdf/renderer"]).toBeDefined();
+        }
+      }
+    }
+  });
+
   test("pins age-eligible renderer and pdfkit releases", () => {
     expect(pdfVersions["@react-pdf/renderer"]).toBe("4.8.1");
     expect(pdfVersions.pdfkit).toBe("0.20.1");

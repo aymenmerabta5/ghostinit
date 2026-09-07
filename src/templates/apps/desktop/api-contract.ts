@@ -1,3 +1,5 @@
+import { currentRequestSchemaContent } from "../../api/current-request-schema.js";
+
 export function desktopApiContractContent(
   hasBilling = false,
   hasAuth = true,
@@ -20,17 +22,7 @@ const teamMembershipSchema = z.object({ teamId: z.string(), userId: z.string(), 
   me: oc
     .route({ method: "GET", path: "/me" })
     .output(
-      z.object({
-        user: z
-          .object({
-            id: z.string(),
-            email: z.string().email(),
-            name: z.string().nullable(),
-            role: z.string().nullable(),
-            banned: z.boolean(),
-          })
-          .nullable(),
-      }),
+${currentRequestSchemaContent(6)},
     ),
   identity: {
     sessions: {

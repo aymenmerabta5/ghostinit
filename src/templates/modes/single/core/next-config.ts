@@ -3,6 +3,7 @@ import {
   nextConfigHeadersFunction,
   posthogRewritesBlock,
 } from "../../../apps/fragments/core/security.js";
+import { NEXT_COMPILER_OPTIONS, NEXT_TYPE_INCLUDES } from "../../../tooling/next-typescript.js";
 
 export function singleNextConfigContent(
   hasEve: boolean,
@@ -83,7 +84,7 @@ export function singleTsConfigContent(): string {
         compilerOptions: {
           target: "ES2024",
           lib: ["ES2024", "DOM", "DOM.Iterable"],
-          jsx: "preserve",
+          ...NEXT_COMPILER_OPTIONS,
           module: "ESNext",
           moduleResolution: "bundler",
           strict: true,
@@ -93,7 +94,6 @@ export function singleTsConfigContent(): string {
           resolveJsonModule: true,
           incremental: true,
           types: ["bun-types/test", "node"],
-          plugins: [{ name: "next" }],
           paths: {
             "@/*": ["./src/*"],
             "@/server/*": ["./src/server/*"],
@@ -101,8 +101,8 @@ export function singleTsConfigContent(): string {
             "@/lib/*": ["./src/lib/*"],
           },
         },
-        include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-        exclude: ["node_modules"],
+        include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ...NEXT_TYPE_INCLUDES],
+        exclude: ["node_modules", ".ghostinit"],
       },
       null,
       2,

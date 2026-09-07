@@ -1,12 +1,4 @@
-/**
- * Billing provider abstraction — barrel re-exporting split modules for <300 compliance.
- * Vendors layer behind stable port so services never import SDKs directly.
- * This file is the public entry: "./interface.js" still resolves.
- * Uses explicit named re-exports (no export *).
- */
-
-// Types
-export { BILLING_PROVIDER_NAMES } from "./interface/types.js";
+export { BILLING_PROVIDER_NAMES } from "../domain/model.js";
 export type {
   BillingProviderName,
   SubscriptionStatus,
@@ -24,9 +16,8 @@ export type {
   UsageEvent,
   BillingEvent,
   VerifiedEvent,
-} from "./interface/types.js";
+} from "../domain/model.js";
 
-// Inputs
 export type {
   CreateCheckoutInput,
   CreateCheckoutOutput,
@@ -43,14 +34,12 @@ export type {
   CreateLicenseKeyOutput,
   IngestUsageEventInput,
   IngestUsageEventOutput,
-} from "./interface/inputs.js";
+} from "../domain/inputs.js";
 
-// Ports
 export type {
   BillingProvider,
   BillingProviderFactory,
   BillingProviderRegistry,
-} from "./interface/ports.js";
+} from "../domain/ports.js";
 
-// Convenience re-exports for registry consumers
-export type { BillingProviderName as BillingProviderNameRe } from "./interface/types.js";
+export type { BillingProviderName as BillingProviderNameRe } from "../domain/model.js";

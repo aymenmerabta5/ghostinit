@@ -12,8 +12,13 @@ import {
 } from "node:fs";
 import { createServer, connect } from "node:net";
 import { basename, join, relative } from "node:path";
-import { listPosixProcessGroupMembers } from "../../src/lib/posix-process-groups.js";
 import { runSupervisedCommand } from "../../src/commands/create/installer.js";
+import {
+  capturePosixProcessIdentity,
+  snapshotPosixProcessTree,
+  posixProcessTreeStillMatches,
+  type PosixProcessIdentity,
+} from "../helpers/posix-process-tree.js";
 import {
   resolveWindowsSystemExecutable,
   terminateProcessTree as terminateVerifiedProcessTree,
@@ -57,6 +62,7 @@ const MAX_PUBLIC_ARTIFACT_FILES = 100_000;
 const MAX_PUBLIC_ARTIFACT_DEPTH = 64;
 const MAX_HEALTH_CLOCK_SKEW_MS = 60_000;
 const activeChildren = new Set<ChildProcess>();
+const posixRootIdentities = new WeakMap<ChildProcess, PosixProcessIdentity>();
 const activeCommands = new Map<AbortController, Promise<CommandResult>>();
 let trackedTermination: Promise<void> | undefined;
 let unverifiedCommandCleanup: Error | undefined;
@@ -284,13 +290,14 @@ function linuxListeners(port: number): LinuxListener[] {
   return listeners;
 }
 
-function linuxListenerOwnedByProcessGroup(rootPid: number, port: number): boolean {
+function linuxListenerOwnedByProcessTree(root: PosixProcessIdentity, port: number): boolean {
   const listeners = linuxListeners(port);
   if (listeners.length === 0 || listeners.some(({ address }) => !linuxAddressIsLoopback(address))) {
     return false;
   }
   const ownedSockets = new Set<string>();
-  for (const pid of listPosixProcessGroupMembers(rootPid)) {
+  const tree = snapshotPosixProcessTree(root);
+  for (const { pid } of tree) {
     let descriptors: string[];
     try {
       descriptors = readdirSync(`/proc/${pid}/fd`);
@@ -309,7 +316,9 @@ function linuxListenerOwnedByProcessGroup(rootPid: number, port: number): boolea
       }
     }
   }
-  return listeners.every(({ inode }) => ownedSockets.has(inode));
+  return (
+    posixProcessTreeStillMatches(tree) && listeners.every(({ inode }) => ownedSockets.has(inode))
+  );
 }
 
 function windowsListenerOwnedByProcessTree(rootPid: number, port: number): boolean {
@@ -368,7 +377,7 @@ ConvertTo-Json -InputObject @($result) -Compress`;
   );
 }
 
-function lsofListenerOwnedByProcessGroup(rootPid: number, port: number): boolean {
+function lsofListenerOwnedByProcessTree(root: PosixProcessIdentity, port: number): boolean {
   // Listener evidence must come from the OS utility, even when a generated
   // project's working directory or PATH contains an executable named lsof.
   const lsof = "/usr/sbin/lsof";
@@ -402,17 +411,19 @@ function lsofListenerOwnedByProcessGroup(rootPid: number, port: number): boolean
       listeners.push({ address: line.slice(1), pid });
     }
   }
-  const processGroup = new Set(listPosixProcessGroupMembers(rootPid));
+  const tree = snapshotPosixProcessTree(root);
+  const processIds = new Set(tree.map(({ pid }) => pid));
   return (
+    posixProcessTreeStillMatches(tree) &&
     listeners.length > 0 &&
     listeners.every(({ address, pid: listenerPid }) => {
       const host = address.endsWith(`:${port}`) ? address.slice(0, -String(port).length - 1) : "";
-      return isLoopbackAddress(host) && processGroup.has(listenerPid);
+      return isLoopbackAddress(host) && processIds.has(listenerPid);
     })
   );
 }
 
-/** Proves the loopback listener belongs to the spawned command's live process tree/group. */
+/** Proves the loopback listener belongs to the spawned command's live process tree. */
 export function productionListenerOwnedByProcessTree(child: ChildProcess, port: number): boolean {
   const pid = child.pid;
   if (
@@ -425,8 +436,10 @@ export function productionListenerOwnedByProcessTree(child: ChildProcess, port: 
     throw new Error("A safe process and TCP port are required for listener ownership verification");
   }
   if (process.platform === "win32") return windowsListenerOwnedByProcessTree(pid!, port);
-  if (process.platform === "linux") return linuxListenerOwnedByProcessGroup(pid!, port);
-  return lsofListenerOwnedByProcessGroup(pid!, port);
+  if ((child.exitCode !== null && child.exitCode !== undefined) || child.signalCode) return false;
+  const root = posixRootIdentities.get(child) ?? capturePosixProcessIdentity(pid!);
+  if (process.platform === "linux") return linuxListenerOwnedByProcessTree(root, port);
+  return lsofListenerOwnedByProcessTree(root, port);
 }
 
 export async function assertLoopbackPortUnowned(port: number): Promise<void> {
@@ -480,6 +493,13 @@ export function spawnTracked(
     windowsHide: true,
   });
   activeChildren.add(child);
+  if (process.platform !== "win32" && child.pid) {
+    try {
+      posixRootIdentities.set(child, capturePosixProcessIdentity(child.pid));
+    } catch (error) {
+      spawnError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
   child.stdout?.on("data", (chunk) => {
     stdout = appendTail(stdout, String(chunk));
   });

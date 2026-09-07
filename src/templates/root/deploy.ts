@@ -28,6 +28,7 @@ import {
   integratedEveLifecycleFiles,
 } from "./eve-lifecycle.js";
 import { cloudflareDeploymentFiles } from "./cloudflare.js";
+import { nextServerRuntimeContent } from "./next-server-runtime.js";
 
 export interface DeploymentProfile {
   mode: ProjectMode;
@@ -87,12 +88,6 @@ export function hasPersistentPostgresJobs(profile?: Partial<DeploymentProfile>):
 export function hasPersistentPostgresStorage(profile?: Partial<DeploymentProfile>): boolean {
   const effective = deploymentProfile(profile);
   return effective.storage && effective.database === "postgres";
-}
-
-export function typescriptRuntimeCommand(runtime: "node" | "bun", entrypoint: string): string {
-  return runtime === "bun"
-    ? `bun --conditions=react-server ${entrypoint}`
-    : `node --import ./scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types ${entrypoint}`;
 }
 
 function packageRunner(): "bun" {
@@ -391,7 +386,7 @@ function dockerfileContent(
     : 'CMD ["bun", "run", "start"]';
   const lockfileGuard = `RUN bun ${DEPLOY_LOCKFILE_GUARD_PATH}`;
   const lockAudit = "RUN bun run audit:lock";
-  if (runtime === "node") {
+  if (runtime === "node" || hasHostedWebEve(profile)) {
     return `# syntax=docker/dockerfile:1
 FROM oven/bun:${v.runtime.bun} AS bun-runtime
 
@@ -608,49 +603,6 @@ function vercelJsonContent(runtime: "node" | "bun", profile: DeploymentProfile):
   );
 }
 
-function typescriptRuntimeLoaderContent(): string {
-  return `import { existsSync } from "node:fs";
-import { registerHooks } from "node:module";
-import { extname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-function sourceUrl(candidate) {
-  const extension = extname(candidate);
-  const paths = !extension
-    ? [candidate + ".ts", candidate + ".tsx", candidate + "/index.ts", candidate + "/index.tsx"]
-    : extension === ".js"
-      ? [candidate.slice(0, -3) + ".ts", candidate.slice(0, -3) + ".tsx"]
-      : extension === ".jsx"
-        ? [candidate.slice(0, -4) + ".tsx"]
-        : [candidate];
-  for (const path of paths) {
-    if (existsSync(path)) return pathToFileURL(path).href;
-  }
-  return null;
-}
-
-// Node's type stripper executes .ts but does not infer extensions or tsconfig
-// aliases. Keep the hook deliberately narrow: relative source imports plus the
-// single-mode @/ alias. Package exports still resolve through Node itself.
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith("@/")) {
-      const url = sourceUrl(resolve(process.cwd(), "src", specifier.slice(2)));
-      if (url) return { url, shortCircuit: true };
-    }
-    if (
-      (specifier.startsWith("./") || specifier.startsWith("../")) &&
-      context.parentURL?.startsWith("file:")
-    ) {
-      const url = sourceUrl(fileURLToPath(new URL(specifier, context.parentURL)));
-      if (url) return { url, shortCircuit: true };
-    }
-    return nextResolve(specifier, context);
-  },
-});
-`;
-}
-
 function productionScripts(profile: DeploymentProfile): string[] {
   return [
     ...(profile.apps.includes("web") ? [productionWebScript(profile)] : []),
@@ -676,10 +628,9 @@ export function deployFiles(
   profileInput?: Partial<DeploymentProfile>,
 ): TemplateFile[] {
   const profile = deploymentProfile(profileInput);
-  const supportFiles =
-    runtime === "node" && usesCustomNextServer(profile)
-      ? [file("scripts/typescript-runtime-loader.mjs", typescriptRuntimeLoaderContent())]
-      : [];
+  const supportFiles = usesCustomNextServer(profile)
+    ? [file("scripts/start-next-server.mjs", nextServerRuntimeContent(profile.mode, profile.pdf))]
+    : [];
   const eveLifecycleFiles = integratedEveLifecycleFiles(projectName, profile);
   const productionFiles =
     hasPersistentPostgresJobs(profile) ||

@@ -63,7 +63,7 @@ describe("Eve and Next lifecycle", () => {
     expect(root.scripts.dev).toBe("turbo run dev");
     expect(root.scripts.start).toBe("bun --env-file=.env.local run start:production");
     expect(root.scripts["start:web"]).toBe("bun run --cwd apps/web start");
-    expect(root.scripts["start:eve"]).toBe("bun apps/eve/.output/server/index.mjs");
+    expect(root.scripts["start:eve"]).toBe("node apps/eve/.output/server/index.mjs");
     expect(root.scripts["start:production"]).toBe("bun scripts/start-production.mjs");
     expect(root.scripts.build).toBe("bun scripts/build-with-eve.mjs");
     expect(root.scripts["eve:build"]).toBe("bun --env-file=.env.local run --cwd apps/eve build");
@@ -75,8 +75,8 @@ describe("Eve and Next lifecycle", () => {
     );
     expect(eve.scripts.dev).toBeUndefined();
     expect(eve.scripts.start).toBeUndefined();
-    expect(eve.scripts["dev:diagnostic"]).toBe("eve dev");
-    expect(eve.scripts["start:diagnostic"]).toBe("eve start");
+    expect(eve.scripts["dev:diagnostic"]).toBe("node ../../scripts/eve-dev.mjs");
+    expect(eve.scripts["start:diagnostic"]).toBe("node .output/server/index.mjs");
 
     const orchestrator = content(files, "scripts/build-with-eve.mjs");
     expect(orchestrator).toContain("if (!isVercel)");
@@ -172,13 +172,14 @@ await Bun.write(marker, process.argv[2] || "missing-label");
 
     expect(root.scripts.build).toBe("bun scripts/build-with-eve.mjs");
     expect(root.scripts["build:web"]).toContain("next build");
-    expect(root.scripts.dev).toContain("next dev");
+    expect(root.scripts.dev).toBe("bun scripts/start-development.mjs");
+    expect(root.scripts["dev:web"]).toContain("next dev");
     expect(root.scripts.start).toBe("bun --env-file=.env.local run start:production");
     expect(root.scripts["start:web"]).toContain("next start");
-    expect(root.scripts["start:eve"]).toBe("bun .output/server/index.mjs");
+    expect(root.scripts["start:eve"]).toBe("node .output/server/index.mjs");
     expect(root.scripts["eve:build"]).toBe("eve build");
-    expect(root.scripts["eve:dev"]).toBe("eve dev");
-    expect(root.scripts["eve:start"]).toBe("eve start");
+    expect(root.scripts["eve:dev"]).toBe("node scripts/eve-dev.mjs");
+    expect(root.scripts["eve:start"]).toBe("node .output/server/index.mjs");
 
     const orchestrator = content(files, "scripts/build-with-eve.mjs");
     expect(orchestrator).toContain("else if (!isVercel)");
@@ -286,5 +287,63 @@ await Bun.write(marker, process.argv[2] || "missing-label");
     const fly = generated("monorepo", { deploy: "fly", jobs: true, storage: true });
     expect(content(fly, "fly.toml")).toContain('app = "bun run start:production"');
     expect(content(fly, "fly.toml")).not.toContain('jobs = "bun run jobs:start"');
+  });
+
+  test("Bun applications supply genuine Node for the private Eve runtime in containers", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        const files = generateProjectFiles({
+          name: "eve-node-vendor",
+          version: "0.1.0",
+          runtime: "bun",
+          mode,
+          framework,
+          database: "postgres",
+          apps: ["web"],
+          billing: [],
+          features: ["eve"],
+          eve: true,
+          auth: true,
+          api: true,
+          deploy: "docker",
+        } as ProjectConfig);
+        const docker = content(files, "Dockerfile");
+        expect(docker).toContain("FROM node:");
+        expect(docker).toContain("-bookworm-slim");
+        expect(docker).toContain("COPY --from=bun-runtime /usr/local/bin/bun /usr/local/bin/bun");
+        const manifest = JSON.parse(content(files, "package.json")) as {
+          scripts: Record<string, string>;
+        };
+        if (mode === "single" && framework === "tanstack-start") {
+          expect(manifest.scripts["start:eve"]).toBe("bun scripts/eve-command.mjs start");
+          expect(content(files, "scripts/eve-command.mjs")).toContain(
+            'run([entrypoint], eveEnvironment, "node")',
+          );
+          expect(content(files, "nitro.config.ts")).toContain(
+            "? (process.env.VERCEL ? 'vercel' : 'node-server') : 'bun'",
+          );
+        } else {
+          expect(manifest.scripts["start:eve"]).toBe(
+            mode === "single"
+              ? "node .output/server/index.mjs"
+              : "node apps/eve/.output/server/index.mjs",
+          );
+          expect(
+            content(files, mode === "single" ? "nitro.config.mjs" : "apps/eve/nitro.config.mjs"),
+          ).toContain('preset: process.env.VERCEL ? "vercel" : "node-server"');
+        }
+        if (framework === "tanstack-start") {
+          const web =
+            mode === "single"
+              ? manifest
+              : (JSON.parse(content(files, "apps/web/package.json")) as {
+                  scripts: Record<string, string>;
+                });
+          expect(web.scripts[mode === "single" ? "start:web" : "start"]).toBe(
+            "bun .output/server/index.mjs",
+          );
+        }
+      }
+    }
   });
 });

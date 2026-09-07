@@ -20,7 +20,9 @@ export function singleNitroConfigTanstackContent(
     tanstackSecurityPolicyDeclaration(hasConvex, hasPaddle),
     "",
     "export default defineNitroConfig({",
-    `  preset: '${preset}',`,
+    hasEve
+      ? `  preset: process.env.GHOSTINIT_EVE_RUNTIME === '1' ? (process.env.VERCEL ? 'vercel' : 'node-server') : '${preset}',`
+      : `  preset: '${preset}',`,
     ...(hasEve ? eveNitroResolverHooks().split("\n") : []),
     ...(hasWebSocketMessaging ? ["  serverDir: 'server',"] : []),
     ...(hasWebSocketMessaging ? ["  experimental: { websocket: true },"] : []),

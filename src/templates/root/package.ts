@@ -7,12 +7,12 @@ import {
   hasPersistentPostgresStorage,
   nodeEngineSelector,
   hasPersistentPostgresJobs,
-  typescriptRuntimeCommand,
   usesCustomNextServer,
   type DeploymentProfile,
 } from "./deploy.js";
 import { OPENNEXT_AWS_WINDOWS_PATCH_KEY, OPENNEXT_AWS_WINDOWS_PATCH_PATH } from "./cloudflare.js";
 import { hasHostedWebEve } from "./eve-lifecycle.js";
+import { customNextServerCommand } from "./next-server-runtime.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
 
@@ -43,9 +43,7 @@ export function rootPackageJson(
   const isCloudflare = addonMap ? hasAddon(addonMap as AddonInstallerMap, "cloudflare") : false;
   const hostedEve = hasHostedWebEve(profile);
   const webStart = usesCustomNextServer(profile)
-    ? runtime === "bun"
-      ? "bun --cwd apps/web --conditions=react-server server.ts"
-      : typescriptRuntimeCommand(runtime, "apps/web/server.ts")
+    ? customNextServerCommand(runtime, "start")
     : hasWeb
       ? "bun run --cwd apps/web start"
       : "turbo run start";
@@ -104,7 +102,7 @@ export function rootPackageJson(
   }
   if (hostedEve) {
     baseScripts["start:web"] = webStart;
-    baseScripts["start:eve"] = "bun apps/eve/.output/server/index.mjs";
+    baseScripts["start:eve"] = "node apps/eve/.output/server/index.mjs";
     baseScripts["start:production"] = "bun scripts/start-production.mjs";
   }
 

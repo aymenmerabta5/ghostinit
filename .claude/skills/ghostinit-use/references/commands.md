@@ -54,11 +54,11 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                                                                                                                                |
 | `--cwd`               | path                                                      | `.`        | Parent where project created                                                                                                                                  |
 | `--no-install`        | flag                                                      | off        | Skip verified install; run `bun run install:bootstrap` once in the fresh output                                                                               |
-| `--force`             | flag                                                      | off        | Bypass exists + dirty git + drift                                                                                                                             |
+| `--force`             | flag                                                      | off        | Permit command-specific existing/dirty checks or lease takeover; never bypass managed-file conflicts                                                          |
 | `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                                                                                                                          |
 | `--yes` / `--ci`      | flag                                                      | off        | Non-interactive; --yes defaults to saas unless --preset set                                                                                                   |
 | `--dry-run`           | flag                                                      | off        | Preview: no write, returns `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` first 100 + `hasMore` (`--json`); text shows `237 files (394 kB)` + list |
-| `--fix`               | flag                                                      | off        | Auto-fix (only `check`/`doctor`): `check --fix` turbo.json 96 keys, `doctor --fix` mint secrets                                                               |
+| `--fix`               | flag                                                      | off        | Auto-fix (only `check`/`doctor`): `check --fix` selected manifest-derived turbo.json keys, `doctor --fix` mint secrets                                        |
 | `--verbose`           | flag                                                      | off        | Verbose (only `status`/`check`/`doctor`): `status --verbose` full config                                                                                      |
 | `--list`              | flag                                                      | off        | List (only `add`/`status`): `add --list` modules, `status --list` alias                                                                                       |
 | `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                                                                                                                                 |
@@ -183,7 +183,7 @@ Drift detection parallel hash compare detects missing/modified/unreadable tracke
 
 ## `status [--json]`
 
-Shows `loadState(cwd)` metadata + `existsSync(.ghostinit/lock)` lock active. Includes apps selected.
+Shows `loadState(cwd)` metadata + the presence of `.ghostinit.lock` as `lockActive` (not a liveness check). Includes apps selected.
 
 ```bash
 ghostinit status
@@ -206,7 +206,7 @@ Architecture checker (6-layer + isolation). Must have state else exit 23 INVALID
 - Passed if `blockers==0 && highs==0` → 0 else 1.
 - Text mode logs each `[SEVERITY] message (rule)` with file + summary duration.
 - JSON: `{findings: [{id,severity,message,file,rule}], summary:{blockers,highs,mediums}, fixed?: string[], fixMessages?: string[]}` when `--fix`.
-- `--fix`: auto-fixes `turbo.json` globalEnv drift (96 keys from `src/lib/env-manifest.ts`); other layered violations require manual fix. Logs `Auto-fixed 1 issue(s): turbo.json` or `No auto-fixable issues`.
+- `--fix`: auto-fixes `turbo.json` globalEnv drift (selected capability/app keys from `src/lib/env-manifest.ts`); other layered violations require manual fix. Logs `Auto-fixed 1 issue(s): turbo.json` or `No auto-fixable issues`.
 - `--verbose`: same as default (check always verbose).
 
 ```bash
@@ -255,7 +255,7 @@ ghostinit status --list
 
 ## Global Flags (All Commands)
 
-`--cwd` working dir root, `--json` envelope, `--yes`/`--ci` non-interactive, `--dry-run` preview, `--force` bypass dirty/drift, `--no-install` create only, `--runtime`, `--quiet` suppress stderr, `--debug` verbose, `--version`, `--help`.
+`--cwd` working dir root, `--json` envelope, `--yes`/`--ci` non-interactive, `--dry-run` preview, `--force` permits command-specific existing/dirty checks and explicit lease takeover; managed-file conflicts still fail, `--no-install` create only, `--runtime`, `--quiet` suppress stderr, `--debug` verbose, `--version`, `--help`.
 
 Help text: `ghostinit` or `ghostinit help` or `ghostinit --help`. Version: `ghostinit version` or `--version`.
 
@@ -267,4 +267,4 @@ Exit codes: `0 OK, 1 GENERAL_ERROR, 2 INVALID_ARGUMENTS, 8 DRIFT, 16 MISSING_DEP
 
 ## Lock
 
-`.ghostinit/lock` file ensures no concurrent add/sync/create mutations. `status` shows lockActive. Crash leaves lock; use `--force` to bypass/overwrite or manually remove.
+`.ghostinit.lock` is a renewable local-filesystem lease. Its default expiry is five minutes since the latest heartbeat, with token-checked release and guarded stale takeover. `status.lockActive` reports file presence, not process liveness. Stop a known active writer before requesting `--force` takeover; do not delete an active lease manually. Force never bypasses reconciliation hash conflicts.

@@ -8,12 +8,19 @@ export function turbo(runtime: "node" | "bun", audience?: GlobalEnvAudience): Te
     JSON.stringify(
       {
         $schema: "https://turbo.build/schema.json",
-        globalDependencies: ["**/.env.*local", "scripts/test-env.ts"],
+        globalDependencies: ["**/.env.*local", "scripts/test-env.ts", "scripts/*.mjs"],
         globalEnv: dedupedEnvList,
         tasks: {
           build: {
             dependsOn: ["^build"],
-            outputs: ["dist/**", ".next/**", "!.next/cache/**", ".output/**", ".vercel/output/**"],
+            outputs: [
+              "dist/**",
+              ".next/**",
+              "!.next/cache/**",
+              ".output/**",
+              ".vercel/output/**",
+              ".ghostinit/runtime/*-production.mjs",
+            ],
           },
           dev: { cache: false, persistent: true },
           start: {

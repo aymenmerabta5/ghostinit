@@ -64,7 +64,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 3. fragments DRY `apps/fragments/` with `RouterType` param — extract if >300 LOC or >30% duplication
 4. router `default.ts` `generateProjectFiles()` + `monorepo/index.ts`
 5. env audiences: Next uses `NEXT_PUBLIC_*`, TanStack/desktop use `VITE_*`, and Expo uses `EXPO_PUBLIC_*`; emit only the selected audiences and keep their runtime schemas isolated
-6. turbo outputs `.next/** .vinxi/** .output/** dist/** .vercel/**`
+6. turbo outputs `.next/** .output/** dist/** .vercel/**`
 
 ### Expo RNR + Uniwind (Host Template)
 
@@ -73,7 +73,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 - Update `expo-components.ts` to include new file path `apps/mobile/src/components/ui/<name>.tsx` via `rnrAllFiles()` (auto) or explicit.
 - Web UI local lives in `src/templates/apps/fragments/web-ui/` — primitives moved from old `@repo/ui` (now tokens-only).
 - Theme single source: `src/templates/ui/theme.ts` generates `packages/ui/src/theme.css` OKLCH + `@theme inline` + `@layer theme @variant` for Uniwind. `src/templates/apps/fragments/css.ts` `globalCssContent()` imports `@repo/ui/theme.css`, `mobileGlobalCssContent()` imports `tailwindcss`, `uniwind`, `@repo/ui/theme.css`.
-- Expo core: `expo-core.ts` `babelConfigContent()` → `['uniwind/babel', { cssEntryFile: './global.css' }]` before `babel-preset-expo`. `metroConfigContent()` → `withUniwindConfig(config, { cssEntryFile: './global.css', dtsFile: './uniwind-types.d.ts' })`.
+- Expo core: `expo-core.ts` `babelConfigContent()` emits `babel-preset-expo` only. `metroConfigContent()` uses `withUniwindConfig(config, { cssEntryFile: './global.css', dtsFile: './uniwind-types.d.ts' })` from `uniwind/metro`; the pinned package has no `uniwind/babel` export.
 - Layout `layout.ts` must `import '../global.css'` top per Uniwind docs or className silently ignored.
 - Test via `tests/integration/web-mobile-rnr.test.ts` — asserts shared theme imports, babel metro, RNR components, no hardcoded StyleSheet.
 - Versions: `packages/versions/src/index.ts` `uniwind` group `uniwind`, `tailwind-variants`, `tw-animate-css` + `reanimated` group `react-native-reanimated`.
@@ -127,20 +127,20 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 
 ## Tooling Quirks
 
-- host `bunfig.toml` isolated hoist=false hermetic, generated hoist=true Next compat (TS7 quirk)
+- host `bunfig.toml` isolated hoist=false hermetic, generated hoist=true for the supported Next workspace-resolution path
 - TypeScript is runtime-scoped: Next.js uses the catalog's TS 7 CLI pin; TanStack/Vite and Expo remain on TS 6 while their tooling loads the JavaScript compiler API.
 - Email default-on: `packages/email` uses the supported unified React Email 6 package (`react-email`; components, Tailwind, and `render` share one import) + Resend, with versions from the central catalog. It includes an `EmailLayout` using Tailwind `pixelBasedPreset` and a hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, and a `MagicLink` template; `frontend`/`custom` presets use `email:true` and `buildAddonInstallerMap` defaults `emailInUse = input.email ?? true`.
 - React web stack uses the npm-latest compatible pins in `packages/versions/src/index.ts` `nextStack`; Expo keeps its official React line in `expoReact`.
 - Auth P2: `better-auth` plugins `magicLink`, `passkey`, `organization` added to `src/templates/auth.ts` (server `magicLink({sendMagicLink})` + `passkey()` + `organization()` and client `magicLinkClient`, `passkeyClient`, `organizationClient`), plus OAuth `GOOGLE_CLIENT_ID/SECRET` + `GITHUB_*` (`env-manifest` + `shared/env/core.ts` + `GLOBAL_ENV_KEYS` + `turbo` + `auth.ts` `socialProviders` spread) and `accountLinking` + `changeEmail` + `emailVerification`
 - Hooks: generated `husky 9.1.7` + `.husky/pre-commit` (oxlint + oxfmt --check + ghostinit check, set -e) + `lefthook.yml` alternative (`parallel: false`, oxlint/oxfmt/arch), `package.json` scripts `check`/`check:fix`/`doctor:fix`/`prepare: husky`, CI `.github/workflows/ci.yml` now `on: [push, pull_request]` with lint+typecheck+build+ghostinit check
 - Create dry-run: `create --dry-run --json` uses `FsTransaction.getStagedFiles()` → `DryRunFile[]:{path,size,bytes}` + `totalBytes`, text `237 files (394 kB)` + first 100 list, `previewFiles` cloned to avoid `[Circular]` via WeakSet redact
-- Check/Doctor fix: `check --fix` fixes `turbo.json` globalEnv (96 keys from `env-manifest.ts`), `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes turbo.json, both re-evaluate checks post-fix
+- Check/Doctor fix: `check --fix` fixes `turbo.json` globalEnv (the selected capability/app keys from `env-manifest.ts`), `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes turbo.json, both re-evaluate checks post-fix
 - Status verbose: `status --verbose` / `--list` exposes `mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksumCount, generatedBy`
 - CI freshness: host `check-and-test` now runs `scripts/sync-turbo-env.ts --check` + `check:versions` (needs network) before test; `scripts/sync-turbo-env.ts` is SSOT for `turbo.json` vs `GLOBAL_ENV_KEYS`
 - build verifies real d.ts >10 bytes not fake `export {}` stub
 - Deployment templates: `root/deploy.ts` + `deploy-guides.ts` emit exact Bun images, an ephemeral BuildKit env secret (never `COPY .env*`), runtime `COPY --chown=1000:1000`, `/api/health` image/Fly probes, 30-second Compose/Fly shutdown grace, and explicit named Eve Workflow volumes. `root/cloudflare.ts` emits the resolved Worker profile: OpenNext for Next.js or native Cloudflare Vite for TanStack, gitignored `.dev.vars`, separate production build/runtime variables, lock enforcement, artifact secret scanning, Wrangler type/dry-run commands, and Next R2 plus queue/sharded-tag Durable Object cache bindings. Cloudflare supports Convex/none and rejects PostgreSQL/Eve/PDF. Vercel validly uses provider-managed `bunVersion: "1.4.x"` while install/build invoke exact catalog Bun. Postgres 18 volumes mount `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
 - Cache via catalog-pinned Upstash Redis over HTTP is fail-closed; `packages/cache` is emitted only for `cache===redis` (or `--with-cache`). The same `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair owns atomic production API rate limiting when auth+transport are selected even if the cache package is off; placeholders permit only the bounded development/test limiter fallback. Turbo `globalEnv` and capability sanitization follow that ownership.
-- Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; `email` is now always emitted (React Email default-on) — not stripped; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
+- Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; email is emitted only when selected by the resolved capability set; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
 - API RBAC: `packages/api/src/context.ts` exposes `role` + `sessionId` + `requireUser`/`requireAdmin`; `packages/api/src/middleware/auth.ts` provides `protectedProcedure(ctx)`/`adminProcedure(ctx)` (throw `ORPCError` `UNAUTHORIZED`/`FORBIDDEN`). Mutation procedures use one atomic Upstash Redis `EVAL` through the REST pipeline; only development/test may use the bounded process-local fallback, and production fails closed even when the optional cache package is off. `health` + `me` still exist, `billing/*` procedures use `listSubscriptionsUseCase`.
 - Settings: `apps/web/src/app/settings/components/sessions-card.tsx` (`useState` + `authClient.listSessions`/`revokeSession`/`revokeSessions`, `Badge current`, `Revoke`) added to `settingsFiles()` (Next) and TanStack `settings/tanstack-page.ts` `Security` now links to `Sessions` + `Passkey & Magic Link` note + `Organization` enabled.
 - Admin: `admin/hooks/use-admin-users.ts` now `search`/`page`/`limit:20`/`offset` + `query:{limit,offset,search}`; `admin/users-page.tsx` search input + `Prev/Next` + `Page X/Y` + audit-log footnote.
@@ -153,7 +153,7 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - fixtures per-fixture `bun install` slow — skip unless compat
 - `bun run build && node dist/cli.js check` after template changes
 - `bun run test:workers` after Cloudflare/support-catalog changes; four installed profiles must build/scan, dry-run, and serve `/` plus `/api/health`
-- QA: turbo globalEnv 96 keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
+- QA: turbo globalEnv matches the selected manifest-derived capability/app keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
 - `check --fix` / `doctor --fix` tested via drift injection (turbo.json truncated + placeholder `.env.local`) → mint+rewrite
 - See `references/testing.md`
 

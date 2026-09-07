@@ -16,13 +16,15 @@ export function settingsProfileCardContent(useServerActions = false): string {
   return `"use client";
 
 import type * as React from "react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createProfileSchema, identityClient } from "@/lib/auth-client";
 import { useSurfaceTranslations } from "@/lib/translations";
+import { useQueryAuthSession } from "@/components/query-auth-boundary";
 ${actionImport}
 
 interface ProfileEditorProps {
@@ -47,8 +49,12 @@ function ProfileEditor({ email, initialName, role }: ProfileEditorProps): React.
     onSubmit: async ({ value }) => {
       setError(null);
       setSuccess(false);
-      ${submit}
-      setSuccess(true);
+      try {
+        ${submit.replaceAll("\n", "\n  ")}
+        setSuccess(true);
+      } catch {
+        setError(t("errors.profileUpdate"));
+      }
     },
   });
 
@@ -78,24 +84,39 @@ function ProfileEditor({ email, initialName, role }: ProfileEditorProps): React.
 
 export interface ProfileCardProps { initialUser?: { id: string; email: string; name: string | null; role: string | null }; }
 
-function ProfileCardFromSession(): React.JSX.Element {
-  const { data: session } = identityClient.useSession();
-  const user = session?.user;
+const subscribeToHydration = () => () => undefined;
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
+export function ProfileCard({ initialUser }: ProfileCardProps): React.JSX.Element {
+  const common = useSurfaceTranslations("common");
+  const errors = useSurfaceTranslations("errors");
+  const sessionState = identityClient.useSession();
+  const canonical = useQueryAuthSession();
+  const session = sessionState.data;
+  const isPending = canonical?.hasCanonicalApi ? canonical.isPending : sessionState.isPending;
+  const error = canonical?.hasCanonicalApi ? canonical.error : sessionState.error;
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientSnapshot, serverSnapshot);
+  if (hydrated && isPending) return <Card role="status" aria-busy={true} aria-label={common("loading")}>
+    <CardHeader><Skeleton className="h-5 w-32" /><Skeleton className="h-4 w-56" /></CardHeader>
+    <CardContent className="flex flex-col gap-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-9 w-36" /></CardContent>
+  </Card>;
+  const liveUser = canonical?.hasCanonicalApi ? canonical.currentRequest?.user : session?.user;
+  const user = hydrated ? liveUser : initialUser ?? liveUser;
+  if (!user) return <Alert role="alert" variant={error ? "destructive" : "default"}>
+    <AlertTitle>{errors(error ? "genericTitle" : "unauthorizedTitle")}</AlertTitle>
+    <AlertDescription>{errors(error ? "genericDescription" : "unauthorizedDescription")}</AlertDescription>
+  </Alert>;
   const roleValue = user && typeof user === "object" ? Reflect.get(user, "role") : undefined;
   const role = typeof roleValue === "string" ? roleValue : "user";
   return (
     <ProfileEditor
-      key={user ? user.id + ":" + (user.name ?? "") : "anonymous"}
-      email={user?.email ?? ""}
-      initialName={user?.name ?? ""}
+      key={user.id}
+      email={user.email}
+      initialName={user.name ?? ""}
       role={role}
     />
   );
-}
-
-export function ProfileCard({ initialUser }: ProfileCardProps): React.JSX.Element {
-  if (!initialUser) return <ProfileCardFromSession />;
-  return <ProfileEditor key={initialUser.id + ":" + (initialUser.name ?? "")} email={initialUser.email} initialName={initialUser.name ?? ""} role={initialUser.role ?? "user"} />;
 }
 `;
 }

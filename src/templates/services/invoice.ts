@@ -1,14 +1,10 @@
 import { file, type TemplateFile } from "../shared.js";
-import type { FrameworkName, ProjectMode } from "../../lib/addons.js";
-import {
-  resultImportForMode,
-  serverOnlyImportForFramework,
-  sharedCalculateTotal,
-} from "./shared.js";
+import type { ProjectMode } from "../../lib/addons.js";
+import { resultImportForMode, sharedCalculateTotal } from "./shared.js";
 
-export function invoiceServiceContent(mode: ProjectMode, framework: FrameworkName): string {
+export function invoiceServiceContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
+  return `import "server-only";\n${resultImport}
 export interface InvoiceItem { id: string; unitPrice: number; quantity: number; name: string; }
 export interface CreateInvoiceInput { userId: string; items: InvoiceItem[]; }
 export interface InvoiceRecord { id: string; total: number; status: string; }
@@ -25,10 +21,10 @@ function makeInvoiceIndex(includePreviewExport: boolean): string {
   return `export { createInvoiceService } from "./create-invoice.service.js";\nexport type { InvoiceItem, CreateInvoiceInput, InvoiceRecord, InvoiceDeps, CreateInvoiceOutput } from "./create-invoice.service.js";\n${includePreviewExport ? `export { previewInvoiceService } from "./preview-invoice.service.js";\n` : ""}`;
 }
 
-export function invoiceServiceFiles(mode: ProjectMode, framework: FrameworkName): TemplateFile[] {
+export function invoiceServiceFiles(mode: ProjectMode): TemplateFile[] {
   const base = mode === "monorepo" ? "packages/services/src" : "src/server/services";
   return [
     file(`${base}/invoice/index.ts`, makeInvoiceIndex(false)),
-    file(`${base}/invoice/create-invoice.service.ts`, invoiceServiceContent(mode, framework)),
+    file(`${base}/invoice/create-invoice.service.ts`, invoiceServiceContent(mode)),
   ];
 }

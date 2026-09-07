@@ -246,7 +246,6 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     await runProjectInstall({
       projectName,
       projectRoot,
-      config,
       desiredConfig,
       resolvedConfig: resolvedProjectConfig,
       options,

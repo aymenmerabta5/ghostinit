@@ -46,7 +46,7 @@ ${route}${componentExport}function EmailFlowPage(): React.JSX.Element {
       setSent(true);
     },
   });
-  return <main className="grid min-h-screen place-items-center bg-background p-6"><Card className="w-full max-w-md"><CardHeader><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{t("emailFlow.kicker")}</p><CardTitle>{t("emailFlow.${catalogKey}.title")}</CardTitle><CardDescription>{t("emailFlow.${catalogKey}.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <main className="grid min-h-screen place-items-center bg-background p-6"><Card className="w-full max-w-md"><CardHeader><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{t("emailFlow.kicker")}</p><CardTitle as="h1">{t("emailFlow.${catalogKey}.title")}</CardTitle><CardDescription>{t("emailFlow.${catalogKey}.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
     {error ? <Alert variant="destructive"><AlertTitle>{t("emailFlow.requestErrorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     {sent ? <Alert><AlertTitle>{t("emailFlow.requestedTitle")}</AlertTitle><AlertDescription>{t("emailFlow.${successKey}")}</AlertDescription></Alert> : null}
     <form.AppForm><Form form={form} className="flex flex-col gap-4"><FieldGroup><form.AppField name="email">{(field) => <field.TextField label={t("emailFlow.emailLabel")} placeholder={t("emailFlow.emailPlaceholder")} type="email" autoComplete="email" required />}</form.AppField></FieldGroup><form.SubmitButton pendingLabel={t("emailFlow.sending")}>{t("emailFlow.sendLink")}</form.SubmitButton></Form></form.AppForm>

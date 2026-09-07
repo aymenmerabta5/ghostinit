@@ -116,7 +116,7 @@ export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): 
     return startPaddleCheckout(data.options, token, setStatus);
   }, [data, configured, token]);
   const description = data.state !== "ready" ? "paddleCheckoutInvalid" : !configured ? "paddleCheckoutUnavailable" : status === "error" ? "paddleCheckoutError" : status === "ready" ? "paddleCheckoutReady" : status === "canceled" ? "checkoutCancelledDescription" : status === "returning" ? "paddleCheckoutReturning" : "paddleCheckoutLoading";
-  return <main data-paddle-checkout-state={data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status} className="mx-auto flex min-h-screen max-w-xl items-center p-6"><Card className="w-full"><CardHeader><CardTitle>{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
+  return <main data-paddle-checkout-state={data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status} className="mx-auto flex min-h-screen max-w-xl items-center p-6"><Card className="w-full"><CardHeader><CardTitle as="h1">{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
     {configured && status === "error" ? <Button onClick={() => window.location.reload()}>{t("retryCheckout")}</Button> : null}
     <Button variant="outline" render={<a href="/billing" />} nativeButton={false}>{t("backToBilling")}</Button>
   </CardContent></Card></main>;

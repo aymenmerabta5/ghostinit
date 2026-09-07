@@ -90,6 +90,147 @@ All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white a
 
 ## Components
 
+### Ownership and composition
+
+Routes own framework concerns: authentication, initial server reads, redirects,
+metadata, and loading/error boundaries. Route-specific components stay near their
+route when they have no other consumer. Reusable capability UI belongs in
+`src/features/<capability>` with its cohesive components, hooks, and client
+adapters. Shared visual primitives and patterns belong to the resolved UI module.
+`_components` is an optional route-private convention, not an architectural rule.
+
+Extract a component when it owns meaningful behavior, independent state, reuse,
+or a readable section. Do not create a hook for every expression or split files
+solely to meet a line count. An orchestration component should show the screen's
+states and composition; it should not hide transport work in a supposedly
+presentational child. Domain and server implementations stay outside feature UI.
+
+### Read and mutation states
+
+Data surfaces distinguish initial loading, failed reads, successful empty data,
+filtered empty results, populated data, and background refresh. A failed read
+never becomes a claim that no records exist. Use the existing loading and Alert
+patterns, retain usable same-user data during a background failure, and offer a
+local retry. Empty-state instructions appear only after a successful read.
+
+Mutation state belongs to the operation it protects. A row action disables its
+conflicting controls and keeps an accessible action name while pending. A
+synchronous duplicate guard closes the gap before React renders the pending
+state. Independent rows can remain usable. Errors stay near the affected action
+and preserve the user's input.
+
+### Authentication and query ownership
+
+Personalized query data belongs to the authenticated user, session, and active
+organization/team context. A browser singleton is a cache lifetime choice, not
+permission to reuse private data across identities. Identity transitions must
+prevent old cached data, late responses, persisted cache restoration, or stale
+server-provided initial data from appearing under the new identity. Logout
+clears private query state before navigation. Authless projects retain a simple
+query-provider path.
+
+### Architecture review changes, 2026-09-07
+
+- Successful web signup opens email verification when the authentication response
+  has no session token, and opens the dashboard only when a session exists.
+  Verification guidance explains the inbox step and how to request another link
+  in English, French, and Arabic. The destination carries no submitted values,
+  and the copy preserves the provider's generic response for an existing email.
+- Notification inbox actions retain keyboard focus while temporarily disabled.
+  The shared Base UI button remains focusable during mark-read, exposes its busy
+  state, and suppresses repeated activation until the current action settles.
+- Notification navigation and cache refresh belong to the component and account
+  that initiated mark-read. Delayed results cannot navigate after an account
+  change or unmount. Pages use the common ownership hook; the reusable bell
+  accepts a caller-provided action guard, keeping its presentation independent
+  of authentication. Notification-only projects receive the same shared hook
+  without selecting billing or importing billing internals.
+- Mobile language controls reserve enough width for the complete locale code and
+  use the shared 16px select chevron. The control cannot shrink below that width;
+  the previous 64px trigger clipped the selected language beside a 24px icon.
+- Full-page authentication, account-recovery, checkout-return, and error cards expose their title as the
+  page's H1. `CardTitle` accepts a typed heading level while retaining its shared
+  visual styling, so semantic hierarchy does not require duplicated components.
+- The two-factor challenge supports authenticator and backup-code entry. Device
+  trust is an explicit, unchecked choice with shared-device guidance; switching
+  methods clears entered credentials, and pending verification prevents switching.
+  Setup verification and native challenges without a trust control never grant
+  device trust automatically.
+- The settings sidebar shows administration only for the current authenticated
+  administrator when the identity API is included, matching the shared header.
+- Workspace guidance describes organizations, membership, and role permissions
+  in plain language across web, desktop, and mobile instead of exposing internal
+  service and tenancy terminology.
+
+This review uses `design-taste-frontend` as requested. The design read is a
+preserved product interface for developers, using the existing restrained
+shadcn/Base UI and native primitives. The contextual dials are design variance 3,
+motion intensity 2, and visual density 5: predictable layout, state feedback,
+and ordinary application density. Marketing composition rules do not override
+the needs of billing, settings, admin, or native screens.
+
+- TanStack billing distinguishes a failed snapshot from a successful empty
+  account, offers retry, and retains available data during refresh failures.
+- Expo and Electron billing use consistent read states for subscriptions and
+  invoices. Expo errors use the shared accessible Alert; merchant fields have
+  explicit labels.
+- Electron admin actions own pending and error state per user row and prevent
+  duplicate or conflicting requests for that row.
+- Messaging conversation lists and threads distinguish initial loading, read
+  failure, verified empty data, and background refresh. Postgres clients show a
+  localized error with targeted retry while keeping cached messages visible;
+  native screens explicitly ask the user to select a conversation. Convex live
+  queries retain their framework error boundaries and show loading until the
+  first result arrives.
+- Authenticated query boundaries scope and clear private data when identity
+  changes. Next.js session initial data carries request-derived ownership so a
+  stale server snapshot cannot populate another account's cache.
+- Expo persistence uses an identity-scoped storage key and admits restoration
+  only for the current client, identity, and authentication generation. Private
+  screens wait for the matching restore; an obsolete restore cannot populate a
+  new account or mark it ready. Authenticated outputs without a canonical API
+  avoid persisting private query data.
+- Shared forms contain unexpected synchronous or asynchronous submission
+  failures with a localized alert and retry. They preserve entered values and
+  reject duplicate submissions while a request is pending. Feature-specific
+  errors remain beside the operation that failed.
+- Account settings show success and clear sensitive fields only after confirmed
+  success. Profile defaults may come from the initial server render, but an
+  editable profile after hydration always belongs to the live authenticated
+  account; pending identity shows a skeleton and anonymous identity exposes no
+  stale editor.
+- Next.js password changes use the existing identity auth client so rotated
+  session cookies and the client session state are synchronized together. Other
+  sessions are still revoked. Failed requests keep their input and an inline
+  error; confirmed success clears both password fields and uses the shared toast
+  store so feedback survives the same-user session boundary remount. Ordinary
+  application mutations retain their validated Server Actions.
+- Next.js request-owned snapshots protect the complete private subtree for
+  admin users, billing, settings, and the identity workspace. A changed account
+  or tenant hides the old snapshot before display and refreshes the affected
+  route once. Loading and retry are accessible and translated.
+- Organization and team membership removal refreshes the canonical identity
+  scope on web, desktop, and mobile. Removing the current member can clear its
+  active organization or team on the server, so successful removal clears the
+  old private cache and requests current identity before restoring the workspace.
+  A delayed read from the removed membership cannot restore the previous scope.
+- Canonical application data supplies user roles and active organization/team
+  context. Provider session data establishes identity, so differences between
+  Better Auth and the application database cannot silently reset tenant scope
+  or mislabel an administrator.
+- Billing follow-up effects belong to the mounted component and the current
+  authenticated generation. Delayed checkout, portal, merchant-link, and
+  clipboard results cannot affect a different account or a departed screen.
+  Backend operations may still finish; current-owner results remain usable.
+- Monorepo dashboards present setup guidance and real check commands instead of
+  invented live health, severity counts, or passing checks. Architecture is
+  shown as responsibilities with inward domain dependencies, and starter
+  packages are described as included. English, French, and Arabic follow the
+  same design and meaning.
+
+These changes preserve the existing palette, navigation, component vocabulary,
+and feature folders. Their purpose is accurate state, recovery, and ownership.
+
 **Button:** `h-9` default (not `h-10`), `rounded-md`, `gap-2`. Variants: `default` (primary), `outline` (border), `ghost` (hover accent), `secondary`. No `destructive` heavy color on idle — only on hover. `asChild` maps to Base UI `render` with `nativeButton={false}` when wrapping `<a>`.
 
 **Input:** `h-9`, `border-input`, `bg-background`, `focus:ring-ring`. No inner shadows.
@@ -101,6 +242,34 @@ All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white a
 **Dialog/Dropdown:** Portal + Positioner + Popup with `shadow-lg` and `animate-in` (150ms ease-out-quart).
 
 **Empty States:** Teach, don't just say "nothing". `EmptyTitle` + `EmptyDescription` with `max-w-[60ch]` and a primary action.
+
+Localized Next client pages now have a thin server route entrypoint that marks
+request-localized metadata as intentional dynamic work. The static single-app
+landing page declares the same boundary inside its existing server entrypoint.
+Static billing success and cancellation entrypoints declare it too.
+Client views stay
+beside the route with the same imports and behavior. The shared metadata boundary
+renders nothing and adds no visible loading state; existing server pages retain
+their own request and Suspense boundaries. This keeps cookie/header-selected
+titles and descriptions without caching a request's locale globally.
+
+### Single-project marketing
+
+Single Next.js and TanStack Start landing sections receive explicit resolved
+auth, API, database, billing, and Eve options. Authentication links and cards
+appear only when authentication is selected; billing links and cards appear only
+with billing. Database badges distinguish Postgres/Drizzle from Convex and omit
+database claims when no database is selected. Directory badges follow the
+selected server and agent capabilities.
+
+The existing semantic colors, type scale, section order, and responsive card
+layout are preserved. Without authentication, the primary action goes to the
+page's quick-start section. English, French, and Arabic copy describes the
+selected foundation without claiming a universal runtime or port count. Quick
+start shows the generated project's bootstrap and development scripts, with
+service configuration delegated to its README instead of a mismatched scaffold
+command. Generation tests check every emitted marketing link against actual
+routes and every displayed command against the generated manifest.
 
 ## Motion
 
@@ -147,7 +316,7 @@ One edit to `--primary` in `theme.css` or a shared rule in `utilities.css` updat
 
 ### Evidence and policy gates
 
-`ResolvedUiLayout.componentRegistryImport`, validated by `schemas/component-registry.schema.json`, is the authoritative versioned mapping from semantic pattern to the approved web/Electron shadcn/Base UI wrapper and native primitive. Each frontend change or review has a versioned `docs/engineering/frontend-task-records/<task-id>.json`, validated against its schema, with implementer/reviewer role, changed globs, the Impeccable loader/result SHA-256 hashes, selected register, applied rules, shadcn discovery results, selected component IDs, and exception IDs. CI validates task records against the registry and changed component usage.
+`ResolvedUiLayout.componentRegistryImport`, validated by `schemas/component-registry.schema.json`, maps semantic patterns to the approved web/Electron shadcn/Base UI wrappers and native primitives. Frontend changes and reviews use versioned `docs/engineering/frontend-task-records/<task-id>.json` records with the role, changed files, context hashes, applied rules, component IDs, design decisions, and verification evidence. Version 2 records support human review or a named optional skill; no particular coding tool or design skill is required. Historical version 1 records retain their original tool-specific evidence. Registry discovery is recorded when adding or replacing a component, rather than fabricated when reusing one. Every UI behavior or design change must also be recorded in this document.
 
 The AST policy is a schema-validated versioned `policy/maintained-source-globs.json` covering host V2 code, generator templates, generated owned source roots, and maintained tests. It rejects `TSAnyKeyword`, nested/mixed TypeScript assertion chains, `@ts-ignore`, and malformed suppressions. `@ts-expect-error TS####: <reason>` is allowed only in a type-negative test with an adjacent fixture that proves the stated diagnostic. The component-size gate counts nonblank, non-comment physical lines and reads versioned exceptions containing the exact glob, maximum, single responsibility, owner, expiry, and review ID. No unmatched, expired, or broadened exception is accepted.
 

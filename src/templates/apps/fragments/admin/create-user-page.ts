@@ -174,13 +174,3 @@ export default function AdminCreateUserPage(): React.JSX.Element {
 `,
   );
 }
-
-/** @deprecated Use nextAdminCreateUserPage with explicit template options. */
-export function adminCreateUserPage(isConvex = false): TemplateFile {
-  return nextAdminCreateUserPage({
-    database: isConvex ? "convex" : "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
-}

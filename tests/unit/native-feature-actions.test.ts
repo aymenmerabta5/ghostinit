@@ -75,8 +75,20 @@ describe("native feature action outcomes", () => {
         );
         const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(fragment);
         const errors: unknown[] = [];
-        const runAction = new Function("setError", executable + ";return runAction;")(
+        const actionInFlight = { current: false };
+        const runAction = new Function(
+          "setError",
+          "actionInFlight",
+          "setPending",
+          "invalidateInbox",
+          "captureEffect",
+          executable + ";return runAction;",
+        )(
           (value: unknown) => errors.push(value),
+          actionInFlight,
+          () => {},
+          async () => {},
+          () => () => true,
         ) as (action: () => Promise<void>) => Promise<void>;
         for (const message of [
           "Notification access denied",
@@ -88,13 +100,15 @@ describe("native feature action outcomes", () => {
             }),
           ).resolves.toBeUndefined();
           expect(errors.at(-1)).toBe(message);
+          expect(actionInFlight.current).toBe(false);
         }
         await runAction(async () => {});
         expect(errors.at(-1)).toBeNull();
         expect(source).toContain("void runAction(() => openNotification(item))");
         expect(source).toContain(
-          "void runAction(async () => { await markNotificationRead(item.id); await refresh(); })",
+          "void runAction(async () => { await markNotificationRead(item.id); })",
         );
+        expect(source).toContain("await invalidateInbox()");
         if (target === "mobile") {
           expect(source).toContain("void runAction(async () => { const platform = Platform.OS;");
           expect(source).toContain("if (token) await registerNotificationDevice(platform, token)");

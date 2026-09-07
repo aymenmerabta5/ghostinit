@@ -12,6 +12,12 @@ import {
   eveProtocolFile,
 } from "../fragments/eve/index.js";
 import { platformI18nFiles } from "../fragments/platform-i18n.js";
+import {
+  canonicalQueryAuthHookContent,
+  queryAuthCacheBoundaryContent,
+} from "../fragments/query-auth.js";
+import { queryAuthRegressionFile } from "../fragments/query-auth-tests.js";
+import { authOwnedEffectFile } from "../fragments/auth-owned-effect.js";
 import { desktopAuthContent, desktopQueryClientContent } from "./clients.js";
 import { desktopApiTransportContent, desktopRendererFetchContent } from "./api-transport.js";
 import { desktopUiChatFiles } from "./ui/chat.js";
@@ -186,6 +192,23 @@ export function desktopCoreFiles(
   }
 
   if (capabilities.hasApi) {
+    if (capabilities.hasAuth) {
+      files.push(
+        file(
+          "apps/desktop/src/renderer/lib/query-auth-boundary.tsx",
+          queryAuthCacheBoundaryContent("./auth", "./query-client", {
+            rpcImport: "./orpc",
+            hookImport: "./query-auth-scope",
+            translationsImport: capabilities.hasI18n ? "./i18n" : "",
+            nativeTranslations: true,
+          }),
+        ),
+        file(
+          "apps/desktop/src/renderer/lib/query-auth-scope.ts",
+          canonicalQueryAuthHookContent("./query-client"),
+        ),
+      );
+    }
     files.push(
       file(
         "apps/desktop/src/renderer/lib/orpc.ts",
@@ -200,6 +223,7 @@ export function desktopCoreFiles(
         ),
       ),
       file("apps/desktop/src/renderer/lib/query-client.ts", desktopQueryClientContent()),
+      queryAuthRegressionFile("apps/desktop", "../src/renderer/lib/query-client"),
     );
   }
   if (capabilities.hasAuth) {
@@ -262,6 +286,9 @@ export function desktopCoreFiles(
         ),
       );
     }
+  }
+  if (capabilities.hasBilling || capabilities.hasNotifications) {
+    files.push(authOwnedEffectFile("apps/desktop/src/renderer"));
   }
   if (capabilities.hasBilling) {
     files.push(

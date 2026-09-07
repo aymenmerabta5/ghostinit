@@ -5,9 +5,10 @@
 import type { ArchitectureFinding } from "../types.js";
 import { FRAMEWORK_PACKAGES } from "../constants.js";
 import { getBasePackage } from "../utils.js";
+import { getLayerFromFilePath } from "./layer-policy.js";
 
 export function checkDomainLayer(findings: ArchitectureFinding[], file: string, imp: string): void {
-  if (!/\/domain\//.test(file)) return;
+  if (getLayerFromFilePath(file)?.name !== "Domain") return;
   if (FRAMEWORK_PACKAGES.has(imp) || FRAMEWORK_PACKAGES.has(getBasePackage(imp))) {
     findings.push({
       id: "domain-imports-framework",

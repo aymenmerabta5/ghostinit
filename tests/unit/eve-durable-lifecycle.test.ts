@@ -103,10 +103,10 @@ describe("Eve server-authoritative admission lifecycle", () => {
         scripts: Record<string, string>;
       };
       expect(manifest.scripts[mode === "monorepo" ? "dev:diagnostic" : "eve:dev"]).toBe(
-        mode === "monorepo" ? "eve dev" : "bun scripts/eve-command.mjs dev",
+        mode === "monorepo" ? "node ../../scripts/eve-dev.mjs" : "node scripts/eve-dev.mjs",
       );
       expect(manifest.scripts[mode === "monorepo" ? "start:diagnostic" : "eve:start"]).toBe(
-        mode === "monorepo" ? "eve start" : "bun scripts/eve-command.mjs start",
+        mode === "monorepo" ? "node .output/server/index.mjs" : "bun scripts/eve-command.mjs start",
       );
       const rootManifest = JSON.parse(sourceFrom(files, "package.json")) as {
         scripts: Record<string, string>;

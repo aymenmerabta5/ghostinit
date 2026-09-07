@@ -7,6 +7,7 @@
 import { dirname, resolve } from "node:path";
 import type { ArchitectureFinding, CapabilityInfo } from "../types.js";
 import { isRequestApplicationCompositionRoot, normalizePath } from "../utils.js";
+import { moduleFromImport, moduleFromPath } from "./module-path.js";
 
 export function getCapabilityFromPath(p: string): CapabilityInfo | null {
   const file = p.replace(/\\/g, "/");
@@ -54,10 +55,9 @@ export function getCapabilityFromPath(p: string): CapabilityInfo | null {
     }
   }
 
-  const mod =
-    /[/]modules[/]src[/]([^/]+)[/]/.exec(file) || /[/]modules[/]src[/]([^/]+)$/.exec(file);
+  const mod = moduleFromPath(file);
   if (mod) {
-    return { kind: "module", name: mod[1] };
+    return { kind: "module", name: mod.name };
   }
 
   if (file.includes("packages/billing/src") && !file.includes("/providers/")) {
@@ -115,11 +115,8 @@ export function getTargetCapabilityFromImport(
     return { kind: "email", name: "email" };
   }
 
-  m = /@repo[/]modules[/]([^/\s"']+)/.exec(normalized);
-  if (m) return { kind: "module", name: m[1] };
-
-  m = /[/]modules[/]src[/]([^/\s"']+)/.exec(normalized);
-  if (m) return { kind: "module", name: m[1] };
+  const moduleName = moduleFromPath(normalized)?.name ?? moduleFromImport(normalized);
+  if (moduleName) return { kind: "module", name: moduleName };
 
   m =
     /[/]services[/]src[/]([^/]+)[/]/.exec(normalized) ||

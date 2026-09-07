@@ -2,7 +2,6 @@ import { describe, it, expect } from "bun:test";
 import { billingFiles } from "../../src/templates/billing-generator";
 import { generateProjectFiles } from "../../src/templates/default";
 import { eveFiles } from "../../src/templates/eve";
-import { backendFiles } from "../../src/templates/backend/elysia";
 
 function aggProvider(files: any[], name: string) {
   return files
@@ -392,34 +391,18 @@ describe("billing provider — chargily (Algeria EDAHABIA/CIB checkout-only serv
     expect(renewalExample).toContain("verifySignature");
   });
 
-  it("backend Elysia template uses verifySignature directly (not client.webhook.verifySignature) server-only", async () => {
-    const files = backendFiles("testapp", "bun", {
+  it("Chargily provider uses the server-only verifySignature API", () => {
+    const billing = billingFiles("monorepo", {
       chargily: { inUse: true },
       billing: { inUse: true },
-    });
-    // Legacy: backendFiles now returns [] (replaced by oRPC). If empty, check billing provider still has verifySignature.
-    if (files.length === 0) {
-      const billing = billingFiles("monorepo", {
-        chargily: { inUse: true },
-        billing: { inUse: true },
-      } as never);
-      const content = billing
-        .filter((f: any) => f.path.includes("providers/chargily"))
-        .map((f: any) => f.content)
-        .join("\n");
-      expect(content).toContain("verifySignature");
-      expect(content.includes("client.webhook.verifySignature")).toBe(false);
-      return;
-    }
-    const webhooks = files.find((f: any) => f.path.includes("webhooks.ts"))?.content ?? "";
-    expect(webhooks).toContain("chargily");
-    expect(webhooks).toContain("signature");
-    expect(webhooks).toContain("Buffer.from(await request.arrayBuffer())");
-    expect(webhooks).toContain("verifySignature");
-    expect(webhooks.includes("client.webhook.verifySignature")).toBe(false);
-    expect(webhooks).toContain("Invalid chargily signature");
-    expect(webhooks).toContain("400");
-    expect(webhooks).toContain("403");
+    } as never);
+    const content = billing
+      .filter((file) => file.path.includes("providers/chargily"))
+      .map((file) => file.content)
+      .join("\n");
+    expect(content).toContain("verifySignature");
+    expect(content).toContain("CHARGILY_SERVER_ONLY");
+    expect(content).not.toContain("client.webhook.verifySignature");
   });
 
   it("chargily provider file contains full file() helper usage via billing-generator + secret() env handling mention", () => {

@@ -71,7 +71,7 @@ export function SelectTrigger({
       {...props}
     >
       {children}
-      <ChevronsUpDown data-icon="inline-end" aria-hidden />
+      <ChevronsUpDown className="size-4 text-muted-foreground" data-icon="inline-end" aria-hidden />
     </BaseSelect.Trigger>
   );
 }

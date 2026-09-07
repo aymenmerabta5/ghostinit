@@ -74,12 +74,20 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
         marketing: [`${root}/app/page.tsx`, ...marketingComponents],
         auth: [
           `${root}/app/sign-in/page.tsx`,
+          `${root}/app/sign-in/page.client.tsx`,
           `${root}/app/sign-up/page.tsx`,
+          `${root}/app/sign-up/page.client.tsx`,
           `${root}/components/auth/sign-in-form.tsx`,
           `${root}/components/auth/sign-up-form.tsx`,
           `${root}/app/2fa/page.tsx`,
+          `${root}/app/2fa/page.client.tsx`,
         ],
-        recovery: [`${root}/app/forgot-password/page.tsx`, `${root}/app/reset-password/page.tsx`],
+        recovery: [
+          `${root}/app/forgot-password/page.tsx`,
+          `${root}/app/forgot-password/page.client.tsx`,
+          `${root}/app/reset-password/page.tsx`,
+          `${root}/app/reset-password/page.client.tsx`,
+        ],
         dashboard:
           mode === "monorepo"
             ? [

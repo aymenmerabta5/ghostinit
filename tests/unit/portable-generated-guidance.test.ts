@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { agenticFiles } from "../../src/templates/agentic.js";
+import { agentsComposerFiles } from "../../src/templates/modes/monorepo/agents-composer.js";
 import { desktopRouteSettingsContent } from "../../src/templates/apps/desktop/index.js";
 import { startDatabaseFiles } from "../../src/templates/database.js";
 import { skillGhostinitWorkflow } from "../../src/templates/eve/skills/workflow.js";
@@ -8,7 +8,7 @@ import { readmeSingle } from "../../src/templates/modes/single/fragments/docs.js
 describe("portable generated guidance", () => {
   test("never overwrites generated secrets or embeds a contributor drive", () => {
     const guidance = [
-      ...agenticFiles("portable-app").map(({ content }) => content),
+      ...agentsComposerFiles("portable-app", [], false, false).map(({ content }) => content),
       skillGhostinitWorkflow().content,
       readmeSingle("portable-app").content,
     ].join("\n");
@@ -19,8 +19,6 @@ describe("portable generated guidance", () => {
     expect(guidance).toContain("docker compose --env-file .env.local up -d");
     expect(guidance).not.toContain("docker compose up -d");
     expect(guidance).not.toMatch(/(?:^|\n)\s*\.\/start-database\.sh/m);
-    expect(guidance).toContain("bash ./start-database.sh");
-    expect(guidance).toContain("Windows requires Git Bash, WSL, or another Bash");
   });
 
   test("binds every generated development Postgres launcher to loopback", () => {

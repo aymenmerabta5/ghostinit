@@ -70,6 +70,7 @@ export function generatedGitignoreContent(): string {
     "",
     "# GhostInit internal state",
     "/.ghostinit/",
+    "/apps/*/.ghostinit/",
     "/.ghostinit-staging/",
     "/.ghostinit.lock",
     "",

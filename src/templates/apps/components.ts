@@ -28,6 +28,8 @@ import {
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
 import { surfaceTranslationFiles } from "../i18n/surface.js";
+import { canonicalQueryAuthHookFile, queryAuthBoundaryFile } from "./fragments/query-auth.js";
+import { requestOwnedSnapshotFile } from "./fragments/request-owned-snapshot.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
 
@@ -77,7 +79,9 @@ export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
       framework: "next",
       sourceRoot: "apps/web/src",
     }),
-    providersComponent(convex, analytics, i18n),
+    providersComponent(convex, analytics, i18n, auth),
+    ...(auth ? [queryAuthBoundaryFile("apps/web/src", api)] : []),
+    ...(auth && api ? [canonicalQueryAuthHookFile(), requestOwnedSnapshotFile()] : []),
     themeProviderComponent(),
     themeToggleComponent(),
     headerComponent(
@@ -114,10 +118,15 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(isConvex = false, hasAnalytics = true, hasI18n = false): TemplateFile {
+function providersComponent(
+  isConvex = false,
+  hasAnalytics = true,
+  hasI18n = false,
+  hasAuth = true,
+): TemplateFile {
   return file(
     "apps/web/src/components/providers.tsx",
-    providersFileContent("next", isConvex, hasAnalytics, hasI18n),
+    providersFileContent("next", isConvex, hasAnalytics, hasI18n, hasAuth),
   );
 }
 

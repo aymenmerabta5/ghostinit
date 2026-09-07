@@ -37,6 +37,7 @@ export function SignOutButton(): React.JSX.Element {
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "../lib/auth-client.js";
+import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 
@@ -46,7 +47,9 @@ export function SignOutButton(): React.JSX.Element {
 
   async function handleClick(): Promise<void> {
     await authClient.signOut();
+    transitionQueryAuthScope(getQueryClient(), null);
     router.push("/");
+    router.refresh();
   }
 
   return (

@@ -289,7 +289,7 @@ ${i18n.hookLine}
     if (code.length !== 6) { setError(${i18n.value("validation.codeSixDigits", "Enter a 6-digit code")}); return; }
     setPending(true);
     try {
-      const res = await identityClient.verifyTwoFactor({ code, trustDevice: true });
+      const res = await identityClient.verifyTwoFactor({ code, trustDevice: false });
       if (res.error) { setError(${i18n.value("twoFactor.genericError", "Invalid code")}); return; }
       router.replace("/dashboard");
     } catch { setError(${i18n.value("twoFactor.genericError", "Invalid code")}); }

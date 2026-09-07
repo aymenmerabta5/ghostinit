@@ -272,7 +272,7 @@ function NotFoundPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -296,7 +296,7 @@ async function NotFoundContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -344,7 +344,7 @@ export default function Error({
     <main className="min-h-screen bg-background flex items-center justify-center p-6">
       <Card className="${sharedErrorInner.cardClass}">
         <CardHeader>
-          <CardTitle>{t("unexpected.title")}</CardTitle>
+          <CardTitle as="h1">{t("unexpected.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unexpected.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -423,7 +423,7 @@ function UnauthorizedPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -447,7 +447,7 @@ async function UnauthorizedContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -483,7 +483,7 @@ function ForbiddenPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -507,7 +507,7 @@ async function ForbiddenContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
+          <CardTitle as="h1" className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

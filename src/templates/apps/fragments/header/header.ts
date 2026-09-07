@@ -23,7 +23,7 @@ export function headerFileContent(
   const localeSwitcherImport = hasI18n
     ? 'import { LocaleSwitcher } from "./locale-switcher.js";'
     : "";
-  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-16 sm:w-32" />' : "";
+  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-20 shrink-0 sm:w-32" />' : "";
   const usesConvexRole = hasAdminNavigation && convexApiImport !== undefined;
 
   if (!hasAuth) {

@@ -15,6 +15,7 @@ import {
 } from "./fragments/expo/dashboard.js";
 import { expoBillingContent } from "./fragments/expo/billing.js";
 import { billingMoneyFile } from "../billing/ui/money.js";
+import { authOwnedEffectFile } from "./fragments/auth-owned-effect.js";
 import {
   expoFullSettingsContent,
   expoEmailFlowFiles,
@@ -146,6 +147,9 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
     if (capabilities.hasApi)
       files.push(...expoIdentityWorkspaceFiles("monorepo", capabilities.hasI18n));
     if (capabilities.hasEmail) files.push(...expoEmailFlowFiles("monorepo", capabilities.hasI18n));
+  }
+  if (capabilities.hasBilling || capabilities.hasNotifications) {
+    files.push(authOwnedEffectFile("apps/mobile/src"));
   }
   if (capabilities.hasBilling) {
     files.push(

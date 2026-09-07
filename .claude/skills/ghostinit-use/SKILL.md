@@ -54,7 +54,7 @@ Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with lett
 | `--dry-run`        | flag                                                      | off        | preview without writing — emits `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` (first 100) + `hasMore` in `--json`; text shows `237 files (394 kB)` + list                                                                               |
 | `--yes` / `--ci`   | flag                                                      | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                                                                                                                   |
 | `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}` — works with `--dry-run`, `status --verbose`, `add --list`                                                                                                                                       |
-| `--force`          | flag                                                      | off        | bypass dirty git + drift checks                                                                                                                                                                                                                     |
+| `--force`          | flag                                                      | off        | command-specific existing/dirty project checks or explicit lease takeover; managed-file hash conflicts still fail                                                                                                                                   |
 
 Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing stripe,chargily`. Addons repeatable: `--with-auth --with-api` or `--with-auth --with-eve`. Apps repeatable: `--apps web,desktop` or `--apps all` (web,mobile,desktop). Frontend preset: database defaults to `none` and disables auth/api/email/analytics/cache/eve/i18n/pdf/messaging unless explicitly enabled via --with-_. SaaS preset: enables auth/api/email/analytics true and database postgres default; messaging stays opt-in (even saas). Custom preset: all addons off by default, pick via --with-_ plus billing/database/framework/apps; interactive custom shows 8-toggle checklist (auth, api, email, analytics, cache, eve, i18n, pdf, messaging) plus apps (web/mobile/desktop) + billing.
 
@@ -108,7 +108,7 @@ my-app/
   packages/services, email, analytics, ui, config, observability, contracts, kernel
   tooling/typescript-config # shared TS base ES2024 @/* @repo/*
   tooling/lint              # oxlint + oxfmt
-  turbo.json                # 96 globalEnv exhaustive (from src/lib/env-manifest.ts)
+  turbo.json                # globalEnv filtered from the selected capability/app environment manifest
   bunfig.toml               # hoist=true required for Next compat
   .husky/pre-commit         # husky 9.1.7: oxlint + oxfmt --check + ghostinit check
   lefthook.yml              # lefthook alternative (parallel: false)
@@ -179,7 +179,7 @@ Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables the f
 ## Frameworks & Features (Addons)
 
 - `nextjs` → `NEXT_PUBLIC_*`, `.next/**`
-- `tanstack-start` → `VITE_*`, Vite+Nitro `.vinxi/** .output/**`
+- `tanstack-start` → `VITE_*`, Vite+Nitro `.output/**`
 - Expo app target (`--apps mobile/both`) is NOT a framework. SDK 57, file-based `app/`, SecureStore, and `EXPO_PUBLIC_*` are available in frontend-only single mode; Better Auth and oRPC require a selected monorepo web host.
 - `eve` → `withEve()` extra apps/eve + packages when `--with-eve` (or deprecated `--features eve`) — durable AI agent hybrid, conditional files; stripped entirely when off
 - `i18n` → next-intl routing when `--with-i18n` (or deprecated `--features i18n`) — conditional files; stripped when off
@@ -191,9 +191,9 @@ Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables the f
 
 - Edit `packages/ui/src/theme.css` for colors. Single source OKLCH tokens `--background`, `--primary` etc. One edit updates both web+mobile after dev restart.
 - Web: `apps/web/src/app/globals.css` does `@import "@repo/ui/theme.css"` + `@import "tailwindcss"` + `@import "tw-animate-css"` + base layer. Tokens-only `@repo/ui` — no Button/Card in package, web primitives live in `apps/web/src/components/ui/` + `apps/web/src/lib/utils.ts` cn().
-- Mobile: `apps/mobile/global.css` does `@import "tailwindcss"; @import "uniwind"; @import "@repo/ui/theme.css"; @import "tw-animate-css";` + `@source` entries for app/src/components. Processed by Uniwind Babel+Metro.
+- Mobile: `apps/mobile/global.css` does `@import "tailwindcss"; @import "uniwind"; @import "@repo/ui/theme.css"; @import "tw-animate-css";` + `@source` entries for app/src/components. Processed through Uniwind’s Metro adapter; Babel uses only `babel-preset-expo`.
 - Mobile uses RNR components `@/components/ui/button`, `text`, `card`, `input`, `label`, `badge`, `avatar`, `tabs` with `className="bg-primary text-primary-foreground"` — no `StyleSheet.create` for colors.
-- Babel: `['uniwind/babel', { cssEntryFile: './global.css' }]` before `babel-preset-expo` — order matters, Uniwind first.
+- Babel uses `babel-preset-expo` only. Uniwind integrates through `uniwind/metro`; the pinned package has no `uniwind/babel` export.
 - Metro: `withUniwindConfig(config, { cssEntryFile: './global.css', dtsFile: './uniwind-types.d.ts' })` — wrapper from `uniwind/metro`.
 - Layout imports `../global.css` at top per Uniwind docs Expo Router. Required or className ignored silently.
 - Architecture: both `apps/web/` and `apps/mobile/` are L1 UI same 6-layer DAG, shared `packages/api` L2 + `packages/modules` L3/L4 + `packages/billing/providers` L5 + `packages/ui` L6 Supporting.
@@ -208,7 +208,7 @@ ghostinit doctor --fix              # mint missing secrets
 ghostinit add --list && ghostinit status --verbose  # inspect current project
 ```
 
-Lock `.ghostinit/lock` prevents concurrent mutations. `status --verbose` shows full config + `lockActive`. Crash leftover → `--force` or manual rm. `check --fix` only fixes `turbo.json` globalEnv (96 keys from `env-manifest.ts`) — layered violations still require manual fix. `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes `turbo.json`.
+Lock `.ghostinit.lock` is a renewable local-filesystem lease with a five-minute heartbeat expiry, ownership tokens, and guarded takeover. `status --verbose` reports its presence as `lockActive`; this is not proof that its owner is alive. Stop a known active writer before an explicit `--force` takeover; otherwise let stale-lease recovery run. Do not remove an active lease manually. `check --fix` only fixes `turbo.json` globalEnv (the selected capability/app keys from `env-manifest.ts`) — layered violations still require manual fix. `doctor --fix` mints `BETTER_AUTH_SECRET`/`POSTGRES_PASSWORD` placeholders + creates `.env.local` + fixes `turbo.json`.
 
 ## JSON & CI
 
@@ -234,13 +234,13 @@ Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17
 - `Module does not exist` → `ghostinit add module <name>` first
 - `No GhostInit project state found` → project root with `.ghostinit/state.json`
 - `Generated registries out of sync` → `ghostinit sync`
-- `Drift: path: modified externally` → restore or `--force`
+- `Drift: path: modified externally` → inspect `sync --dry-run`/`upgrade --dry-run`; preserve or restore the edited file deliberately. `--force` does not bypass managed-file hash conflicts.
 - `BETTER_AUTH_SECRET must be at least 32` → `.env.local` — try `ghostinit doctor --fix` to mint it (only when auth enabled; frontend without auth has no BETTER_AUTH_* vars)
-- `turbo.json globalEnv drift` → `ghostinit check --fix` or `ghostinit doctor --fix` (rewrites 96 keys from `env-manifest.ts`)
+- `turbo.json globalEnv drift` → `ghostinit check --fix` or `ghostinit doctor --fix` (rebuilds the selected capability/app key set from `env-manifest.ts`)
 - `--fix can only be used with 'check' or 'doctor'` → move flag to correct command
 - `--verbose can only be used with 'status', 'check' or 'doctor'` / `--list can only be used with 'add' or 'status'` → use `status --verbose`, `add --list`
 - `hoist` error → ensure `bunfig.toml` `hoist=true` generated
-- `workspace:*` error → TS7 not supported generated, TS 6.x
+- `workspace:*` error → verify root `install:bootstrap`, package exports/types, and generated source aliases. Next uses the TS7 CLI; TanStack, shared tooling, and Expo use the TS6 JavaScript compiler API. Do not disable Next’s TypeScript CLI or downgrade its compiler.
 - `Reserved module name` → collides `api,auth,database,config,ui,...` or JS reserved or `openapi,contract,router,context,index`
 - `Invalid --preset value` / `Invalid --cache value` → allowed `saas,frontend,custom` / `redis,none` (upstash alias for redis)
 - `Cloudflare Workers does not support the generated PostgreSQL adapter` -> use `--database convex` or `--database none`, or choose Fly/Docker until a request-scoped Hyperdrive adapter exists

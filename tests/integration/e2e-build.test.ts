@@ -29,8 +29,14 @@ import {
   type CommandResult,
 } from "./e2e-build-process.js";
 import { configureNextLoopbackStart } from "./e2e-next-listener-binding.js";
+import {
+  captureNextCompilerConfig,
+  expectNextCompilerConfigUnchanged,
+  verifyNextDevelopmentConfig,
+} from "./e2e-next-config-stability.js";
 import { hasBroadWebSocketCspSource } from "./e2e-csp.js";
 import { verifyNestedProductionApiRoutes } from "./e2e-api-route-dispatch.js";
+import { verifyAuthenticatedPdfTemplates, verifyPdfNextPreload } from "./e2e-pdf-runtime.js";
 import {
   startIsolatedE2EPostgres,
   startRejectingE2EPostgresAuthentication,
@@ -42,6 +48,7 @@ interface ProductionProbeOptions {
   environmentOverrides?: Readonly<Record<string, string>>;
   isolatedPostgres?: boolean;
   messagingBoundary?: boolean;
+  pdfTemplates?: boolean;
   productionCsp?: boolean;
   publicAssetRoots?: readonly string[];
   tanstackClientEntry?: string;
@@ -229,7 +236,35 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         Date.parse(stableHealth.payload.time),
         `${label}: health route returned a stale or cached stability payload`,
       ).toBeGreaterThan(Date.parse(firstHealth.payload.time));
+      for (const path of ["/", "/sign-in"]) {
+        const page = await fetch(`${production.origin}${path}`, {
+          signal: AbortSignal.timeout(30_000),
+        });
+        expect(page.status, `${label}: ${path} renders successfully`).toBe(200);
+        expect(page.headers.get("content-type"), `${label}: ${path} is an HTML page`).toContain(
+          "text/html",
+        );
+        const html = await page.text();
+        expect(html, `${label}: ${path} includes a document`).toMatch(/<html[\s>]/i);
+        expect(html, `${label}: ${path} includes a body`).toMatch(/<body[\s>]/i);
+      }
       await verifyNestedProductionApiRoutes(production.origin);
+      if (options.pdfTemplates) {
+        await verifyAuthenticatedPdfTemplates(
+          production.origin,
+          production.environment,
+          options.messagingBoundary
+            ? async (cookie) => {
+                expect(
+                  await rawWebSocketUpgradeStatus(production.port, "/api/ws", production.origin, {
+                    Cookie: cookie,
+                  }),
+                  "Authenticated application WebSockets survive asynchronous session validation",
+                ).toBe(101);
+              }
+            : undefined,
+        );
+      }
       if (options.messagingBoundary) {
         expect(await rawWebSocketUpgradeStatus(production.port, "/api/ws", production.origin)).toBe(
           401,
@@ -361,6 +396,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       STATIC_GATE_TIMEOUT_MS,
     );
     expectCommandOk(format, `${label}: format:check`);
+    const nextCompilerConfig = captureNextCompilerConfig(projectRoot);
 
     // Keep this as an explicit lifecycle stage even though lint:all also
     // includes typecheck. The first run gives generated TypeScript failures a
@@ -382,6 +418,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       STATIC_GATE_TIMEOUT_MS,
     );
     expectCommandOk(lintAll, `${label}: lint:all`);
+    if (options.pdfTemplates) await verifyPdfNextPreload(projectRoot);
 
     const isolatedPostgres = options.isolatedPostgres
       ? await startIsolatedE2EPostgres()
@@ -403,6 +440,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       if (isolatedPostgres) {
         await pushGeneratedPostgresSchema(projectRoot, label, production.environment);
       }
+      await verifyNextDevelopmentConfig(nextCompilerConfig, production.environment);
       const build = await runCommand(
         BUN_EXECUTABLE,
         ["run", "build"],
@@ -411,6 +449,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         production.environment,
       );
       expectCommandOk(build, `${label}: production build`);
+      expectNextCompilerConfigUnchanged(nextCompilerConfig, "Next production build");
       expect(`${build.stdout}\n${build.stderr}`).not.toContain(
         "Dynamic filesystem access causes tracing of the whole project",
       );
@@ -491,6 +530,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
 
       await expectArchitectureCheck(projectRoot);
       await probeProductionOutput(projectRoot, label, production, options);
+      expectNextCompilerConfigUnchanged(nextCompilerConfig, "Next production start");
       if (isolatedPostgres) {
         await expectPostgresAuthenticationFailureIsFatal(projectRoot, label, production);
       }
@@ -604,10 +644,12 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
   );
 
   it(
-    "builds and starts a custom capability-heavy project",
+    "builds and starts single Next with Eve, messaging and server capabilities",
     async () => {
       expect(E2E_BUILD_ENABLED).toBe(true);
       const projectRoot = await createProject("custom-heavy", [
+        "--mode",
+        "single",
         "--preset",
         "custom",
         "--database",
@@ -621,6 +663,7 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         "--with-eve",
         "--with-i18n",
         "--with-pdf",
+        "--with-messaging",
         "--with-storage",
         "--with-notifications",
         "--feature-flags",
@@ -630,11 +673,12 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
         "redis",
       ]);
       await installAndVerify(projectRoot, "custom-capability-heavy", {
-        stockNextLoopback: true,
+        messagingBoundary: true,
+        pdfTemplates: true,
         environmentOverrides: E2E_REDIS_ENVIRONMENT,
         isolatedPostgres: true,
         productionCsp: true,
-        publicAssetRoots: ["apps/web/.next/static"],
+        publicAssetRoots: [".next/static"],
       });
     },
     TEST_TIMEOUT_MS,

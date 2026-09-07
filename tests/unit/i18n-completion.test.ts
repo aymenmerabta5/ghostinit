@@ -100,13 +100,13 @@ describe("completed application localization", () => {
         const magicLink = read(
           files,
           framework === "nextjs"
-            ? `${root}/app/magic-link/page.tsx`
+            ? `${root}/app/magic-link/page.client.tsx`
             : `${root}/routes/magic-link.tsx`,
         );
         const verifyEmail = read(
           files,
           framework === "nextjs"
-            ? `${root}/app/verify-email/page.tsx`
+            ? `${root}/app/verify-email/page.client.tsx`
             : `${root}/routes/verify-email.tsx`,
         );
         for (const flow of [magicLink, verifyEmail]) {
@@ -240,7 +240,7 @@ describe("completed application localization", () => {
         expect(source).toContain("pdfTextAlign");
         expect(source).toContain("pdfRowDirection");
       }
-      const web = read(files, `${sourceRoot(mode)}/app/pdf/page.tsx`);
+      const web = read(files, `${sourceRoot(mode)}/app/pdf/page.client.tsx`);
       expect(web).toContain("samplePdfData(template, t)");
       expect(web).toContain('translate("sample.invoiceItem")');
       expect(web).not.toContain('description: "Pro subscription"');

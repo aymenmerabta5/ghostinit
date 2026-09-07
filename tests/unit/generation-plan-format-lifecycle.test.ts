@@ -98,7 +98,6 @@ describe("canonical generation-plan formatting lifecycle", () => {
       const created = await runProjectInstall({
         projectName: resolved.config.name,
         projectRoot,
-        config: resolved.config,
         desiredConfig: resolved.desiredConfig,
         resolvedConfig: resolved.resolvedConfig,
         options: options(parent, true),
@@ -132,7 +131,6 @@ describe("canonical generation-plan formatting lifecycle", () => {
       await runProjectInstall({
         projectName: resolved.config.name,
         projectRoot,
-        config: resolved.config,
         desiredConfig: resolved.desiredConfig,
         resolvedConfig: resolved.resolvedConfig,
         options: options(parent, true),
@@ -165,7 +163,6 @@ describe("canonical generation-plan formatting lifecycle", () => {
           {
             projectName: resolved.config.name,
             projectRoot,
-            config: resolved.config,
             desiredConfig: resolved.desiredConfig,
             resolvedConfig: resolved.resolvedConfig,
             options: options(parent, true),
@@ -202,7 +199,6 @@ describe("canonical generation-plan formatting lifecycle", () => {
           {
             projectName: resolved.config.name,
             projectRoot,
-            config: resolved.config,
             desiredConfig: resolved.desiredConfig,
             resolvedConfig: resolved.resolvedConfig,
             options: options(parent, false),

@@ -11,6 +11,7 @@ import { notificationsApiFiles } from "./api/notifications/index.js";
 import { apiRateLimitContent } from "./api/rate-limit.js";
 import { storageApiFiles } from "./api/storage/index.js";
 import { orpcRequestSecurityContent } from "./api/request-security.js";
+import { currentRequestSchemaContent } from "./api/current-request-schema.js";
 
 export interface ApiCapabilitySelection {
   auth?: boolean;
@@ -864,20 +865,7 @@ const contract = {
   me: oc
     .route({ method: "GET", path: "/me" })
     .output(
-      z.object({
-        user: z
-          .object({
-            id: z.string(),
-            email: z.string(),
-            name: z.string().nullable(),
-            role: z.string().nullable(),
-            banned: z.boolean(),
-          })
-          .nullable(),
-        sessionId: z.string().nullable(),
-        activeOrganizationId: z.string().nullable(),
-        activeTeamId: z.string().nullable(),
-      }),
+${currentRequestSchemaContent(6)},
     ),
 };
 

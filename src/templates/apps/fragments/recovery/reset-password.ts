@@ -60,7 +60,7 @@ function ResetPasswordInner(): React.JSX.Element {
     <div className="flex w-full max-w-[420px] flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>{t("resetPassword.title")}</CardTitle>
+          <CardTitle as="h1">{t("resetPassword.title")}</CardTitle>
           <CardDescription>{t("resetPassword.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
@@ -96,7 +96,7 @@ export default function ResetPasswordPage(): React.JSX.Element {
   const t = useSurfaceTranslations("recovery");
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Suspense fallback={<div className="w-full max-w-[420px]"><Card><CardHeader><CardTitle>{t("resetPassword.title")}</CardTitle><CardDescription>{t("resetPassword.loading")}</CardDescription></CardHeader></Card></div>}>
+      <Suspense fallback={<div className="w-full max-w-[420px]"><Card><CardHeader><CardTitle as="h1">{t("resetPassword.title")}</CardTitle><CardDescription>{t("resetPassword.loading")}</CardDescription></CardHeader></Card></div>}>
         <ResetPasswordInner />
       </Suspense>
     </main>
@@ -166,7 +166,7 @@ function ResetPasswordPage(): React.JSX.Element {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background p-6">
         <Card className="w-full max-w-[420px]">
-          <CardHeader><CardTitle className="text-2xl tracking-tight">{t("resetPassword.invalidLinkTitle")}</CardTitle><CardDescription className="max-w-[60ch]">{t("resetPassword.invalidLinkDescription")}</CardDescription></CardHeader>
+          <CardHeader><CardTitle as="h1" className="text-2xl tracking-tight">{t("resetPassword.invalidLinkTitle")}</CardTitle><CardDescription className="max-w-[60ch]">{t("resetPassword.invalidLinkDescription")}</CardDescription></CardHeader>
           <CardContent><Button render={<Link to="/forgot-password" />} nativeButton={false}>{t("resetPassword.requestNewLink")}</Button></CardContent>
         </Card>
       </main>
@@ -178,7 +178,7 @@ function ResetPasswordPage(): React.JSX.Element {
       <div className="flex w-full max-w-[420px] flex-col gap-6">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("resetPassword.backHome")}</Link>
         <Card>
-          <CardHeader className="gap-2"><CardTitle className="text-2xl tracking-tight">{t("resetPassword.title")}</CardTitle><CardDescription className="max-w-[60ch]">{t("resetPassword.description")}</CardDescription></CardHeader>
+          <CardHeader className="gap-2"><CardTitle as="h1" className="text-2xl tracking-tight">{t("resetPassword.title")}</CardTitle><CardDescription className="max-w-[60ch]">{t("resetPassword.description")}</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-6">
             {error ? <Alert variant="destructive"><AlertTitle>{t("resetPassword.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
             <form.AppForm>

@@ -10,8 +10,10 @@ export function billingPresentationContent(
 ): string {
   const hookImport = router === "tanstack" ? "./use-billing" : "@/app/billing/hooks/use-billing.js";
   const hasPaymentLinks = router === "tanstack" && selected.includes("chargily");
+  const hasSnapshotState = router === "tanstack";
   return `"use client";
 import * as React from "react";
+${hasSnapshotState ? 'import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";' : ""}
 import { Separator } from "@/components/ui/separator";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +29,8 @@ ${hasPaymentLinks ? 'import { BillingPaymentLinkForm } from "./payment-link-form
 
 function BillingContent(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
-  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal } = useBillingPage();
+  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal${hasSnapshotState ? ", snapshotError, refresh" : ""} } = useBillingPage();
+${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransition();" : ""}
   const hasSubs = subscriptions.length > 0;
   return (
     <div className="flex flex-col gap-6">
@@ -36,14 +39,15 @@ function BillingContent(): React.JSX.Element {
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <p className="text-sm text-muted-foreground max-w-[65ch]">{t("description")}</p>
         </div>
-        <Badge variant={pastDue ? "destructive" : hasSubs ? "secondary" : "outline"}>{pastDue ? t("paymentPastDue") : hasSubs ? t("activeSubscriptions", { count: subscriptions.length }) : t("noSubscriptionsBadge")}</Badge>
+        {!subsLoading${hasSnapshotState ? " && !snapshotError" : ""} ? <Badge variant={pastDue ? "destructive" : hasSubs ? "secondary" : "outline"}>{pastDue ? t("paymentPastDue") : hasSubs ? t("activeSubscriptions", { count: subscriptions.length }) : t("noSubscriptionsBadge")}</Badge> : null}
       </div>
       <Separator />
+      ${hasSnapshotState ? '{snapshotError ? <Alert variant="destructive" role="alert"><AlertTitle>{t("dataUnavailable")}</AlertTitle><AlertDescription><Button type="button" size="sm" variant="outline" disabled={refreshPending} aria-busy={refreshPending} onClick={() => startRefresh(async () => { await refresh(); })}>{t("refresh")}</Button></AlertDescription></Alert> : null}' : ""}
       <BillingEmptyState disabled={isCheckoutLoading} onCheckout={handleCheckout} />
       ${hasPaymentLinks ? '<BillingPaymentLinkForm provider="chargily" />' : ""}
       {subsLoading ? <div className="flex flex-col gap-3" aria-label={t("loadingSubscriptions")}><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : (
         <div className="grid gap-4">
-          <Card>
+          ${hasSnapshotState ? "{!snapshotError || hasSubs ? (" : ""}<Card>
             <CardHeader><CardTitle className="text-base">{t("subscriptions")}</CardTitle><CardDescription>{t("configuredProviders")}</CardDescription></CardHeader>
             <CardContent className="flex flex-col gap-2">
               {subscriptions.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noSubscriptionsTitle")}</EmptyTitle><EmptyDescription>{t("noSubscriptionsDescription")}</EmptyDescription></EmptyHeader></Empty> : subscriptions.map((subscription) => (
@@ -53,8 +57,8 @@ function BillingContent(): React.JSX.Element {
                 </div>
               ))}
             </CardContent>
-          </Card>
-          <BillingInvoices invoices={invoices} />
+          </Card>${hasSnapshotState ? ") : null}" : ""}
+          ${hasSnapshotState ? "{!snapshotError || invoices.length > 0 ? " : ""}<BillingInvoices invoices={invoices} />${hasSnapshotState ? " : null}" : ""}
         </div>
       )}
     </div>

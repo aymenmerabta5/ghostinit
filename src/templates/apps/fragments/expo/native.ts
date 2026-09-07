@@ -1,13 +1,46 @@
-/**
- * Expo push notifications fragment — usePushNotifications hook
- * Wraps expo-notifications with permission handling and token registration
- */
+import { queryAuthStateContent } from "../lib/query-client.js";
 
 export function expoNativeQueryClientContent(): string {
   return `import { QueryClient } from "@tanstack/react-query";
+import type { Persister } from "@tanstack/query-persist-client-core";
 
 const STALE_TIME_MS = 30_000;
 const CACHE_TIME_MS = 24 * 60 * 60 * 1_000;
+
+${queryAuthStateContent()}
+
+export interface NativeQueryRestore {
+  queryClient: QueryClient;
+  cacheScope: string;
+  generation: number;
+}
+
+export function isNativeQueryRestoreComplete(
+  restored: NativeQueryRestore | null,
+  queryClient: QueryClient,
+  cacheScope: string | null,
+): boolean {
+  return cacheScope !== null && restored?.queryClient === queryClient && restored.cacheScope === cacheScope && restored.generation === currentQueryAuthGeneration(queryClient);
+}
+
+export function nativeQueryCacheScope(scope: QueryAuthScope | null): string {
+  return queryAuthScopeSignature(scope);
+}
+
+export function cancellableQueryPersister(persister: Persister) {
+  let active = true;
+  return {
+    isActive: () => active,
+    cancel: () => { active = false; },
+    persister: {
+      ...persister,
+      restoreClient: async () => {
+        const persisted = await persister.restoreClient();
+        return active ? persisted : undefined;
+      },
+    } satisfies Persister,
+  };
+}
 
 function shouldRetry(failureCount: number, error: unknown): boolean {
   if (failureCount >= 2) return false;
@@ -135,13 +168,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 import { persistQueryClient } from "@tanstack/query-persist-client-core";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import { cancellableQueryPersister, currentQueryAuthGeneration, invalidateQueryAuthScope, isNativeQueryRestoreComplete, type NativeQueryRestore } from "@/lib/query-client";
 
 export function useOfflineSync(
   queryClient: QueryClient,
   cacheScope: string | null,
-): { isOnline: boolean } {
+): { isOnline: boolean; isRestoring: boolean } {
   const [isOnline, setIsOnline] = React.useState(true);
-  const previousScope = React.useRef<string | null>(null);
+  const [restored, setRestored] = React.useState<NativeQueryRestore | null>(null);
 
   React.useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -154,26 +188,28 @@ export function useOfflineSync(
 
   React.useEffect(() => {
     if (!cacheScope) return;
-    if (previousScope.current && previousScope.current !== cacheScope) queryClient.clear();
-    previousScope.current = cacheScope;
-    const persister = createAsyncStoragePersister({
+    const persistence = cancellableQueryPersister(createAsyncStoragePersister({
       storage: AsyncStorage,
-    });
+      key: "ghostinit-query-cache:" + cacheScope,
+    }));
     const [unsubscribe, restorePromise] = persistQueryClient({
       queryClient,
-      persister,
-      // Never restore one account's authenticated server state into another
-      // account (or the signed-out shell) on a shared device.
+      persister: persistence.persister,
       buster: cacheScope,
       maxAge: 1000 * 60 * 60 * 24,
+      dehydrateOptions: { shouldDehydrateQuery: (query) => query.state.status === "success" && query.queryKey[0] !== "__ghostinit" },
     });
     void restorePromise.catch((error: unknown) => {
       console.warn("[offline] Query cache restore failed", error);
-    });
-    return unsubscribe;
+    }).finally(() => { if (persistence.isActive()) setRestored({ queryClient, cacheScope, generation: currentQueryAuthGeneration(queryClient) }); });
+    return () => {
+      persistence.cancel();
+      unsubscribe();
+      invalidateQueryAuthScope(queryClient);
+    };
   }, [cacheScope, queryClient]);
 
-  return { isOnline };
+  return { isOnline, isRestoring: !isNativeQueryRestoreComplete(restored, queryClient, cacheScope) };
 }
 `;
 }

@@ -82,13 +82,3 @@ export function useAdminUsers(initialData?: AdminUsersInitialData) {
 export function adminUsersHook(options: AdminTemplateOptions): TemplateFile {
   return file(`${adminFeatureRoot(options)}/hooks/use-admin-users.ts`, hookContent());
 }
-
-/** @deprecated Use adminUsersHook with explicit template options. */
-export function useAdminUsersHook(): TemplateFile {
-  return adminUsersHook({
-    database: "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
-}

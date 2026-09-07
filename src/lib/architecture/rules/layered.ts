@@ -2,7 +2,7 @@
  * Six-layer dependency evaluation over a single resolved edge.
  *
  * The policy matrix and classifiers live in layer-policy.ts. This module owns
- * diagnostics and the few deliberate, structural GhostInit exceptions.
+ * diagnostics and platform presentation boundaries.
  */
 
 import type { ArchitectureFinding, ImportKind, LayerInfo } from "../types.js";
@@ -41,10 +41,6 @@ export function checkLayeredDependency(
   }
 
   if (!targetLayer) return;
-  if (isSameBoundedContextApplicationToDomain(file, resolvedTarget, sourceLayer, targetLayer)) {
-    return;
-  }
-
   if (
     isDesktopRenderer(file) &&
     sourceLayer.name === "UI" &&
@@ -84,18 +80,6 @@ function isDesktopRenderer(file: string): boolean {
   return (
     /\/apps\/desktop\/src\/renderer\//.test(normalized) || normalized.startsWith("/src/renderer/")
   );
-}
-
-function isSameBoundedContextApplicationToDomain(
-  source: string,
-  target: string | undefined,
-  sourceLayer: LayerInfo,
-  targetLayer: LayerInfo,
-): boolean {
-  if (!target || sourceLayer.name !== "Application" || targetLayer.name !== "Domain") return false;
-  const sourceMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(`/${source.replace(/\\/g, "/")}`);
-  const targetMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(`/${target.replace(/\\/g, "/")}`);
-  return Boolean(sourceMatch?.[1] && sourceMatch[1] === targetMatch?.[1]);
 }
 
 function isForbiddenFeatureDependency(

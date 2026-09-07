@@ -9,11 +9,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { runtime } from "../../packages/versions/src/index.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { FsTransaction } from "../../src/lib/fs.js";
+import { redact } from "../../src/lib/logger.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
 import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwright-cli.js";
 import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
 import { ProcessTreeTerminationError, terminateProcessTree } from "../helpers/process-tree.js";
+import { startIsolatedE2EPostgres, type E2EPostgresRuntime } from "./e2e-postgres.js";
 
 interface RunningServer {
   kind: BrowserTargetKind;
@@ -160,6 +162,12 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
 }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
+  const failedResponses: string[] = [];
+  page.on("response", (response) => {
+    if (response.status() >= 400) {
+      failedResponses.push(String(response.status()) + " " + new URL(response.url()).pathname);
+    }
+  });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -177,17 +185,19 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
       " url=" + page.url() + " body=" + (await page.locator("body").innerText()).slice(0, 2_000),
     );
   }
-  if (await page.getByTestId("hydration-state").count() === 0) {
+  try {
+    await expect(page.getByTestId("hydration-state")).toHaveText("ready", { timeout: 30_000 });
+  } catch {
     throw new Error(
-      "Primitive fixture marker is missing: title=" + (await page.title()) +
+      "Primitive fixture did not finish authenticated hydration: title=" + (await page.title()) +
       " body=" + (await page.locator("body").innerText()).slice(0, 4_000) +
       " pageErrors=" + JSON.stringify(pageErrors) +
-      " consoleErrors=" + JSON.stringify(consoleErrors),
+      " consoleErrors=" + JSON.stringify(consoleErrors) +
+      " failedResponses=" + JSON.stringify(failedResponses),
     );
   }
-  await expect(page.getByTestId("hydration-state")).toHaveText("ready", { timeout: 30_000 });
   expect(pageErrors).toEqual([]);
-  expect(consoleErrors).toEqual([]);
+  expect(consoleErrors, JSON.stringify(failedResponses)).toEqual([]);
 
   const nameInput = page.getByLabel("Name");
   await page.locator('label[for="name"]').click();
@@ -250,7 +260,7 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
   await disabledReveal.click({ force: true });
   await expect(disabledPassword).toHaveAttribute("type", "password");
   expect(pageErrors).toEqual([]);
-  expect(consoleErrors).toEqual([]);
+  expect(consoleErrors, JSON.stringify(failedResponses)).toEqual([]);
 });
 `;
 
@@ -505,6 +515,7 @@ describe("generated web primitive interactions", () => {
     const targets: BrowserTarget[] = [];
     const servers = new Map<string, RunningServer>();
     const rootRemovalAllowed = new Map(roots.map((root) => [root, true]));
+    let postgres: E2EPostgresRuntime | undefined;
     let operationError: unknown;
     try {
       for (const [index, kind] of (["next-monorepo", "single-tanstack"] as const).entries()) {
@@ -537,6 +548,16 @@ describe("generated web primitive interactions", () => {
         existsSync(join(nextTarget.appRoot, "node_modules", "@playwright", "test", "package.json")),
       ).toBe(true);
 
+      await runStage("next-monorepo isolated PostgreSQL", async () => {
+        postgres = await startIsolatedE2EPostgres();
+        nextTarget.env = { ...nextTarget.env, ...postgres.environment };
+        await runBun(
+          nextTarget.root,
+          ["run", "--cwd", "packages/database", "db:push"],
+          nextTarget.env,
+        );
+      });
+
       for (const target of targets) {
         if (target.kind === "single-tanstack") {
           await runStage("single-tanstack route generation", () =>
@@ -567,7 +588,19 @@ describe("generated web primitive interactions", () => {
       if (error instanceof ProcessTreeTerminationError) {
         for (const root of servers.keys()) rootRemovalAllowed.set(root, false);
       }
-      operationError = error;
+      const diagnostics = [...servers.values()]
+        .map(
+          (server) =>
+            `${server.kind} server diagnostics:\n${server.stdout().slice(-12_000)}\n${server.stderr().slice(-12_000)}`,
+        )
+        .join("\n");
+      operationError = diagnostics
+        ? new Error(
+            String(
+              redact(`${error instanceof Error ? error.message : String(error)}\n${diagnostics}`),
+            ),
+          )
+        : error;
     }
 
     let cleanupError: unknown;
@@ -576,6 +609,13 @@ describe("generated web primitive interactions", () => {
         await runStage("server process-tree termination", () => terminateProcessTree(server.child));
       } catch (error) {
         rootRemovalAllowed.set(root, false);
+        cleanupError ??= error;
+      }
+    }
+    if (postgres) {
+      try {
+        await runStage("isolated PostgreSQL shutdown", () => postgres.close());
+      } catch (error) {
         cleanupError ??= error;
       }
     }

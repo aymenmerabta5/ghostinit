@@ -41,7 +41,7 @@ export function useTwoFactorSettings() {
     validators: { onSubmit: createTotpSchema(t("validation.codeSixDigits")) },
     onSubmit: async ({ value }) => {
       setError(null);
-      const result = await identityClient.verifyTwoFactor({ code: value.code, trustDevice: true });
+      const result = await identityClient.verifyTwoFactor({ code: value.code, trustDevice: false });
       if (result.error) {
         setError(result.error.message ?? t("errors.invalidCode"));
         return;

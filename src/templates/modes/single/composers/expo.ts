@@ -1,5 +1,6 @@
 // @allow-long 667: single-mode Expo composition keeps capability closure and flat-path ownership together
 import { file, type TemplateFile } from "../../../shared.js";
+import { nativeQueryRegressionFile } from "../../../apps/fragments/expo/query-tests.js";
 import { authRouteBoundaryCode } from "../../../apps/fragments/api/auth-boundary.js";
 import { singleKernelTypesContent } from "../fragments/kernel.js";
 import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
@@ -20,6 +21,7 @@ import {
   expoEnvDtsContent,
 } from "../../../apps/expo-core.js";
 import { expoRootLayoutContent } from "../../../apps/fragments/expo/layout.js";
+import { canonicalQueryAuthHookContent } from "../../../apps/fragments/query-auth.js";
 import { expoDashboardPageContent } from "../../../apps/expo-pages.js";
 import {
   expoFullSettingsContent,
@@ -676,7 +678,11 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
     );
   }
   files.push(file("src/lib/query-client.ts", expoNativeQueryClientContent()));
+  files.push(nativeQueryRegressionFile(""));
   files.push(file("src/hooks/use-offline.ts", expoOfflineHookContent()));
+  if (hasAuth && hasApi) {
+    files.push(file("src/lib/query-auth-scope.ts", canonicalQueryAuthHookContent()));
+  }
   if (hasAnalytics) files.push(expoAnalyticsFile("single"));
   if (hasEveClient) {
     files.push(

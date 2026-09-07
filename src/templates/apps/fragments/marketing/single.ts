@@ -2,6 +2,22 @@
 import * as v from "../../../versions.js";
 import type { RouterType } from "./shared.js";
 
+export interface SingleMarketingOptions {
+  readonly hasAuth: boolean;
+  readonly hasApi: boolean;
+  readonly hasBilling: boolean;
+  readonly hasEve: boolean;
+  readonly database: "postgres" | "convex" | "none";
+}
+
+const NO_CAPABILITIES: SingleMarketingOptions = {
+  hasAuth: false,
+  hasApi: false,
+  hasBilling: false,
+  hasEve: false,
+  database: "none",
+};
+
 export function singleMarketingPageContent(router: RouterType): string {
   const route =
     router === "tanstack"
@@ -34,9 +50,13 @@ ${router === "tanstack" ? route.split("\n\n").slice(1).join("\n\n") : route}
 `;
 }
 
-export function singleMarketingHeroComponentContent(router: RouterType): string {
-  const linkImport =
-    router === "next"
+export function singleMarketingHeroComponentContent(
+  router: RouterType,
+  options: SingleMarketingOptions = NO_CAPABILITIES,
+): string {
+  const linkImport = !options.hasAuth
+    ? ""
+    : router === "next"
       ? 'import Link from "next/link";'
       : 'import { Link } from "@tanstack/react-router";';
   const eyebrow = router === "next" ? "single.eyebrowNext" : "single.eyebrowTanstack";
@@ -48,6 +68,22 @@ export function singleMarketingHeroComponentContent(router: RouterType): string 
     router === "next"
       ? `Next ${v.nextStack.next}`
       : `TanStack Start ${v.tanstackStart["@tanstack/react-start"]}`;
+  const actions = options.hasAuth
+    ? `<Button size="lg" render={${signUpLink}} nativeButton={false}>{t("single.startBuilding")}</Button>
+        <Button size="lg" variant="outline" render={${signInLink}} nativeButton={false}>{t("single.signIn")}</Button>`
+    : `<Button size="lg" render={<a href="#quick-start" />} nativeButton={false}>{t("single.quickStartTitle")}</Button>`;
+  const databaseBadge =
+    options.database === "postgres"
+      ? `Drizzle ${v.database["drizzle-orm"]}`
+      : options.database === "convex"
+        ? `Convex ${v.convex.convex}`
+        : null;
+  const selectedBadges = [
+    ...(databaseBadge ? [databaseBadge] : []),
+    ...(options.hasAuth ? [`Better Auth ${v.auth["better-auth"]}`] : []),
+  ]
+    .map((label) => `<Badge variant="outline" className="font-mono text-xs">${label}</Badge>`)
+    .join("\n        ");
 
   return `"use client";
 
@@ -67,14 +103,12 @@ export function SingleMarketingHero(): React.JSX.Element {
         <p className="max-w-[65ch] text-lg leading-relaxed text-muted-foreground">{t("${description}")}</p>
       </div>
       <div className="flex flex-wrap gap-3">
-        <Button size="lg" render={${signUpLink}} nativeButton={false}>{t("single.startBuilding")}</Button>
-        <Button size="lg" variant="outline" render={${signInLink}} nativeButton={false}>{t("single.signIn")}</Button>
+        ${actions}
       </div>
       <div className="flex flex-wrap gap-2 pt-2">
         <Badge variant="outline" className="font-mono text-xs">${stackBadge}</Badge>
         <Badge variant="outline" className="font-mono text-xs">React ${v.nextStack.react}</Badge>
-        <Badge variant="outline" className="font-mono text-xs">Drizzle ${v.database["drizzle-orm"]}</Badge>
-        <Badge variant="outline" className="font-mono text-xs">Better Auth ${v.auth["better-auth"]}</Badge>
+        ${selectedBadges}
       </div>
     </section>
   );
@@ -82,9 +116,38 @@ export function SingleMarketingHero(): React.JSX.Element {
 `;
 }
 
-export function singleMarketingFeaturesComponentContent(router: RouterType): string {
+export function singleMarketingFeaturesComponentContent(
+  router: RouterType,
+  options: SingleMarketingOptions = NO_CAPABILITIES,
+): string {
   const framework = router === "next" ? "Next" : "Tanstack";
   const sourceBadge = router === "next" ? "src/app" : "src/routes";
+  const directories = [
+    sourceBadge,
+    "src/components",
+    ...(options.hasApi || options.hasAuth || options.database !== "none" ? ["src/server"] : []),
+    ...(options.hasEve ? ["agent/"] : []),
+  ]
+    .map((path) => `<Badge variant="secondary">${path}</Badge>`)
+    .join("");
+  const hasOptionalCard = options.hasAuth || options.hasBilling;
+  const tokensSpan = options.hasAuth && options.hasBilling ? 7 : hasOptionalCard ? 12 : 6;
+  const authCard = options.hasAuth
+    ? `<Card className="md:col-span-5">
+          <CardHeader>
+            <CardTitle className="text-base">{t("single.authTitle")}</CardTitle>
+            <CardDescription>{t("single.authDescription${framework}")}</CardDescription>
+          </CardHeader>
+        </Card>`
+    : "";
+  const billingCard = options.hasBilling
+    ? `<Card className="md:col-span-5">
+          <CardHeader>
+            <CardTitle className="text-base">{t("single.billingTitle")}</CardTitle>
+            <CardDescription>{t("single.billingDescription")}</CardDescription>
+          </CardHeader>
+        </Card>`
+    : "";
   return `"use client";
 
 import type * as React from "react";
@@ -101,27 +164,16 @@ export function SingleMarketingFeatures(): React.JSX.Element {
         <p className="max-w-[60ch] text-sm text-muted-foreground">{t("single.whyDescription${framework}")}</p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-        <Card className="md:col-span-7">
+        <Card className="md:col-span-${hasOptionalCard ? 7 : 6}">
           <CardHeader>
             <CardTitle className="text-base">{t("single.flatTitle")}</CardTitle>
             <CardDescription className="max-w-[60ch]">{t("single.flatDescription${framework}")}</CardDescription>
           </CardHeader>
-          <CardContent><div className="flex flex-wrap gap-2"><Badge variant="secondary">${sourceBadge}</Badge><Badge variant="secondary">src/server</Badge><Badge variant="secondary">agent/</Badge></div></CardContent>
+          <CardContent><div className="flex flex-wrap gap-2">${directories}</div></CardContent>
         </Card>
-        <Card className="md:col-span-5">
-          <CardHeader>
-            <CardTitle className="text-base">{t("single.authTitle")}</CardTitle>
-            <CardDescription>{t("single.authDescription${framework}")}</CardDescription>
-          </CardHeader>
-          <CardContent><p className="font-mono text-xs text-muted-foreground">authClient.signIn.email callbackURL /dashboard</p></CardContent>
-        </Card>
-        <Card className="md:col-span-5">
-          <CardHeader>
-            <CardTitle className="text-base">{t("single.billingTitle")}</CardTitle>
-            <CardDescription>{t("single.billingDescription")}</CardDescription>
-          </CardHeader>
-        </Card>
-        <Card className="md:col-span-7">
+        ${authCard}
+        ${billingCard}
+        <Card className="md:col-span-${tokensSpan}">
           <CardHeader>
             <CardTitle className="text-base">{t("single.tokensTitle")}</CardTitle>
             <CardDescription className="max-w-[60ch]">{t("single.tokensDescription")}</CardDescription>
@@ -139,26 +191,25 @@ export function SingleMarketingFeatures(): React.JSX.Element {
 
 export function singleMarketingClosingComponentContent(
   router: RouterType,
-  hasBilling = true,
+  options: SingleMarketingOptions = NO_CAPABILITIES,
 ): string {
   const framework = router === "next" ? "Next" : "Tanstack";
-  const command =
-    router === "next"
-      ? "bunx ghostinit create __PROJECT_NAME__ --mode single"
-      : "bunx ghostinit create __PROJECT_NAME__ --mode single --framework tanstack-start";
-  const signInLink =
-    router === "next"
+  const signInLink = !options.hasAuth
+    ? ""
+    : router === "next"
       ? '<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("single.footerSignIn")}</Link>'
       : '<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("single.footerSignIn")}</Link>';
-  const destinationLink = !hasBilling
+  const destinationLink = !options.hasBilling
     ? ""
     : router === "next"
       ? '<Link href="/billing" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("single.footerBilling")}</Link>'
       : '<Link to="/billing" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("single.footerBilling")}</Link>';
   const linkImport =
-    router === "next"
-      ? 'import Link from "next/link";'
-      : 'import { Link } from "@tanstack/react-router";';
+    !options.hasAuth && !options.hasBilling
+      ? ""
+      : router === "next"
+        ? 'import Link from "next/link";'
+        : 'import { Link } from "@tanstack/react-router";';
 
   return `"use client";
 
@@ -170,15 +221,17 @@ export function SingleMarketingClosing(): React.JSX.Element {
   const t = useSurfaceTranslations("marketing");
   return (
     <>
-      <section className="flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-sm md:p-8">
+      <section id="quick-start" className="flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-sm md:p-8">
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-semibold tracking-tight">{t("single.quickStartTitle")}</h2>
           <p className="max-w-[65ch] text-sm text-muted-foreground">{t("single.quickStartDescription${framework}")}</p>
         </div>
         <div className="rounded-md bg-muted p-4 font-mono text-xs leading-relaxed">
-          <div>${command}</div>
-          <div className="text-muted-foreground">cd __PROJECT_NAME__ &amp;&amp; bun install &amp;&amp; bun run dev</div>
+          <div>cd __PROJECT_NAME__</div>
+          <div>bun run install:bootstrap</div>
+          <div>bun run dev</div>
         </div>
+        <p className="text-sm text-muted-foreground">{t("single.quickStartServices")}</p>
       </section>
       <footer className="flex flex-col gap-4 border-t pt-8">
         <div className="flex items-center justify-between gap-4">

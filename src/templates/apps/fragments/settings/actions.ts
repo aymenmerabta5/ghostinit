@@ -38,16 +38,6 @@ export async function updateProfileAction(input: unknown): Promise<ActionResult>
   } catch { return { ok: false, error: "Profile could not be updated" }; }
 }
 
-export async function changePasswordAction(input: unknown): Promise<ActionResult> {
-  const parsed = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(8).max(64) }).safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Invalid password input" };
-  try {
-    await auth.api.changePassword({ headers: await headers(), body: { ...parsed.data, revokeOtherSessions: true } });
-    revalidatePath("/settings");
-    return { ok: true };
-  } catch { return { ok: false, error: "Password could not be updated" }; }
-}
-
 export async function deleteAccountAction(input: unknown): Promise<ActionResult> {
   const parsed = z.object({ password: z.string().optional() }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid account deletion input" };

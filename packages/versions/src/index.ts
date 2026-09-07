@@ -190,6 +190,7 @@ export const testing = {
 export const eve = {
   eve: "0.44.4",
   ai: "7.0.79",
+  "just-bash": "3.4.2",
   "@vercel/connect": "1.0.0",
 } as const;
 
@@ -230,22 +231,6 @@ export const electron = {
   "electron-builder": "26.15.7",
   "electron-updater": "6.8.9",
   "electron-store": "11.0.2",
-} as const;
-
-/**
- * @deprecated - DEPRECATED: Elysia removed, pure oRPC only.
- * Kept for backwards compatibility / reference, not emitted in templates.
- * File src/templates/backend/elysia.ts returns [] and is not used by monorepoFiles/singleFiles.
- * Spec non-negotiable oRPC contract-first, no websocket double RPC duplication treaty<App> vs @orpc/client.
- * Raw body webhooks handled via Next.js route handlers (single port) Buffer.from(await request.arrayBuffer()).
- * Catalog still spreads ...backend for backwards compat but consumers should NOT use elysia.
- * If you need to remove from bundle size, filter backend out of catalog in your own fork.
- * Pure oRPC transport is the supported architecture; Elysia is intentionally absent.
- */
-export const backend = {
-  elysia: "1.4.29",
-  "@elysiajs/cors": "1.4.2",
-  "@elysiajs/swagger": "1.3.1",
 } as const;
 
 export const i18n = {
@@ -347,7 +332,6 @@ export const catalog = {
   ...email,
   ...cache,
   ...electron,
-  ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
   ...pdf,
   ...interactive,

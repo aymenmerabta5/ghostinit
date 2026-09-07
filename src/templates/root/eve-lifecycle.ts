@@ -1,5 +1,6 @@
 import { file, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
+import { developmentProcessSupervisorContent } from "./process-supervisor.js";
 
 interface IntegratedEveProfile {
   readonly mode?: "monorepo" | "single";
@@ -87,8 +88,8 @@ const WEB_OUTPUT = resolve(ROOT, ".output");
 const EVE_OUTPUT = resolve(ROOT, ".eve", "runtime-output");
 const VITE_CONFIG = resolve(ROOT, "vite.config.ts");
 const command = process.argv[2];
-if (command !== "build" && command !== "dev" && command !== "start") {
-  throw new Error("Expected Eve command build, dev, or start");
+if (command !== "build" && command !== "start") {
+  throw new Error("Expected Eve command build or start");
 }
 
 function assertInsideRoot(path) {
@@ -98,8 +99,8 @@ function assertInsideRoot(path) {
   }
 }
 
-function run(args, env = process.env) {
-  const result = spawnSync(process.execPath, args, {
+function run(args, env = process.env, executable = process.execPath) {
+  const result = spawnSync(executable, args, {
     cwd: ROOT,
     env,
     shell: false,
@@ -111,14 +112,10 @@ function run(args, env = process.env) {
 }
 
 const eveEnvironment = { ...process.env, GHOSTINIT_EVE_RUNTIME: "1" };
-if (command === "dev") {
-  run(["x", "--no-install", "eve", "dev", "--host", "127.0.0.1", "--port", process.env.EVE_NEXT_PRODUCTION_PORT || "4274"], eveEnvironment);
-  process.exit(0);
-}
 if (command === "start") {
   const entrypoint = resolve(EVE_OUTPUT, "server", "index.mjs");
   if (!existsSync(entrypoint)) throw new Error("Run bun run eve:build before starting Eve");
-  run([entrypoint], eveEnvironment);
+  run([entrypoint], eveEnvironment, "node");
   process.exit(0);
 }
 
@@ -163,6 +160,33 @@ if (!built) process.exit(1);
 `;
 }
 
+function eveDevelopmentCommandContent(profile: IntegratedEveProfile): string {
+  const applicationRoot = profile.mode === "single" ? "../" : "../apps/eve/";
+  return `import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+if (typeof Bun !== "undefined") throw new Error("Eve's development worker requires Node.js");
+const appRoot = fileURLToPath(new URL(${JSON.stringify(applicationRoot)}, import.meta.url));
+const require = createRequire(pathToFileURL(join(appRoot, "package.json")));
+const cli = join(dirname(require.resolve("eve/package.json")), "bin", "eve.js");
+const port = process.env.EVE_NEXT_PRODUCTION_PORT?.trim() || "4274";
+if (!/^[1-9]\\d{0,4}$/.test(port) || Number(port) > 65535) {
+  throw new Error("EVE_NEXT_PRODUCTION_PORT must be an integer between 1 and 65535");
+}
+const result = spawnSync(process.execPath, [cli, "dev", "--no-ui", "--host", "127.0.0.1", "--port", port], {
+  cwd: appRoot,
+  env: { ...process.env, NODE_ENV: "development", GHOSTINIT_EVE_RUNTIME: "1" },
+  shell: false,
+  stdio: "inherit",
+  windowsHide: true,
+});
+if (result.error) throw result.error;
+process.exitCode = result.status ?? 1;
+`;
+}
+
 function selfHostingGuide(profile: IntegratedEveProfile): string {
   const appRoot = eveApplicationRoot(profile);
   const workflowPath =
@@ -178,7 +202,8 @@ ${integration}
 
 ## Build and process ownership
 
-- \`bun run dev\` uses the framework development topology; TanStack Start runs \`bun run eve:dev\` as its private companion process.
+- \`bun run dev\` supervises Next.js and its private Eve companion together. TanStack Start runs \`bun run eve:dev\` separately.
+- Eve runs on Node.js ${v.runtime.node} in development and production; the web app keeps its selected execution runtime. Next receives the development companion's loopback origin through \`EVE_BASE_URL\` and does not start a second Eve process.
 - \`bun run build\` builds Eve before ${framework}. On Vercel, Next/\`withEve\` owns the generated service build.
 - \`bun run start\` loads the local root environment and delegates to the hardened production supervisor. Injected production environments use \`bun run start:production\` directly when no \`.env.local\` exists.
 - The supervisor starts exactly one web process and one loopback Eve process, validates distinct ports, waits for both listeners, and propagates failure and shutdown to both trees.
@@ -207,6 +232,19 @@ export function integratedEveLifecycleFiles(
   if (!hasHostedWebEve(profile)) return [];
   return [
     file("scripts/build-with-eve.mjs", buildWithEveContent(projectName, profile)),
+    file("scripts/eve-dev.mjs", eveDevelopmentCommandContent(profile)),
+    ...(hasIntegratedNextEve(profile)
+      ? [
+          file(
+            profile.mode === "single"
+              ? "scripts/start-development.mjs"
+              : "apps/web/scripts/start-development.mjs",
+            developmentProcessSupervisorContent(["eve:dev", "dev:web"], {
+              hostedEve: { eveScript: "eve:dev", webScript: "dev:web" },
+            }),
+          ),
+        ]
+      : []),
     ...(profile.mode === "single" && profile.framework === "tanstack-start"
       ? [file("scripts/eve-command.mjs", singleTanStackEveCommandContent())]
       : []),

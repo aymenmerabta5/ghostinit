@@ -3,30 +3,14 @@
  * Now factory is single source of truth, provider files delegate to it.
  */
 
-export {
-  stripeWebhookFiles,
-  stripeWebhookMonorepo,
-  stripeWebhookSingle,
-  stripeWebhookLegacyContent,
-} from "./stripe.js";
+export { stripeWebhookFiles, stripeWebhookMonorepo, stripeWebhookSingle } from "./stripe.js";
 export {
   chargilyWebhookFiles,
   chargilyWebhookMonorepo,
   chargilyWebhookSingle,
-  chargilyWebhookLegacyContent,
 } from "./chargily.js";
-export {
-  paddleWebhookFiles,
-  paddleWebhookMonorepo,
-  paddleWebhookSingle,
-  paddleWebhookLegacyContent,
-} from "./paddle.js";
-export {
-  polarWebhookFiles,
-  polarWebhookMonorepo,
-  polarWebhookSingle,
-  polarWebhookLegacyContent,
-} from "./polar.js";
+export { paddleWebhookFiles, paddleWebhookMonorepo, paddleWebhookSingle } from "./paddle.js";
+export { polarWebhookFiles, polarWebhookMonorepo, polarWebhookSingle } from "./polar.js";
 export {
   webhookContent,
   webhookFilesForProvider,

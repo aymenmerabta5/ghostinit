@@ -16,5 +16,3 @@ export function paddleWebhookFiles(): TemplateFile[] {
 
 export const paddleWebhookMonorepo = webhookContent("paddle", "next", "monorepo").content;
 export const paddleWebhookSingle = webhookContent("paddle", "next", "single").content;
-export const paddleWebhookLegacyContent = `// Legacy: replaced by oRPC — no longer emitted
-`;

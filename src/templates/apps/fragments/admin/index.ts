@@ -1,15 +1,11 @@
 import type { TemplateFile } from "../../../shared.js";
-import {
-  adminCreateUserFormFile,
-  adminCreateUserPage,
-  nextAdminCreateUserPage,
-} from "./create-user-page.js";
-import { adminDashboardFile, adminDashboardPage } from "./dashboard.js";
+import { adminCreateUserFormFile, nextAdminCreateUserPage } from "./create-user-page.js";
+import { adminDashboardFile } from "./dashboard.js";
 import { adminDataFiles } from "./feature-data.js";
 import { adminSchemaFiles } from "./feature-schema.js";
 import { adminFiltersFile } from "./filters.js";
-import { adminUsersHook, useAdminUsersHook } from "./hooks.js";
-import { adminLayout, adminLayoutFile } from "./layout.js";
+import { adminUsersHook } from "./hooks.js";
+import { adminLayoutFile } from "./layout.js";
 import type { AdminTemplateOptions } from "./model.js";
 import {
   tanstackAdminCreateUserContent,
@@ -17,15 +13,10 @@ import {
   tanstackAdminRouteFiles,
   tanstackAdminUsersContent,
 } from "./tanstack-routes.js";
-import { adminUserRow, adminUserRowConfirmationFile, adminUserRowFile } from "./user-row.js";
+import { adminUserRowConfirmationFile, adminUserRowFile } from "./user-row.js";
 import { adminUserTableFile } from "./user-table.js";
 import { adminTranslationsFile } from "./translations.js";
-import {
-  adminFeatureIndexFile,
-  adminUserResultsFile,
-  adminUsersPage,
-  nextAdminUsersPage,
-} from "./users-page.js";
+import { adminFeatureIndexFile, adminUserResultsFile, nextAdminUsersPage } from "./users-page.js";
 
 export type { AdminDatabase, AdminFramework, AdminMode, AdminTemplateOptions } from "./model.js";
 
@@ -76,14 +67,4 @@ export function tanstackAdminFiles(isConvex = false, i18n = false): TemplateFile
   return [...adminFeatureFiles(options), ...tanstackAdminRouteFiles(options)];
 }
 
-export {
-  adminCreateUserPage,
-  adminDashboardPage,
-  adminLayout,
-  adminUserRow,
-  adminUsersPage,
-  tanstackAdminCreateUserContent,
-  tanstackAdminDashboardContent,
-  tanstackAdminUsersContent,
-  useAdminUsersHook,
-};
+export { tanstackAdminCreateUserContent, tanstackAdminDashboardContent, tanstackAdminUsersContent };

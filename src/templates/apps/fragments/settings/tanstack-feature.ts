@@ -201,41 +201,48 @@ function actionResult(error: { code?: string; message?: string } | null | undefi
   return error ? { ok: false, code: error.code } : { ok: true };
 }
 
+async function recoverSettingsAction<Result extends SettingsActionResult>(
+  operation: () => Promise<Result>,
+): Promise<Result | SettingsActionResult> {
+  try { return await operation(); }
+  catch { return { ok: false, code: "REQUEST_FAILED" }; }
+}
+
 ${invalidateHelper}
 ${passkeyHelpers}
 
 export function useSettingsMutations() {
 ${transport}
   return {
-    updateProfile: async (name: string) => {
+    updateProfile: (name: string) => recoverSettingsAction(async () => {
       const result = await identityClient.updateProfile({ name });
       return actionResult(result.error);
-    },
-    changePassword: async (currentPassword: string, newPassword: string) => {
+    }),
+    changePassword: (currentPassword: string, newPassword: string) => recoverSettingsAction(async () => {
       const result = await identityClient.changePassword({
         currentPassword,
         newPassword,
         revokeOtherSessions: true,
       });
       return actionResult(result.error);
-    },
-    enableTwoFactor: async (password: string): Promise<EnableTwoFactorResult> => {
+    }),
+    enableTwoFactor: (password: string): Promise<EnableTwoFactorResult> => recoverSettingsAction(async () => {
       const result = await identityClient.enableTwoFactor({ password });
       if (result.error || !result.data) return { ok: false, code: result.error?.code };
       return { ok: true, totpUri: result.data.totpURI, backupCodes: result.data.backupCodes };
-    },
-    verifyTwoFactor: async (code: string) => {
-      const result = await identityClient.verifyTwoFactor({ code, trustDevice: true });
+    }),
+    verifyTwoFactor: (code: string) => recoverSettingsAction(async () => {
+      const result = await identityClient.verifyTwoFactor({ code, trustDevice: false });
       return actionResult(result.error);
-    },
-    disableTwoFactor: async (password: string) => {
+    }),
+    disableTwoFactor: (password: string) => recoverSettingsAction(async () => {
       const result = await identityClient.disableTwoFactor({ password });
       return actionResult(result.error);
-    },
-    deleteAccount: async (password: string) => {
+    }),
+    deleteAccount: (password: string) => recoverSettingsAction(async () => {
       const result = await identityClient.deleteAccount({ password });
       return actionResult(result.error);
-    },
+    }),
 ${transportResult}
   };
 }

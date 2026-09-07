@@ -16,5 +16,3 @@ export function chargilyWebhookFiles(): TemplateFile[] {
 
 export const chargilyWebhookMonorepo = webhookContent("chargily", "next", "monorepo").content;
 export const chargilyWebhookSingle = webhookContent("chargily", "next", "single").content;
-export const chargilyWebhookLegacyContent = `// Legacy: replaced by oRPC — no longer emitted
-`;

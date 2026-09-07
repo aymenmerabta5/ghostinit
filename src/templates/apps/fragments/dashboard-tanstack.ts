@@ -15,7 +15,6 @@ export function DashboardHeader(): React.JSX.Element {
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span className="size-2 animate-pulse rounded-full bg-success" aria-hidden />
           <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("header.kicker")}</span>
           <span className="hidden items-center rounded-full border bg-card px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground sm:inline-flex">{t("header.modeMonorepo")}</span>
         </div>
@@ -23,14 +22,14 @@ export function DashboardHeader(): React.JSX.Element {
         <p className="max-w-[65ch] font-mono text-xs leading-relaxed text-muted-foreground">{t("header.description")}</p>
       </div>
       <div className="flex items-center gap-2">
-        <span className="hidden items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground md:inline-flex"><span className="size-1.5 rounded-full bg-success" /> {t("header.systemLive")}</span>
+        <span className="hidden items-center rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground md:inline-flex">{t("header.setupGuide")}</span>
         <Button variant="ghost" size="sm" render={<Link to="/settings" />} nativeButton={false}>{t("header.settings")}</Button>
         <SignOutButton />
       </div>
     </div>
     <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
-      <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1"><span className="size-1.5 rounded-full bg-success" /> {t("header.environmentLocal")}</span>
-      <span className="inline-flex items-center gap-1.5 rounded-md border bg-code px-2 py-1 text-code-foreground"><span className="text-muted-foreground">$</span> bunx ghostinit check</span>
+      <span className="inline-flex items-center rounded-md border bg-card px-2 py-1">{t("header.runFromRoot")}</span>
+      <span className="inline-flex items-center gap-1.5 rounded-md border bg-code px-2 py-1 text-code-foreground"><span className="text-muted-foreground">$</span> bun run check</span>
       <span className="hidden text-muted-foreground sm:inline">— {t("header.checkHint")}</span>
     </div>
   </div>;
@@ -43,32 +42,25 @@ function architectureCardContent(): string {
 import type * as React from "react";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-const LAYERS = [
-  ["L1", "apps/web"],
-  ["L2", "packages/api · oRPC"],
-  ["L3", "domain · packages/core"],
-  ["L4", "services · billing"],
-  ["L5", "providers · SDKs"],
-  ["L6", "database · config · kernel"],
+const CATEGORIES = [
+  ["architecture.layerUi", "architecture.uiDescription"],
+  ["architecture.layerTransport", "architecture.transportDescription"],
+  ["architecture.layerApplication", "architecture.applicationDescription"],
+  ["architecture.layerDomain", "architecture.domainDescription"],
+  ["architecture.layerVendors", "architecture.vendorsDescription"],
+  ["architecture.layerSupporting", "architecture.supportingDescription"],
 ] as const;
 
 export function ArchitectureCard(): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
-  const layerNames = ["architecture.layerUi", "architecture.layerTransport", "architecture.layerDomain", "architecture.layerCapabilities", "architecture.layerVendors", "architecture.layerSupporting"] as const;
   return <div className="overflow-hidden rounded-lg border bg-card md:col-span-8">
     <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
       <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("architecture.title")}</span>
-      <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-success"><span className="size-1.5 rounded-full bg-success" /> {t("architecture.statusPass")}</span>
+      <span className="font-mono text-[11px] text-muted-foreground">{t("architecture.reference")}</span>
     </div>
     <div className="flex flex-col gap-4 p-4">
-      <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
-        {layerNames.map((name, index) => <span key={name} className="contents">
-          <span className="rounded-md border bg-background px-2 py-1">{t(name)}</span>
-          {index < layerNames.length - 1 ? <span className="text-muted-foreground rtl:rotate-180">→</span> : null}
-        </span>)}
-      </div>
-      <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">{LAYERS.map(([level, label], index) => <div key={level} className="flex items-center justify-between rounded-md border bg-code px-3 py-2">
-        <span className="text-muted-foreground">{level}</span><span className="text-code-foreground">{label}</span><span className={index === 4 ? "size-1.5 rounded-full bg-muted-foreground" : "size-1.5 rounded-full bg-success"} />
+      <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">{CATEGORIES.map(([name, description]) => <div key={name} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-code px-3 py-2">
+        <span className="text-muted-foreground">{t(name)}</span><span className="text-code-foreground">{t(description)}</span>
       </div>)}</div>
       <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">{t("architecture.description")}</p>
     </div>
@@ -84,7 +76,11 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-const CHECKS = ["checks.architecture", "checks.typecheck", "checks.lint"] as const;
+const CHECKS = [
+  ["checks.architecture", "bun run check"],
+  ["checks.typecheck", "bun run typecheck"],
+  ["checks.lint", "bun run lint:all"],
+] as const;
 
 export function ChecksCard(): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
@@ -92,11 +88,10 @@ export function ChecksCard(): React.JSX.Element {
     <div className="border-b px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("checks.title")}</span></div>
     <div className="flex flex-col gap-3 p-4">
       <div className="rounded-md border bg-code p-3 font-mono text-xs leading-relaxed">
-        <div className="flex items-center justify-between text-code-foreground"><span><span className="text-muted-foreground">$</span> ghostinit check</span><span className="text-success">✓</span></div>
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]"><span className="rounded bg-success/15 px-2 py-0.5 text-success">{t("checks.blockers", { count: 0 })}</span><span className="rounded bg-success/15 px-2 py-0.5 text-success">{t("checks.highs", { count: 0 })}</span><span className="rounded bg-secondary px-2 py-0.5 text-muted-foreground">{t("checks.mediums", { count: 3 })}</span></div>
-        <div className="mt-3 grid gap-1 text-[11px]">{CHECKS.map((name) => <div key={name} className="flex justify-between"><span className="text-muted-foreground">{t(name)}</span><span className="text-success">{t("checks.statusPass")}</span></div>)}</div>
+        <p className="text-muted-foreground">{t("checks.instructions")}</p>
+        <div className="mt-3 grid gap-3 text-[11px]">{CHECKS.map(([name, command]) => <div key={name} className="flex flex-col gap-1"><span className="text-muted-foreground">{t(name)}</span><code className="text-code-foreground">$ {command}</code></div>)}</div>
       </div>
-      <div className="rounded-md border bg-card p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"><div className="font-medium text-foreground">{t("checks.nextSteps")}</div><div className="mt-1 flex flex-col gap-1"><span>$ bun run typecheck</span><span>$ bun run check</span></div></div>
+      <div className="rounded-md border bg-card p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"><div className="font-medium text-foreground">{t("checks.nextSteps")}</div><p className="mt-1">{t("checks.reviewResults")}</p></div>
       <Button variant="outline" size="sm" className="w-full justify-between" render={<Link to="/admin" />} nativeButton={false}>{t("checks.openAdmin")} <span aria-hidden className="rtl:rotate-180">→</span></Button>
     </div>
   </div>;
@@ -170,24 +165,22 @@ export function IdentityActions({ user }: { user: DashboardUser }): React.JSX.El
 }
 
 function modulesCardContent(hasBilling: boolean): string {
-  const billingModule = hasBilling
-    ? '  ["@repo/billing", "modules.billingDescription", true],\n'
-    : "";
-  const activeModules = hasBilling ? 5 : 4;
+  const billingModule = hasBilling ? '  ["@repo/billing", "modules.billingDescription"],\n' : "";
+  const includedModules = hasBilling ? 5 : 4;
   return `"use client";
 import type * as React from "react";
 import { useSurfaceTranslations } from "@/lib/translations";
 const MODULES = [
-  ["@repo/ui", "modules.uiDescription", true],
-  ["@repo/auth", "modules.authDescription", true],
-  ["@repo/database", "modules.databaseDescription", true],
-${billingModule}  ["apps/web", "modules.webDescription", true],
+  ["@repo/ui", "modules.uiDescription"],
+  ["@repo/auth", "modules.authDescription"],
+  ["@repo/database", "modules.databaseDescription"],
+${billingModule}  ["apps/web", "modules.webDescription"],
 ] as const;
 export function ModulesCard(): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
-  return <div className="overflow-hidden rounded-lg border bg-card"><div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("modules.title")}</span><span className="font-mono text-[11px] text-muted-foreground">{t("modules.summary", { active: ${activeModules}, optional: 0 })}</span></div><div className="divide-y divide-border">
-    {MODULES.map(([name, description, active]) => <div key={name} className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs"><span className="flex items-center gap-2"><span className={active ? "size-1.5 rounded-full bg-success" : "size-1.5 rounded-full bg-muted-foreground"} /> {name}</span><span className="hidden text-muted-foreground sm:inline">{t(description)}</span><span className={active ? "rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success" : "rounded border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"}>{active ? t("modules.ok") : t("modules.optional")}</span></div>)}
-  </div><div className="border-t bg-code p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"><span className="text-code-foreground">turbo.json</span> {t("modules.environmentSummary")}<pre className="mt-2 overflow-x-auto text-code-foreground">pipeline: check → ^check</pre></div></div>;
+  return <div className="overflow-hidden rounded-lg border bg-card"><div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("modules.title")}</span><span className="font-mono text-[11px] text-muted-foreground">{t("modules.summary", { count: ${includedModules} })}</span></div><div className="divide-y divide-border">
+    {MODULES.map(([name, description]) => <div key={name} className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs"><span>{name}</span><span className="hidden text-muted-foreground sm:inline">{t(description)}</span><span className="rounded border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">{t("modules.included")}</span></div>)}
+  </div><div className="border-t bg-code p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"><span className="text-code-foreground">turbo.json</span> {t("modules.environmentSummary")}</div></div>;
 }
 `;
 }

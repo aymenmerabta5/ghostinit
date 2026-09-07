@@ -17,6 +17,7 @@ import {
 import { webUiFiles } from "./fragments/web-ui/index.js";
 import { webLibFiles } from "./fragments/web-lib.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
+import { customNextServerCommand, nextRuntimeCommand } from "../root/next-server-runtime.js";
 
 type FeatureInput =
   | boolean
@@ -40,14 +41,8 @@ function resolveHasI18n(input: FeatureInput = false): boolean {
   return resolveHasFeature(input, "i18n");
 }
 
-function nextRuntimeCommand(runtime: "node" | "bun", command: "dev" | "build" | "start"): string {
-  return runtime === "bun" ? `bun ./node_modules/next/dist/bin/next ${command}` : `next ${command}`;
-}
-
 function nextCustomServerDevCommand(runtime: "node" | "bun"): string {
-  return runtime === "bun"
-    ? "bun --conditions=react-server server.ts"
-    : "node --import ../../scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts";
+  return customNextServerCommand(runtime, "dev", "../..");
 }
 
 function resolveAddonMap(
@@ -102,27 +97,43 @@ function webPackage(
     addonMap && hasAddon(addonMap, "messaging") && !hasAddon(addonMap, "convex"),
   );
   const hasCloudflare = Boolean(addonMap && hasAddon(addonMap, "cloudflare"));
+  const hasPdf = Boolean(addonMap && hasAddon(addonMap, "pdf"));
+  const directDevelopmentCommand = hasWebSocketMessaging
+    ? nextCustomServerDevCommand(runtime)
+    : nextRuntimeCommand(runtime, "dev", hasPdf);
   return file(
     "apps/web/package.json",
     packageJson({
       name: "web",
       packageManager: `bun@${v.runtime.bun}`,
+      ...(hasEve ? { engines: { node: v.runtime.node } } : {}),
       scripts: {
         // The stock Next dev server cannot accept the generated oRPC websocket
         // upgrade. Keep the ordinary `bun run dev` path on the same custom
         // server used in production whenever Postgres messaging is selected.
         dev: hasCloudflare
           ? "bun --env-file=.dev.vars scripts/cloudflare.mjs dev"
-          : hasWebSocketMessaging
-            ? nextCustomServerDevCommand(runtime)
-            : nextRuntimeCommand(runtime, "dev"),
+          : hasEve
+            ? "bun scripts/start-development.mjs"
+            : directDevelopmentCommand,
+        ...(hasEve
+          ? {
+              "dev:web": directDevelopmentCommand,
+              "eve:dev": "node ../../scripts/eve-dev.mjs",
+            }
+          : {}),
         // A Worker build must always pass through the generated environment
         // isolation, dry-run packaging, and secret scanner. OpenNext receives
         // its raw Next command from open-next.config.ts to avoid recursion.
         build: hasCloudflare
           ? "bun scripts/cloudflare.mjs build"
-          : nextRuntimeCommand(runtime, "build"),
-        start: hasCloudflare ? "bun run preview" : nextRuntimeCommand(runtime, "start"),
+          : hasWebSocketMessaging
+            ? `bun run build:server && ${nextRuntimeCommand(runtime, "build", hasPdf)}`
+            : nextRuntimeCommand(runtime, "build", hasPdf),
+        ...(hasWebSocketMessaging
+          ? { "build:server": customNextServerCommand(runtime, "build", "../..") }
+          : {}),
+        start: hasCloudflare ? "bun run preview" : nextRuntimeCommand(runtime, "start", hasPdf),
         ...(hasCloudflare
           ? {
               // OpenNext invokes this only from inside cloudflare.mjs after the

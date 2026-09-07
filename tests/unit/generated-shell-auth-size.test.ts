@@ -54,6 +54,13 @@ function formattedLines({ name, source, extension = "tsx" }: SizeCase): number {
 }
 
 function casesFor(router: Router): SizeCase[] {
+  const marketingOptions = {
+    hasAuth: true,
+    hasApi: true,
+    hasBilling: true,
+    hasEve: true,
+    database: "postgres",
+  } as const;
   return [
     { name: `${router}-header`, source: headerFileContent(router, true, true), maximum: 120 },
     {
@@ -108,17 +115,17 @@ function casesFor(router: Router): SizeCase[] {
     },
     {
       name: `${router}-single-marketing-hero`,
-      source: singleMarketingHeroComponentContent(router),
+      source: singleMarketingHeroComponentContent(router, marketingOptions),
       maximum: 150,
     },
     {
       name: `${router}-single-marketing-features`,
-      source: singleMarketingFeaturesComponentContent(router),
+      source: singleMarketingFeaturesComponentContent(router, marketingOptions),
       maximum: 150,
     },
     {
       name: `${router}-single-marketing-closing`,
-      source: singleMarketingClosingComponentContent(router),
+      source: singleMarketingClosingComponentContent(router, marketingOptions),
       maximum: 150,
     },
   ];

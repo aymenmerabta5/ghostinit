@@ -21,6 +21,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +37,11 @@ const DEFAULT_RENAME_RETRY_TIMEOUT_MS = 10_000;
 const MAX_RENAME_RETRY_DELAY_MS = 1_000;
 const TRANSIENT_RENAME_CODES = new Set(["EACCES", "EBUSY", "EPERM"]);
 const sleepArray = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+
+/** Bun 1.4's fast loader misdecodes UTF-8 literals; preserve normal parsing and source-map offsets. */
+export function portableBundleSource(source: string): string {
+  return source.replace(/^(#![^\r\n]*\r?\n)?\/\/ @bun(?=\r?\n|$)/, "$1// utf8");
+}
 
 type ManagedPathKind = "dist" | "stage" | "backup";
 
@@ -180,6 +186,10 @@ async function main(): Promise<void> {
       }
       throw new Error("Bun.build() failed");
     }
+    const bundlePath = join(stageDir, "cli.js");
+    const bundledSource = readFileSync(bundlePath, "utf8");
+    const portableSource = portableBundleSource(bundledSource);
+    if (portableSource !== bundledSource) writeFileSync(bundlePath, portableSource, "utf8");
     const bundleKiB = result.outputs.reduce((total, output) => total + output.size, 0) / 1024;
     console.log(
       `[build]   ✓ JS bundle OK (${result.outputs.length} output(s), ${bundleKiB.toFixed(1)} KiB)`,

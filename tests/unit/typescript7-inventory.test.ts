@@ -73,7 +73,10 @@ test("TypeScript 7.0.2 obligations are enumerated and point to real sources", ()
     },
     {
       id: "doctor-typescript-version",
-      sources: ["src/commands/doctor/versions.ts", "src/templates/agentic.ts"],
+      sources: [
+        "src/commands/doctor/versions.ts",
+        "src/templates/modes/monorepo/agents-composer.ts",
+      ],
       phase: "2",
       disposition: "proven",
     },

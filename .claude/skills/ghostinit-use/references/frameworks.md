@@ -5,12 +5,12 @@
 ### nextjs (default)
 
 - Catalog-pinned Next 16 + React 19, RSC, Tailwind v4 + Base UI + shadcn, oRPC via route handlers `apps/web/src/app/api/`, client via `@orpc/client` + `@orpc/react-query`, env `NEXT_PUBLIC_*` client, output `.next/**`, turbo tasks Next.
-- `bunfig.toml` hoist=true required (TS7 Go port lacks lib/typescript.js + breaks workspace:*). Scaffold handles.
+- Generated installs use `bunfig.toml` hoist=true for the supported Next workspace resolution path. Next uses the catalog TS7 CLI by default; do not set `experimental.useTypeScriptCli` to false.
 
 ### tanstack-start
 
-- Vite 7 + Nitro 3, file-based router `src/routes`, server functions `createServerFn`, `getRequestHeaders`, outputs `.vinxi/** .output/** dist/**`, env `VITE_*` client, auth `tanstackStartCookies()` Better Auth plugin vs Next `nextCookies()`, same oRPC contract-first, same webhook `request.arrayBuffer()` standard Fetch API, single port 3000, no Elysia.
-- Router `router.tsx` + `__root.tsx` exempt from architecture checker (isFrameworkEntryPoint).
+- Vite 7 + Nitro 3, file-based router `src/routes`, server functions `createServerFn`, `getRequestHeaders`, outputs `.output/** dist/**`, env `VITE_*` client, auth `tanstackStartCookies()` Better Auth plugin vs Next `nextCookies()`, same oRPC contract-first, same webhook `request.arrayBuffer()` standard Fetch API, web development defaults to port 3000; selected Eve runs as a private companion.
+- Framework entrypoints are classified by their exact paths; their imports remain subject to applicable architecture and client/server boundary checks.
 
 Choose via:
 
@@ -35,15 +35,15 @@ Expo and Electron are **not** frameworks — they are app targets selected via `
 
 ### expo (via --apps mobile)
 
-### desktop (via --apps desktop — Electron + TanStack Router SPA)
-
 - Expo SDK 57, Expo Router file-based `app/` directory (`app/_layout.tsx`, `app/index.tsx`, `app/(auth)/*`, `app/+not-found.tsx`), `expo-router/entry` main, typedRoutes experiment enabled.
 - `metro.config.js` auto monorepo support from SDK 52+ — `getDefaultConfig(__dirname)` auto-detects workspace root, no manual watchFolders needed. `babel-preset-expo` preset.
-- `app.json`: scheme `__PROJECT_NAME__`, slug/name templated, orientation portrait, platforms ios/android/web, plugins `["expo-router","expo-secure-store"]`, assetBundlePatterns, icons.
+- `app.json`: scheme `__PROJECT_NAME__`, slug/name templated, orientation portrait, platforms ios/android/web, plugins `expo-router` and `expo-secure-store` plus `expo-notifications` when selected, and `assetBundlePatterns`. Binary icon/splash paths are omitted until real assets exist.
 - Storage/Auth: `expo-secure-store` for Better Auth token persistence, `expo-linking` for deep links + OAuth redirects, `expo-constants` + `expo-web-browser` for auth flow, scheme handling for `__PROJECT_NAME__://` links, `typedRoutes: true` typed linking.
 - Better Auth and oRPC are emitted for Expo only when a monorepo web app owns the backend. Single Expo is frontend-only; external backend-host selection is not implemented.
 - Backend: when both web+mobile, single DB + same `packages/api` + same auth server. Mobile calls `/api/rpc` and `/api/auth/*` via `EXPO_PUBLIC_API_URL`.
 - Env: client prefix `EXPO_PUBLIC_*` (Expo convention). A Next+Expo project emits `NEXT_PUBLIC_*` and `EXPO_PUBLIC_*`; TanStack+Expo emits `VITE_*` and `EXPO_PUBLIC_*`. Adding desktop also selects `VITE_*` for its renderer.
+
+### desktop (via --apps desktop — Electron + TanStack Router SPA)
 
 - Catalog-pinned Electron + electron-vite + electron-builder, TanStack Router SPA (`src/renderer/routes/__root.tsx` + `index.tsx`/`dashboard.tsx` + `routeTree.gen.ts` via `@tanstack/router-plugin`), `src/main.ts` + `preload.ts` (contextBridge), `electron-store` + `safeStorage` (t3code `ElectronSafeStorage.ts` pattern) for auth, `electron-updater` autoUpdater. Renderer shares `packages/ui/theme.css` + `packages/api` oRPC via `http://localhost:3000/api/rpc` single port, no direct DB.
 
@@ -110,7 +110,7 @@ Cache: `--cache redis` (alias `upstash`, `upstash-redis`) or `--with-cache` → 
 
 #### eve
 
-Durable AI agent hybrid via `withEve()` in apps/web. Exact `eve`, AI SDK, and Vercel Connect versions come from `packages/versions`. Adds extra `apps/eve` + `packages` toolingFiles + agenticFiles + eveFiles conditional. Agent definitions in `apps/web/src/agent/` or similar. Opt-in via `--with-eve` (preferred) or deprecated `--features eve` alias.
+Eve is an opt-in application capability. Exact Eve, AI SDK, and Vercel Connect versions come from `packages/versions`; selected outputs include the Eve runtime and framework integration. Contributor guidance is generated from the resolved project configuration for every project. Use `--with-eve`; the older `--features eve` alias remains supported.
 
 ```bash
 ghostinit create my-app --preset custom --with-eve --yes
@@ -167,7 +167,7 @@ ghostinit create my-app --mode single --apps mobile --preset frontend --database
 - Global full: `all billing + postgres + nextjs + monorepo + eve,i18n + apps web`
 - TanStack edge: `tanstack-start + postgres + stripe + monorepo + apps web`
 - Minimal: `none billing + postgres + nextjs + single + apps web` or `none + none DB + nextjs + single`
-- Mobile-only: `postgres + monorepo + apps mobile` → `apps/mobile` Expo SDK 57
+- Mobile-only: `none database + preset frontend + apps mobile` → Expo SDK 57 without a backend; select monorepo `web,mobile` for server-backed capabilities
 - Both apps: `postgres + monorepo + apps both` → `apps/web + apps/mobile` shared backend port 3000
 - Both + TanStack web: `tanstack-start + postgres + monorepo + apps both`
 - Single mobile: `single + apps mobile + preset frontend` → flat Expo app.json + client-only `app/` and `src/`.
@@ -184,14 +184,14 @@ Important blocked combos:
 - Next client: `NEXT_PUBLIC_*`
 - TanStack/Vite client: `VITE_*`
 - Expo client: `EXPO_PUBLIC_*`
-- Scaffold emits all three for client-safe tokens (stripe publishable, paddle client token, posthog key, app URL). Server secrets never client. Triple emit eases switching framework/app target.
+- Emit only prefixes belonging to selected app audiences. Client runtimes stay separate, and server secrets never appear in these prefixes.
 - Mobile additionally needs `EXPO_PUBLIC_API_URL` (API base) and `EXPO_PUBLIC_APP_URL` (app origin for deep links).
 
 ## Turbo Outputs
 
 - `dist/**` bun build + expo export static
 - `.next/**` Next
-- `.vinxi/** .output/** dist/**` TanStack Vite/Nitro
+- `.output/** dist/**` TanStack Vite/Nitro
 - `.vercel/**` Vercel
 - `.expo/**` Expo cache, `apps/mobile/dist/**` expo export
 - `globalEnv` exactly follows the selected capability/app environment manifest, including `EXPO_PUBLIC_*` when mobile is selected

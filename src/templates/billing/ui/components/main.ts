@@ -22,22 +22,26 @@ export function mainPageContent(selected: string[], mode: "monorepo" | "single")
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createRequestApplicationForRequest } from "${applicationModule}";
+import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
+import { QueryAuthStatus } from "@/components/query-auth-boundary";
 import type { BillingInitialData } from "./hooks/use-billing-page";`
     : "";
   const dataComponent = hasProviders
     ? `async function BillingData(): Promise<React.JSX.Element> {
   const application = await createRequestApplicationForRequest(new Headers(await headers()));
   const me = await application.me();
-  if (!me.user) redirect("/sign-in");
+  const principal = application.principal;
+  if (!me.user || !principal) redirect("/sign-in");
+  const scope = { userId: principal.identityUserId, sessionId: principal.sessionId, tenantId: principal.activeOrganizationId, teamId: principal.activeTeamId };
   const snapshot = await application.billing.subscriptions();
   const initialData = JSON.parse(JSON.stringify(snapshot)) as BillingInitialData;
   initialData.canCreatePaymentLinks = me.user.role === "admin" || me.user.role === "superAdmin";
-  return <BillingTabs providers={PROVIDERS} initialData={initialData} />;
+  return <RequestOwnedSnapshot scope={scope}><BillingTabs providers={PROVIDERS} initialData={initialData} /></RequestOwnedSnapshot>;
 }
 `
     : "";
   const body = hasProviders
-    ? `<Suspense fallback={<div className="min-h-48" aria-busy="true" />}><BillingData /></Suspense>`
+    ? `<Suspense fallback={<QueryAuthStatus />}><BillingData /></Suspense>`
     : `<BillingEmpty />`;
 
   return `import type * as React from "react";

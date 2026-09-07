@@ -198,13 +198,3 @@ export function adminUserRowConfirmationFile(options: AdminTemplateOptions): Tem
     userRowConfirmationContent(),
   );
 }
-
-/** @deprecated Use adminUserRowFile with explicit template options. */
-export function adminUserRow(): TemplateFile {
-  return adminUserRowFile({
-    database: "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
-}

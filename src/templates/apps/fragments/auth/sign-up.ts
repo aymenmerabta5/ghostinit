@@ -80,7 +80,7 @@ export function SignUpForm(): React.JSX.Element {
   return (
     <Card>
       <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
+        <CardTitle as="h1" className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
         <CardDescription className="max-w-[60ch]">Password signup is disabled because the email capability is not selected. Use a configured OAuth provider.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -101,8 +101,8 @@ import { useRouter } from "next/navigation";`;
     ? "  const navigate = useNavigate();"
     : "  const router = useRouter();";
   const navigate = isTanstack
-    ? `    void navigate({ to: "/dashboard" });`
-    : `    router.push("/dashboard");`;
+    ? `      await navigate({ to: destination });`
+    : `      router.push(destination);`;
   const signInLink = isTanstack
     ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signUp.signInPrompt")} {t("signUp.signInLink")}</Link>`
     : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signUp.signInPrompt")} {t("signUp.signInLink")}</Link>`;
@@ -143,6 +143,7 @@ ${routerHook}
         setError(t("signUp.genericError"));
         return;
       }
+      const destination = result.data?.token ? "/dashboard" : "/verify-email";
 ${navigate}
     },
   });
@@ -160,7 +161,7 @@ ${navigate}
   return (
     <Card>
       <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
+        <CardTitle as="h1" className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
         <CardDescription className="max-w-[60ch]">{t("signUp.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">

@@ -255,10 +255,13 @@ function writePackage(
     private: true,
     type: "module",
     exports: "./index.mjs",
-    ...(bin ? { bin: { [bin]: "./index.mjs" } } : {}),
+    ...(bin ? { bin: { [bin]: "./bin.mjs" } } : {}),
   };
   write(root, `${directory}/package.json`, `${JSON.stringify(manifest, null, 2)}\n`);
   write(root, `${directory}/index.mjs`, source);
+  if (bin) {
+    write(root, `${directory}/bin.mjs`, '#!/usr/bin/env bun\nawait import("./index.mjs");\n');
+  }
 }
 
 function installLocalPackages(root: string, dependencies: Record<string, string>): void {

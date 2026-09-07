@@ -207,6 +207,7 @@ function load(
     formatBillingInvoiceAmount,
     createFileRoute: () => (value: unknown) => value,
     useAuth: () => ({ isAuthenticated: true }),
+    useAuthOwnedEffect: () => () => () => true,
     useQuery: ({ kind }: { kind: string }) => ({
       data:
         kind === "me"

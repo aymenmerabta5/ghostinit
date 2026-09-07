@@ -479,7 +479,7 @@ describe("messaging and storage security generation matrix", () => {
     expect(fileContent(singleNextFiles, "src/app/api/ws/route.ts")).toContain(
       'from "@/server/transport/websocket-auth"',
     );
-    expect(fileContent(singleNextFiles, "server.ts")).toContain(
+    expect(fileContent(singleNextFiles, "next-server.ts")).toContain(
       'from "./src/server/transport/websocket-auth"',
     );
 

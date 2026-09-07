@@ -11,16 +11,14 @@
     "role",
     "recordedOn",
     "changedGlobs",
-    "impeccable",
     "register",
     "appliedRules",
-    "shadcnDiscovery",
     "selectedComponentIds",
     "exceptionIds"
   ],
   "properties": {
     "$schema": { "const": "https://ghostinit.dev/schemas/frontend-task-record.schema.json" },
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "enum": [1, 2] },
     "taskId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
     "role": { "enum": ["implementer", "reviewer"] },
     "recordedOn": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
@@ -50,6 +48,44 @@
         "designSha256": { "$ref": "#/$defs/hash" }
       }
     },
+    "designReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "guidance", "context", "decisions", "evidence"],
+      "properties": {
+        "method": { "enum": ["human", "skill-assisted"] },
+        "guidance": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "context": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": { "$ref": "#/$defs/glob" },
+              "sha256": { "$ref": "#/$defs/hash" }
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/glob" }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/glob" }
+        }
+      }
+    },
     "register": { "enum": ["product", "brand"] },
     "appliedRules": {
       "type": "array",
@@ -75,6 +111,19 @@
       "items": { "$ref": "#/$defs/identifier" }
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "schemaVersion": { "const": 1 } } },
+      "then": {
+        "required": ["impeccable", "shadcnDiscovery"],
+        "properties": { "impeccable": true, "shadcnDiscovery": true }
+      },
+      "else": {
+        "required": ["designReview"],
+        "properties": { "designReview": true, "impeccable": false }
+      }
+    }
+  ],
   "$defs": {
     "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },

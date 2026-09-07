@@ -190,7 +190,7 @@ describe("generated i18n runtime matrix", () => {
             }
 
             expect(header).toContain("<LocaleSwitcher");
-            expect(header).toContain('className="w-16 sm:w-32"');
+            expect(header).toContain('className="w-20 shrink-0 sm:w-32"');
             expect(header).not.toContain('<LocaleSwitcher className="hidden');
             for (const key of [
               "dashboard",

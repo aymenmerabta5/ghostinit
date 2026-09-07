@@ -1,0 +1,24 @@
+{
+  "package": "image-size",
+  "version": "1.2.1",
+  "tarball": "https://registry.npmjs.org/image-size/-/image-size-1.2.1.tgz",
+  "integrity": "sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==",
+  "publishedAt": "2025-04-02T14:30:29.710Z",
+  "auditedAt": "2026-09-01T16:22:25.760Z",
+  "patchPath": "tests/fixtures/compatibility/expo-uniwind-rnr/patches/image-size@1.2.1.patch",
+  "patchSha256": "7805ea36efb396516b71b6965774b03c7df465bdda1489b937dc19d3bde8a7d8",
+  "files": [
+    {
+      "path": "dist/types/icns.js",
+      "fixture": "icns.js.fixture",
+      "originalSha256": "5e6a097fca237b0bb3b68a1be920e39a3846c0018d8917658b5ed88590a710e8",
+      "patchedSha256": "ea073da10e66839d1f989dd62775312f85ba53e3d6b37476bce477f25da4e82f"
+    },
+    {
+      "path": "dist/types/utils.js",
+      "fixture": "utils.js.fixture",
+      "originalSha256": "e9faf86abcc962a5fc2488a4c3c9d8dc915aa22a0dd6a7bad6556cd9a326c349",
+      "patchedSha256": "6786c3d52ea46fab31d0d7883c16041f15a1604356bd0f139c1b2adc261234c1"
+    }
+  ]
+}

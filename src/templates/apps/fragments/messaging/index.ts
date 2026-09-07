@@ -54,11 +54,14 @@ function toMessage(value: unknown): MessageSummary | undefined {
   if (
     !isRecord(value) ||
     typeof value.id !== "string" ||
-    typeof value.senderId !== "string" ||
-    typeof value.createdAt !== "string"
+    typeof value.senderId !== "string"
   ) {
     return undefined;
   }
+  const createdAt = value.createdAt instanceof Date
+    ? value.createdAt
+    : typeof value.createdAt === "string" ? new Date(value.createdAt) : null;
+  if (!createdAt || !Number.isFinite(createdAt.getTime())) return undefined;
   const attachments = Array.isArray(value.attachments)
     ? value.attachments.flatMap((item) => {
         const attachment = toAttachment(item);
@@ -68,7 +71,7 @@ function toMessage(value: unknown): MessageSummary | undefined {
   return {
     id: value.id,
     senderId: value.senderId,
-    createdAt: value.createdAt,
+    createdAt: createdAt.toISOString(),
     ...(typeof value.body === "string" || value.body === null ? { body: value.body } : {}),
     ...(attachments ? { attachments } : {}),
   };
@@ -245,7 +248,12 @@ export function useSendMessage(conversationId: string) {
 }
 
 export function useStartConversation() {
-  const mutation = useMutation(orpc.messaging.getOrCreateConversation.mutationOptions());
+  const queryClient = useQueryClient();
+  const mutation = useMutation(orpc.messaging.getOrCreateConversation.mutationOptions({
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: orpc.messaging.listConversations.key({ type: "query" }) });
+    },
+  }));
   return {
     start: async (peerUserId: string): Promise<string> => {
       const conversation = await mutation.mutateAsync({ peerUserId });
@@ -442,6 +450,7 @@ function messagingConversationListContent(
   const loading = isLoading;`;
   return `"use client";
 import type { JSX } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -454,15 +463,16 @@ export function ConversationList({
   selectedId${initialParameter}
 }): JSX.Element {
   const t = useSurfaceTranslations("messaging");
-  const { data, isLoading } = useConversations();
+  const { data, isLoading, error, isFetching, refetch } = useConversations();
 ${displayedConversations}
+  const failure = error ? <Alert variant="destructive" role="alert"><AlertTitle>{t("operationError")}</AlertTitle><AlertDescription><Button type="button" variant="outline" size="sm" disabled={isFetching} aria-busy={isFetching} onClick={() => void refetch()}>{t("refresh")}</Button></AlertDescription></Alert> : null;
   if (loading) {
     return <div className="flex flex-col gap-2" aria-busy="true" aria-label={t("loadingConversations")}>{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div>;
   }
   if (conversations.length === 0) {
-    return <Empty><EmptyHeader><EmptyTitle>{t("noConversations")}</EmptyTitle><EmptyDescription>{t("noConversationsDescription")}</EmptyDescription></EmptyHeader></Empty>;
+    return <>{failure ?? <Empty><EmptyHeader><EmptyTitle>{t("noConversations")}</EmptyTitle><EmptyDescription>{t("noConversationsDescription")}</EmptyDescription></EmptyHeader></Empty>}</>;
   }
-  return <div className="flex flex-col gap-2">{conversations.map((conversation) => (
+  return <div className="flex flex-col gap-2">{failure}{conversations.map((conversation) => (
     <Button key={conversation.id} type="button" variant={selectedId === conversation.id ? "secondary" : "outline"} onClick={() => onSelect(conversation.id)} aria-pressed={selectedId === conversation.id} className="w-full justify-between text-start">
       <span className="font-mono text-xs truncate">{conversation.id.slice(0, 8)}</span><Badge variant="secondary">{t("directMessage")}</Badge>
     </Button>
@@ -512,6 +522,7 @@ export function MessageList({
 function messagingComposerContent(hooksImport: string): string {
   return `"use client";
 import * as React from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSurfaceTranslations } from "@/lib/translations";
@@ -535,6 +546,7 @@ export function MessageComposer({ conversationId }: { conversationId: string }):
   const [body, setBody] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [error, setError] = React.useState(false);
   const uploadInFlight = React.useRef(false);
   const pendingAttachmentUpload = React.useRef<PendingMessageAttachmentUpload | null>(null);
   React.useEffect(() => {
@@ -544,6 +556,7 @@ export function MessageComposer({ conversationId }: { conversationId: string }):
   async function submit(): Promise<void> {
     if ((!body.trim() && !file) || uploadInFlight.current) return;
     uploadInFlight.current = true;
+    setError(false);
     setIsUploading(true);
     try {
       let attachmentIds: string[] | undefined;
@@ -569,22 +582,27 @@ export function MessageComposer({ conversationId }: { conversationId: string }):
       pendingAttachmentUpload.current = null;
       setBody("");
       setFile(null);
-      sendTyping(false);
+      try { sendTyping(false); } catch { /* Delivery succeeded; typing cleanup is advisory. */ }
+    } catch {
+      setError(true);
     } finally {
       uploadInFlight.current = false;
       setIsUploading(false);
     }
   }
 
-  return <div className="flex flex-col gap-2 sm:flex-row">
-    <Input value={body} onChange={(event) => { setBody(event.target.value); sendTyping(event.target.value.length > 0); }} placeholder={t("messagePlaceholder")} onKeyDown={(event) => { if (event.key === "Enter" && !file) void submit(); }} />
+  return <div className="flex flex-col gap-2">
+    {error ? <Alert variant="destructive" role="alert"><AlertDescription>{t("sendError")}</AlertDescription></Alert> : null}
+    <div className="flex flex-col gap-2 sm:flex-row">
+    <Input value={body} aria-label={t("messagePlaceholder")} onChange={(event) => { setBody(event.target.value); sendTyping(event.target.value.length > 0); }} placeholder={t("messagePlaceholder")} onKeyDown={(event) => { if (event.key === "Enter" && !file) void submit(); }} />
     <Input type="file" onChange={(event) => {
       const nextFile = event.target.files?.[0] ?? null;
       const reusable = nextFile ? reusablePendingAttachmentId(pendingAttachmentUpload.current, conversationId, messageAttachmentFingerprint(nextFile)) : undefined;
       if (!reusable) pendingAttachmentUpload.current = null;
       setFile(nextFile);
     }} className="max-w-[160px]" />
-    <Button onClick={() => void submit()} disabled={isPending || isUploading}>{isPending || isUploading ? t("sending") : t("send")}</Button>
+    <Button onClick={() => void submit()} disabled={isPending || isUploading || (!body.trim() && !file)} aria-busy={isPending || isUploading}>{isPending || isUploading ? t("sending") : t("send")}</Button>
+    </div>
   </div>;
 }
 `;
@@ -593,6 +611,8 @@ export function MessageComposer({ conversationId }: { conversationId: string }):
 function messagingThreadContent(hooksImport: string, componentImport: string): string {
   return `"use client";
 import type { JSX } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { useMessages, useTyping } from "${hooksImport}";
@@ -601,12 +621,13 @@ import { MessageList } from "${componentImport}/message-list";
 
 export function MessageThread({ conversationId }: { conversationId: string }): JSX.Element {
   const t = useSurfaceTranslations("messaging");
-  const { data: messages, isLoading } = useMessages(conversationId);
+  const { data: messages, isLoading, error, isFetching, refetch } = useMessages(conversationId);
   const typing = useTyping(conversationId);
   return <Card>
     <CardHeader><CardTitle className="text-base">{t("thread", { id: conversationId.slice(0, 8) })}</CardTitle></CardHeader>
     <CardContent className="flex flex-col gap-3">
-      <MessageList messages={messages} isLoading={isLoading} isTyping={typing.size > 0} />
+      {error ? <Alert variant="destructive" role="alert"><AlertTitle>{t("operationError")}</AlertTitle><AlertDescription><Button type="button" variant="outline" size="sm" disabled={isFetching} aria-busy={isFetching} onClick={() => void refetch()}>{t("refresh")}</Button></AlertDescription></Alert> : null}
+      {!error || (messages?.length ?? 0) > 0 ? <MessageList messages={messages} isLoading={isLoading} isTyping={typing.size > 0} /> : null}
       <MessageComposer conversationId={conversationId} />
     </CardContent>
   </Card>;
@@ -646,7 +667,8 @@ export const Route = createFileRoute("/messages")({
   const initialConversationProp = tanstack ? "" : " initialConversations={initialConversations}";
   return `"use client";
 import * as React from "react";
-${routeImport}import { Button } from "@/components/ui/button";
+${routeImport}import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -660,21 +682,32 @@ ${defaultExport}function MessagesPage(${pageParameters}): React.JSX.Element {
   const t = useSurfaceTranslations("messaging");
   const [selected, setSelected] = React.useState<string | null>(null);
   const [peerId, setPeerId] = React.useState("");
+  const [startError, setStartError] = React.useState(false);
+  const startInFlight = React.useRef(false);
   const { start, isPending } = useStartConversation();
+  async function startConversation(): Promise<void> {
+    if (!peerId.trim() || startInFlight.current) return;
+    startInFlight.current = true; setStartError(false);
+    try {
+      const conversationId = await start(peerId.trim());
+      setSelected(conversationId); setPeerId("");
+    } catch { setStartError(true); }
+    finally { startInFlight.current = false; }
+  }
   return <main className="min-h-screen bg-background p-6 md:p-8">
-    <div className="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
+    <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <header className="flex flex-col gap-2"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("desktopDescription")}</p></header>
+    <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
       <Card><CardHeader><CardTitle className="text-base">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-3">
         <ConversationList onSelect={setSelected} selectedId={selected}${initialConversationProp} />
-        <div className="flex gap-2">
-          <Input value={peerId} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
-          <Button variant="outline" disabled={isPending || !peerId.trim()} onClick={async () => {
-            const conversationId = await start(peerId.trim());
-            setSelected(conversationId);
-            setPeerId("");
-          }}>{isPending ? t("starting") : t("startDirectMessage")}</Button>
+        <div className="flex flex-col gap-2">
+          <Input value={peerId} aria-label={t("peerUserId")} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
+          <Button variant="outline" disabled={isPending || !peerId.trim()} aria-busy={isPending} onClick={() => void startConversation()}>{isPending ? t("starting") : t("startDirectMessage")}</Button>
         </div>
+        {startError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("operationError")}</AlertDescription></Alert> : null}
       </CardContent></Card>
       <div>{selected ? <MessageThread conversationId={selected} /> : <Empty><EmptyHeader><EmptyTitle>{t("selectOrStart")}</EmptyTitle></EmptyHeader></Empty>}</div>
+    </div>
     </div>
   </main>;
 }
@@ -831,7 +864,9 @@ export default function MessagesPage({
 
   return (
     <main className="min-h-screen bg-background p-6">
-      <div className="mx-auto grid max-w-6xl grid-cols-[300px_1fr] gap-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <header className="flex flex-col gap-2"><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm text-muted-foreground">{t("desktopDescription")}</p></header>
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
         <ConvexConversationSidebar
           conversations={conversationItems}
           selected={selected}
@@ -843,6 +878,7 @@ export default function MessagesPage({
         ) : (
           <Empty><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>
         )}
+        </div>
       </div>
     </main>
   );
@@ -854,6 +890,7 @@ function messagingConvexConversationSidebarContent(mode: "monorepo" | "single"):
   const dataModelImport = `../${convexApiImport(mode, "next").replace(/\/api$/, "/dataModel")}`;
   return `"use client";
 import * as React from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Id } from "${dataModelImport}";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -879,14 +916,19 @@ export function ConvexConversationSidebar({
   const t = useSurfaceTranslations("messaging");
   const [peerId, setPeerId] = React.useState("");
   const [starting, setStarting] = React.useState(false);
+  const [startError, setStartError] = React.useState(false);
+  const startInFlight = React.useRef(false);
 
   async function start(): Promise<void> {
     const normalizedPeerId = peerId.trim();
-    if (!normalizedPeerId || starting) return;
+    if (!normalizedPeerId || startInFlight.current) return;
+    startInFlight.current = true; setStartError(false);
     setStarting(true);
     try {
-      if (await onStart(normalizedPeerId)) setPeerId("");
-    } finally {
+      if (await onStart(normalizedPeerId)) setPeerId(""); else setStartError(true);
+    } catch { setStartError(true); }
+    finally {
+      startInFlight.current = false;
       setStarting(false);
     }
   }
@@ -907,12 +949,13 @@ export function ConvexConversationSidebar({
             {conversation.key.slice(0, 8)}
           </Button>
         ))}
-        <div className="flex gap-2">
-          <Input value={peerId} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
-          <Button type="button" variant="outline" disabled={!peerId.trim() || starting} onClick={start}>
-            {t("startDirectMessage")}
+        <div className="flex flex-col gap-2">
+          <Input value={peerId} aria-label={t("peerUserId")} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} />
+          <Button type="button" variant="outline" disabled={!peerId.trim() || starting} aria-busy={starting} onClick={() => void start()}>
+            {starting ? t("starting") : t("startDirectMessage")}
           </Button>
         </div>
+        {startError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("operationError")}</AlertDescription></Alert> : null}
       </CardContent>
     </Card>
   );
@@ -925,12 +968,15 @@ function messagingConvexMessageThreadContent(mode: "monorepo" | "single"): strin
   const dataModelImport = apiImport.replace(/\/api$/, "/dataModel");
   return `"use client";
 import * as React from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "${apiImport}";
 import type { Id } from "${dataModelImport}";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 interface MessageAttachmentView {
@@ -982,13 +1028,27 @@ export function ConvexMessageThread({
   const sendMessage = useMutation(api.messaging.sendMessage);
   const sendTyping = useMutation(api.messaging.sendTyping);
   const [body, setBody] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+  const [sendError, setSendError] = React.useState(false);
+  const sendInFlight = React.useRef(false);
   const messages = messageViews(messagesValue);
+  async function submit(): Promise<void> {
+    const trimmed = body.trim();
+    if (!trimmed || sendInFlight.current) return;
+    sendInFlight.current = true; setSending(true); setSendError(false);
+    try {
+      await sendMessage({ conversationId, body: trimmed });
+      setBody("");
+      try { await sendTyping({ conversationId, isTyping: false }); } catch { /* Delivery succeeded; typing cleanup is advisory. */ }
+    } catch { setSendError(true); }
+    finally { sendInFlight.current = false; setSending(false); }
+  }
 
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex max-h-[400px] flex-col gap-2 overflow-auto">
-          {messages.map((message) => (
+          {messagesValue === undefined ? <div aria-busy="true" aria-label={t("loadingMessages")}><Skeleton className="h-32 w-full" /></div> : messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noMessages")}</EmptyTitle></EmptyHeader></Empty> : messages.map((message) => (
             <Card key={message.id}><CardContent className="flex flex-col gap-1 p-3">
               {message.body ? <div className="text-sm">{message.body}</div> : null}
               {message.attachments.map((attachment) => (
@@ -1000,22 +1060,17 @@ export function ConvexMessageThread({
         {Array.isArray(typingValue) && typingValue.length > 0 ? (
           <div className="animate-pulse text-xs text-muted-foreground">{t("typing")}</div>
         ) : null}
+        {sendError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("sendError")}</AlertDescription></Alert> : null}
         <div className="flex gap-2">
           <Input
             value={body}
             onChange={(event) => {
               setBody(event.target.value);
-              void sendTyping({ conversationId, isTyping: event.target.value.length > 0 });
+              void sendTyping({ conversationId, isTyping: event.target.value.length > 0 }).catch(() => undefined);
             }}
             placeholder={t("messagePlaceholder")}
           />
-          <Button type="button" onClick={async () => {
-            const trimmed = body.trim();
-            if (!trimmed) return;
-            await sendMessage({ conversationId, body: trimmed });
-            setBody("");
-            await sendTyping({ conversationId, isTyping: false });
-          }}>{t("send")}</Button>
+          <Button type="button" disabled={sending || !body.trim()} aria-busy={sending} onClick={() => void submit()}>{sending ? t("sending") : t("send")}</Button>
         </div>
       </CardContent>
     </Card>
@@ -1646,8 +1701,9 @@ export async function GET(request: Request): Promise<Response> {
 `,
     ),
     file(
-      `${root}server.ts`,
-      `import { createServer, type IncomingHttpHeaders } from "node:http";
+      mode === "single" ? "next-server.ts" : `${root}server.ts`,
+      `import { IncomingMessage, Server, type IncomingHttpHeaders } from "node:http";
+import { Duplex } from "node:stream";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import next from "next";
@@ -1665,9 +1721,41 @@ import {
 } from "./src/server/transport/websocket-auth";
 
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
+const hostname = process.env.HOST ?? "0.0.0.0";
+
+class ApplicationHttpServer extends Server {
+  override emit(event: string, ...args: unknown[]): boolean {
+    if (event === "upgrade") {
+      const [request, socket, head] = args;
+      if (request instanceof IncomingMessage && socket instanceof Duplex && Buffer.isBuffer(head)) {
+        let pathname: string;
+        try { pathname = new URL(request.url ?? "/", "http://localhost").pathname; }
+        catch { socket.destroy(); return true; }
+        if (pathname === "/api/ws") {
+          // Dispatch before Next's asynchronous catch-all route listener can close this socket.
+          void upgradeRequest(request, socket, head).catch(() => {
+            if (!socket.destroyed) rejectUpgrade(socket, 500, "Internal Server Error");
+          });
+          return true;
+        }
+      }
+    }
+    return super.emit(event, ...args);
+  }
+}
+
+const server = new ApplicationHttpServer(async (request, response) => {
+  await handle(request, response);
+});
 const app = next({
   dev: process.env.NODE_ENV !== "production",
-  dir: dirname(fileURLToPath(import.meta.url)),
+  // Bun cannot resolve new Turbopack external-package links after a cold start.
+  webpack: Boolean(process.versions.bun),
+  hostname,
+  port,
+  httpServer: server,
+  // The launcher passes the source app root because this bundle lives under .ghostinit/runtime.
+  dir: process.argv[2] ?? dirname(fileURLToPath(import.meta.url)),
 });
 await app.prepare();
 const messagingOutbox = startMessagingOutboxWorker();
@@ -1709,12 +1797,11 @@ function toWebHeaders(input: IncomingHttpHeaders): Headers {
 }
 
 function rejectUpgrade(
-  socket: { write(data: string): unknown; destroy(): unknown },
+  socket: { end(data: string, callback: () => void): unknown; destroy(): unknown },
   status: number,
   text: string,
 ): void {
-  socket.write("HTTP/1.1 " + status + " " + text + "\\r\\nConnection: close\\r\\n\\r\\n");
-  socket.destroy();
+  socket.end("HTTP/1.1 " + status + " " + text + "\\r\\nConnection: close\\r\\n\\r\\n", () => socket.destroy());
 }
 
 async function currentIdentity(
@@ -1842,17 +1929,10 @@ async function upgradeRequest(
   }
 }
 
-const server = createServer(async (request, response) => {
-  await handle(request, response);
-});
 server.once("close", () => storageCleanupAbort.abort());
-server.on("upgrade", (request, socket, head) => {
-  void upgradeRequest(request, socket, head).catch(() => {
-    if (!socket.destroyed) rejectUpgrade(socket, 500, "Internal Server Error");
-  });
-});
-server.listen(port, () => {
-  console.log("> Ready on http://localhost:" + port + " (oRPC WebSocket /api/ws)");
+server.listen(port, hostname, () => {
+  const publicHost = hostname === "0.0.0.0" ? "localhost" : hostname.includes(":") ? "[" + hostname + "]" : hostname;
+  console.log("> Ready on http://" + publicHost + ":" + port + " (oRPC WebSocket /api/ws)");
 });
 
 let shutdownPromise: Promise<void> | undefined;

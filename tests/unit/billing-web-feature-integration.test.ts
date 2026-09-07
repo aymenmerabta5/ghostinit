@@ -231,7 +231,7 @@ describe("billing browser feature closure", () => {
       paid: true,
     };
     const bindings: Record<string, unknown> = {
-      React: { createElement: h },
+      React: { createElement: h, useTransition: () => [false, () => {}] },
       useSurfaceTranslations: () => (key: string) => key,
       useBillingPage: () => ({
         subscriptions: [],
@@ -282,6 +282,7 @@ describe("billing browser feature closure", () => {
       const bindings: Record<string, unknown> = {
         React: { createElement: h, useState: () => [state[stateIndex++], () => {}] },
         useSurfaceTranslations: () => (key: string) => key,
+        useAuthOwnedEffect: () => () => () => true,
         useBillingPage: () => ({
           canCreatePaymentLinks: merchant,
           isPaymentLinkLoading: false,

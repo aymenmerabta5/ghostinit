@@ -3,7 +3,7 @@
 ## Existing Frameworks
 
 - `nextjs` (default) — catalog-pinned Next 16 + React 19, Next specific files: `apps/web/src/app/` structure, `next.config.ts`, `next-env.d.ts`, cookie `nextCookies()` from better-auth/next-js, outputs `.next/**`, client env `NEXT_PUBLIC_*`.
-- `tanstack-start` — Vite 7 + Nitro 3, `tanstack-*` files: `apps/web/src/routes/`, `router.tsx`, `__root.tsx`, cookie `tanstackStartCookies()` better-auth/tanstack-start, outputs `.vinxi/** .output/** dist/**`, client env `VITE_*`, server fn `createServerFn`, `getRequestHeaders`, Vite + @vitejs/plugin-react + @tailwindcss/vite.
+- `tanstack-start` — Vite 7 + Nitro 3, `tanstack-*` files: `apps/web/src/routes/`, `router.tsx`, `__root.tsx`, cookie `tanstackStartCookies()` better-auth/tanstack-start, outputs `.output/** dist/**`, client env `VITE_*`, server fn `createServerFn`, `getRequestHeaders`, Vite + @vitejs/plugin-react + @tailwindcss/vite.
 
 DRY via fragments `src/templates/apps/fragments/` each file <150 LOC (guideline), shim barrels re-export split folder for backward compat.
 
@@ -101,7 +101,7 @@ Similarly `auth-composer.ts` handles `authPackage(framework)`.
 
 6. Turbo outputs.
 
-Already covered: `.next/** .vinxi/** .output/** dist/** .vercel/**` in `root.ts` `turbo()` outputs. If your framework emits different out dir (e.g., `.myframework/**`), add there + root `turbo.json`.
+Already covered: `.next/** .output/** dist/** .vercel/**` in `root.ts` `turbo()` outputs. If your framework emits different out dir (e.g., `.myframework/**`), add there + root `turbo.json`.
 
 7. Fragments Extraction Triggers (from `AGENTS.md#architecture`):
 

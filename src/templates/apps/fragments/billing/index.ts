@@ -195,8 +195,10 @@ export type { ProviderName } from "./snapshot";
 import { createBillingCheckout, createBillingPortalSession, createBillingPaymentLink } from "./mutations";
 import { safeBillingProviderUrl } from "./provider-url";
 import { supportsBillingPortal } from "./provider-options";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 
 export function useBillingPage() {
+  const captureEffect = useAuthOwnedEffect();
   const snapshot = useBillingSnapshot();
   const identity = useBillingIdentity();
   const role = identity.data?.user?.role;
@@ -207,25 +209,33 @@ export function useBillingPage() {
   const invoices = snapshot.data?.invoices ?? [];
   const pastDue = subscriptions.some((subscription) => subscription.status === "past_due");
   async function handleCheckout(provider: ProviderName) {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return;
     setIsCheckoutLoading(true);
     try {
       const result = await createBillingCheckout({ provider, planId: "pro", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", requestKey: crypto.randomUUID() });
+      if (!isCurrent()) return;
       if (!result.url) throw new Error("No checkout url returned");
       window.location.href = safeBillingProviderUrl(result.url);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Checkout failed"); }
-    finally { setIsCheckoutLoading(false); }
+    } catch (error) { if (isCurrent()) toast.error(error instanceof Error ? error.message : "Checkout failed"); }
+    finally { if (isCurrent()) setIsCheckoutLoading(false); }
   }
   async function handlePortal(provider: ProviderName) {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return;
     if (!supportsBillingPortal(provider)) return;
     try {
       const result = await createBillingPortalSession({ provider, returnUrl: window.location.origin + "/billing" });
+      if (!isCurrent()) return;
       if (result.url) window.location.href = safeBillingProviderUrl(result.url);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Portal failed"); }
+    } catch (error) { if (isCurrent()) toast.error(error instanceof Error ? error.message : "Portal failed"); }
   }
-  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string> {
+  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string | null> {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return null;
     setIsPaymentLinkLoading(true);
-    try { return safeBillingProviderUrl((await createBillingPaymentLink({ provider, name, items: [{ price, quantity: 1 }] })).url); }
-    finally { setIsPaymentLinkLoading(false); }
+    try { const result = await createBillingPaymentLink({ provider, name, items: [{ price, quantity: 1 }] }); return isCurrent() ? safeBillingProviderUrl(result.url) : null; }
+    finally { if (isCurrent()) setIsPaymentLinkLoading(false); }
   }
   return { subscriptions, invoices, subsLoading: snapshot.isPending, isCheckoutLoading, pastDue, handleCheckout, handlePortal, canCreatePaymentLinks, isPaymentLinkLoading, handlePaymentLink, snapshotError: snapshot.error, refresh: snapshot.refetch };
 }

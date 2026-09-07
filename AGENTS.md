@@ -36,16 +36,25 @@ cd /tmp/gi-test/demo && bun run install:bootstrap && bun run typecheck && bun ru
 
 **Host vs Generated:**
 
-- Host = this CLI repo. Single publishable package (`bin: dist/cli.js`, `private:false` intentional). Internal layering: `cli.ts` → `commands/` (Application) → `lib/` (Supporting) → `templates/`+`generators/` (Vendors/composers).
+- Host = this CLI repo. Single publishable package (`bin: dist/cli.js`, `private:false` intentional). `cli.ts` parses and dispatches; `commands/` orchestrates use cases; `domain/` resolves project policy and validates immutable plans; `application/ports/` defines rendering, formatting, and secret-materialization contracts. `generation/` implements the compiler boundary over `templates/`; `lib/` supplies filesystem, state, process, and diagnostic adapters. Domain code must not depend on commands, templates, or those adapters.
 - Generated = output monorepo `apps/* + packages/* + tooling/*` with manifest-derived, capability-scoped `turbo.json` cache inputs and `bunfig.toml` hoist=true.
 
-**GhostInit Layered Architecture (pragmatic UI->Supporting)** inspired by DDD enforced by `src/lib/architecture/index.ts` via `oxc-parser` (not TS compiler):
-1 UI (`apps/web`, `src/routes`) → 2 Transport (`packages/api`, `apps/web/src/app/api`, `src/routes/api`, oRPC) → 3 Domain (`**/domain/*`, `packages/core`) → 4 Capabilities (`packages/services/*`, `packages/billing` non-provider, `**/application/*`) → 5 Vendors (`billing/providers/*`, SDKs) → 6 Supporting (`database`, `config`, `kernel`, `observability`, `tooling/*`). No upward imports.
+**Generated architecture** is enforced by `src/lib/architecture/index.ts` through `oxc-parser`. The six categories describe responsibilities, not a mandatory six-hop call chain:
+
+- UI composes presentation and invokes the appropriate server or client boundary.
+- Transport adapts HTTP, WebSocket, Server Actions, and platform IPC to application operations.
+- Application services and use cases orchestrate domain behavior and adapters.
+- Domain owns business types, policies, and provider-neutral contracts. It cannot depend on application services, vendors, or framework implementations.
+- Vendor adapters implement inward-facing contracts and may import domain types.
+- Supporting modules provide shared contracts, configuration, persistence, and tooling; additional purity, database, vendor, and client rules constrain their use.
+
+The versioned edge matrix in `src/lib/architecture/rules/layer-policy.ts` is authoritative. Application-to-domain dependencies follow the same rules in monorepo `packages/modules/src/<module>` and single `src/server/modules/<module>` layouts. Module privacy and database isolation apply to both. A passing category edge does not bypass the more specific isolation rules.
 
 **Tooling:**
 
 - Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for the supported Next.js 16 TS resolution path. Both enforce the typed seven-day `supplyChain.minimumReleaseAgeSeconds` policy with an empty exclusion list; fixtures and temporary install probes must do the same.
 - Generated dependency SSOT is `packages/versions/src/index.ts`; host and generated compiler policies are verified independently.
+- Next development/build commands executed by Bun use the documented Webpack profile because Bun 1.4 cannot reliably resolve Turbopack's newly created external-package links on a cold start. Node keeps Turbopack. PDF-enabled Bun launchers preload their declared `@react-pdf/renderer` dependency before Next installs its require hook; React module conditions remain unchanged.
 - Generated Next apps use `typescriptNext` (TypeScript 7) through Next 16.3's
   default project-local `tsc` CLI. Shared monorepo tooling, TanStack Start, and
   Expo use the `typescript` TS6 pin while they still require JavaScript compiler
@@ -174,6 +183,10 @@ not run a production build.
 runtime, then runs six representative production-build/start lifecycles through
 `test:e2e-build`. Each lifecycle audits its installed graph at high severity,
 then explicitly runs `typecheck` before fail-closed `lint:all` and the production build. Generated
+runtime checks also require `/` and `/sign-in` to render HTML successfully; a
+healthy API endpoint alone does not prove SSR works. The custom capability-heavy
+corner combines single Next.js, Eve, and messaging to exercise their shared
+server entrypoints. Generated
 projects deliberately do not add an unpublished `ghostinit` dependency:
 prepublication gates own the local CLI path, while consumers use the released
 CLI they explicitly installed.

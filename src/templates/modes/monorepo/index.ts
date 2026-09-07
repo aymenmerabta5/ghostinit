@@ -38,6 +38,7 @@ import { shellFiles } from "../../shell.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
 import { integrateEveSecurityFiles } from "../../eve/security/index.js";
 import { capabilityClientFiles } from "../../apps/capability-clients/index.js";
+import { composeRequestLocalizedPages } from "../../apps/fragments/request-localized-page.js";
 
 export interface MonorepoSecrets extends RootSecrets {}
 export interface MonorepoContext {
@@ -307,16 +308,7 @@ export function monorepoFiles(
       deploy: config.deploy ?? "none",
     },
   );
-  const withoutOldAgents = integrated.filter(
-    (f: TemplateFile) =>
-      ![
-        "AGENTS.md",
-        "CLAUDE.md",
-        ".cursor/rules/ghostinit.mdc",
-        ".windsurf/rules/ghostinit.md",
-      ].includes(f.path),
-  );
-  const merged = [...withoutOldAgents, ...enrichedAgents];
+  const merged = [...integrated, ...enrichedAgents];
 
   // Collapses same-path emissions and FAILS if two composers disagree on the
   // content. A silent last-writer-wins here previously hid a whole duplicate
@@ -528,6 +520,14 @@ export function monorepoFiles(
     } catch {}
   }
 
+  if (hasWeb && effectiveFramework === "nextjs" && hasI18n) {
+    filteredFiles = composeRequestLocalizedPages(filteredFiles, "apps/web/src", {
+      staticServerPages: [
+        "apps/web/src/app/billing/cancel/page.tsx",
+        "apps/web/src/app/billing/success/page.tsx",
+      ],
+    });
+  }
   const deployNormalized =
     config.deploy === "cloudflare"
       ? normalizeCloudflareTemplateFiles(filteredFiles, effectiveFramework, mode)

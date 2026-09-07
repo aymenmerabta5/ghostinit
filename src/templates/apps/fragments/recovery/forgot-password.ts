@@ -66,7 +66,7 @@ ${isTanstack ? "function" : "export default function"} ForgotPasswordPage(): Rea
         ${backHome}
         <Card>
           <CardHeader className="gap-2">
-            <CardTitle className="text-2xl tracking-tight">{t("forgotPassword.title")}</CardTitle>
+            <CardTitle as="h1" className="text-2xl tracking-tight">{t("forgotPassword.title")}</CardTitle>
             <CardDescription className="max-w-[60ch]">{t("forgotPassword.description")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">

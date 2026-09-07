@@ -143,11 +143,3 @@ export function providersFileContentConvex(
 ): string {
   return providersFileContent(router, true, hasAnalytics);
 }
-
-// Backward compat aliases
-export function convexClientFileContent(): string {
-  return convexClientProviderContent();
-}
-export function convexProvidersFileContent(): string {
-  return convexClientProviderContent();
-}

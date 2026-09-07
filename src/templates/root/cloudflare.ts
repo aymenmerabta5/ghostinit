@@ -824,7 +824,7 @@ if (action === "deploy" || action === "upload") {
 }
 if (action === "dev") {
   assertNoRuntimeDotenvFiles();
-  await runLongLived(FRAMEWORK === "nextjs" ? [resolve(APP_ROOT, "node_modules/next/dist/bin/next"), "dev", ...forwarded] : ["x", "--no-install", "vite", "dev", ...forwarded], APP_ROOT, localRuntimeEnvironment(), stopOnStdinEnd);
+  await runLongLived(FRAMEWORK === "nextjs" ? [resolve(APP_ROOT, "node_modules/next/dist/bin/next"), "dev", "--webpack", ...forwarded] : ["x", "--no-install", "vite", "dev", ...forwarded], APP_ROOT, localRuntimeEnvironment(), stopOnStdinEnd);
   return;
 }
 assertNoRuntimeDotenvFiles();

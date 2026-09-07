@@ -3,20 +3,21 @@ import {
   singleMarketingFeaturesComponentContent,
   singleMarketingHeroComponentContent,
   singleMarketingPageContent,
+  type SingleMarketingOptions,
 } from "../../../../apps/fragments/marketing/single.js";
 
 export function singleMarketingPageTanstackContent(): string {
   return singleMarketingPageContent("tanstack");
 }
 
-export function singleMarketingHeroTanstackContent(): string {
-  return singleMarketingHeroComponentContent("tanstack");
+export function singleMarketingHeroTanstackContent(options: SingleMarketingOptions): string {
+  return singleMarketingHeroComponentContent("tanstack", options);
 }
 
-export function singleMarketingFeaturesTanstackContent(): string {
-  return singleMarketingFeaturesComponentContent("tanstack");
+export function singleMarketingFeaturesTanstackContent(options: SingleMarketingOptions): string {
+  return singleMarketingFeaturesComponentContent("tanstack", options);
 }
 
-export function singleMarketingClosingTanstackContent(hasBilling = true): string {
-  return singleMarketingClosingComponentContent("tanstack", hasBilling);
+export function singleMarketingClosingTanstackContent(options: SingleMarketingOptions): string {
+  return singleMarketingClosingComponentContent("tanstack", options);
 }

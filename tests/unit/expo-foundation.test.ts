@@ -234,7 +234,7 @@ describe("generated Expo foundation", () => {
       expect(offline).toContain('AsyncStorage from "@react-native-async-storage/async-storage"');
       expect(offline).toContain("const [unsubscribe, restorePromise] = persistQueryClient");
       expect(offline).toContain("restorePromise.catch");
-      expect(offline).toContain("return unsubscribe");
+      expect(offline).toContain("unsubscribe();");
       expect(offline).not.toContain("expo-secure-store");
 
       const provider = content(
@@ -250,7 +250,13 @@ describe("generated Expo foundation", () => {
       expect(provider).not.toContain("orpc");
       const layout = content(files, generatedPath(mode, "app/_layout.tsx"));
       expect(layout).toContain("<ConvexClientProvider>");
-      expect(layout).toContain("useState(makeNativeQueryClient)");
+      expect(layout).toContain("useMemo(() => makeNativeQueryClient(), [])");
+      expect(layout).toContain(
+        "useCanonicalQueryAuthScope(queryClient, session, sessionPending, readCurrentApplication)",
+      );
+      expect(layout).toContain("canonical.isPending || isRestoring");
+      expect(layout).toContain("nativeQueryCacheScope(canonical.scope)");
+      expect(offline).toContain('key: "ghostinit-query-cache:" + cacheScope');
       expect(layout).toContain('import { Header } from "@/components/header"');
       expect(layout).toContain("<Stack.Protected guard={isAuthenticated}>");
       expect(layout).toContain("useOfflineSync(queryClient");
@@ -260,7 +266,7 @@ describe("generated Expo foundation", () => {
       );
       expect(header).not.toContain("ml-2");
       expect(offline).toContain("buster: cacheScope");
-      expect(offline).toContain("queryClient.clear()");
+      expect(offline).toContain("invalidateQueryAuthScope(queryClient)");
       if (mode === "monorepo") {
         const dialog = content(files, "apps/mobile/src/components/ui/dialog.tsx");
         expect(dialog).toContain("sm:text-start");

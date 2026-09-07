@@ -90,6 +90,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { identityClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
+import { authScopedQueryKey, currentQueryAuthScope, queryInitialDataForScope, type QueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { SessionList } from "./session-list";
 ${actionImport}
@@ -100,16 +101,24 @@ export interface IdentitySessionInitialData {
   ipAddress?: string | null; userAgent?: string | null;
 }
 
-export function identitySessionsQueryOptions(initialData?: IdentitySessionInitialData[]) {
-  return orpc.identity.sessions.list.queryOptions({ input: {}, initialData });
+export function identitySessionsQueryOptions(scope: QueryAuthScope | null, initialData?: IdentitySessionInitialData[], initialScope?: QueryAuthScope) {
+  const options = orpc.identity.sessions.list.queryOptions({
+    input: {}, initialData: queryInitialDataForScope(scope, initialScope, initialData),
+  });
+  return {
+    ...options,
+    queryKey: scope ? authScopedQueryKey(scope, options.queryKey) : ["auth", "anonymous", "identity-sessions"],
+    enabled: Boolean(scope) && typeof window !== "undefined",
+  };
 }
 
-export function identitySessionsQueryKey() {
-  return orpc.identity.sessions.list.key({ type: "query" });
+export function identitySessionsQueryKey(scope: QueryAuthScope) {
+  return authScopedQueryKey(scope, orpc.identity.sessions.list.key({ type: "query" }));
 }
 
 async function invalidateIdentitySessions(queryClient: QueryClient): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey() });
+  const scope = currentQueryAuthScope(queryClient);
+  if (scope) await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey(scope) });
 }
 
 export function revokeIdentitySessionMutationOptions(queryClient: QueryClient) {
@@ -120,13 +129,14 @@ export function revokeOtherIdentitySessionsMutationOptions(queryClient: QueryCli
   ${revokeOthersOptions}
 }
 
-export function SessionsCard({ initialSessions }: { initialSessions?: IdentitySessionInitialData[] }): React.JSX.Element {
+export function SessionsCard({ initialSessions, initialScope }: { initialSessions?: IdentitySessionInitialData[]; initialScope?: QueryAuthScope }): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const queryClient = useQueryClient();
-  const sessionsQuery = useQuery(identitySessionsQueryOptions(initialSessions));
+  const { data: currentSession, isPending: sessionPending } = identityClient.useSession();
+  const scope = currentQueryAuthScope(queryClient) ?? (sessionPending ? initialScope ?? null : null);
+  const sessionsQuery = useQuery(identitySessionsQueryOptions(scope, initialSessions, initialScope));
   const revokeSession = useMutation(revokeIdentitySessionMutationOptions(queryClient));
   const revokeOthers = useMutation(revokeOtherIdentitySessionsMutationOptions(queryClient));
-  const { data: currentSession } = identityClient.useSession();
   const sessions = (sessionsQuery.data ?? []).filter((session) => session.revokedAt === null);
   const operationError = sessionsQuery.error ?? revokeSession.error ?? revokeOthers.error;
   return (

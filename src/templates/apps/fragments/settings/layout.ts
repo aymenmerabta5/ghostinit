@@ -5,6 +5,9 @@ export function settingsLayoutContent(hasBilling = true, hasIdentityTransport = 
   const workspaceNavigation = hasIdentityTransport
     ? '            <Link href="/settings/workspace" className={cn("block rounded-md px-3 py-2 text-sm font-medium transition-colors", pathname.startsWith("/settings/workspace") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>{t("workspace")}</Link>\n'
     : "";
+  const adminNavigation = hasIdentityTransport
+    ? '            {user?.role === "admin" ? <Link href="/admin" className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">{t("admin")}</Link> : null}\n'
+    : "";
   return `"use client";
 import * as React from "react";
 import Link from "next/link";
@@ -12,13 +15,15 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { Separator } from "@/components/ui/separator";
+${hasIdentityTransport ? 'import { useAuth } from "@/hooks/use-auth";' : ""}
 const nav = [
   { labelKey: "title", href: "/settings" },
-${billingNavigation}  { labelKey: "admin", href: "/admin" },
+${billingNavigation}
 ] as const;
 export default function SettingsLayout({ children }: { children: React.ReactNode; }): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const pathname = usePathname();
+${hasIdentityTransport ? "  const { user } = useAuth();" : ""}
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-5xl flex flex-col gap-8">
@@ -32,7 +37,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
             {nav.map((item) => (
               <Link key={item.href} href={item.href} className={cn("block rounded-md px-3 py-2 text-sm font-medium transition-colors", pathname === item.href || (pathname.startsWith(item.href + "/") && item.href !== "/settings") ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground")}>{t(item.labelKey)}</Link>
             ))}
-${workspaceNavigation}
+${adminNavigation}${workspaceNavigation}
           </aside>
           <section className="flex-1 min-w-0">{children}</section>
         </div>

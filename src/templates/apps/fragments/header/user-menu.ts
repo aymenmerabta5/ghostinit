@@ -15,13 +15,12 @@ export function headerUserMenuContent(
       : 'import { useRouter } from "@tanstack/react-router";';
   const signOut =
     router === "next"
-      ? `    router.push("/");`
+      ? `    transitionQueryAuthScope(getQueryClient(), null);
+    router.push("/");
+    router.refresh();`
       : `    transitionQueryAuthScope(getQueryClient(), null);
     router.navigate({ to: "/" });`;
-  const queryResetImport =
-    router === "tanstack"
-      ? `import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";`
-      : "";
+  const queryResetImport = `import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";`;
   const billingDestination = !hasBilling
     ? ""
     : router === "next"

@@ -39,11 +39,12 @@ jobs:
         run: >-
           bun -e 'import { runtime } from "./packages/versions/src/index.ts";
           if (Bun.version !== runtime.bun) throw new Error(`Expected Bun ${runtime.bun}, received ${Bun.version}`);'
-      - name: Check portable source and types
-        run: |
-          bun run check
-          bun run typecheck
-          bun run check:capability-evidence
+      - name: Check portable source
+        run: bun run check
+      - name: Typecheck portable projects and scripts
+        run: bun run typecheck
+      - name: Check portable capability evidence
+        run: bun run check:capability-evidence
       - name: Test installer, supervisors, process-tree, filesystem, and Bun portability
         run: >-
           bun test --timeout 120000
@@ -57,6 +58,7 @@ jobs:
           tests/unit/next-runtime-deployment.test.ts
           tests/unit/posix-process-groups.test.ts
           tests/unit/process-tree.test.ts
+          tests/unit/probe-process-identity.test.ts
           tests/unit/e2e-runtime-evidence.test.ts
           tests/unit/temporary-workspace.test.ts
           tests/unit/worker-preview-readiness.test.ts
@@ -75,10 +77,10 @@ jobs:
         run: bun run build
       - name: Test the packed CLI on the runner OS
         run: bun test --timeout 180000 tests/integration/packed-cli.test.ts
+      - name: Check portability diff whitespace
+        run: git diff --check
       - name: Verify portability gates leave no tracked changes
-        run: |
-          git diff --check
-          git diff --exit-code
+        run: git diff --exit-code
 
   check-and-test:
     runs-on: ubuntu-latest
@@ -132,10 +134,10 @@ jobs:
           tests/unit/ci-v2.test.ts
       - name: Test packed CLI artifact
         run: bun test --timeout 100000 tests/integration/packed-cli.test.ts
+      - name: Check validation diff whitespace
+        run: git diff --check
       - name: Verify checks leave no tracked changes
-        run: |
-          git diff --check
-          git diff --exit-code
+        run: git diff --exit-code
 
   generated-project-smoke:
     runs-on: ubuntu-latest
@@ -163,10 +165,10 @@ jobs:
           fi
       - name: Run required generated-project gate
         run: bun run test:generated -- --all
+      - name: Check generated gate diff whitespace
+        run: git diff --check
       - name: Verify generated gate leaves no tracked changes
-        run: |
-          git diff --check
-          git diff --exit-code
+        run: git diff --exit-code
       - name: Clean generated runner temp
         if: always()
         shell: bash
@@ -202,10 +204,10 @@ jobs:
         run: bun run build
       - name: Build and run generated OpenNext and native Vite Workers
         run: bun run test:generated -- --only cloudflare-next-single,cloudflare-tanstack-single
+      - name: Check Worker acceptance diff whitespace
+        run: git diff --check
       - name: Verify Worker acceptance leaves no tracked changes
-        run: |
-          git diff --check
-          git diff --exit-code
+        run: git diff --exit-code
       - name: Clean generated runner temp
         if: always()
         shell: bash

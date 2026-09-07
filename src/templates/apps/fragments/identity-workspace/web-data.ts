@@ -100,7 +100,7 @@ export function identityWorkspaceBrowserMutationsContent(): string {
   return `"use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey } from "@/lib/query-client";
+import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 
 interface WorkspaceMutationCallbacks {
   organizationCreated(id: string): void;
@@ -124,16 +124,16 @@ export function useIdentityWorkspaceMutations(callbacks: WorkspaceMutationCallba
     ]);
   }
   const createOrganization = useMutation(orpc.identity.organizations.create.mutationOptions({ onSuccess: async ({ organization }) => { callbacks.organizationCreated(organization.id); await invalidateWorkspace(); } }));
-  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const createTeam = useMutation(orpc.identity.teams.create.mutationOptions({ onSuccess: async ({ team }) => { callbacks.teamCreated(team.id); await invalidateWorkspace(); } }));
-  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const inviteMember = useMutation(orpc.identity.invitations.create.mutationOptions({ onSuccess: async () => { callbacks.invitationCreated(); await invalidateWorkspace(); } }));
   const cancelInvitation = useMutation(orpc.identity.invitations.cancel.mutationOptions({ onSuccess: invalidateWorkspace }));
   const acceptInvitation = useMutation(orpc.identity.invitations.accept.mutationOptions({ onSuccess: invalidateWorkspace }));
   const changeMemberRole = useMutation(orpc.identity.organizations.changeMemberRole.mutationOptions({ onSuccess: invalidateWorkspace }));
-  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const addTeamMember = useMutation(orpc.identity.teams.addMember.mutationOptions({ onSuccess: async () => { callbacks.teamMemberAdded(); await invalidateWorkspace(); } }));
-  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const all = [createOrganization, setActiveOrganization, createTeam, setActiveTeam, inviteMember, cancelInvitation, acceptInvitation, changeMemberRole, removeMember, addTeamMember, removeTeamMember];
   return { acceptInvitation, addTeamMember, cancelInvitation, changeMemberRole, createOrganization, createTeam, inviteMember, pending: all.some((mutation) => mutation.isPending), removeMember, removeTeamMember, setActiveOrganization, setActiveTeam };
 }
@@ -144,6 +144,7 @@ export function identityWorkspaceNextMutationsContent(): string {
   return `"use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { requestQueryAuthScopeRefresh } from "@/lib/query-client";
 import {
   acceptInvitationAction,
   addTeamMemberAction,
@@ -177,16 +178,16 @@ export function useIdentityWorkspaceMutations(callbacks: WorkspaceMutationCallba
     ]);
   }
   const createOrganization = useMutation({ mutationFn: createOrganizationAction, onSuccess: async ({ organization }) => { callbacks.organizationCreated(organization.id); await invalidateWorkspace(); } });
-  const setActiveOrganization = useMutation({ mutationFn: setActiveOrganizationAction, onSuccess: invalidateWorkspace });
+  const setActiveOrganization = useMutation({ mutationFn: setActiveOrganizationAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const createTeam = useMutation({ mutationFn: createTeamAction, onSuccess: async ({ team }) => { callbacks.teamCreated(team.id); await invalidateWorkspace(); } });
-  const setActiveTeam = useMutation({ mutationFn: setActiveTeamAction, onSuccess: invalidateWorkspace });
+  const setActiveTeam = useMutation({ mutationFn: setActiveTeamAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const inviteMember = useMutation({ mutationFn: createInvitationAction, onSuccess: async () => { callbacks.invitationCreated(); await invalidateWorkspace(); } });
   const cancelInvitation = useMutation({ mutationFn: cancelInvitationAction, onSuccess: invalidateWorkspace });
   const acceptInvitation = useMutation({ mutationFn: acceptInvitationAction, onSuccess: invalidateWorkspace });
   const changeMemberRole = useMutation({ mutationFn: changeMemberRoleAction, onSuccess: invalidateWorkspace });
-  const removeMember = useMutation({ mutationFn: removeMemberAction, onSuccess: invalidateWorkspace });
+  const removeMember = useMutation({ mutationFn: removeMemberAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const addTeamMember = useMutation({ mutationFn: addTeamMemberAction, onSuccess: async () => { callbacks.teamMemberAdded(); await invalidateWorkspace(); } });
-  const removeTeamMember = useMutation({ mutationFn: removeTeamMemberAction, onSuccess: invalidateWorkspace });
+  const removeTeamMember = useMutation({ mutationFn: removeTeamMemberAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const all = [createOrganization, setActiveOrganization, createTeam, setActiveTeam, inviteMember, cancelInvitation, acceptInvitation, changeMemberRole, removeMember, addTeamMember, removeTeamMember];
   return { acceptInvitation, addTeamMember, cancelInvitation, changeMemberRole, createOrganization, createTeam, inviteMember, pending: all.some((mutation) => mutation.isPending), removeMember, removeTeamMember, setActiveOrganization, setActiveTeam };
 }

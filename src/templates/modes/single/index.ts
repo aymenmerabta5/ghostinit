@@ -42,6 +42,7 @@ import {
 } from "../../tooling/dependency-audit.js";
 import { deployFiles } from "../../root/deploy.js";
 import { normalizeCloudflareTemplateFiles } from "../../cloudflare-normalization.js";
+import { composeRequestLocalizedPages } from "../../apps/fragments/request-localized-page.js";
 import { bunfig } from "../../root/package.js";
 import { githubWorkflow } from "../../root/config.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
@@ -608,6 +609,15 @@ export function singleFiles(
     ...deduped,
     ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
   ]);
+  if (hasWebSingle && isNextSingle && hasI18n) {
+    deduped = composeRequestLocalizedPages(deduped, "src", {
+      staticServerPages: [
+        "src/app/page.tsx",
+        "src/app/billing/cancel/page.tsx",
+        "src/app/billing/success/page.tsx",
+      ],
+    });
+  }
   const deployNormalized =
     config.deploy === "cloudflare"
       ? normalizeCloudflareTemplateFiles(deduped, framework, mode)

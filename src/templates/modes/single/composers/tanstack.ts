@@ -208,12 +208,27 @@ export function buildTanstackFiles(
   files.push(file("src/router.tsx", singleRouterTanstackContent()));
   files.push(file("src/routes/__root.tsx", singleRootRouteTanstackContent(hasI18n)));
   files.push(file("src/routes/index.tsx", singleMarketingPageTanstackContent()));
-  files.push(file("src/components/marketing/hero.tsx", singleMarketingHeroTanstackContent()));
+  const marketingOptions = {
+    hasAuth,
+    hasApi,
+    hasBilling,
+    hasEve,
+    database: isConvex ? "convex" : isNone ? "none" : "postgres",
+  } as const;
   files.push(
-    file("src/components/marketing/features.tsx", singleMarketingFeaturesTanstackContent()),
+    file("src/components/marketing/hero.tsx", singleMarketingHeroTanstackContent(marketingOptions)),
   );
   files.push(
-    file("src/components/marketing/closing.tsx", singleMarketingClosingTanstackContent(hasBilling)),
+    file(
+      "src/components/marketing/features.tsx",
+      singleMarketingFeaturesTanstackContent(marketingOptions),
+    ),
+  );
+  files.push(
+    file(
+      "src/components/marketing/closing.tsx",
+      singleMarketingClosingTanstackContent(marketingOptions),
+    ),
   );
   if (hasAuth) {
     files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
@@ -439,6 +454,7 @@ export function buildTanstackFiles(
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||
+      f.path.startsWith("tests/") ||
       f.path.startsWith("src/components/ui/surface") ||
       f.path.startsWith("src/components/Notification") ||
       f.path.startsWith("src/components/form-fields") ||

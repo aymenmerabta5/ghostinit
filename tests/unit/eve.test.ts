@@ -23,8 +23,8 @@ describe("eve durable agent app template", () => {
     expect(pkg.dependencies["@repo/workflows"]).toBe("workspace:*");
     expect(pkg.scripts.dev).toBeUndefined();
     expect(pkg.scripts.start).toBeUndefined();
-    expect(pkg.scripts["dev:diagnostic"]).toBe("eve dev");
-    expect(pkg.scripts["start:diagnostic"]).toBe("eve start");
+    expect(pkg.scripts["dev:diagnostic"]).toBe("node ../../scripts/eve-dev.mjs");
+    expect(pkg.scripts["start:diagnostic"]).toBe("node .output/server/index.mjs");
   });
 
   it("emits paired Eve format write and check scripts for generated production gates", () => {

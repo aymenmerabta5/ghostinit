@@ -10,7 +10,13 @@ import type {
 } from "../domain/generation/types.js";
 import { buildProjectGenerationPlan, canonicalDesiredProjectConfig } from "../templates/default.js";
 import { canonicalizeGenerationPlan } from "../generation/plan-formatter.js";
-import type { GenerationPlanState, ManagedFileState, State } from "./config.js";
+import {
+  PROJECT_CONFIG_FILE,
+  projectDesiredConfigSchema,
+  type GenerationPlanState,
+  type ManagedFileState,
+  type State,
+} from "./config.js";
 import { ConflictError } from "./errors.js";
 import { FsTransaction } from "./fs.js";
 import {
@@ -19,6 +25,7 @@ import {
   listEnvironmentLifecyclePaths,
 } from "./environment-lifecycle.js";
 import { hashContent } from "./checksum.js";
+import { resolveDesiredProjectConfig, serializeDesiredProjectConfig } from "./project-config.js";
 import {
   buildApiRegistry,
   buildModuleRegistry,
@@ -112,6 +119,19 @@ async function readDiskFile(
 ): Promise<{ content: string; hash: string } | null> {
   const content = await reader.readText(path);
   return content === undefined ? null : { content, hash: hashContent(content) };
+}
+
+function desiredProjectConfigContentsEqual(current: string, target: string): boolean {
+  try {
+    const normalize = (content: string): string => {
+      const desired = projectDesiredConfigSchema.parse(JSON.parse(content));
+      resolveDesiredProjectConfig(desired);
+      return serializeDesiredProjectConfig(canonicalDesiredProjectConfig(desired));
+    };
+    return normalize(current) === normalize(target);
+  } catch {
+    return false;
+  }
 }
 
 async function targetFiles(
@@ -427,7 +447,6 @@ export async function buildReconcilePlan(
     formatGenerationPlan?: typeof canonicalizeGenerationPlan;
   } = {},
 ): Promise<ReconcilePlan> {
-  const operation = options.operation ?? "upgrade";
   const reader = new FsTransaction(root);
   const {
     targets,
@@ -560,8 +579,44 @@ export async function buildReconcilePlan(
         continue;
       }
     }
+    if (!prior && !isLocalDotenvPath(path)) {
+      if (target.lifecycle === "seed-once") preserved.push(path);
+      else
+        conflicts.push({
+          path,
+          reason: "untracked-collision",
+          expectedHash: null,
+          actualHash: actual.hash,
+          proposedHash: target.contentHash,
+        });
+      continue;
+    }
     if (actual.hash === target.contentHash) {
       unchanged.push(path);
+      continue;
+    }
+    if (path === PROJECT_CONFIG_FILE) {
+      // The editable desired input may differ in formatting from its canonical
+      // output. Normalize only the same validated configuration, using the
+      // actual bytes as the transaction's compare-and-swap baseline.
+      if (!desiredProjectConfigContentsEqual(actual.content, target.content)) {
+        conflicts.push({
+          path,
+          reason: "content-hash-mismatch",
+          expectedHash: prior?.contentHash ?? null,
+          actualHash: actual.hash,
+          proposedHash: target.contentHash,
+        });
+      } else {
+        rewrites.push({
+          action: "rewrite",
+          path,
+          beforeHash: actual.hash,
+          afterHash: target.contentHash,
+          content: target.content,
+          file: target,
+        });
+      }
       continue;
     }
     // The current plan is authoritative for lifecycle upgrades.  An edited
@@ -572,10 +627,7 @@ export async function buildReconcilePlan(
       preserved.push(path);
       continue;
     }
-    if (
-      lifecycle !== "generator-owned" &&
-      !(operation === "sync" && lifecycle === "structured-merge")
-    ) {
+    if (lifecycle !== "generator-owned" && lifecycle !== "structured-merge") {
       conflicts.push({
         path,
         reason: prior ? "content-hash-mismatch" : "untracked-collision",
@@ -1106,7 +1158,12 @@ async function stageEnvironmentAndSecrets(
   }
 }
 
-async function finalFileRecords(root: string, state: State, plan: ReconcilePlan) {
+async function finalFileRecords(
+  root: string,
+  state: State,
+  plan: ReconcilePlan,
+  committedContents: ReadonlyMap<string, string>,
+) {
   const records: Record<string, ManagedFileState> = {};
   const reader = new FsTransaction(root);
   for (const [path, prior] of Object.entries(state.files)) {
@@ -1115,17 +1172,34 @@ async function finalFileRecords(root: string, state: State, plan: ReconcilePlan)
       plan.moves.some((change) => change.fromPath === path) ||
       plan.retired.includes(path);
     if (removed) continue;
-    if (!plan.targets[path] && !(await readDiskFile(reader, path))) continue;
-    records[path] = prior;
+    const target = plan.targets[path];
+    if (!target && !(await readDiskFile(reader, path))) continue;
+    // A corrected seed policy relinquishes ownership even when product edits
+    // are preserved. Keep the prior attested bytes and provenance unchanged.
+    records[path] =
+      target?.lifecycle === "seed-once" && plan.preserved.includes(path)
+        ? { ...prior, lifecycle: "seed-once" }
+        : prior;
   }
   for (const [path, target] of Object.entries(plan.targets)) {
-    const actual = await readDiskFile(reader, path);
-    if (!actual) continue;
-    records[path] = createManagedFileState(path, actual.content, {
-      owner: target.owner,
-      lifecycle: target.lifecycle,
-      provenance: target.provenance,
-    });
+    const committed = committedContents.get(path);
+    const operatorEnvironment =
+      committed === undefined && target.lifecycle === "seed-once" && isLocalDotenvPath(path)
+        ? await readDiskFile(reader, path)
+        : null;
+    if (committed === undefined && !plan.unchanged.includes(path) && !operatorEnvironment) continue;
+    // Baselines attest planned or committed bytes, never an unrelated edit
+    // observed after the plan or transaction completed. Local environment files
+    // instead remain operator-owned inputs to field-preserving reconciliation.
+    records[path] = createManagedFileState(
+      path,
+      committed ?? operatorEnvironment?.content ?? target.content,
+      {
+        owner: target.owner,
+        lifecycle: target.lifecycle,
+        provenance: target.provenance,
+      },
+    );
   }
   return records;
 }
@@ -1143,12 +1217,24 @@ export async function applyReconcilePlan(
 ): Promise<void> {
   const unsafeUpgradeChanges =
     kind === "upgrade"
-      ? [...plan.moves, ...plan.rewrites, ...plan.deletions].filter(
-          (change) => change.file?.lifecycle !== "generator-owned",
-        )
+      ? [
+          ...[...plan.moves, ...plan.deletions].filter(
+            (change) => change.file?.lifecycle !== "generator-owned",
+          ),
+          ...plan.rewrites.filter(
+            (change) =>
+              change.action !== "rewrite" ||
+              (change.file?.lifecycle !== "generator-owned" &&
+                !(
+                  change.file?.lifecycle === "structured-merge" &&
+                  change.beforeHash !== null &&
+                  change.beforeHash === state.files[change.path]?.contentHash
+                )),
+          ),
+        ]
       : [];
   if (unsafeUpgradeChanges.length > 0) {
-    throw new ConflictError("Upgrade plan contains a non-generator-owned mutation", {
+    throw new ConflictError("Upgrade plan contains an unsupported managed-file mutation", {
       paths: unsafeUpgradeChanges.map((change) => change.path),
     });
   }
@@ -1227,6 +1313,7 @@ export async function applyReconcilePlan(
       tx,
       dependencies.entropy ?? ((bytes, encoding) => randomBytes(bytes).toString(encoding)),
     );
+    const committedContents = tx.getStagedContents();
     let pendingSaved = false;
     try {
       await saveStateV2(root, state, baseSave);
@@ -1252,7 +1339,7 @@ export async function applyReconcilePlan(
       await saveStateV2(root, state, {
         desiredConfig: canonicalDesiredProjectConfig(state.desiredConfig),
         resolvedConfig: state.resolvedConfig,
-        replaceFiles: await finalFileRecords(root, state, plan),
+        replaceFiles: await finalFileRecords(root, state, plan, committedContents),
         generationPlan: plan.generationPlan,
         acceptConfigChanges: true,
         pendingOperation: null,

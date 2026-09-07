@@ -12,6 +12,8 @@ import { expoAnalyticsFile } from "./fragments/expo/analytics.js";
 import { expoEveFiles, eveProtocolAcceptanceFile, eveProtocolFile } from "./fragments/eve/index.js";
 import { platformI18nFiles } from "./fragments/platform-i18n.js";
 import { resolveExpoCapabilities, type ExpoFeatureInput } from "./expo-core.js";
+import { nativeQueryRegressionFile } from "./fragments/expo/query-tests.js";
+import { canonicalQueryAuthHookContent } from "./fragments/query-auth.js";
 
 function headerContent(
   hasBilling: boolean,
@@ -33,6 +35,7 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
   const files: TemplateFile[] = [
     file("apps/mobile/src/lib/utils.ts", expoLibUtilsContent()),
     file("apps/mobile/src/lib/query-client.ts", expoNativeQueryClientContent()),
+    nativeQueryRegressionFile(),
     ...rnrAllFiles(),
     file("apps/mobile/src/hooks/use-copy.ts", expoUseCopyHook()),
     file("apps/mobile/src/hooks/use-offline.ts", expoOfflineHookContent()),
@@ -69,6 +72,9 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
     files.push(
       file("apps/mobile/src/lib/orpc.ts", expoOrpcClientContent({ hasAuth: capabilities.hasAuth })),
     );
+  }
+  if (capabilities.hasAuth && capabilities.hasApi) {
+    files.push(file("apps/mobile/src/lib/query-auth-scope.ts", canonicalQueryAuthHookContent()));
   }
   if (capabilities.hasBilling) {
     files.push(file("apps/mobile/src/hooks/use-billing.ts", expoUseBillingHook()));

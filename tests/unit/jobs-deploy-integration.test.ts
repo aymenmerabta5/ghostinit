@@ -91,11 +91,9 @@ describe("jobs and messaging deployment integration", () => {
           expect(() => Bun.TOML.parse(content(files, "fly.toml"))).not.toThrow();
 
           if (database === "postgres") {
-            const server = mode === "monorepo" ? "apps/web/server.ts" : "server.ts";
+            const server = mode === "monorepo" ? "apps/web/server.ts" : "next-server.ts";
             expect(files.some(({ path }) => path === server)).toBe(true);
-            expect(pkg.scripts.start).toContain(
-              mode === "monorepo" && runtime === "bun" ? "--cwd apps/web" : server,
-            );
+            expect(pkg.scripts.start).toContain(`start-next-server.mjs ${runtime} start`);
             expect(pkg.scripts["jobs:worker"]).toBeDefined();
             expect(pkg.scripts["jobs:scheduler"]).toBeDefined();
             expect(files.some(({ path }) => path === "scripts/start-jobs.mjs")).toBe(true);
@@ -108,10 +106,8 @@ describe("jobs and messaging deployment integration", () => {
               'storage_cleanup = "bun run storage:cleanup-worker"',
             );
             if (runtime === "node") {
-              expect(pkg.scripts.start).toContain("typescript-runtime-loader.mjs");
-              expect(
-                files.some(({ path }) => path === "scripts/typescript-runtime-loader.mjs"),
-              ).toBe(true);
+              expect(pkg.scripts.start).toContain("start-next-server.mjs node start");
+              expect(files.some(({ path }) => path === "scripts/start-next-server.mjs")).toBe(true);
             }
           } else {
             expect(pkg.scripts["jobs:deploy"]).toBe("bun x --no-install convex deploy");
@@ -136,7 +132,7 @@ describe("jobs and messaging deployment integration", () => {
     expect(pkg.packageManager).toBe(`bun@${toolchainRuntime.bun}`);
     expect(pkg.engines?.bun).toBe(toolchainRuntime.bun);
     expect(pkg.engines?.node).toBeUndefined();
-    expect(pkg.scripts.start).toBe("bun --cwd apps/web --conditions=react-server server.ts");
+    expect(pkg.scripts.start).toBe("bun ./scripts/start-next-server.mjs bun start");
     expect(pkg.scripts["start:web"]).toBe(pkg.scripts.start);
     expect(pkg.scripts["jobs:worker"]).toContain("packages/api/src/workers/jobs/worker.ts");
     expect(pkg.scripts["jobs:scheduler"]).toContain("packages/api/src/workers/jobs/scheduler.ts");
@@ -230,8 +226,7 @@ describe("jobs and messaging deployment integration", () => {
       bun: toolchainRuntime.bun,
       node: `${toolchainRuntime.node.split(".")[0]}.x`,
     });
-    expect(pkg.scripts.start).toContain("node --import ./scripts/typescript-runtime-loader.mjs");
-    expect(pkg.scripts.start).toContain("apps/web/server.ts");
+    expect(pkg.scripts.start).toBe("bun ./scripts/start-next-server.mjs node start");
     expect(pkg.scripts["jobs:worker"]).toContain(
       "node --import ./scripts/typescript-worker-loader.mjs",
     );
@@ -243,9 +238,9 @@ describe("jobs and messaging deployment integration", () => {
     expect(dockerfile).toContain("RUN bun install");
     expect(dockerfile).toContain('CMD ["bun", "scripts/start-production.mjs"]');
     expect(dockerfile).not.toContain("npm");
-    const loader = content(files, "scripts/typescript-runtime-loader.mjs");
-    expect(loader).toContain('specifier.startsWith("@/")');
-    expect(loader).toContain("specifier.slice(2)");
+    const loader = content(files, "scripts/start-next-server.mjs");
+    expect(loader).toContain("Bun.resolveSync(args.path, dirname(args.importer))");
+    expect(loader).toContain('packages: "external"');
   });
 
   test("single Next uses its flat custom server and flat Docker manifest", () => {
@@ -256,8 +251,7 @@ describe("jobs and messaging deployment integration", () => {
     const files = deployFiles("demo", "docker", "node", profile);
 
     expect(pkg.packageManager).toBe(`bun@${toolchainRuntime.bun}`);
-    expect(pkg.scripts.start).toContain("typescript-runtime-loader.mjs");
-    expect(pkg.scripts.start).toMatch(/ server\.ts$/);
+    expect(pkg.scripts.start).toBe("bun ./scripts/start-next-server.mjs node start");
     expect(pkg.scripts.start).not.toContain("apps/web/server.ts");
     expect(content(files, "Dockerfile")).toContain("COPY . .");
     expect(content(files, "Dockerfile")).toContain("bunfig.toml");

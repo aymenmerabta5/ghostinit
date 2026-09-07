@@ -16,7 +16,6 @@ import {
   RESOLVED_TEMPLATE_RENDERER_ID,
 } from "../../src/generation/resolved-template-compiler";
 import { projectRendererRegistry } from "../../src/generation/renderer-registry";
-import { canonicalizeGenerationPlan } from "../../src/generation/plan-formatter";
 import { runProjectInstall, type InstallerDependencies } from "../../src/commands/create/installer";
 import { resolveCreateConfig } from "../../src/commands/create/resolution";
 import { Logger } from "../../src/lib/logger";
@@ -615,7 +614,6 @@ describe("V2 GenerationPlan production pipeline", () => {
         {
           projectName: fixture.config.name,
           projectRoot: root,
-          config: fixture.config,
           desiredConfig: fixture.desiredConfig,
           resolvedConfig: fixture.resolvedConfig,
           options: options(root, true),
@@ -637,41 +635,6 @@ describe("V2 GenerationPlan production pipeline", () => {
     }
   });
 
-  test("ignores the deprecated legacy config input after V2 resolution", async () => {
-    const fixture = resolvedFixture();
-    const root = join(tmpdir(), `ghostinit-resolved-only-${process.pid}-absent`);
-    rmSync(root, { recursive: true, force: true });
-    const poisonedLegacyConfig = {
-      ...fixture.config,
-      name: "wrong-legacy-name",
-      mode: "single" as const,
-      auth: false,
-      api: false,
-      billing: [],
-      database: "none" as const,
-    };
-    const result = await runProjectInstall({
-      projectName: fixture.resolvedConfig.name,
-      projectRoot: root,
-      config: poisonedLegacyConfig,
-      desiredConfig: fixture.desiredConfig,
-      resolvedConfig: fixture.resolvedConfig,
-      options: options(root, true),
-      noInstall: true,
-    });
-    const expected = await canonicalizeGenerationPlan(
-      buildProjectGenerationPlan(fixture.resolvedConfig, {
-        desiredConfig: fixture.desiredConfig,
-      }),
-    );
-    expect(result.plan.planHash).toBe(expected.planHash);
-    expect(result.plan.projectConfigHash).toBe(fixture.resolvedConfig.configHash);
-    expect(result.plan.files.some(({ physicalPath }) => physicalPath === "turbo.json")).toBe(true);
-    expect(
-      result.plan.files.some(({ physicalPath }) => physicalPath === "src/server/api/router.ts"),
-    ).toBe(false);
-  });
-
   test("publishes a new project only after its private sibling candidate succeeds", async () => {
     const fixture = resolvedFixture();
     const root = join(tmpdir(), `ghostinit-plan-publish-${process.pid}-${Date.now()}`);
@@ -683,7 +646,6 @@ describe("V2 GenerationPlan production pipeline", () => {
       {
         projectName: fixture.config.name,
         projectRoot: root,
-        config: fixture.config,
         desiredConfig: fixture.desiredConfig,
         resolvedConfig: fixture.resolvedConfig,
         options: options(root, false),
@@ -737,7 +699,6 @@ describe("V2 GenerationPlan production pipeline", () => {
       {
         projectName: fixture.config.name,
         projectRoot: root,
-        config: fixture.config,
         desiredConfig: fixture.desiredConfig,
         resolvedConfig: fixture.resolvedConfig,
         options: { ...options(root, false), noInstall: false },
@@ -798,7 +759,6 @@ describe("V2 GenerationPlan production pipeline", () => {
       {
         projectName: fixture.config.name,
         projectRoot: root,
-        config: fixture.config,
         desiredConfig: fixture.desiredConfig,
         resolvedConfig: fixture.resolvedConfig,
         options: { ...options(root, false), noInstall: false },
@@ -847,7 +807,6 @@ describe("V2 GenerationPlan production pipeline", () => {
     const result = await runProjectInstall({
       projectName: fixture.config.name,
       projectRoot: root,
-      config: fixture.config,
       desiredConfig: fixture.desiredConfig,
       resolvedConfig: fixture.resolvedConfig,
       options: options(root, false),

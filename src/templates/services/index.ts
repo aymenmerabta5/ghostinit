@@ -24,7 +24,7 @@ import { requestApplicationServerContent } from "./application-server.js";
 import { hasBillingAddon } from "./shared.js";
 
 export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFile[] {
-  const { mode, framework, addons } = normalizeTemplateArgs(
+  const { mode, addons } = normalizeTemplateArgs(
     a as ProjectMode | string | Record<string, unknown> | undefined,
     b as string | AddonInstallerMap | Record<string, unknown> | undefined,
     c as AddonInstallerMap | Record<string, unknown> | undefined,
@@ -61,9 +61,6 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
     notifications: withRequestApplication && withNotifications,
   } as const;
 
-  // Single mode has no @repo/kernel package, and the service files import
-  // `@/server/kernel/result.js`. Emit the module so those imports resolve —
-  // without it every single-mode project failed to typecheck with TS2307.
   if (!isMonorepo) {
     files.push(
       file(
@@ -196,8 +193,8 @@ export function err<E = Error>(error: E): Result<never, E> {
   if (withNotifications) files.push(...notificationsServiceFiles(mode as ProjectMode));
   if (withFeatureFlags) files.push(...featureFlagsServiceFiles(mode as ProjectMode));
   if (withJobs) files.push(...jobsServiceFiles(mode as ProjectMode));
-  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode, framework));
-  files.push(...invoiceServiceFiles(mode as ProjectMode, framework));
+  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode));
+  files.push(...invoiceServiceFiles(mode as ProjectMode));
   if (withRequestApplication) {
     files.push(
       ...requestApplicationFiles(

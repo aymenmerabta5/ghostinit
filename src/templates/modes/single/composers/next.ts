@@ -117,6 +117,11 @@ import { singleBillingApiFiles } from "../api/billing.js";
 import { singleCapabilityApiFiles } from "../api/capabilities.js";
 import { gitignoreSingle, readmeSingle } from "../fragments/docs.js";
 import { singleEveFiles } from "../eve.js";
+import {
+  canonicalQueryAuthHookFile,
+  queryAuthBoundaryFile,
+} from "../../../apps/fragments/query-auth.js";
+import { requestOwnedSnapshotFile } from "../../../apps/fragments/request-owned-snapshot.js";
 
 export function buildNextFiles(
   projectName: string,
@@ -178,6 +183,7 @@ export function buildNextFiles(
         isNone,
         hasAddon(addonMap, "storage") && !isNone,
         hasCloudflare,
+        hasPdf,
       ),
     ),
   );
@@ -199,10 +205,21 @@ export function buildNextFiles(
   files.push(file("src/app/globals.css", singleGlobalsCss()));
   files.push(file("src/app/layout.tsx", singleLayout(hasI18n)));
   files.push(file("src/app/page.tsx", singleMarketingPage()));
-  files.push(file("src/components/marketing/hero.tsx", singleMarketingHeroContent()));
-  files.push(file("src/components/marketing/features.tsx", singleMarketingFeaturesContent()));
+  const marketingOptions = {
+    hasAuth,
+    hasApi,
+    hasBilling,
+    hasEve,
+    database: isConvex ? "convex" : isNone ? "none" : "postgres",
+  } as const;
   files.push(
-    file("src/components/marketing/closing.tsx", singleMarketingClosingContent(hasBilling)),
+    file("src/components/marketing/hero.tsx", singleMarketingHeroContent(marketingOptions)),
+  );
+  files.push(
+    file("src/components/marketing/features.tsx", singleMarketingFeaturesContent(marketingOptions)),
+  );
+  files.push(
+    file("src/components/marketing/closing.tsx", singleMarketingClosingContent(marketingOptions)),
   );
   if (hasAuth && hasEmail) {
     files.push(file("src/app/forgot-password/page.tsx", forgotPasswordPageSingle()));
@@ -299,10 +316,7 @@ export function buildNextFiles(
     );
     if (hasEmail) {
       files.push(
-        file(
-          "src/app/settings/components/password-card.tsx",
-          settingsPasswordCardSingle(useBetterAuthServerActions),
-        ),
+        file("src/app/settings/components/password-card.tsx", settingsPasswordCardSingle()),
         file("src/app/settings/components/two-factor-card.tsx", settingsTwoFactorCardSingle()),
         file(
           "src/app/settings/components/use-two-factor-settings.ts",
@@ -396,6 +410,7 @@ export function buildNextFiles(
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||
+      f.path.startsWith("tests/") ||
       f.path.startsWith("src/components/ui/surface") ||
       f.path.startsWith("src/components/Notification") ||
       f.path.startsWith("src/components/form-fields") ||
@@ -406,6 +421,9 @@ export function buildNextFiles(
   }
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
+  if (hasAuth) files.push(queryAuthBoundaryFile("src", hasApi));
+  if (hasAuth && hasApi)
+    files.push(canonicalQueryAuthHookFile("src"), requestOwnedSnapshotFile("src"));
   if (isConvex) {
     files.push(
       file(
@@ -414,7 +432,9 @@ export function buildNextFiles(
       ),
     );
   } else {
-    files.push(file("src/components/providers.tsx", providersSingleContent(hasAnalytics, hasI18n)));
+    files.push(
+      file("src/components/providers.tsx", providersSingleContent(hasAnalytics, hasI18n, hasAuth)),
+    );
   }
   const hasTypedAdminNavigation = hasAdminApi;
   files.push(

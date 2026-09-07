@@ -24,21 +24,3 @@ export function stripeWebhookSingleContent(): string {
 
 export const stripeWebhookMonorepo = stripeWebhookMonorepoContent();
 export const stripeWebhookSingle = stripeWebhookSingleContent();
-export const stripeWebhookLegacyContent = `// Legacy: replaced by oRPC — no longer emitted
-`;
-
-// For compat: old function names returning string content
-export function stripeWebhookMonorepoFn(): string {
-  return stripeWebhookMonorepo;
-}
-export function stripeWebhookSingleFn(): string {
-  return stripeWebhookSingle;
-}
-
-// Legacy alias kept for billing-generator backward compat if imported
-export const stripeWebhookMonorepoContentAlias = stripeWebhookMonorepo;
-export const stripeWebhookSingleContentAlias = stripeWebhookSingle;
-
-// Provide content getters for backward compatibility with billing-generator old imports
-export const stripeWebhookMonorepoContentDeprecated = stripeWebhookMonorepo;
-export const stripeWebhookSingleContentDeprecated = stripeWebhookSingle;

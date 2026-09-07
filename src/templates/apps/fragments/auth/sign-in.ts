@@ -66,7 +66,7 @@ export function SignInForm(): React.JSX.Element {
   return (
     <Card>
       <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
+        <CardTitle as="h1" className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
         <CardDescription className="max-w-[60ch]">Email/password sign-in is disabled because the email capability is not selected. Use a configured OAuth provider.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -146,7 +146,7 @@ ${navigate}
   return (
     <Card>
       <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
+        <CardTitle as="h1" className="text-2xl tracking-tight">{t("signIn.title")}</CardTitle>
         <CardDescription className="max-w-[60ch]">{t("signIn.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -174,9 +174,4 @@ ${navigate}
   );
 }
 `;
-}
-
-/** @deprecated Forms now compose through useAppForm/AppField in signInFormContent. */
-export function signInFormFields(): string {
-  return "";
 }

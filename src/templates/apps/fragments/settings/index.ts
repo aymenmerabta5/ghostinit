@@ -89,13 +89,7 @@ export function settingsFiles(
         ]
       : []),
     settingsProfileCard(useBetterAuthServerActions),
-    ...(hasEmail
-      ? [
-          settingsPasswordCard(useBetterAuthServerActions),
-          settingsTwoFactorCard(),
-          settingsTwoFactorHook(),
-        ]
-      : []),
+    ...(hasEmail ? [settingsPasswordCard(), settingsTwoFactorCard(), settingsTwoFactorHook()] : []),
     ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
     ...(hasIdentityTransport ? [settingsSessionsCard(true), settingsSessionsList()] : []),
     settingsDangerZoneCard(hasEmail, useBetterAuthServerActions),

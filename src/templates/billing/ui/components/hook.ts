@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { createBillingCheckoutAction, createBillingPortalAction, createBillingPaymentLinkAction } from "../actions";
 import { safeBillingProviderUrl } from "@/features/billing/provider-url";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 
 export type ProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export type SubStatus = "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" | "paused" | string;
@@ -17,7 +18,7 @@ export interface UseBillingPageReturn {
   subsLoading: boolean; isCheckoutLoading: boolean;
   pastDue: boolean;
   canCreatePaymentLinks: boolean; isPaymentLinkLoading: boolean;
-  handlePaymentLink: (provider: ProviderName, name: string, price: string) => Promise<string>;
+  handlePaymentLink: (provider: ProviderName, name: string, price: string) => Promise<string | null>;
   copyText: (v: string) => Promise<void>; handleCheckout: (provider: ProviderName) => Promise<void>; handlePortal: (provider: ProviderName) => Promise<void>;
 }
 
@@ -66,6 +67,7 @@ function toUsageEvent(value: unknown): UsageEvent | null {
 }
 
 export function useBillingPage(): UseBillingPageReturn {
+  const captureEffect = useAuthOwnedEffect();
   const initialData = React.useContext(BillingInitialDataContext);
   const subscriptions = (initialData?.subscriptions ?? []).flatMap((value) => { const item = toSubscription(value); return item ? [item] : []; });
   const invoices = (initialData?.invoices ?? []).flatMap((value) => { const item = toInvoice(value); return item ? [item] : []; });
@@ -76,29 +78,38 @@ export function useBillingPage(): UseBillingPageReturn {
   const [isPaymentLinkLoading, setIsPaymentLinkLoading] = React.useState(false);
   const canCreatePaymentLinks = initialData?.canCreatePaymentLinks === true;
   const pastDue = subscriptions.some((s) => s.status === "past_due");
-  async function copyText(v: string) { try { await navigator.clipboard.writeText(v); toast.success("Copied to clipboard"); } catch { toast.error("Copy failed"); } }
+  async function copyText(v: string) { const isCurrent = captureEffect(); if (!isCurrent()) return; try { await navigator.clipboard.writeText(v); if (isCurrent()) toast.success("Copied to clipboard"); } catch { if (isCurrent()) toast.error("Copy failed"); } }
   async function handleCheckout(provider: ProviderName) {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return;
     setIsCheckoutLoading(true);
     try {
       const requestKey = crypto.randomUUID();
       const result = await createBillingCheckoutAction({ provider, origin: window.location.origin, requestKey });
+      if (!isCurrent()) return;
       if (!result.url) throw new Error("No checkout url returned");
       window.location.href = safeBillingProviderUrl(result.url);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Checkout failed"); } finally { setIsCheckoutLoading(false); }
+    } catch (e) { if (isCurrent()) toast.error(e instanceof Error ? e.message : "Checkout failed"); } finally { if (isCurrent()) setIsCheckoutLoading(false); }
   }
   async function handlePortal(provider: ProviderName) {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return;
     try {
       const result = await createBillingPortalAction({ provider, origin: window.location.origin });
+      if (!isCurrent()) return;
       if (!result.url) throw new Error("No portal url");
       window.location.href = safeBillingProviderUrl(result.url);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Portal failed"); }
+    } catch (e) { if (isCurrent()) toast.error(e instanceof Error ? e.message : "Portal failed"); }
   }
-  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string> {
+  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string | null> {
+    const isCurrent = captureEffect();
+    if (!isCurrent()) return null;
     setIsPaymentLinkLoading(true);
     try {
       const result = await createBillingPaymentLinkAction({ provider, name, price });
+      if (!isCurrent()) return null;
       return safeBillingProviderUrl(result.url);
-    } finally { setIsPaymentLinkLoading(false); }
+    } finally { if (isCurrent()) setIsPaymentLinkLoading(false); }
   }
   return { subscriptions, invoices, licenseKey, usageEvents, subsLoading, isCheckoutLoading, pastDue, copyText, handleCheckout, handlePortal, canCreatePaymentLinks, isPaymentLinkLoading, handlePaymentLink };
 }

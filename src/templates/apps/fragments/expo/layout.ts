@@ -23,6 +23,7 @@ export interface ExpoRootLayoutOptions {
 export function expoRootLayoutContent(options: ExpoRootLayoutOptions = {}): string {
   const hasAuth = options.hasAuth ?? true;
   const hasApi = options.hasApi ?? true;
+  const hasCanonicalAuth = hasAuth && hasApi;
   const hasMessaging = options.hasMessaging ?? false;
   const hasBilling = options.hasBilling ?? true;
   const hasAnalytics = options.hasAnalytics ?? false;
@@ -92,6 +93,12 @@ ${hasMessaging ? `        <Stack.Screen name="(app)/messages" options={{ title: 
   const authImport = hasAuth ? 'import { authClient } from "@/lib/auth-client";' : "";
   const headerImport = hasAuth ? 'import { Header } from "@/components/header";' : "";
   const nativeImport = hasAuth ? 'import { ActivityIndicator, View } from "react-native";' : "";
+  const canonicalAuthImports = hasCanonicalAuth
+    ? `import { useCanonicalQueryAuthScope } from "@/lib/query-auth-scope";
+import { orpcClient } from "@/lib/orpc";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";`
+    : "";
   const analyticsAssignment = hasAnalytics
     ? `  const analyticsApp = (
     <ExpoAnalyticsProvider>
@@ -117,13 +124,27 @@ ${hasMessaging ? `        <Stack.Screen name="(app)/messages" options={{ title: 
   const navigationState = hasAuth
     ? [
         "  const { data: session, isPending: sessionPending } = authClient.useSession();",
-        "  const isAuthenticated = Boolean(session?.user);",
-        '  useOfflineSync(queryClient, sessionPending ? null : session?.user?.id ? `user:${session.user.id}` : "anonymous");',
-        `  if (sessionPending) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator accessibilityLabel={${hasI18n ? 'commonT("loading")' : '"Loading account"'}} /></View>;`,
+        ...(hasCanonicalAuth
+          ? [
+              "  const queryClient = useMemo(() => makeNativeQueryClient(), []);",
+              "  const canonical = useCanonicalQueryAuthScope(queryClient, session, sessionPending, readCurrentApplication);",
+              "  const isAuthenticated = canonical.scope !== null;",
+              "  const cacheScope = canonical.isPending || canonical.error ? null : nativeQueryCacheScope(canonical.scope);",
+              "  const { isRestoring } = useOfflineSync(queryClient, cacheScope);",
+              `  if (canonical.error) return <View className="flex-1 items-center justify-center gap-3 bg-background p-6"><Text accessibilityRole="alert">${hasI18n ? '{commonT("error")}' : "Could not load your account."}</Text><Button onPress={canonical.retry}><Text>${hasI18n ? '{commonT("retry")}' : "Retry"}</Text></Button></View>;`,
+              `  if (canonical.isPending || isRestoring) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator accessibilityLabel={${hasI18n ? 'commonT("loading")' : '"Loading account"'}} /></View>;`,
+            ]
+          : [
+              "  const identityKey = queryAuthIdentitySignature(queryAuthIdentityFromSession(session));",
+              "  const queryClient = useMemo(() => makeNativeQueryClient(), [identityKey]);",
+              "  const isAuthenticated = Boolean(session?.user);",
+              "  useOfflineSync(queryClient, null);",
+              `  if (sessionPending) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator accessibilityLabel={${hasI18n ? 'commonT("loading")' : '"Loading account"'}} /></View>;`,
+            ]),
       ].join("\n") + "\n"
-    : '  useOfflineSync(queryClient, "public");\n';
+    : '  const queryClient = useMemo(() => makeNativeQueryClient(), []);\n  useOfflineSync(queryClient, "public");\n';
 
-  const navigation = `function AppNavigation({ queryClient }: { queryClient: ReturnType<typeof makeNativeQueryClient> }) {
+  const navigation = `function AppNavigation() {
 ${i18n.hookLine}${commonHook}${navigationState}
   return (
     <QueryClientProvider client={queryClient}>
@@ -137,14 +158,14 @@ ${featureFlagScreen}${twoFactorScreen}${authScreens}${protectedScreens}      </S
 }
 `;
 
-  const app = `  const app = <AppNavigation queryClient={queryClient} />;`;
+  const app = `  const app = <AppNavigation />;`;
 
   return `import "../global.css";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
-import { makeNativeQueryClient } from "@/lib/query-client";
+import { useMemo } from "react";
+import { makeNativeQueryClient${hasCanonicalAuth ? ", nativeQueryCacheScope" : hasAuth ? ", queryAuthIdentityFromSession, queryAuthIdentitySignature" : ""} } from "@/lib/query-client";
 import { useOfflineSync } from "@/hooks/use-offline";
 ${providerImport}
 ${analyticsImport}
@@ -153,11 +174,13 @@ ${i18nImport}
 ${authImport}
 ${headerImport}
 ${nativeImport}
+${canonicalAuthImports}
+
+${hasCanonicalAuth ? "const readCurrentApplication = () => orpcClient.me();" : ""}
 
 ${navigation}
 
 export default function RootLayout() {
-  const [queryClient] = useState(makeNativeQueryClient);
 ${app}
 ${analyticsAssignment}
 ${i18nAssignment}

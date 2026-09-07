@@ -53,7 +53,10 @@
     },
     {
       "id": "doctor-typescript-version",
-      "sources": ["src/commands/doctor/versions.ts", "src/templates/agentic.ts"],
+      "sources": [
+        "src/commands/doctor/versions.ts",
+        "src/templates/modes/monorepo/agents-composer.ts"
+      ],
       "phase": "2",
       "disposition": "proven",
       "replacement": "Doctor reads exact installed TypeScript package metadata without executing bunx or untrusted project-local binaries, and executable probes fail closed on spawn errors."
