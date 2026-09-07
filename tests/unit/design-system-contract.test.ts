@@ -269,4 +269,14 @@ describe("machine-defined design-system foundation", () => {
     expect(theme).toContain("--sidebar-primary-foreground: oklch(0.12 0.02 264);");
     expect(contrastRatio([0.65, 0.22, 264], [0.12, 0.02, 264])).toBeGreaterThanOrEqual(4.5);
   });
+
+  test("keeps filled destructive controls readable in both themes", () => {
+    const map = byPath(designSystemFiles("single", [{ id: "web", target: "next" }]));
+    const theme = map.get("src/platform/ui/styles/theme.css") ?? "";
+    expect(theme).toContain("--destructive: oklch(0.63 0.22 27);");
+    expect(theme).toContain("--destructive-foreground: oklch(0.12 0.02 264);");
+    expect(theme).toContain("--destructive-foreground: oklch(0.99 0.005 264);");
+    expect(contrastRatio([0.63, 0.22, 27], [0.12, 0.02, 264])).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio([0.55, 0.22, 27], [0.99, 0.005, 264])).toBeGreaterThanOrEqual(4.5);
+  });
 });

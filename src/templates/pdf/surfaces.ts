@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePdf } from "${hookImport}";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 import { useSurfaceLocale, useSurfaceTranslations } from "@/lib/translations";
 
 import { samplePdfData, type PdfTemplate } from "@/features/pdf/sample-data";
@@ -22,7 +23,8 @@ export function PdfWorkspace(): React.JSX.Element {
   const t = useSurfaceTranslations("pdf");
   const [template, setTemplate] = React.useState<PdfTemplate>("invoice");
   const downloadInFlight = React.useRef(false);
-  const { generate, loading, error } = usePdf();
+  const captureOwner = useAuthOwnedEffect();
+  const { generate, loading, error } = usePdf({ captureOwner });
   const templateOptions = [
     { label: t("invoice"), value: "invoice" },
     { label: t("certificate"), value: "certificate" },
@@ -140,6 +142,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { downloadPdfBase64, generatePdfDesktop } from "../../lib/pdf";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 ${i18n.importLine}
 ${localeImport}
 
@@ -150,6 +153,7 @@ export const Route = createFileRoute("/pdf")({ component: PdfPage });
 function PdfPage(): React.JSX.Element {
 ${i18n.hookLine}
 ${localeState}
+  const ownOperation = useAuthOwnedEffect();
   const [template, setTemplate] = React.useState<PdfTemplate>("invoice");
   const downloadInFlight = React.useRef(false);
   const [loading, setLoading] = React.useState(false);
@@ -158,15 +162,18 @@ ${labels}
 
   async function download(): Promise<void> {
     if (downloadInFlight.current) return;
+    const isCurrent = ownOperation();
+    if (!isCurrent()) return;
     downloadInFlight.current = true;
     setLoading(true); setError(null);
     try {
       const fileName = \`\${template}.pdf\`;
       const pdfBase64 = await generatePdfDesktop({ template, data: ${sampleData}, locale, fileName });
+      if (!isCurrent()) return;
       downloadPdfBase64(pdfBase64, fileName);
     } catch {
-      setError(${i18n.value("generationError", "PDF generation failed")});
-    } finally { downloadInFlight.current = false; setLoading(false); }
+      if (isCurrent()) setError(${i18n.value("generationError", "PDF generation failed")});
+    } finally { if (isCurrent()) { downloadInFlight.current = false; setLoading(false); } }
   }
 
   return (

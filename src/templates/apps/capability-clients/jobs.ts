@@ -61,6 +61,7 @@ function domPageContent(options: CapabilityClientOptions, target: "web" | "deskt
       : nativeI18nTemplate(options.i18n, "jobs", nativeI18nImportPath(target, options.mode));
   return `"use client";
 import * as React from "react";
+import { useAuthOwnedAction } from "@/hooks/use-auth-owned-action";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,10 +77,28 @@ ${i18n.hookLine}
   const [runId, setRunId] = React.useState("");
   const [result, setResult] = React.useState<unknown>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const { isPending, run } = useAuthOwnedAction();
+  function enqueue(): void {
+    void run(() => enqueueOwnedJob(message), (value) => {
+      setResult(value); setRunId(value.run.id); setError(null);
+    }, () => setError(${i18n.value("enqueueError", "Enqueue failed")}));
+  }
+  function refresh(): void {
+    void run(() => getOwnedJobRun(runId), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("lookupError", "Lookup failed")}));
+  }
+  function cancel(): void {
+    void run(() => cancelOwnedJob(runId), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("cancelError", "Cancel failed")}));
+  }
+
   return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
     <header><h1 className="text-2xl font-semibold">${i18n.child("title", "Background jobs")}</h1><p className="text-sm text-muted-foreground">${i18n.child("description", "Enqueue and inspect actor-owned runs through the shared scheduler.")}</p></header>
-    <Card><CardHeader><CardTitle>${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-echo-payload">${i18n.child("echoPayload", "Echo payload")}</FieldLabel><Input id="job-echo-payload" value={message} onChange={(event) => setMessage(event.target.value)} /></Field><Button className="w-fit" onClick={async () => { try { const value = await enqueueOwnedJob(message); setResult(value); setRunId(value.run.id); setError(null); } catch { setError(${i18n.value("enqueueError", "Enqueue failed")}); } }}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
-    <Card><CardHeader><CardTitle>${i18n.child("refresh", "Refresh")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-run-id">${i18n.child("runId", "Run ID")}</FieldLabel><Input id="job-run-id" value={runId} onChange={(event) => setRunId(event.target.value)} /></Field><div className="flex gap-2"><Button variant="outline" onClick={async () => { try { setResult(await getOwnedJobRun(runId)); setError(null); } catch { setError(${i18n.value("lookupError", "Lookup failed")}); } }}>${i18n.child("refresh", "Refresh")}</Button><Button variant="destructive" onClick={async () => { try { setResult(await cancelOwnedJob(runId)); setError(null); } catch { setError(${i18n.value("cancelError", "Cancel failed")}); } }}>${i18n.child("cancel", "Cancel")}</Button></div></CardContent></Card>
+    {isPending ? <p role="status">${i18n.child("pending", "Working…")}</p> : null}
+    <Card><CardHeader><CardTitle>${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-echo-payload">${i18n.child("echoPayload", "Echo payload")}</FieldLabel><Input disabled={isPending} id="job-echo-payload" value={message} onChange={(event) => setMessage(event.target.value)} /></Field><Button disabled={isPending} aria-busy={isPending} className="w-fit" onClick={enqueue}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
+    <Card><CardHeader><CardTitle>${i18n.child("refresh", "Refresh")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><Field><FieldLabel htmlFor="job-run-id">${i18n.child("runId", "Run ID")}</FieldLabel><Input disabled={isPending} id="job-run-id" value={runId} onChange={(event) => setRunId(event.target.value)} /></Field><div className="flex gap-2"><Button disabled={isPending} aria-busy={isPending} variant="outline" onClick={refresh}>${i18n.child("refresh", "Refresh")}</Button><Button disabled={isPending} aria-busy={isPending} variant="destructive" onClick={cancel}>${i18n.child("cancel", "Cancel")}</Button></div></CardContent></Card>
     {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
     {result !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Job result")}</CardTitle></CardHeader><CardContent><pre className="overflow-auto rounded bg-muted p-4 text-sm">{JSON.stringify(result, null, 2)}</pre></CardContent></Card> : null}
   </main>;
@@ -94,6 +113,7 @@ function expoPageContent(options: CapabilityClientOptions): string {
     nativeI18nImportPath("mobile", options.mode),
   );
   return `import * as React from "react";
+import { useAuthOwnedAction } from "@/hooks/use-auth-owned-action";
 import { ScrollView, Text, View } from "react-native";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -109,10 +129,28 @@ ${i18n.hookLine}
   const [runId, setRunId] = React.useState("");
   const [result, setResult] = React.useState<unknown>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const { isPending, run } = useAuthOwnedAction();
+  function enqueue(): void {
+    void run(() => enqueueOwnedJob(message), (value) => {
+      setResult(value); setRunId(value.run.id); setError(null);
+    }, () => setError(${i18n.value("enqueueError", "Enqueue failed")}));
+  }
+  function refresh(): void {
+    void run(() => getOwnedJobRun(runId), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("lookupError", "Lookup failed")}));
+  }
+  function cancel(): void {
+    void run(() => cancelOwnedJob(runId), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("cancelError", "Cancel failed")}));
+  }
+
   return <ScrollView className="flex-1 bg-background"><View className="gap-4 p-5">
     <Text className="text-2xl font-bold">${i18n.child("title", "Background jobs")}</Text>
-    <Card><CardHeader><CardTitle>${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle><CardDescription>${i18n.child("echoPayload", "Echo payload")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={message} onChangeText={setMessage} placeholder={${i18n.value("echoPayload", "Echo payload")}} /><Button onPress={async () => { try { const value = await enqueueOwnedJob(message); setResult(value); setRunId(value.run.id); setError(null); } ${options.i18n ? "catch {" : "catch (cause) {"} setError(${options.i18n ? i18n.value("enqueueError", "Enqueue failed") : 'cause instanceof Error ? cause.message : "Enqueue failed"'}); } }}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
-    <Card><CardHeader><CardTitle>${i18n.child("runId", "Run ID")}</CardTitle><CardDescription>${i18n.child("refresh", "Refresh or cancel an owned run")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={runId} onChangeText={setRunId} placeholder={${i18n.value("runId", "Run ID")}} /><View className="flex-row gap-2"><Button className="flex-1" variant="outline" onPress={async () => { try { setResult(await getOwnedJobRun(runId)); setError(null); } ${options.i18n ? "catch {" : "catch (cause) {"} setError(${options.i18n ? i18n.value("lookupError", "Lookup failed") : 'cause instanceof Error ? cause.message : "Lookup failed"'}); } }}>${i18n.child("refresh", "Refresh")}</Button><Button className="flex-1" variant="destructive" onPress={async () => { try { setResult(await cancelOwnedJob(runId)); setError(null); } ${options.i18n ? "catch {" : "catch (cause) {"} setError(${options.i18n ? i18n.value("cancelError", "Cancel failed") : 'cause instanceof Error ? cause.message : "Cancel failed"'}); } }}>${i18n.child("cancel", "Cancel")}</Button></View></CardContent></Card>
+    {isPending ? <Text accessibilityLiveRegion="polite">${i18n.child("pending", "Working…")}</Text> : null}
+    <Card><CardHeader><CardTitle>${i18n.child("enqueue", "Enqueue system.echo")}</CardTitle><CardDescription>${i18n.child("echoPayload", "Echo payload")}</CardDescription></CardHeader><CardContent className="gap-3"><Input editable={!isPending} value={message} onChangeText={setMessage} placeholder={${i18n.value("echoPayload", "Echo payload")}} /><Button disabled={isPending} accessibilityState={{ busy: isPending }} onPress={enqueue}>${i18n.child("enqueue", "Enqueue system.echo")}</Button></CardContent></Card>
+    <Card><CardHeader><CardTitle>${i18n.child("runId", "Run ID")}</CardTitle><CardDescription>${i18n.child("refresh", "Refresh or cancel an owned run")}</CardDescription></CardHeader><CardContent className="gap-3"><Input editable={!isPending} value={runId} onChangeText={setRunId} placeholder={${i18n.value("runId", "Run ID")}} /><View className="flex-row gap-2"><Button disabled={isPending} accessibilityState={{ busy: isPending }} className="flex-1" variant="outline" onPress={refresh}>${i18n.child("refresh", "Refresh")}</Button><Button disabled={isPending} accessibilityState={{ busy: isPending }} className="flex-1" variant="destructive" onPress={cancel}>${i18n.child("cancel", "Cancel")}</Button></View></CardContent></Card>
     {error ? <Alert variant="destructive" accessibilityRole="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
     {result !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Result")}</CardTitle></CardHeader><CardContent><Text className="font-mono">{JSON.stringify(result, null, 2)}</Text></CardContent></Card> : null}
   </View></ScrollView>;

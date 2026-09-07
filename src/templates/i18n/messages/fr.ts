@@ -106,6 +106,7 @@ export const FR_MESSAGES = {
     enablePush: "Activer les notifications push",
   },
   featureFlags: {
+    pending: "Opération en cours…",
     title: "Indicateurs de fonctionnalité distants",
     description:
       "Résolvez les indicateurs du fournisseur par la frontière applicative typée. Ils n’accordent jamais d’autorisation.",
@@ -117,6 +118,7 @@ export const FR_MESSAGES = {
     result: "Résultat de l’évaluation",
   },
   storage: {
+    pending: "Opération en cours…",
     title: "Stockage",
     description: "Téléversez, récupérez et supprimez les objets appartenant au compte.",
     defaultText: "Stocké en sécurité par GhostInit.",
@@ -134,6 +136,7 @@ export const FR_MESSAGES = {
     remove: "Supprimer",
   },
   jobs: {
+    pending: "Opération en cours…",
     title: "Tâches en arrière-plan",
     description:
       "Mettez en file et consultez les exécutions liées à l’acteur avec le planificateur partagé.",

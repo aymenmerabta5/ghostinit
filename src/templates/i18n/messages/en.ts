@@ -104,6 +104,7 @@ export const EN_MESSAGES = {
     enablePush: "Enable push notifications",
   },
   featureFlags: {
+    pending: "Working…",
     title: "Remote feature flags",
     description:
       "Resolve provider-backed flags through the typed application boundary. Flags never grant authorization.",
@@ -114,6 +115,7 @@ export const EN_MESSAGES = {
     result: "Evaluation result",
   },
   storage: {
+    pending: "Working…",
     title: "Storage",
     description: "Upload, retrieve, and remove account-owned objects.",
     defaultText: "Stored securely by GhostInit.",
@@ -131,6 +133,7 @@ export const EN_MESSAGES = {
     remove: "Remove",
   },
   jobs: {
+    pending: "Working…",
     title: "Background jobs",
     description: "Enqueue and inspect actor-owned runs through the shared scheduler.",
     defaultMessage: "Hello worker",

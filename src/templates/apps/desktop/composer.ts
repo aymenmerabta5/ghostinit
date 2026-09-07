@@ -214,7 +214,14 @@ export function desktopCoreFiles(
     );
   }
   files.push(...desktopIdentityFiles(capabilities));
-  if (capabilities.hasBilling || capabilities.hasNotifications) {
+  if (
+    capabilities.hasBilling ||
+    capabilities.hasNotifications ||
+    capabilities.hasJobs ||
+    capabilities.hasStorage ||
+    capabilities.hasFeatureFlags ||
+    capabilities.hasPdf
+  ) {
     files.push(authOwnedEffectFile("apps/desktop/src/renderer"));
   }
   if (capabilities.hasBilling) {

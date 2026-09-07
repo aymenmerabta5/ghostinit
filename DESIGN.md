@@ -26,7 +26,7 @@ All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white a
 --popover: oklch(0.13 0.01 264);
 --popover-foreground: oklch(0.98 0.005 264);
 --primary: oklch(0.65 0.22 264); /* vibrant indigo, like t3's harness accent */
---primary-foreground: oklch(0.98 0.005 264);
+--primary-foreground: oklch(0.12 0.02 264); /* dark text maintains contrast on the bright accent */
 --secondary: oklch(0.18 0.01 264);
 --secondary-foreground: oklch(0.98 0.005 264);
 --muted: oklch(0.18 0.01 264);
@@ -47,6 +47,7 @@ All values are OKLCH with low chroma at extremes (0.005–0.01) so black/white a
 --card: oklch(0.99 0.005 264);
 --card-foreground: oklch(0.14 0.01 264);
 --primary: oklch(0.55 0.22 264); /* slightly darker for light contrast */
+--primary-foreground: oklch(0.99 0.005 264);
 ...
 --border: oklch(0.92 0.01 264);
 ```
@@ -142,6 +143,11 @@ clears private query state before navigation. Authless projects retain a simple
 query-provider path.
 
 ### Architecture review changes, 2026-09-07
+
+- Filled destructive controls and their hover states use dark text in the dark
+  theme. This raises the shared foreground/background contrast from 3.67:1 to
+  5.22:1 while preserving the red background and the light theme's 5.28:1 pairing.
+  Buttons, badges, and native danger-intent surfaces share the same token.
 
 - Authentication routes compose focused `TwoFactorForm` and `ResetPasswordForm`
   components. Routes own layout and framework search adaptation; forms own
@@ -356,6 +362,36 @@ Next.js Convex message threads delegate unknown-response normalization to a pure
 send/typing mutations, draft, and submission state. No subscription or mutation
 moves into the view mapper. The generated 150-line component and 200-line page
 limits are unchanged and are checked after the installed formatter runs.
+
+### Capability operations and PDF lifetimes
+
+Jobs, storage, and manual feature-flag evaluation share a small action hook that
+combines the existing account-lifetime guard with a synchronous pending latch.
+Each page admits one operation at a time, disables conflicting controls, shows
+translated pending feedback, and releases the controls after failure so the user
+can retry. Jobs retain their explicit run-ID lookup; storage retains explicit
+binary operations. Neither page adds an initial collection query.
+
+Authenticated Next.js feature-flag results carry the request principal's user,
+session, organization, and team through the existing `RequestOwnedSnapshot`.
+Retained server props cannot reappear for a different account after a provider
+remount. Public manual evaluation remains available. TanStack continues to use
+its scoped initial query.
+
+PDF downloads and shares belong to the initiating mounted account. The reusable
+web hook accepts an ownership capture function and also checks its own lifetime;
+native cookie, response, and share-availability continuations check ownership
+before their next effect. Desktop checks ownership before creating a download.
+The existing pending guards and same-owner download/share behavior are retained.
+
+Controlled mounted React tests reproduced duplicate operations, retained Next
+flag props, and late PDF effects before the change. They also confirmed that
+the existing web/desktop account boundary and Expo root already discard old
+local state. The fixed proof passes 187 checks using the actual generated
+providers; Expo, desktop, and network effects are controlled adapters, so this is
+not a device or real-server runtime claim. Permanent operation regressions and
+formatted-size checks complement that proof. Eve keeps the SDK's existing
+per-hook abort cleanup.
 
 ## Motion
 

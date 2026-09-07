@@ -46,6 +46,9 @@
       "version": "0.1.0",
     },
   },
+  "patchedDependencies": {
+    "@electric-sql/pglite-socket@0.2.10": "patches/@electric-sql%2Fpglite-socket@0.2.10.patch",
+  },
   "overrides": {
     "@types/node": "24.13.3",
   },

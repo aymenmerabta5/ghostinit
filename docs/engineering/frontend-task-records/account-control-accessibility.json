@@ -9,7 +9,8 @@
     "src/templates/apps/fragments/settings/passkey-card.ts",
     "src/templates/apps/fragments/identity-workspace/web.ts",
     "src/templates/apps/fragments/identity-workspace/web-feature.ts",
-    "src/templates/apps/fragments/settings/layout.ts"
+    "src/templates/apps/fragments/settings/layout.ts",
+    "src/templates/apps/fragments/css.ts"
   ],
   "designReview": {
     "method": "skill-assisted",
@@ -17,7 +18,7 @@
     "context": [
       {
         "path": "DESIGN.md",
-        "sha256": "77e15a5bfeb0476ccc6653c138e21a4aa5d0e51a2d7782497785941c39143065"
+        "sha256": "7a86fa53ae763c28b595887515254559f3a16869a428ffa12be4761382184ee4"
       },
       {
         "path": "VISION.md",
@@ -31,7 +32,9 @@
       "tests/unit/generated-shell-auth-size.test.ts",
       "tests/unit/settings-dashboard-size.test.ts",
       "tests/unit/workspace-heading-composition.test.ts",
-      "tests/unit/settings-role-ownership.test.ts"
+      "tests/unit/settings-role-ownership.test.ts",
+      "tests/unit/design-system-contract.test.ts",
+      "tests/unit/platform-ui-accessibility.test.ts"
     ]
   },
   "register": "product",
@@ -39,9 +42,10 @@
     "composition.menu-group-ownership",
     "accessibility.associated-field-label",
     "accessibility.route-heading-hierarchy",
+    "accessibility.text-contrast",
     "authentication.canonical-role-ownership",
     "structure.formatted-file-budget"
   ],
-  "selectedComponentIds": ["action.button", "form.input", "surface.card"],
+  "selectedComponentIds": ["action.button", "form.input", "surface.card", "status.badge"],
   "exceptionIds": []
 }

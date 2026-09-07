@@ -4,6 +4,7 @@ import {
   posthogRewritesBlock,
 } from "../../../apps/fragments/core/security.js";
 import { NEXT_COMPILER_OPTIONS, NEXT_TYPE_INCLUDES } from "../../../tooling/next-typescript.js";
+import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../../../tooling/next-memory.js";
 
 export function singleNextConfigContent(
   hasEve: boolean,
@@ -53,6 +54,7 @@ export function singleNextConfigContent(
       : []),
     "const config: NextConfig = {",
     cacheComponentsConfigBlock(hasCloudflare),
+    NEXT_DEVELOPMENT_MEMORY_CONFIG,
     "  reactStrictMode: true,",
     "  poweredByHeader: false,",
     ...(hasPdf

@@ -63,6 +63,7 @@ describe("PDF UI event completion", () => {
           usePdfMobile: () => ({ ...state, generateAndShare: generate }),
           generatePdfDesktop: generate,
           downloadPdfBase64() {},
+          useAuthOwnedEffect: () => () => () => true,
           useSurfaceLocale: () => "en",
           useTranslations: () => (key: string) => key,
           usePlatformI18n: () => ({ locale: "en" }),

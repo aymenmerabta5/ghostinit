@@ -28,7 +28,7 @@ export const oklchDarkTokens = `:root,
   --accent: oklch(0.18 0.01 264);
   --accent-foreground: oklch(0.98 0.005 264);
   --destructive: oklch(0.63 0.22 27);
-  --destructive-foreground: oklch(0.98 0.005 264);
+  --destructive-foreground: oklch(0.12 0.02 264);
   --border: oklch(0.22 0.01 264);
   --input: oklch(0.22 0.01 264);
   --ring: oklch(0.65 0.22 264);

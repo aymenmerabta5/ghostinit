@@ -1,0 +1,1039 @@
+diff --git a/dist/chunk-E57PWKK6.js b/dist/chunk-E57PWKK6.js
+index 2f66a29d8a96b710235231bdc506bd5edb487ce0..5529b5ac857c6b205c3f589264b8aa316697ed63 100644
+--- a/dist/chunk-E57PWKK6.js
++++ b/dist/chunk-E57PWKK6.js
+@@ -1,3 +1,244 @@
+-import{createServer as v}from"net";var C=6e4,p=80877103,c=8,b=80877102,u=16,d=class{constructor(s,e=!1){this.queue=[];this.processing=!1;this.lastHandlerId=null;this.db=s,this.debug=e}log(s,...e){this.debug&&console.log(`[QueryQueueManager] ${s}`,...e)}async enqueue(s,e,i){return new Promise((t,r)=>{let n={handlerId:s,message:e,resolve:t,reject:r,timestamp:Date.now(),onData:i};this.queue.push(n),this.log(`enqueued query from handler #${s}, queue size: ${this.queue.length}`),this.processing||this.processQueue()})}async processQueue(){if(!(this.processing||this.queue.length===0)){for(this.processing=!0;this.queue.length>0;){let s;if(this.db.isInTransaction()&&this.lastHandlerId){let t=this.queue.findIndex(r=>r.handlerId===this.lastHandlerId);t===-1?(this.log("transaction started, but no query from the same handler id found in queue",this.lastHandlerId),s=null):s=this.queue.splice(t,1)[0]}else s=this.queue.shift();if(!s)break;let e=Date.now()-s.timestamp;this.log(`processing query from handler #${s.handlerId} (waited ${e}ms)`);let i=0;try{await this.db.runExclusive(async()=>await this.db.execProtocolRawStream(s.message,{onRawData:t=>{i+=t.length,s.onData(t)}}))}catch(t){this.log(`query from handler #${s.handlerId} failed:`,t),s.reject(t);return}this.log(`query from handler #${s.handlerId} completed, ${i} bytes`),this.lastHandlerId=s.handlerId,s.resolve(i)}this.processing=!1,this.log("queue processing complete, queue length is",this.queue.length)}}getQueueLength(){return this.queue.length}clearQueueForHandler(s){let e=this.queue.length;this.queue=this.queue.filter(t=>t.handlerId===s?(t.reject(new Error("Handler disconnected")),!1):!0);let i=e-this.queue.length;i>0&&this.log(`cleared ${i} queries for handler #${s}`)}async clearTransactionIfNeeded(s){this.db.isInTransaction()&&this.lastHandlerId===s&&(await this.db.exec("ROLLBACK"),this.lastHandlerId=null,await this.processQueue())}},l=class l extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=l.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...i){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...i)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",i=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(i)}catch(t){this.log("socket on data error: ",t),this.handleError(t)}})}),e.on("error",i=>{setImmediate(()=>this.handleError(i))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(e){if(this.log(`detach: detaching socket, close=${e??this.closeOnDetach}`),this.idleTimer&&(clearTimeout(this.idleTimer),this.idleTimer=void 0),this.queryQueue.clearQueueForHandler(this.id),await this.queryQueue.clearTransactionIfNeeded(this.id),!this.socket)return this.log("detach: no socket attached, nothing to do"),this;if(this.socket.removeAllListeners("data"),this.socket.removeAllListeners("error"),this.socket.removeAllListeners("close"),(e??this.closeOnDetach)&&this.socket.writable){this.log("detach: closing socket");try{this.socket.end(),this.socket.destroy()}catch(i){this.log("detach: error closing socket:",i)}}return this.socket=null,this.active=!1,this.messageBuffer=Buffer.alloc(0),this.log("detach: handler cleaned up"),this}get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<c)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===c&&i===p?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(c),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<u)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===u&&i===b?(this.messageBuffer=this.messageBuffer.slice(u),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let i=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let t=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(t=o,r=this.messageBuffer.length>=t)}!r&&this.messageBuffer.length>=5&&(t=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=t)}if(!r||t===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,t);if(this.messageBuffer=this.messageBuffer.slice(t),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let h;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),h=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),i+=o.length}),h)throw h}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:i}})),i}catch(i){throw this.log("handleData: error processing data:",i),i}}handleError(e){if(!this.active){this.log("handleError: handler not active, ignoring error");return}e.message?.includes("ECONNRESET")?this.log("handleError: client disconnected (ECONNRESET) - normal behavior"):e.message?.includes("Idle timeout")?this.log("handleError: connection idle timeout"):this.log("handleError:",e),this.active=!1,this.dispatchEvent(new CustomEvent("error",{detail:e})),this.detach(!0)}handleClose(){this.log("handleClose: socket closed"),this.active=!1,this.dispatchEvent(new CustomEvent("close")),this.detach(!1)}inspectData(e,i){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",i.length,"bytes");for(let t=0;t<i.length;t+=16){let r=Math.min(16,i.length-t),n="";for(let o=0;o<16;o++)if(o<r){let a=i[t+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let h="";for(let o=0;o<r;o++){let a=i[t+o];h+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${t.toString(16).padStart(8,"0")}  ${n} ${h}`)}}}};l.nextHandlerId=1;var g=l,f=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new d(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...i){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...i)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=v(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,i)=>{if(!this.server)return i(new Error("Server not initialized"));let t=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),t||i(r)}),this.path)this.server.listen(this.path,()=>{t=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{t=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop(){this.log("stop: stopping server"),this.active=!1,this.log(`stop: detaching ${this.handlers.size} handlers`);for(let e of this.handlers)e.detach(!0);return this.handlers.clear(),this.server?new Promise(e=>{if(!this.server)return e();this.server.close(()=>{this.log("stop: server closed"),this.server=null,this.dispatchEvent(new CustomEvent("close")),e()})}):(this.log("stop: server not running, nothing to do"),Promise.resolve())}async handleConnection(e){let i={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${i.clientAddress}:${i.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
++import{createServer as v}from"net";var C=6e4,p=80877103,c=8,b=80877102,u=16,d=class QueryQueueManager {
++  queue = [];
++  processing = false;
++  db;
++  debug;
++  lastHandlerId = null;
++  cycleOwnerId = null;
++  activeHandlerId = null;
++  cleanupPromise = null;
++  cleanupFailure = null;
++  constructor(db, debug = false) {
++    this.db = db;
++    this.debug = debug;
++  }
++  log(message, ...args) {
++    if (this.debug) {
++      console.log(`[QueryQueueManager] ${message}`, ...args);
++    }
++  }
++  async enqueue(handlerId, message, onData) {
++    if (this.cleanupFailure)
++      return Promise.reject(this.cleanupFailure);
++    return new Promise((resolve, reject) => {
++      const query = {
++        handlerId,
++        message,
++        resolve,
++        reject,
++        timestamp: Date.now(),
++        onData
++      };
++      this.queue.push(query);
++      this.log(`enqueued query from handler #${handlerId}, queue size: ${this.queue.length}`);
++      if (!this.processing) {
++        this.processQueue();
++      }
++    });
++  }
++  async processQueue() {
++    if (this.processing || this.queue.length === 0 || this.cleanupPromise || this.cleanupFailure) {
++      return;
++    }
++    this.processing = true;
++    try {
++      while (this.queue.length > 0 && !this.cleanupPromise && !this.cleanupFailure) {
++        let query;
++        const owner = this.cycleOwnerId ?? (this.db.isInTransaction() ? this.lastHandlerId : null);
++        if (owner !== null) {
++          const i = this.queue.findIndex((q) => q.handlerId === owner);
++          if (i === -1) {
++            this.log(`transaction started, but no query from the same handler id found in queue`, this.lastHandlerId);
++            query = null;
++          } else {
++            query = this.queue.splice(i, 1)[0];
++          }
++        } else {
++          query = this.queue.shift();
++        }
++        if (!query)
++          break;
++        const waitTime = Date.now() - query.timestamp;
++        this.log(`processing query from handler #${query.handlerId} (waited ${waitTime}ms)`);
++        let result = 0;
++        const messageType = String.fromCharCode(query.message[0]);
++        if ("PBDEHC".includes(messageType) && this.cycleOwnerId === null) {
++          this.cycleOwnerId = query.handlerId;
++        }
++        this.activeHandlerId = query.handlerId;
++        this.lastHandlerId = query.handlerId;
++        try {
++          await this.db.runExclusive(async () => {
++            return await this.db.execProtocolRawStream(query.message, {
++              onRawData: (data) => {
++                result += data.length;
++                query.onData(data);
++              }
++            });
++          });
++        } catch (error) {
++          this.log(`query from handler #${query.handlerId} failed:`, error);
++          query.reject(error);
++          return;
++        } finally {
++          this.activeHandlerId = null;
++        }
++        this.log(`query from handler #${query.handlerId} completed, ${result} bytes`);
++        if (messageType === "S" && this.cycleOwnerId === query.handlerId) {
++          this.cycleOwnerId = null;
++        }
++        query.resolve(result);
++      }
++    } finally {
++      this.processing = false;
++    }
++    this.log(`queue processing complete, queue length is`, this.queue.length);
++  }
++  getQueueLength() {
++    return this.queue.length;
++  }
++  clearQueueForHandler(handlerId) {
++    const before = this.queue.length;
++    this.queue = this.queue.filter((q) => {
++      if (q.handlerId === handlerId) {
++        q.reject(new Error("Handler disconnected"));
++        return false;
++      }
++      return true;
++    });
++    const removed = before - this.queue.length;
++    if (removed > 0) {
++      this.log(`cleared ${removed} queries for handler #${handlerId}`);
++    }
++  }
++  async clearTransactionIfNeeded(handlerId) {
++    if (this.cleanupPromise) {
++      await this.cleanupPromise;
++      return this.clearTransactionIfNeeded(handlerId);
++    }
++    const ownsBackend = this.cycleOwnerId === handlerId || this.activeHandlerId === handlerId || this.db.isInTransaction() && this.lastHandlerId === handlerId;
++    if (ownsBackend) {
++      let release;
++      this.cleanupPromise = new Promise((resolve) => {
++        release = resolve;
++      });
++      try {
++        await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          throw new Error("Socket transaction rollback did not finish");
++        if (this.cycleOwnerId === handlerId)
++          this.cycleOwnerId = null;
++        if (this.lastHandlerId === handlerId)
++          this.lastHandlerId = null;
++      } catch (error) {
++        this.cleanupFailure = error instanceof Error ? error : new Error(String(error));
++        for (const query of this.queue.splice(0))
++          query.reject(this.cleanupFailure);
++        throw error;
++      } finally {
++        this.cleanupPromise = null;
++        release();
++      }
++      await this.processQueue();
++    }
++  }
++  async waitForCleanup() {
++    while (this.cleanupPromise)
++      await this.cleanupPromise;
++    if (this.cleanupFailure)
++      throw this.cleanupFailure;
++  }
++},l=class l extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=l.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...i){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...i)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",i=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(i)}catch(t){this.log("socket on data error: ",t),this.handleError(t)}})}),e.on("error",i=>{setImmediate(()=>this.handleError(i))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(close) {
++    this.log(`detach: detaching socket, close=${close ?? this.closeOnDetach}`);
++    this.active = false;
++    if (this.idleTimer) {
++      clearTimeout(this.idleTimer);
++      this.idleTimer = undefined;
++    }
++    this.queryQueue.clearQueueForHandler(this.id);
++    let cleanupError;
++    try {
++      await this.queryQueue.clearTransactionIfNeeded(this.id);
++    } catch (error) {
++      cleanupError = error;
++    }
++    if (!this.socket) {
++      this.log(`detach: no socket attached, nothing to do`);
++      if (cleanupError)
++        throw cleanupError;
++      return this;
++    }
++    this.socket.removeAllListeners("data");
++    this.socket.removeAllListeners("error");
++    this.socket.removeAllListeners("close");
++    if (close ?? this.closeOnDetach) {
++      {
++        this.log(`detach: closing socket`);
++        try {
++          if (this.socket.writable)
++            this.socket.end();
++          this.socket.destroy();
++        } catch (err) {
++          this.log(`detach: error closing socket:`, err);
++        }
++      }
++    }
++    this.socket = null;
++    this.active = false;
++    this.messageBuffer = Buffer.alloc(0);
++    this.log(`detach: handler cleaned up`);
++    if (cleanupError)
++      throw cleanupError;
++    return this;
++  }get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<c)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===c&&i===p?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(c),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<u)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===u&&i===b?(this.messageBuffer=this.messageBuffer.slice(u),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let i=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let t=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(t=o,r=this.messageBuffer.length>=t)}!r&&this.messageBuffer.length>=5&&(t=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=t)}if(!r||t===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,t);if(this.messageBuffer=this.messageBuffer.slice(t),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let h;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),h=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),i+=o.length}),h)throw h}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:i}})),i}catch(i){throw this.log("handleData: error processing data:",i),i}}handleError(err) {
++    if (!this.active) {
++      this.log(`handleError: handler not active, ignoring error`);
++      return;
++    }
++    if (err.message?.includes("ECONNRESET")) {
++      this.log(`handleError: client disconnected (ECONNRESET) - normal behavior`);
++    } else if (err.message?.includes("Idle timeout")) {
++      this.log(`handleError: connection idle timeout`);
++    } else {
++      this.log(`handleError:`, err);
++    }
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("error", { detail: err }));
++    this.detach(true).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }handleClose() {
++    this.log(`handleClose: socket closed`);
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("close"));
++    this.detach(false).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }inspectData(e,i){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",i.length,"bytes");for(let t=0;t<i.length;t+=16){let r=Math.min(16,i.length-t),n="";for(let o=0;o<16;o++)if(o<r){let a=i[t+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let h="";for(let o=0;o<r;o++){let a=i[t+o];h+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${t.toString(16).padStart(8,"0")}  ${n} ${h}`)}}}};l.nextHandlerId=1;var g=l,f=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new d(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...i){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...i)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=v(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,i)=>{if(!this.server)return i(new Error("Server not initialized"));let t=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),t||i(r)}),this.path)this.server.listen(this.path,()=>{t=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{t=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop() {
++    this.log(`stop: stopping server`);
++    this.active = false;
++    this.log(`stop: detaching ${this.handlers.size} handlers`);
++    const detached = await Promise.allSettled([...this.handlers].map((handler) => handler.detach(true)));
++    this.handlers.clear();
++    if (!this.server) {
++      this.log(`stop: server not running, nothing to do`);
++      await this.queryQueue.waitForCleanup();
++      const failures = detached.filter((result) => result.status === "rejected");
++      if (failures.length)
++        throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++      return;
++    }
++    await new Promise((resolve) => {
++      if (!this.server)
++        return resolve();
++      this.server.close(() => {
++        this.log(`stop: server closed`);
++        this.server = null;
++        this.dispatchEvent(new CustomEvent("close"));
++        resolve();
++      });
++    });
++    await this.queryQueue.waitForCleanup();
++    const failures = detached.filter((result) => result.status === "rejected");
++    if (failures.length)
++      throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++  }async handleConnection(e){let i={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${i.clientAddress}:${i.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
+ `)),e.end();return}let t=new g({queryQueue:this.queryQueue,closeOnDetach:!0,inspect:this.inspect,debug:this.debug,idleTimeout:this.idleTimeout});this.handlers.add(t),t.addEventListener("error",r=>{let n=r.detail;n?.message?.includes("ECONNRESET")?this.log(`handler #${t.handlerId}: client disconnected (ECONNRESET)`):n?.message?.includes("Idle timeout")?this.log(`handler #${t.handlerId}: idle timeout`):this.log(`handler #${t.handlerId}: error:`,n)}),t.addEventListener("close",()=>{this.log(`handler #${t.handlerId}: closed`),this.handlers.delete(t),this.log(`handleConnection: active connections: ${this.handlers.size}`)});try{await t.attach(e),this.dispatchEvent(new CustomEvent("connection",{detail:i}))}catch(r){this.log("handleConnection: error attaching socket:",r),this.handlers.delete(t),this.dispatchEvent(new CustomEvent("error",{detail:r}));try{e.end()}catch(n){this.log("handleConnection: error closing socket:",n)}}}getStats(){return{activeConnections:this.handlers.size,queuedQueries:this.queryQueue.getQueueLength(),maxConnections:this.maxConnections}}};export{C as a,p as b,c,b as d,u as e,g as f,f as g};
+-//# sourceMappingURL=chunk-E57PWKK6.js.map
+\ No newline at end of file
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 5d061e3f3edce2b2ca4be4ad651ed3f5e23a760e..533c8f4c2b6684d0f78fc1e15cee0d5a8f8d1b6f 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1,3 +1,244 @@
+-"use strict";var f=Object.defineProperty;var E=Object.getOwnPropertyDescriptor;var w=Object.getOwnPropertyNames;var C=Object.prototype.hasOwnProperty;var T=(h,s)=>{for(var e in s)f(h,e,{get:s[e],enumerable:!0})},q=(h,s,e,i)=>{if(s&&typeof s=="object"||typeof s=="function")for(let t of w(s))!C.call(h,t)&&t!==e&&f(h,t,{get:()=>s[t],enumerable:!(i=E(s,t))||i.enumerable});return h};var S=h=>q(f({},"__esModule",{value:!0}),h);var k={};T(k,{CANCEL_REQUEST_CODE:()=>y,CANCEL_REQUEST_LENGTH:()=>u,CONNECTION_QUEUE_TIMEOUT:()=>I,PGLiteSocketHandler:()=>d,PGLiteSocketServer:()=>v,SSL_REQUEST_CODE:()=>b,SSL_REQUEST_LENGTH:()=>c});module.exports=S(k);var p=require("net"),I=6e4,b=80877103,c=8,y=80877102,u=16,m=class{constructor(s,e=!1){this.queue=[];this.processing=!1;this.lastHandlerId=null;this.db=s,this.debug=e}log(s,...e){this.debug&&console.log(`[QueryQueueManager] ${s}`,...e)}async enqueue(s,e,i){return new Promise((t,r)=>{let n={handlerId:s,message:e,resolve:t,reject:r,timestamp:Date.now(),onData:i};this.queue.push(n),this.log(`enqueued query from handler #${s}, queue size: ${this.queue.length}`),this.processing||this.processQueue()})}async processQueue(){if(!(this.processing||this.queue.length===0)){for(this.processing=!0;this.queue.length>0;){let s;if(this.db.isInTransaction()&&this.lastHandlerId){let t=this.queue.findIndex(r=>r.handlerId===this.lastHandlerId);t===-1?(this.log("transaction started, but no query from the same handler id found in queue",this.lastHandlerId),s=null):s=this.queue.splice(t,1)[0]}else s=this.queue.shift();if(!s)break;let e=Date.now()-s.timestamp;this.log(`processing query from handler #${s.handlerId} (waited ${e}ms)`);let i=0;try{await this.db.runExclusive(async()=>await this.db.execProtocolRawStream(s.message,{onRawData:t=>{i+=t.length,s.onData(t)}}))}catch(t){this.log(`query from handler #${s.handlerId} failed:`,t),s.reject(t);return}this.log(`query from handler #${s.handlerId} completed, ${i} bytes`),this.lastHandlerId=s.handlerId,s.resolve(i)}this.processing=!1,this.log("queue processing complete, queue length is",this.queue.length)}}getQueueLength(){return this.queue.length}clearQueueForHandler(s){let e=this.queue.length;this.queue=this.queue.filter(t=>t.handlerId===s?(t.reject(new Error("Handler disconnected")),!1):!0);let i=e-this.queue.length;i>0&&this.log(`cleared ${i} queries for handler #${s}`)}async clearTransactionIfNeeded(s){this.db.isInTransaction()&&this.lastHandlerId===s&&(await this.db.exec("ROLLBACK"),this.lastHandlerId=null,await this.processQueue())}},g=class g extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=g.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...i){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...i)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",i=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(i)}catch(t){this.log("socket on data error: ",t),this.handleError(t)}})}),e.on("error",i=>{setImmediate(()=>this.handleError(i))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(e){if(this.log(`detach: detaching socket, close=${e??this.closeOnDetach}`),this.idleTimer&&(clearTimeout(this.idleTimer),this.idleTimer=void 0),this.queryQueue.clearQueueForHandler(this.id),await this.queryQueue.clearTransactionIfNeeded(this.id),!this.socket)return this.log("detach: no socket attached, nothing to do"),this;if(this.socket.removeAllListeners("data"),this.socket.removeAllListeners("error"),this.socket.removeAllListeners("close"),(e??this.closeOnDetach)&&this.socket.writable){this.log("detach: closing socket");try{this.socket.end(),this.socket.destroy()}catch(i){this.log("detach: error closing socket:",i)}}return this.socket=null,this.active=!1,this.messageBuffer=Buffer.alloc(0),this.log("detach: handler cleaned up"),this}get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<c)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===c&&i===b?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(c),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<u)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===u&&i===y?(this.messageBuffer=this.messageBuffer.slice(u),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let i=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let t=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(t=o,r=this.messageBuffer.length>=t)}!r&&this.messageBuffer.length>=5&&(t=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=t)}if(!r||t===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,t);if(this.messageBuffer=this.messageBuffer.slice(t),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let l;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),l=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),i+=o.length}),l)throw l}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:i}})),i}catch(i){throw this.log("handleData: error processing data:",i),i}}handleError(e){if(!this.active){this.log("handleError: handler not active, ignoring error");return}e.message?.includes("ECONNRESET")?this.log("handleError: client disconnected (ECONNRESET) - normal behavior"):e.message?.includes("Idle timeout")?this.log("handleError: connection idle timeout"):this.log("handleError:",e),this.active=!1,this.dispatchEvent(new CustomEvent("error",{detail:e})),this.detach(!0)}handleClose(){this.log("handleClose: socket closed"),this.active=!1,this.dispatchEvent(new CustomEvent("close")),this.detach(!1)}inspectData(e,i){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",i.length,"bytes");for(let t=0;t<i.length;t+=16){let r=Math.min(16,i.length-t),n="";for(let o=0;o<16;o++)if(o<r){let a=i[t+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let l="";for(let o=0;o<r;o++){let a=i[t+o];l+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${t.toString(16).padStart(8,"0")}  ${n} ${l}`)}}}};g.nextHandlerId=1;var d=g,v=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new m(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...i){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...i)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=(0,p.createServer)(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,i)=>{if(!this.server)return i(new Error("Server not initialized"));let t=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),t||i(r)}),this.path)this.server.listen(this.path,()=>{t=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{t=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop(){this.log("stop: stopping server"),this.active=!1,this.log(`stop: detaching ${this.handlers.size} handlers`);for(let e of this.handlers)e.detach(!0);return this.handlers.clear(),this.server?new Promise(e=>{if(!this.server)return e();this.server.close(()=>{this.log("stop: server closed"),this.server=null,this.dispatchEvent(new CustomEvent("close")),e()})}):(this.log("stop: server not running, nothing to do"),Promise.resolve())}async handleConnection(e){let i={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${i.clientAddress}:${i.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
++"use strict";var f=Object.defineProperty;var E=Object.getOwnPropertyDescriptor;var w=Object.getOwnPropertyNames;var C=Object.prototype.hasOwnProperty;var T=(h,s)=>{for(var e in s)f(h,e,{get:s[e],enumerable:!0})},q=(h,s,e,i)=>{if(s&&typeof s=="object"||typeof s=="function")for(let t of w(s))!C.call(h,t)&&t!==e&&f(h,t,{get:()=>s[t],enumerable:!(i=E(s,t))||i.enumerable});return h};var S=h=>q(f({},"__esModule",{value:!0}),h);var k={};T(k,{CANCEL_REQUEST_CODE:()=>y,CANCEL_REQUEST_LENGTH:()=>u,CONNECTION_QUEUE_TIMEOUT:()=>I,PGLiteSocketHandler:()=>d,PGLiteSocketServer:()=>v,SSL_REQUEST_CODE:()=>b,SSL_REQUEST_LENGTH:()=>c});module.exports=S(k);var p=require("net"),I=6e4,b=80877103,c=8,y=80877102,u=16,m=class QueryQueueManager {
++  queue = [];
++  processing = false;
++  db;
++  debug;
++  lastHandlerId = null;
++  cycleOwnerId = null;
++  activeHandlerId = null;
++  cleanupPromise = null;
++  cleanupFailure = null;
++  constructor(db, debug = false) {
++    this.db = db;
++    this.debug = debug;
++  }
++  log(message, ...args) {
++    if (this.debug) {
++      console.log(`[QueryQueueManager] ${message}`, ...args);
++    }
++  }
++  async enqueue(handlerId, message, onData) {
++    if (this.cleanupFailure)
++      return Promise.reject(this.cleanupFailure);
++    return new Promise((resolve, reject) => {
++      const query = {
++        handlerId,
++        message,
++        resolve,
++        reject,
++        timestamp: Date.now(),
++        onData
++      };
++      this.queue.push(query);
++      this.log(`enqueued query from handler #${handlerId}, queue size: ${this.queue.length}`);
++      if (!this.processing) {
++        this.processQueue();
++      }
++    });
++  }
++  async processQueue() {
++    if (this.processing || this.queue.length === 0 || this.cleanupPromise || this.cleanupFailure) {
++      return;
++    }
++    this.processing = true;
++    try {
++      while (this.queue.length > 0 && !this.cleanupPromise && !this.cleanupFailure) {
++        let query;
++        const owner = this.cycleOwnerId ?? (this.db.isInTransaction() ? this.lastHandlerId : null);
++        if (owner !== null) {
++          const i = this.queue.findIndex((q) => q.handlerId === owner);
++          if (i === -1) {
++            this.log(`transaction started, but no query from the same handler id found in queue`, this.lastHandlerId);
++            query = null;
++          } else {
++            query = this.queue.splice(i, 1)[0];
++          }
++        } else {
++          query = this.queue.shift();
++        }
++        if (!query)
++          break;
++        const waitTime = Date.now() - query.timestamp;
++        this.log(`processing query from handler #${query.handlerId} (waited ${waitTime}ms)`);
++        let result = 0;
++        const messageType = String.fromCharCode(query.message[0]);
++        if ("PBDEHC".includes(messageType) && this.cycleOwnerId === null) {
++          this.cycleOwnerId = query.handlerId;
++        }
++        this.activeHandlerId = query.handlerId;
++        this.lastHandlerId = query.handlerId;
++        try {
++          await this.db.runExclusive(async () => {
++            return await this.db.execProtocolRawStream(query.message, {
++              onRawData: (data) => {
++                result += data.length;
++                query.onData(data);
++              }
++            });
++          });
++        } catch (error) {
++          this.log(`query from handler #${query.handlerId} failed:`, error);
++          query.reject(error);
++          return;
++        } finally {
++          this.activeHandlerId = null;
++        }
++        this.log(`query from handler #${query.handlerId} completed, ${result} bytes`);
++        if (messageType === "S" && this.cycleOwnerId === query.handlerId) {
++          this.cycleOwnerId = null;
++        }
++        query.resolve(result);
++      }
++    } finally {
++      this.processing = false;
++    }
++    this.log(`queue processing complete, queue length is`, this.queue.length);
++  }
++  getQueueLength() {
++    return this.queue.length;
++  }
++  clearQueueForHandler(handlerId) {
++    const before = this.queue.length;
++    this.queue = this.queue.filter((q) => {
++      if (q.handlerId === handlerId) {
++        q.reject(new Error("Handler disconnected"));
++        return false;
++      }
++      return true;
++    });
++    const removed = before - this.queue.length;
++    if (removed > 0) {
++      this.log(`cleared ${removed} queries for handler #${handlerId}`);
++    }
++  }
++  async clearTransactionIfNeeded(handlerId) {
++    if (this.cleanupPromise) {
++      await this.cleanupPromise;
++      return this.clearTransactionIfNeeded(handlerId);
++    }
++    const ownsBackend = this.cycleOwnerId === handlerId || this.activeHandlerId === handlerId || this.db.isInTransaction() && this.lastHandlerId === handlerId;
++    if (ownsBackend) {
++      let release;
++      this.cleanupPromise = new Promise((resolve) => {
++        release = resolve;
++      });
++      try {
++        await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          throw new Error("Socket transaction rollback did not finish");
++        if (this.cycleOwnerId === handlerId)
++          this.cycleOwnerId = null;
++        if (this.lastHandlerId === handlerId)
++          this.lastHandlerId = null;
++      } catch (error) {
++        this.cleanupFailure = error instanceof Error ? error : new Error(String(error));
++        for (const query of this.queue.splice(0))
++          query.reject(this.cleanupFailure);
++        throw error;
++      } finally {
++        this.cleanupPromise = null;
++        release();
++      }
++      await this.processQueue();
++    }
++  }
++  async waitForCleanup() {
++    while (this.cleanupPromise)
++      await this.cleanupPromise;
++    if (this.cleanupFailure)
++      throw this.cleanupFailure;
++  }
++},g=class g extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=g.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...i){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...i)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",i=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(i)}catch(t){this.log("socket on data error: ",t),this.handleError(t)}})}),e.on("error",i=>{setImmediate(()=>this.handleError(i))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(close) {
++    this.log(`detach: detaching socket, close=${close ?? this.closeOnDetach}`);
++    this.active = false;
++    if (this.idleTimer) {
++      clearTimeout(this.idleTimer);
++      this.idleTimer = undefined;
++    }
++    this.queryQueue.clearQueueForHandler(this.id);
++    let cleanupError;
++    try {
++      await this.queryQueue.clearTransactionIfNeeded(this.id);
++    } catch (error) {
++      cleanupError = error;
++    }
++    if (!this.socket) {
++      this.log(`detach: no socket attached, nothing to do`);
++      if (cleanupError)
++        throw cleanupError;
++      return this;
++    }
++    this.socket.removeAllListeners("data");
++    this.socket.removeAllListeners("error");
++    this.socket.removeAllListeners("close");
++    if (close ?? this.closeOnDetach) {
++      {
++        this.log(`detach: closing socket`);
++        try {
++          if (this.socket.writable)
++            this.socket.end();
++          this.socket.destroy();
++        } catch (err) {
++          this.log(`detach: error closing socket:`, err);
++        }
++      }
++    }
++    this.socket = null;
++    this.active = false;
++    this.messageBuffer = Buffer.alloc(0);
++    this.log(`detach: handler cleaned up`);
++    if (cleanupError)
++      throw cleanupError;
++    return this;
++  }get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<c)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===c&&i===b?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(c),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<u)return!1;let e=this.messageBuffer.readInt32BE(0),i=this.messageBuffer.readInt32BE(4);return e===u&&i===y?(this.messageBuffer=this.messageBuffer.slice(u),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let i=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let t=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(t=o,r=this.messageBuffer.length>=t)}!r&&this.messageBuffer.length>=5&&(t=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=t)}if(!r||t===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,t);if(this.messageBuffer=this.messageBuffer.slice(t),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let l;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),l=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),i+=o.length}),l)throw l}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:i}})),i}catch(i){throw this.log("handleData: error processing data:",i),i}}handleError(err) {
++    if (!this.active) {
++      this.log(`handleError: handler not active, ignoring error`);
++      return;
++    }
++    if (err.message?.includes("ECONNRESET")) {
++      this.log(`handleError: client disconnected (ECONNRESET) - normal behavior`);
++    } else if (err.message?.includes("Idle timeout")) {
++      this.log(`handleError: connection idle timeout`);
++    } else {
++      this.log(`handleError:`, err);
++    }
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("error", { detail: err }));
++    this.detach(true).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }handleClose() {
++    this.log(`handleClose: socket closed`);
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("close"));
++    this.detach(false).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }inspectData(e,i){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",i.length,"bytes");for(let t=0;t<i.length;t+=16){let r=Math.min(16,i.length-t),n="";for(let o=0;o<16;o++)if(o<r){let a=i[t+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let l="";for(let o=0;o<r;o++){let a=i[t+o];l+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${t.toString(16).padStart(8,"0")}  ${n} ${l}`)}}}};g.nextHandlerId=1;var d=g,v=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new m(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...i){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...i)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=(0,p.createServer)(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,i)=>{if(!this.server)return i(new Error("Server not initialized"));let t=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),t||i(r)}),this.path)this.server.listen(this.path,()=>{t=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{t=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop() {
++    this.log(`stop: stopping server`);
++    this.active = false;
++    this.log(`stop: detaching ${this.handlers.size} handlers`);
++    const detached = await Promise.allSettled([...this.handlers].map((handler) => handler.detach(true)));
++    this.handlers.clear();
++    if (!this.server) {
++      this.log(`stop: server not running, nothing to do`);
++      await this.queryQueue.waitForCleanup();
++      const failures = detached.filter((result) => result.status === "rejected");
++      if (failures.length)
++        throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++      return;
++    }
++    await new Promise((resolve) => {
++      if (!this.server)
++        return resolve();
++      this.server.close(() => {
++        this.log(`stop: server closed`);
++        this.server = null;
++        this.dispatchEvent(new CustomEvent("close"));
++        resolve();
++      });
++    });
++    await this.queryQueue.waitForCleanup();
++    const failures = detached.filter((result) => result.status === "rejected");
++    if (failures.length)
++      throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++  }async handleConnection(e){let i={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${i.clientAddress}:${i.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
+ `)),e.end();return}let t=new d({queryQueue:this.queryQueue,closeOnDetach:!0,inspect:this.inspect,debug:this.debug,idleTimeout:this.idleTimeout});this.handlers.add(t),t.addEventListener("error",r=>{let n=r.detail;n?.message?.includes("ECONNRESET")?this.log(`handler #${t.handlerId}: client disconnected (ECONNRESET)`):n?.message?.includes("Idle timeout")?this.log(`handler #${t.handlerId}: idle timeout`):this.log(`handler #${t.handlerId}: error:`,n)}),t.addEventListener("close",()=>{this.log(`handler #${t.handlerId}: closed`),this.handlers.delete(t),this.log(`handleConnection: active connections: ${this.handlers.size}`)});try{await t.attach(e),this.dispatchEvent(new CustomEvent("connection",{detail:i}))}catch(r){this.log("handleConnection: error attaching socket:",r),this.handlers.delete(t),this.dispatchEvent(new CustomEvent("error",{detail:r}));try{e.end()}catch(n){this.log("handleConnection: error closing socket:",n)}}}getStats(){return{activeConnections:this.handlers.size,queuedQueries:this.queryQueue.getQueueLength(),maxConnections:this.maxConnections}}};0&&(module.exports={CANCEL_REQUEST_CODE,CANCEL_REQUEST_LENGTH,CONNECTION_QUEUE_TIMEOUT,PGLiteSocketHandler,PGLiteSocketServer,SSL_REQUEST_CODE,SSL_REQUEST_LENGTH});
+-//# sourceMappingURL=index.cjs.map
+\ No newline at end of file
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index 4e89c16ea0b063da130b2d147cd8f3fe7d7b6102..2b0452c7ce7f43675693d3452883ec5f975c8d65 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -16,6 +16,10 @@ declare class QueryQueueManager {
+     private db;
+     private debug;
+     private lastHandlerId;
++    private cycleOwnerId;
++    private activeHandlerId;
++    private cleanupPromise;
++    private cleanupFailure;
+     constructor(db: PGlite, debug?: boolean);
+     private log;
+     enqueue(handlerId: number, message: Uint8Array, onData: (data: Uint8Array) => void): Promise<number>;
+@@ -23,6 +27,7 @@ declare class QueryQueueManager {
+     getQueueLength(): number;
+     clearQueueForHandler(handlerId: number): void;
+     clearTransactionIfNeeded(handlerId: number): Promise<void>;
++    waitForCleanup(): Promise<void>;
+ }
+ /**
+  * Options for creating a PGLiteSocketHandler
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 4e89c16ea0b063da130b2d147cd8f3fe7d7b6102..2b0452c7ce7f43675693d3452883ec5f975c8d65 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -16,6 +16,10 @@ declare class QueryQueueManager {
+     private db;
+     private debug;
+     private lastHandlerId;
++    private cycleOwnerId;
++    private activeHandlerId;
++    private cleanupPromise;
++    private cleanupFailure;
+     constructor(db: PGlite, debug?: boolean);
+     private log;
+     enqueue(handlerId: number, message: Uint8Array, onData: (data: Uint8Array) => void): Promise<number>;
+@@ -23,6 +27,7 @@ declare class QueryQueueManager {
+     getQueueLength(): number;
+     clearQueueForHandler(handlerId: number): void;
+     clearTransactionIfNeeded(handlerId: number): Promise<void>;
++    waitForCleanup(): Promise<void>;
+ }
+ /**
+  * Options for creating a PGLiteSocketHandler
+diff --git a/dist/scripts/server.cjs b/dist/scripts/server.cjs
+index d49284048e8a42e16400f378451e0db6766346b6..9e8678e6d016bcda03a2cd0da019ce5fac509b30 100644
+--- a/dist/scripts/server.cjs
++++ b/dist/scripts/server.cjs
+@@ -1,5 +1,247 @@
+ #!/usr/bin/env node
+-"use strict";var y=require("@electric-sql/pglite");var E=require("net");var C=80877103,m=8,T=80877102,p=16,f=class{constructor(s,e=!1){this.queue=[];this.processing=!1;this.lastHandlerId=null;this.db=s,this.debug=e}log(s,...e){this.debug&&console.log(`[QueryQueueManager] ${s}`,...e)}async enqueue(s,e,t){return new Promise((i,r)=>{let n={handlerId:s,message:e,resolve:i,reject:r,timestamp:Date.now(),onData:t};this.queue.push(n),this.log(`enqueued query from handler #${s}, queue size: ${this.queue.length}`),this.processing||this.processQueue()})}async processQueue(){if(!(this.processing||this.queue.length===0)){for(this.processing=!0;this.queue.length>0;){let s;if(this.db.isInTransaction()&&this.lastHandlerId){let i=this.queue.findIndex(r=>r.handlerId===this.lastHandlerId);i===-1?(this.log("transaction started, but no query from the same handler id found in queue",this.lastHandlerId),s=null):s=this.queue.splice(i,1)[0]}else s=this.queue.shift();if(!s)break;let e=Date.now()-s.timestamp;this.log(`processing query from handler #${s.handlerId} (waited ${e}ms)`);let t=0;try{await this.db.runExclusive(async()=>await this.db.execProtocolRawStream(s.message,{onRawData:i=>{t+=i.length,s.onData(i)}}))}catch(i){this.log(`query from handler #${s.handlerId} failed:`,i),s.reject(i);return}this.log(`query from handler #${s.handlerId} completed, ${t} bytes`),this.lastHandlerId=s.handlerId,s.resolve(t)}this.processing=!1,this.log("queue processing complete, queue length is",this.queue.length)}}getQueueLength(){return this.queue.length}clearQueueForHandler(s){let e=this.queue.length;this.queue=this.queue.filter(i=>i.handlerId===s?(i.reject(new Error("Handler disconnected")),!1):!0);let t=e-this.queue.length;t>0&&this.log(`cleared ${t} queries for handler #${s}`)}async clearTransactionIfNeeded(s){this.db.isInTransaction()&&this.lastHandlerId===s&&(await this.db.exec("ROLLBACK"),this.lastHandlerId=null,await this.processQueue())}},u=class u extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=u.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...t){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...t)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",t=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(t)}catch(i){this.log("socket on data error: ",i),this.handleError(i)}})}),e.on("error",t=>{setImmediate(()=>this.handleError(t))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(e){if(this.log(`detach: detaching socket, close=${e??this.closeOnDetach}`),this.idleTimer&&(clearTimeout(this.idleTimer),this.idleTimer=void 0),this.queryQueue.clearQueueForHandler(this.id),await this.queryQueue.clearTransactionIfNeeded(this.id),!this.socket)return this.log("detach: no socket attached, nothing to do"),this;if(this.socket.removeAllListeners("data"),this.socket.removeAllListeners("error"),this.socket.removeAllListeners("close"),(e??this.closeOnDetach)&&this.socket.writable){this.log("detach: closing socket");try{this.socket.end(),this.socket.destroy()}catch(t){this.log("detach: error closing socket:",t)}}return this.socket=null,this.active=!1,this.messageBuffer=Buffer.alloc(0),this.log("detach: handler cleaned up"),this}get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<m)return!1;let e=this.messageBuffer.readInt32BE(0),t=this.messageBuffer.readInt32BE(4);return e===m&&t===C?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(m),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<p)return!1;let e=this.messageBuffer.readInt32BE(0),t=this.messageBuffer.readInt32BE(4);return e===p&&t===T?(this.messageBuffer=this.messageBuffer.slice(p),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let t=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let i=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(i=o,r=this.messageBuffer.length>=i)}!r&&this.messageBuffer.length>=5&&(i=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=i)}if(!r||i===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,i);if(this.messageBuffer=this.messageBuffer.slice(i),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let c;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),c=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),t+=o.length}),c)throw c}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:t}})),t}catch(t){throw this.log("handleData: error processing data:",t),t}}handleError(e){if(!this.active){this.log("handleError: handler not active, ignoring error");return}e.message?.includes("ECONNRESET")?this.log("handleError: client disconnected (ECONNRESET) - normal behavior"):e.message?.includes("Idle timeout")?this.log("handleError: connection idle timeout"):this.log("handleError:",e),this.active=!1,this.dispatchEvent(new CustomEvent("error",{detail:e})),this.detach(!0)}handleClose(){this.log("handleClose: socket closed"),this.active=!1,this.dispatchEvent(new CustomEvent("close")),this.detach(!1)}inspectData(e,t){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",t.length,"bytes");for(let i=0;i<t.length;i+=16){let r=Math.min(16,t.length-i),n="";for(let o=0;o<16;o++)if(o<r){let a=t[i+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let c="";for(let o=0;o<r;o++){let a=t[i+o];c+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${i.toString(16).padStart(8,"0")}  ${n} ${c}`)}}}};u.nextHandlerId=1;var v=u,d=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new f(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...t){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...t)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=(0,E.createServer)(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,t)=>{if(!this.server)return t(new Error("Server not initialized"));let i=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),i||t(r)}),this.path)this.server.listen(this.path,()=>{i=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{i=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop(){this.log("stop: stopping server"),this.active=!1,this.log(`stop: detaching ${this.handlers.size} handlers`);for(let e of this.handlers)e.detach(!0);return this.handlers.clear(),this.server?new Promise(e=>{if(!this.server)return e();this.server.close(()=>{this.log("stop: server closed"),this.server=null,this.dispatchEvent(new CustomEvent("close")),e()})}):(this.log("stop: server not running, nothing to do"),Promise.resolve())}async handleConnection(e){let t={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${t.clientAddress}:${t.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
++"use strict";var y=require("@electric-sql/pglite");var E=require("net");var C=80877103,m=8,T=80877102,p=16,f=class QueryQueueManager {
++  queue = [];
++  processing = false;
++  db;
++  debug;
++  lastHandlerId = null;
++  cycleOwnerId = null;
++  activeHandlerId = null;
++  cleanupPromise = null;
++  cleanupFailure = null;
++  constructor(db, debug = false) {
++    this.db = db;
++    this.debug = debug;
++  }
++  log(message, ...args) {
++    if (this.debug) {
++      console.log(`[QueryQueueManager] ${message}`, ...args);
++    }
++  }
++  async enqueue(handlerId, message, onData) {
++    if (this.cleanupFailure)
++      return Promise.reject(this.cleanupFailure);
++    return new Promise((resolve, reject) => {
++      const query = {
++        handlerId,
++        message,
++        resolve,
++        reject,
++        timestamp: Date.now(),
++        onData
++      };
++      this.queue.push(query);
++      this.log(`enqueued query from handler #${handlerId}, queue size: ${this.queue.length}`);
++      if (!this.processing) {
++        this.processQueue();
++      }
++    });
++  }
++  async processQueue() {
++    if (this.processing || this.queue.length === 0 || this.cleanupPromise || this.cleanupFailure) {
++      return;
++    }
++    this.processing = true;
++    try {
++      while (this.queue.length > 0 && !this.cleanupPromise && !this.cleanupFailure) {
++        let query;
++        const owner = this.cycleOwnerId ?? (this.db.isInTransaction() ? this.lastHandlerId : null);
++        if (owner !== null) {
++          const i = this.queue.findIndex((q) => q.handlerId === owner);
++          if (i === -1) {
++            this.log(`transaction started, but no query from the same handler id found in queue`, this.lastHandlerId);
++            query = null;
++          } else {
++            query = this.queue.splice(i, 1)[0];
++          }
++        } else {
++          query = this.queue.shift();
++        }
++        if (!query)
++          break;
++        const waitTime = Date.now() - query.timestamp;
++        this.log(`processing query from handler #${query.handlerId} (waited ${waitTime}ms)`);
++        let result = 0;
++        const messageType = String.fromCharCode(query.message[0]);
++        if ("PBDEHC".includes(messageType) && this.cycleOwnerId === null) {
++          this.cycleOwnerId = query.handlerId;
++        }
++        this.activeHandlerId = query.handlerId;
++        this.lastHandlerId = query.handlerId;
++        try {
++          await this.db.runExclusive(async () => {
++            return await this.db.execProtocolRawStream(query.message, {
++              onRawData: (data) => {
++                result += data.length;
++                query.onData(data);
++              }
++            });
++          });
++        } catch (error) {
++          this.log(`query from handler #${query.handlerId} failed:`, error);
++          query.reject(error);
++          return;
++        } finally {
++          this.activeHandlerId = null;
++        }
++        this.log(`query from handler #${query.handlerId} completed, ${result} bytes`);
++        if (messageType === "S" && this.cycleOwnerId === query.handlerId) {
++          this.cycleOwnerId = null;
++        }
++        query.resolve(result);
++      }
++    } finally {
++      this.processing = false;
++    }
++    this.log(`queue processing complete, queue length is`, this.queue.length);
++  }
++  getQueueLength() {
++    return this.queue.length;
++  }
++  clearQueueForHandler(handlerId) {
++    const before = this.queue.length;
++    this.queue = this.queue.filter((q) => {
++      if (q.handlerId === handlerId) {
++        q.reject(new Error("Handler disconnected"));
++        return false;
++      }
++      return true;
++    });
++    const removed = before - this.queue.length;
++    if (removed > 0) {
++      this.log(`cleared ${removed} queries for handler #${handlerId}`);
++    }
++  }
++  async clearTransactionIfNeeded(handlerId) {
++    if (this.cleanupPromise) {
++      await this.cleanupPromise;
++      return this.clearTransactionIfNeeded(handlerId);
++    }
++    const ownsBackend = this.cycleOwnerId === handlerId || this.activeHandlerId === handlerId || this.db.isInTransaction() && this.lastHandlerId === handlerId;
++    if (ownsBackend) {
++      let release;
++      this.cleanupPromise = new Promise((resolve) => {
++        release = resolve;
++      });
++      try {
++        await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          await this.db.exec("ROLLBACK");
++        if (this.db.isInTransaction())
++          throw new Error("Socket transaction rollback did not finish");
++        if (this.cycleOwnerId === handlerId)
++          this.cycleOwnerId = null;
++        if (this.lastHandlerId === handlerId)
++          this.lastHandlerId = null;
++      } catch (error) {
++        this.cleanupFailure = error instanceof Error ? error : new Error(String(error));
++        for (const query of this.queue.splice(0))
++          query.reject(this.cleanupFailure);
++        throw error;
++      } finally {
++        this.cleanupPromise = null;
++        release();
++      }
++      await this.processQueue();
++    }
++  }
++  async waitForCleanup() {
++    while (this.cleanupPromise)
++      await this.cleanupPromise;
++    if (this.cleanupFailure)
++      throw this.cleanupFailure;
++  }
++},u=class u extends EventTarget{constructor(e){super();this.socket=null;this.active=!1;this.messageBuffer=Buffer.alloc(0);this.lastActivityTime=Date.now();this.queryQueue=e.queryQueue,this.closeOnDetach=e.closeOnDetach??!1,this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.id=u.nextHandlerId++,this.log("constructor: created new handler")}get handlerId(){return this.id}log(e,...t){this.debug&&console.log(`[PGLiteSocketHandler#${this.id}] ${e}`,...t)}async attach(e){if(this.log(`attach: attaching socket from ${e.remoteAddress}:${e.remotePort}`),this.socket)throw new Error("Socket already attached");return this.socket=e,this.active=!0,this.lastActivityTime=Date.now(),e.setNoDelay(!0),this.idleTimeout>0&&this.resetIdleTimer(),this.log("attach: setting up socket event handlers"),e.on("data",t=>{this.lastActivityTime=Date.now(),this.resetIdleTimer(),setImmediate(async()=>{try{await this.handleData(t)}catch(i){this.log("socket on data error: ",i),this.handleError(i)}})}),e.on("error",t=>{setImmediate(()=>this.handleError(t))}),e.on("close",()=>{setImmediate(()=>this.handleClose())}),this.log("attach: socket handler ready"),this}resetIdleTimer(){this.idleTimeout<=0||(this.idleTimer&&clearTimeout(this.idleTimer),this.idleTimer=setTimeout(()=>{let e=Date.now()-this.lastActivityTime;this.log(`idle timeout after ${e}ms`),this.handleError(new Error("Idle timeout"))},this.idleTimeout))}async detach(close) {
++    this.log(`detach: detaching socket, close=${close ?? this.closeOnDetach}`);
++    this.active = false;
++    if (this.idleTimer) {
++      clearTimeout(this.idleTimer);
++      this.idleTimer = undefined;
++    }
++    this.queryQueue.clearQueueForHandler(this.id);
++    let cleanupError;
++    try {
++      await this.queryQueue.clearTransactionIfNeeded(this.id);
++    } catch (error) {
++      cleanupError = error;
++    }
++    if (!this.socket) {
++      this.log(`detach: no socket attached, nothing to do`);
++      if (cleanupError)
++        throw cleanupError;
++      return this;
++    }
++    this.socket.removeAllListeners("data");
++    this.socket.removeAllListeners("error");
++    this.socket.removeAllListeners("close");
++    if (close ?? this.closeOnDetach) {
++      {
++        this.log(`detach: closing socket`);
++        try {
++          if (this.socket.writable)
++            this.socket.end();
++          this.socket.destroy();
++        } catch (err) {
++          this.log(`detach: error closing socket:`, err);
++        }
++      }
++    }
++    this.socket = null;
++    this.active = false;
++    this.messageBuffer = Buffer.alloc(0);
++    this.log(`detach: handler cleaned up`);
++    if (cleanupError)
++      throw cleanupError;
++    return this;
++  }get isAttached(){return this.socket!==null}handleSslRequest(){if(this.messageBuffer.length<m)return!1;let e=this.messageBuffer.readInt32BE(0),t=this.messageBuffer.readInt32BE(4);return e===m&&t===C?(this.socket?.writable&&this.socket.write(Buffer.from("N")),this.messageBuffer=this.messageBuffer.slice(m),!0):!1}handleCancelRequest(){if(this.messageBuffer.length<p)return!1;let e=this.messageBuffer.readInt32BE(0),t=this.messageBuffer.readInt32BE(4);return e===p&&t===T?(this.messageBuffer=this.messageBuffer.slice(p),this.log("handleData: CancelRequest received, ignoring (not supported)"),!0):!1}async handleData(e){if(!this.socket||!this.active)return this.log("handleData: no active socket, ignoring data"),0;this.log(`handleData: received ${e.length} bytes`),this.messageBuffer=Buffer.concat([this.messageBuffer,e]),this.inspectData("incoming",e);try{let t=0;for(;this.messageBuffer.length>0;){if(this.handleSslRequest()||this.handleCancelRequest())continue;let i=0,r=!1;if(this.messageBuffer.length>=4){let o=this.messageBuffer.readInt32BE(0);if(this.messageBuffer.length>=8){let a=this.messageBuffer.readInt32BE(4);(a===196608||a===196608)&&(i=o,r=this.messageBuffer.length>=i)}!r&&this.messageBuffer.length>=5&&(i=1+this.messageBuffer.readInt32BE(1),r=this.messageBuffer.length>=i)}if(!r||i===0){this.log(`handleData: incomplete message, buffering ${this.messageBuffer.length} bytes`);break}let n=this.messageBuffer.slice(0,i);if(this.messageBuffer=this.messageBuffer.slice(i),this.log(`handleData: processing message of ${n.length} bytes`),!this.active||!this.socket){this.log("handleData: socket no longer active, stopping processing");break}let c;if(await this.queryQueue.enqueue(this.id,new Uint8Array(n),o=>{this.log(`handleData: received ${o.length} bytes from PGlite`),this.inspectData("outgoing",o),o.length>0&&this.socket&&this.socket.writable&&this.active&&(this.log("handleData: writing response to socket"),this.socket?.writable?this.socket.write(Buffer.from(o),a=>{a?(this.log("handleData: error writing to socket:",a),c=a):this.log(`handleData: socket sent: ${o.length} bytes`)}):this.log("handleData: socket no longer writable")),t+=o.length}),c)throw c}return this.dispatchEvent(new CustomEvent("data",{detail:{incoming:e.length,outgoing:t}})),t}catch(t){throw this.log("handleData: error processing data:",t),t}}handleError(err) {
++    if (!this.active) {
++      this.log(`handleError: handler not active, ignoring error`);
++      return;
++    }
++    if (err.message?.includes("ECONNRESET")) {
++      this.log(`handleError: client disconnected (ECONNRESET) - normal behavior`);
++    } else if (err.message?.includes("Idle timeout")) {
++      this.log(`handleError: connection idle timeout`);
++    } else {
++      this.log(`handleError:`, err);
++    }
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("error", { detail: err }));
++    this.detach(true).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }handleClose() {
++    this.log(`handleClose: socket closed`);
++    this.active = false;
++    this.dispatchEvent(new CustomEvent("close"));
++    this.detach(false).catch((error) => this.dispatchEvent(new CustomEvent("error", { detail: error })));
++  }inspectData(e,t){if(this.inspect){console.log("-".repeat(75)),console.log(e==="incoming"?"-> incoming":"<- outgoing",t.length,"bytes");for(let i=0;i<t.length;i+=16){let r=Math.min(16,t.length-i),n="";for(let o=0;o<16;o++)if(o<r){let a=t[i+o];n+=a.toString(16).padStart(2,"0")+" "}else n+="   ";let c="";for(let o=0;o<r;o++){let a=t[i+o];c+=a>=32&&a<=126?String.fromCharCode(a):"."}console.log(`${i.toString(16).padStart(8,"0")}  ${n} ${c}`)}}}};u.nextHandlerId=1;var v=u,d=class extends EventTarget{constructor(e){super();this.server=null;this.active=!1;this.handlers=new Set;this.db=e.db,e.path?this.path=e.path:(typeof e.port=="number"?this.port=e.port??e.port:this.port=5432,this.host=e.host||"127.0.0.1"),this.inspect=e.inspect??!1,this.debug=e.debug??!1,this.idleTimeout=e.idleTimeout??0,this.maxConnections=e.maxConnections??1,this.queryQueue=new f(this.db,this.debug),this.log(`constructor: created server on ${this.getServerConn()}`),this.log(`constructor: max connections: ${this.maxConnections}`),this.idleTimeout>0&&this.log(`constructor: idle timeout: ${this.idleTimeout}ms`)}log(e,...t){this.debug&&console.log(`[PGLiteSocketServer] ${e}`,...t)}async start(){if(this.log(`start: starting server on ${this.getServerConn()}`),this.server)throw new Error("Socket server already started");return await this.db.waitReady,this.active=!0,this.server=(0,E.createServer)(e=>{setImmediate(()=>this.handleConnection(e))}),this.server.maxConnections=this.maxConnections,new Promise((e,t)=>{if(!this.server)return t(new Error("Server not initialized"));let i=!1;if(this.server.on("error",r=>{this.log("start: server error:",r),this.dispatchEvent(new CustomEvent("error",{detail:r})),i||t(r)}),this.path)this.server.listen(this.path,()=>{i=!0,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{path:this.path}})),e()});else{let r=this.server;r.listen(this.port,this.host,()=>{i=!0;let n=r.address();if(n===null||typeof n!="object")throw Error("Expected address info");this.port=n.port,this.log(`start: server listening on ${this.getServerConn()}`),this.dispatchEvent(new CustomEvent("listening",{detail:{port:this.port,host:this.host}})),e()})}})}getServerConn(){return this.path?this.path:`${this.host}:${this.port}`}async stop() {
++    this.log(`stop: stopping server`);
++    this.active = false;
++    this.log(`stop: detaching ${this.handlers.size} handlers`);
++    const detached = await Promise.allSettled([...this.handlers].map((handler) => handler.detach(true)));
++    this.handlers.clear();
++    if (!this.server) {
++      this.log(`stop: server not running, nothing to do`);
++      await this.queryQueue.waitForCleanup();
++      const failures = detached.filter((result) => result.status === "rejected");
++      if (failures.length)
++        throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++      return;
++    }
++    await new Promise((resolve) => {
++      if (!this.server)
++        return resolve();
++      this.server.close(() => {
++        this.log(`stop: server closed`);
++        this.server = null;
++        this.dispatchEvent(new CustomEvent("close"));
++        resolve();
++      });
++    });
++    await this.queryQueue.waitForCleanup();
++    const failures = detached.filter((result) => result.status === "rejected");
++    if (failures.length)
++      throw new AggregateError(failures.map((result) => result.reason), "Socket cleanup failed");
++  }async handleConnection(e){let t={clientAddress:e.remoteAddress||"unknown",clientPort:e.remotePort||0};if(this.log(`handleConnection: new connection from ${t.clientAddress}:${t.clientPort}`),this.log(`handleConnection: active connections: ${this.handlers.size}, queued queries: ${this.queryQueue.getQueueLength()}`),!this.active){this.log("handleConnection: server not active, closing connection");try{e.end()}catch(r){this.log("handleConnection: error closing socket:",r)}return}if(this.handlers.size>=this.maxConnections){this.log("handleConnection: max connections reached, rejecting"),e.write(Buffer.from(`Too many connections
+ `)),e.end();return}let i=new v({queryQueue:this.queryQueue,closeOnDetach:!0,inspect:this.inspect,debug:this.debug,idleTimeout:this.idleTimeout});this.handlers.add(i),i.addEventListener("error",r=>{let n=r.detail;n?.message?.includes("ECONNRESET")?this.log(`handler #${i.handlerId}: client disconnected (ECONNRESET)`):n?.message?.includes("Idle timeout")?this.log(`handler #${i.handlerId}: idle timeout`):this.log(`handler #${i.handlerId}: error:`,n)}),i.addEventListener("close",()=>{this.log(`handler #${i.handlerId}: closed`),this.handlers.delete(i),this.log(`handleConnection: active connections: ${this.handlers.size}`)});try{await i.attach(e),this.dispatchEvent(new CustomEvent("connection",{detail:t}))}catch(r){this.log("handleConnection: error attaching socket:",r),this.handlers.delete(i),this.dispatchEvent(new CustomEvent("error",{detail:r}));try{e.end()}catch(n){this.log("handleConnection: error closing socket:",n)}}}getStats(){return{activeConnections:this.handlers.size,queuedQueries:this.queryQueue.getQueueLength(),maxConnections:this.maxConnections}}};var w=require("util"),S=require("child_process"),l=(0,w.parseArgs)({options:{db:{type:"string",short:"d",default:"memory://",help:"Database path (relative or absolute). Use memory:// for in-memory database."},port:{type:"string",short:"p",default:"5432",help:"Port to listen on"},host:{type:"string",short:"h",default:"127.0.0.1",help:"Host to bind to"},path:{type:"string",short:"u",default:void 0,help:"unix socket to bind to. Takes precedence over host:port"},debug:{type:"string",short:"v",default:"0",help:"Debug level (0-5)"},extensions:{type:"string",short:"e",default:void 0,help:"Comma-separated list of extensions to load (e.g., vector,pgcrypto,postgis etc.)"},run:{type:"string",short:"r",default:void 0,help:"Command to run after server starts"},"include-database-url":{type:"boolean",default:!1,help:"Include DATABASE_URL in the environment of the subprocess"},"shutdown-timeout":{type:"string",default:"5000",help:"Timeout in milliseconds for graceful subprocess shutdown (default: 5000)"},"max-connections":{type:"string",short:"m",default:"1",help:"Maximum concurrent connections (default: 1)"},help:{type:"boolean",short:"?",default:!1,help:"Show help"}}}),P=`PGlite Socket Server
+ Usage: pglite-server [options]
+ 
+@@ -18,4 +260,3 @@ Options:
+   -m, --max-connections=N Maximum concurrent connections (default is no concurrency: 1)
+ `,g=class{constructor(s){this.db=null;this.server=null;this.subprocessManager=null;this.config=s}static parseConfig(){let s=l.values.extensions;return{dbPath:l.values.db,port:parseInt(l.values.port,10),host:l.values.host,path:l.values.path,debugLevel:parseInt(l.values.debug,10),extensionNames:s?s.split(",").map(e=>e.trim()):void 0,runCommand:l.values.run,includeDatabaseUrl:l.values["include-database-url"],shutdownTimeout:parseInt(l.values["shutdown-timeout"],10),maxConnections:parseInt(l.values["max-connections"],10)}}createDatabaseUrl(){let{host:s,port:e,path:t}=this.config;if(t){let i=t.endsWith("/.s.PGSQL.5432")?t.slice(0,-13):t;return`postgresql://postgres:postgres@/postgres?host=${encodeURIComponent(i)}`}else return`postgresql://postgres:postgres@${s}:${e}/postgres`}async importExtensions(){if(!this.config.extensionNames?.length)return;let s={},e=["live"];for(let t of this.config.extensionNames){let i=null;try{if(t.includes(":")){let[r,n]=t.split(":");if(!r||!n)throw new Error(`Invalid extension format '${t}'. Expected: package/path:exportedName`);i=(await import(r))[n],i&&(s[n]=i,console.log(`Imported extension '${n}' from '${r}'`))}else if(e.includes(t))i=(await import(`@electric-sql/pglite/${t}`))[t],i&&(s[t]=i,console.log(`Imported extension: ${t}`));else{try{i=(await import(`@electric-sql/pglite/contrib/${t}`))[t]}catch{i=(await import(`@electric-sql/pglite-${t}`))[t]}i&&(s[t]=i,console.log(`Imported extension: ${t}`))}}catch(r){throw console.error(`Failed to import extension '${t}':`,r),new Error(`Failed to import extension '${t}'`)}}return Object.keys(s).length>0?s:void 0}async initializeDatabase(){console.log(`Initializing PGLite with database: ${this.config.dbPath}`),console.log(`Debug level: ${this.config.debugLevel}`);let s=await this.importExtensions();this.db=new y.PGlite(this.config.dbPath,{debug:this.config.debugLevel,extensions:s}),await this.db.waitReady,console.log("PGlite database initialized")}setupServerEventHandlers(){if(!this.server||!this.subprocessManager)throw new Error("Server or subprocess manager not initialized");this.server.addEventListener("listening",s=>{let e=s.detail;if(console.log(`PGLiteSocketServer listening on ${JSON.stringify(e)}`),this.config.runCommand&&this.subprocessManager){let t=this.createDatabaseUrl();this.subprocessManager.spawn(this.config.runCommand,t,this.config.includeDatabaseUrl)}}),this.server.addEventListener("connection",s=>{let{clientAddress:e,clientPort:t}=s.detail;console.log(`Client connected from ${e}:${t}`)}),this.server.addEventListener("error",s=>{let e=s.detail;console.error("Socket server error:",e)})}setupSignalHandlers(){process.on("SIGINT",()=>this.shutdown()),process.on("SIGTERM",()=>this.shutdown())}async start(){try{if(await this.initializeDatabase(),!this.db)throw new Error("Database initialization failed");this.server=new d({db:this.db,port:this.config.port,host:this.config.host,path:this.config.path,inspect:this.config.debugLevel>0,maxConnections:this.config.maxConnections}),this.subprocessManager=new b(s=>{this.shutdown(s)}),this.setupServerEventHandlers(),this.setupSignalHandlers(),await this.server.start()}catch(s){throw console.error("Failed to start PGLiteSocketServer:",s),s}}async shutdown(s=0){console.log(`
+ Shutting down PGLiteSocketServer...`),this.subprocessManager&&this.subprocessManager.terminate(this.config.shutdownTimeout),this.server&&await this.server.stop(),this.db&&await this.db.close(),console.log("Server stopped"),process.exit(s)}},b=class{constructor(s){this.childProcess=null;this.onExit=s}get process(){return this.childProcess}spawn(s,e,t){console.log(`Running command: ${s}`);let i={...process.env};t&&(i.DATABASE_URL=e,console.log(`Setting DATABASE_URL=${e}`));let r=s.trim().split(/\s+/);this.childProcess=(0,S.spawn)(r[0],r.slice(1),{env:i,stdio:"inherit"}),this.childProcess.on("error",n=>{console.error("Error running command:",n),console.log("Subprocess failed to start, shutting down..."),this.onExit(1)}),this.childProcess.on("close",n=>{console.log(`Command exited with code ${n}`),this.childProcess=null,n!==null&&n!==0&&(console.log(`Child process failed with exit code ${n}, shutting down...`),this.onExit(n))})}terminate(s){this.childProcess&&(console.log("Terminating child process..."),this.childProcess.kill("SIGTERM"),setTimeout(()=>{this.childProcess&&!this.childProcess.killed&&(console.log("Force killing child process..."),this.childProcess.kill("SIGKILL"))},s))}};async function I(){l.values.help&&(console.log(P),process.exit(0));try{let h=g.parseConfig();await new g(h).start()}catch(h){console.error("Unhandled error:",h),process.exit(1)}}I();
+-//# sourceMappingURL=server.cjs.map
+\ No newline at end of file
+diff --git a/src/index.ts b/src/index.ts
+index 19ab6db05c8be3a04eae1ab9813cefd2fd9e124a..4385a2e7df24428c92756d67304e91ba29f34e2a 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -30,6 +30,12 @@ class QueryQueueManager {
+   private db: PGlite
+   private debug: boolean
+   private lastHandlerId: null | number = null
++  // PGlite has one backend session. Parse/Bind/Execute must not interleave
++  // across clients before Sync, even outside an explicit BEGIN block.
++  private cycleOwnerId: null | number = null
++  private activeHandlerId: null | number = null
++  private cleanupPromise: Promise<void> | null = null
++  private cleanupFailure: Error | null = null
+ 
+   constructor(db: PGlite, debug = false) {
+     this.db = db
+@@ -47,6 +53,7 @@ class QueryQueueManager {
+     message: Uint8Array,
+     onData: (data: Uint8Array) => void,
+   ): Promise<number> {
++    if (this.cleanupFailure) return Promise.reject(this.cleanupFailure)
+     return new Promise((resolve, reject) => {
+       const query: QueuedQuery = {
+         handlerId,
+@@ -70,18 +77,20 @@ class QueryQueueManager {
+   }
+ 
+   private async processQueue(): Promise<void> {
+-    if (this.processing || this.queue.length === 0) {
++    if (this.processing || this.queue.length === 0 || this.cleanupPromise || this.cleanupFailure) {
+       return
+     }
+ 
+     this.processing = true
+ 
+-    while (this.queue.length > 0) {
++    try {
++    while (this.queue.length > 0 && !this.cleanupPromise && !this.cleanupFailure) {
+       let query
+ 
+-      if (this.db.isInTransaction() && this.lastHandlerId) {
++      const owner = this.cycleOwnerId ?? (this.db.isInTransaction() ? this.lastHandlerId : null)
++      if (owner !== null) {
+         const i = this.queue.findIndex(
+-          (q) => q.handlerId === this.lastHandlerId,
++          (q) => q.handlerId === owner,
+         )
+         if (i === -1) {
+           // we didn't find any other query from the same client!
+@@ -104,6 +113,12 @@ class QueryQueueManager {
+       )
+ 
+       let result = 0
++      const messageType = String.fromCharCode(query.message[0])
++      if ('PBDEHC'.includes(messageType) && this.cycleOwnerId === null) {
++        this.cycleOwnerId = query.handlerId
++      }
++      this.activeHandlerId = query.handlerId
++      this.lastHandlerId = query.handlerId
+       try {
+         // Execute the query with exclusive access to PGlite
+         await this.db.runExclusive(async () => {
+@@ -118,16 +133,22 @@ class QueryQueueManager {
+         this.log(`query from handler #${query.handlerId} failed:`, error)
+         query.reject(error as Error)
+         return
++      } finally {
++        this.activeHandlerId = null
+       }
+ 
+       this.log(
+         `query from handler #${query.handlerId} completed, ${result} bytes`,
+       )
+-      this.lastHandlerId = query.handlerId
++      if (messageType === 'S' && this.cycleOwnerId === query.handlerId) {
++        this.cycleOwnerId = null
++      }
+       query.resolve(result)
+     }
+ 
++    } finally {
+     this.processing = false
++    }
+     this.log(`queue processing complete, queue length is`, this.queue.length)
+   }
+ 
+@@ -151,12 +172,42 @@ class QueryQueueManager {
+   }
+ 
+   async clearTransactionIfNeeded(handlerId: number): Promise<void> {
+-    if (this.db.isInTransaction() && this.lastHandlerId === handlerId) {
++    if (this.cleanupPromise) {
++      await this.cleanupPromise
++      return this.clearTransactionIfNeeded(handlerId)
++    }
++    const ownsBackend = this.cycleOwnerId === handlerId ||
++      this.activeHandlerId === handlerId ||
++      (this.db.isInTransaction() && this.lastHandlerId === handlerId)
++    if (ownsBackend) {
++      let release!: () => void
++      this.cleanupPromise = new Promise<void>((resolve) => { release = resolve })
++      try {
++      // Do not send a cleanup Sync: that would commit an unfinished implicit
++      // write. exec serializes ROLLBACK behind any in-flight protocol message.
+       await this.db.exec('ROLLBACK')
+-      this.lastHandlerId = null
++      // An extended-protocol error discards the first Q until its trailing
++      // Sync. An explicit failed BEGIN block then still needs ROLLBACK.
++      if (this.db.isInTransaction()) await this.db.exec('ROLLBACK')
++      if (this.db.isInTransaction()) throw new Error('Socket transaction rollback did not finish')
++      if (this.cycleOwnerId === handlerId) this.cycleOwnerId = null
++      if (this.lastHandlerId === handlerId) this.lastHandlerId = null
++      } catch (error) {
++        this.cleanupFailure = error instanceof Error ? error : new Error(String(error))
++        for (const query of this.queue.splice(0)) query.reject(this.cleanupFailure)
++        throw error
++      } finally {
++        this.cleanupPromise = null
++        release()
++      }
+       await this.processQueue()
+     }
+   }
++
++  async waitForCleanup(): Promise<void> {
++    while (this.cleanupPromise) await this.cleanupPromise
++    if (this.cleanupFailure) throw this.cleanupFailure
++  }
+ }
+ 
+ /**
+@@ -283,6 +334,7 @@ export class PGLiteSocketHandler extends EventTarget {
+ 
+   public async detach(close?: boolean): Promise<PGLiteSocketHandler> {
+     this.log(`detach: detaching socket, close=${close ?? this.closeOnDetach}`)
++    this.active = false
+ 
+     if (this.idleTimer) {
+       clearTimeout(this.idleTimer)
+@@ -292,10 +344,16 @@ export class PGLiteSocketHandler extends EventTarget {
+     // Clear any pending queries for this handler
+     this.queryQueue.clearQueueForHandler(this.id)
+ 
+-    await this.queryQueue.clearTransactionIfNeeded(this.id)
++    let cleanupError: unknown
++    try {
++      await this.queryQueue.clearTransactionIfNeeded(this.id)
++    } catch (error) {
++      cleanupError = error
++    }
+ 
+     if (!this.socket) {
+       this.log(`detach: no socket attached, nothing to do`)
++      if (cleanupError) throw cleanupError
+       return this
+     }
+ 
+@@ -306,10 +364,10 @@ export class PGLiteSocketHandler extends EventTarget {
+ 
+     // Close the socket if requested
+     if (close ?? this.closeOnDetach) {
+-      if (this.socket.writable) {
++      {
+         this.log(`detach: closing socket`)
+         try {
+-          this.socket.end()
++          if (this.socket.writable) this.socket.end()
+           this.socket.destroy()
+         } catch (err) {
+           this.log(`detach: error closing socket:`, err)
+@@ -322,6 +380,7 @@ export class PGLiteSocketHandler extends EventTarget {
+     this.messageBuffer = Buffer.alloc(0)
+ 
+     this.log(`detach: handler cleaned up`)
++    if (cleanupError) throw cleanupError
+     return this
+   }
+ 
+@@ -515,14 +574,14 @@ export class PGLiteSocketHandler extends EventTarget {
+     this.dispatchEvent(new CustomEvent('error', { detail: err }))
+ 
+     // Clean up
+-    this.detach(true)
++    this.detach(true).catch((error) => this.dispatchEvent(new CustomEvent('error', { detail: error })))
+   }
+ 
+   private handleClose(): void {
+     this.log(`handleClose: socket closed`)
+     this.active = false
+     this.dispatchEvent(new CustomEvent('close'))
+-    this.detach(false)
++    this.detach(false).catch((error) => this.dispatchEvent(new CustomEvent('error', { detail: error })))
+   }
+ 
+   private inspectData(
+@@ -714,17 +773,18 @@ export class PGLiteSocketServer extends EventTarget {
+ 
+     // Detach all handlers
+     this.log(`stop: detaching ${this.handlers.size} handlers`)
+-    for (const handler of this.handlers) {
+-      handler.detach(true)
+-    }
++    const detached = await Promise.allSettled([...this.handlers].map((handler) => handler.detach(true)))
+     this.handlers.clear()
+ 
+     if (!this.server) {
+       this.log(`stop: server not running, nothing to do`)
+-      return Promise.resolve()
++      await this.queryQueue.waitForCleanup()
++      const failures = detached.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
++      if (failures.length) throw new AggregateError(failures.map((result) => result.reason), 'Socket cleanup failed')
++      return
+     }
+ 
+-    return new Promise<void>((resolve) => {
++    await new Promise<void>((resolve) => {
+       if (!this.server) return resolve()
+ 
+       this.server.close(() => {
+@@ -734,6 +794,9 @@ export class PGLiteSocketServer extends EventTarget {
+         resolve()
+       })
+     })
++    await this.queryQueue.waitForCleanup()
++    const failures = detached.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
++    if (failures.length) throw new AggregateError(failures.map((result) => result.reason), 'Socket cleanup failed')
+   }
+ 
+   private async handleConnection(socket: Socket): Promise<void> {

@@ -106,6 +106,7 @@ export const AR_MESSAGES = {
     enablePush: "تفعيل الإشعارات الفورية",
   },
   featureFlags: {
+    pending: "جارٍ التنفيذ…",
     title: "علامات الميزات البعيدة",
     description: "قيّم علامات المزود عبر حد التطبيق ذي الأنواع. لا تمنح العلامات أي صلاحيات.",
     shortDescription: "تقييم مدعوم من المزود. لا تمنح العلامات أي صلاحيات.",
@@ -115,6 +116,7 @@ export const AR_MESSAGES = {
     result: "نتيجة التقييم",
   },
   storage: {
+    pending: "جارٍ التنفيذ…",
     title: "التخزين",
     description: "ارفع العناصر المملوكة للحساب واسترجعها واحذفها.",
     defaultText: "مخزّن بأمان بواسطة GhostInit.",
@@ -132,6 +134,7 @@ export const AR_MESSAGES = {
     remove: "حذف",
   },
   jobs: {
+    pending: "جارٍ التنفيذ…",
     title: "المهام الخلفية",
     description: "أضف عمليات التشغيل المملوكة للمستخدم وافحصها عبر المجدول المشترك.",
     defaultMessage: "مرحبًا بالعامل",

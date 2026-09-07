@@ -148,7 +148,14 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
       files.push(...expoIdentityWorkspaceFiles("monorepo", capabilities.hasI18n));
     if (capabilities.hasEmail) files.push(...expoEmailFlowFiles("monorepo", capabilities.hasI18n));
   }
-  if (capabilities.hasBilling || capabilities.hasNotifications) {
+  if (
+    capabilities.hasBilling ||
+    capabilities.hasNotifications ||
+    capabilities.hasJobs ||
+    capabilities.hasStorage ||
+    capabilities.hasFeatureFlags ||
+    capabilities.hasPdf
+  ) {
     files.push(authOwnedEffectFile("apps/mobile/src"));
   }
   if (capabilities.hasBilling) {

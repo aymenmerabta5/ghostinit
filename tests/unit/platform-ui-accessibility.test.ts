@@ -272,6 +272,14 @@ describe("generated desktop and Expo accessibility contract", () => {
         [0.55, 0.22, 264],
         [0.99, 0.005, 264],
       ],
+      [
+        [0.63, 0.22, 27],
+        [0.12, 0.02, 264],
+      ],
+      [
+        [0.55, 0.22, 27],
+        [0.99, 0.005, 264],
+      ],
     ] as const;
     for (const [foreground, background] of pairs) {
       expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(4.5);

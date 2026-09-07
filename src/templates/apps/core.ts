@@ -18,6 +18,7 @@ import { webUiFiles } from "./fragments/web-ui/index.js";
 import { webLibFiles } from "./fragments/web-lib.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
 import { customNextServerCommand, nextRuntimeCommand } from "../root/next-server-runtime.js";
+import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../tooling/next-memory.js";
 
 type FeatureInput =
   | boolean
@@ -290,6 +291,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -328,6 +330,7 @@ import { withEve, type EveNextConfigFunction } from "eve/next";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -364,6 +367,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -386,6 +390,7 @@ export default withNextIntl(config);
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
