@@ -79,25 +79,19 @@ export function settingsFiles(
       ...tanstackSettingsFeatureFiles("monorepo", hasIdentityTransport, hasEmail, hasPasskey),
     ];
   }
-  const useBetterAuthServerActions = !isConvex;
   return [
     settingsLayout(hasBilling, hasIdentityTransport),
     useSettingsHook(),
-    ...(useBetterAuthServerActions || hasIdentityTransport
-      ? [
-          file(
-            "apps/web/src/app/settings/actions.ts",
-            settingsActionsContent("monorepo", hasIdentityTransport, useBetterAuthServerActions),
-          ),
-        ]
+    ...(hasIdentityTransport
+      ? [file("apps/web/src/app/settings/actions.ts", settingsActionsContent("monorepo"))]
       : []),
-    settingsProfileCard(useBetterAuthServerActions),
+    settingsProfileCard(),
     ...(hasEmail ? [settingsPasswordCard(), settingsTwoFactorCard(), settingsTwoFactorHook()] : []),
     ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
     ...(hasIdentityTransport
       ? [settingsSessionsCard(), settingsSessionsList(), settingsSessionsData(true)]
       : []),
-    settingsDangerZoneCard(hasEmail, useBetterAuthServerActions),
+    settingsDangerZoneCard(hasEmail),
     settingsPage(hasIdentityTransport, hasEmail, hasPasskey, hasIdentityTransport),
   ];
 }

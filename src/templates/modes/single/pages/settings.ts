@@ -22,8 +22,8 @@ export function useSettingsHookSingle(): string {
   return settingsHookContent();
 }
 
-export function settingsProfileCardSingle(useServerActions = false): string {
-  return settingsProfileCardContent(useServerActions);
+export function settingsProfileCardSingle(): string {
+  return settingsProfileCardContent();
 }
 
 export function settingsPasswordCardSingle(): string {
@@ -58,8 +58,8 @@ export function settingsSessionsListSingle(): string {
   return settingsSessionsListContent();
 }
 
-export function settingsDangerZoneCardSingle(hasEmail = true, useServerActions = false): string {
-  return settingsDangerZoneCardContent(hasEmail, useServerActions);
+export function settingsDangerZoneCardSingle(hasEmail = true): string {
+  return settingsDangerZoneCardContent(hasEmail);
 }
 
 export function settingsPageSingleContent(

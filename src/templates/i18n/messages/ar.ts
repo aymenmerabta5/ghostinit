@@ -958,6 +958,7 @@ export const AR_MESSAGES = {
       deleting: "جارٍ حذف الحساب...",
       errorTitle: "تعذّر الحذف",
       genericError: "تعذّر حذف الحساب. أعد المحاولة.",
+      invalidPassword: "كلمة المرور غير صحيحة. أدخل كلمة المرور الحالية.",
       retainedRecordError:
         "توجد سجلات محفوظة مرتبطة بهذا الحساب تمنع حذفه. اطلب من مسؤول التطبيق مراجعة الأمر.",
       oauthDescription:

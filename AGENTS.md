@@ -294,8 +294,9 @@ typechecks, and lints successfully on the final tree. `typecheck` runs
 - `src/routes/billing.tsx` / `dashboard.tsx` / `settings.tsx` use typed
   `Route.useRouteContext() as { session: { user: ... } }` with `getSessionFn` via
   `auth as unknown as { api: { getSession } }`, no `as any`.
-- `database=none` now emits a stub `packages/database` so `import { db } from "@repo/database"`
-  resolves and `packages/auth` typechecks (stub `db: any` proxy).
+- `database=none` retains an import-compatible database marker. Its members are
+  typed `never`, persistence access fails explicitly, and it exposes no database
+  generation, migration, or push commands.
 
 Do not promote a past green subset to a release claim. Record the exact
 configurations, final-tree status, commands, and exit codes for each run.

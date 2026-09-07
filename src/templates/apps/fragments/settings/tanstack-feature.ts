@@ -253,11 +253,13 @@ function profileCardContent(): string {
   return `"use client";
 import type * as React from "react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
 import { createProfileSchema } from "./schema";
+import { getQueryClient, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult, SettingsProfile } from "./types";
 
@@ -267,7 +269,6 @@ export function ProfileCard({ profile, updateProfile }: {
 }): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const form = useAppForm({
     defaultValues: { name: profile.initialName },
     validators: { onSubmit: createProfileSchema({
@@ -276,10 +277,13 @@ export function ProfileCard({ profile, updateProfile }: {
       nameTooLong: t("validation.nameTooLong"),
     }) },
     onSubmit: async ({ value }) => {
-      setError(null); setSuccess(false);
-      const result = await updateProfile(value.name);
-      if (!result.ok) setError(result.message ?? t("errors.profileUpdate"));
-      else setSuccess(true);
+      setError(null);
+      try {
+        const result = await updateProfile(value.name);
+        if (!result.ok) { setError(t("errors.profileUpdate")); return; }
+        toast.success(t("profile.successTitle"), { description: t("profile.successMessage") });
+        requestQueryAuthScopeRefresh(getQueryClient());
+      } catch { setError(t("errors.profileUpdate")); }
     },
   });
   return <Card><CardHeader>
@@ -287,7 +291,6 @@ export function ProfileCard({ profile, updateProfile }: {
     <CardDescription className="max-w-[60ch]">{t("profile.description", { email: profile.email, role: profile.role })}</CardDescription>
   </CardHeader><CardContent className="flex flex-col gap-4">
     {error ? <Alert variant="destructive"><AlertTitle>{t("profile.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {success ? <Alert><AlertTitle>{t("profile.successTitle")}</AlertTitle><AlertDescription>{t("profile.successMessage")}</AlertDescription></Alert> : null}
     <form.AppForm><Form form={form} className="flex flex-col gap-4"><FieldGroup>
       <form.AppField name="name">{(field) => <field.TextField label={t("profile.nameLabel")} description={t("profile.nameDescription")} placeholder={t("profile.namePlaceholder")} autoComplete="name" required maxLength={50} />}</form.AppField>
     </FieldGroup><form.SubmitButton pendingLabel={t("profile.submitting")}>{t("profile.submit")}</form.SubmitButton></Form></form.AppForm>
@@ -483,6 +486,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getQueryClient, transitionQueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult } from "./types";
 
@@ -496,6 +500,7 @@ export function DangerZoneSection({ deleteAccount }: {
     try {
       const result = await deleteAccount();
       if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : t("danger.genericError")); return; }
+      transitionQueryAuthScope(getQueryClient(), null);
       await navigate({ to: "/" });
     } catch { setError(t("danger.genericError")); }
     finally { setPending(false); }
@@ -518,6 +523,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
 import { createRequiredPasswordSchema } from "./schema";
+import { getQueryClient, transitionQueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult } from "./types";
 
@@ -530,9 +536,13 @@ export function DangerZoneSection({ deleteAccount }: {
     defaultValues: { password: "" },
     validators: { onSubmit: createRequiredPasswordSchema(t("validation.passwordRequired")) },
     onSubmit: async ({ value }) => {
-      setError(null); const result = await deleteAccount(value.password);
-      if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.message ?? t("errors.deleteAccount")); return; }
-      setOpen(false); void navigate({ to: "/" });
+      setError(null);
+      try {
+        const result = await deleteAccount(value.password);
+        if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : result.code === "INVALID_PASSWORD" ? t("danger.invalidPassword") : t("danger.genericError")); return; }
+        transitionQueryAuthScope(getQueryClient(), null);
+        setOpen(false); await navigate({ to: "/" });
+      } catch { setError(t("danger.genericError")); }
     },
   });
   return <Card className="border-destructive/30"><CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">

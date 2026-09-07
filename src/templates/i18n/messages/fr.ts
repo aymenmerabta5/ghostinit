@@ -1008,6 +1008,7 @@ export const FR_MESSAGES = {
       deleting: "Suppression du compte...",
       errorTitle: "Impossible de supprimer",
       genericError: "Impossible de supprimer le compte. Réessayez.",
+      invalidPassword: "Le mot de passe est incorrect. Saisissez votre mot de passe actuel.",
       retainedRecordError:
         "Des données conservées font référence à ce compte et empêchent sa suppression. Demandez à l’administrateur de l’application d’examiner la situation.",
       oauthDescription:

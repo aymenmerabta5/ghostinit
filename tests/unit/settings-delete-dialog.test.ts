@@ -1,117 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import {
-  settingsDangerZoneCardContent,
-  tanstackSettingsFeatureFiles,
-} from "../../src/templates/apps/fragments/settings/index.js";
-import { settingsDangerZoneCardSingle } from "../../src/templates/modes/single/pages/settings.js";
 import { AR_MESSAGES } from "../../src/templates/i18n/messages/ar.js";
 import { EN_MESSAGES } from "../../src/templates/i18n/messages/en.js";
 import { FR_MESSAGES } from "../../src/templates/i18n/messages/fr.js";
-import {
-  elements,
-  flush,
-  generatedFormHarness,
-  textContent,
-  type TestElement,
-} from "../helpers/generated-form-harness.js";
-
-type Transport = "server-action" | "identity-client" | "settings-action";
-
-interface Scenario {
-  label: string;
-  component: "DangerZoneCard" | "DangerZoneSection";
-  source: string;
-  transport: Transport;
-}
-
-function scenarios(hasEmail = true): Scenario[] {
-  return (["monorepo", "single"] as const).flatMap<Scenario>((mode) => {
-    const next = [false, true].map<Scenario>((useServerActions) => ({
-      label: `${mode}/next/${useServerActions ? "server-action" : "identity-client"}`,
-      component: "DangerZoneCard",
-      source:
-        mode === "single"
-          ? settingsDangerZoneCardSingle(hasEmail, useServerActions)
-          : settingsDangerZoneCardContent(hasEmail, useServerActions),
-      transport: useServerActions ? "server-action" : "identity-client",
-    }));
-    const danger = tanstackSettingsFeatureFiles(mode, true, hasEmail, false).find(({ path }) =>
-      path.endsWith("/danger-zone-section.tsx"),
-    );
-    if (!danger) throw new Error(`Missing ${mode} TanStack danger section`);
-    return [
-      ...next,
-      {
-        label: `${mode}/tanstack`,
-        component: "DangerZoneSection",
-        source: danger.content,
-        transport: "settings-action",
-      },
-    ];
-  });
-}
-
-function element(tree: unknown, type: string): TestElement {
-  const node = elements(tree).find((candidate) => candidate.type === type);
-  if (!node) throw new Error(`Missing ${type}`);
-  return node;
-}
-
-function invoke(node: TestElement, event: string, ...args: unknown[]): void {
-  const handler = node.props[event];
-  if (typeof handler !== "function") throw new Error(`Missing ${event} handler`);
-  Reflect.apply(handler, undefined, args);
-}
-
-function deletionHarness(
-  scenario: Scenario,
-  deleteAccount: unknown,
-  translations?: typeof EN_MESSAGES.settings.danger,
-) {
-  const destinations: string[] = [];
-  const harness = generatedFormHarness(scenario.source, [scenario.component], {
-    ...Object.fromEntries(
-      [
-        "CardFooter",
-        "Dialog",
-        "DialogContent",
-        "DialogDescription",
-        "DialogFooter",
-        "DialogHeader",
-        "DialogTitle",
-        "DialogTrigger",
-        "Separator",
-      ].map((name) => [name, name]),
-    ),
-    createRequiredPasswordSchema: () => ({}),
-    deleteAccountAction: deleteAccount,
-    identityClient: { deleteAccount },
-    isIdentityRecentAuthenticationError: (error: { code?: string }) =>
-      error.code === "SESSION_EXPIRED" || error.code === "SESSION_NOT_FRESH",
-    useNavigate:
-      () =>
-      ({ to }: { to: string }) =>
-        destinations.push(to),
-    useRouter: () => ({ push: (to: string) => destinations.push(to) }),
-    useSurfaceTranslations: () => (key: string) => {
-      const value = translations
-        ? Reflect.get(translations, key.replace(/^danger\./, ""))
-        : undefined;
-      return typeof value === "string" ? value : key;
-    },
-  });
-  return {
-    ...harness,
-    destinations,
-    render: () => harness.render(scenario.component, { deleteAccount }),
-  };
-}
+import { elements, flush, textContent } from "../helpers/generated-form-harness.js";
+import { deletionHarness, element, invoke, scenarios } from "../helpers/settings-delete-harness.js";
 
 describe("account deletion confirmation feedback", () => {
   for (const scenario of scenarios()) {
     test(`${scenario.label} keeps failed deletion visible inside the dialog and allows retry`, async () => {
       const requests: string[] = [];
-      const failureMessage = "Account could not be deleted";
+      const failureMessage = "private provider detail";
       let succeeds = false;
       async function deleteAccount(input: string | { password: string }) {
         requests.push(typeof input === "string" ? input : input.password);
@@ -138,12 +36,14 @@ describe("account deletion confirmation feedback", () => {
       const alert = element(element(tree, "DialogContent"), "Alert");
       expect(alert.props.variant).toBe("destructive");
       expect(textContent(alert)).toContain("danger.errorTitle");
-      expect(textContent(alert)).toContain(failureMessage);
+      expect(textContent(alert)).toContain("danger.genericError");
+      expect(textContent(alert)).not.toContain(failureMessage);
       expect(elements(tree).filter((node) => node.type === "Alert")).toEqual([alert]);
       expect(form.values.password).toBe("current-password-value");
       expect(form.resets).toBe(0);
       expect(requests).toEqual(["current-password-value"]);
       expect(destinations).toEqual([]);
+      expect(harness.events).toEqual([]);
 
       const cancel = elements(tree).find(
         (node) => node.type === "Button" && textContent(node) === "danger.cancel",
@@ -165,6 +65,11 @@ describe("account deletion confirmation feedback", () => {
       expect(elements(tree).filter((node) => node.type === "Alert")).toEqual([]);
       expect(requests).toEqual(["current-password-value", "current-password-value"]);
       expect(destinations).toEqual(["/"]);
+      expect(harness.events).toEqual(
+        scenario.transport === "identity-client"
+          ? ["retire", "navigate", "refresh"]
+          : ["retire", "navigate"],
+      );
     });
   }
 });
@@ -202,6 +107,7 @@ describe("account deletion retention guidance", () => {
         expect(form.values.password).toBe("preserved-password");
         expect(form.resets).toBe(0);
         expect(harness.destinations).toEqual([]);
+        expect(harness.events).toEqual([]);
 
         for (const unrelated of [
           undefined,
@@ -213,10 +119,12 @@ describe("account deletion retention guidance", () => {
           await form.handleSubmit();
           tree = harness.render();
           const alertText = textContent(element(element(tree, "DialogContent"), "Alert"));
-          expect(alertText).toContain(message);
+          expect(alertText).toContain(translations.genericError);
+          expect(alertText).not.toContain(message);
           expect(alertText).not.toContain(translations.retainedRecordError);
           expect(element(tree, "Dialog").props.open).toBe(true);
           expect(harness.destinations).toEqual([]);
+          expect(harness.events).toEqual([]);
         }
       });
     }
@@ -231,16 +139,12 @@ describe("account deletion retention guidance", () => {
           ? { error: succeeds ? null : { code, message: "Account could not be deleted" } }
           : { ok: succeeds, code, error: "Account could not be deleted" };
       const harness = deletionHarness(scenario, deleteAccount);
-      const genericError =
-        scenario.transport === "server-action"
-          ? "Account could not be deleted"
-          : "danger.genericError";
       const failures: Array<[string | undefined, string]> = [
         ["ACCOUNT_DELETION_RESTRICTED", "danger.retainedRecordError"],
         ["SESSION_EXPIRED", "danger.reauthenticate"],
         ["SESSION_NOT_FRESH", "danger.reauthenticate"],
-        ["REQUEST_FAILED", genericError],
-        [undefined, genericError],
+        ["REQUEST_FAILED", "danger.genericError"],
+        [undefined, "danger.genericError"],
       ];
       for (const [failureCode, expected] of failures) {
         code = failureCode;
@@ -250,12 +154,61 @@ describe("account deletion retention guidance", () => {
         expect(textContent(element(tree, "Alert"))).toContain(expected);
         expect(element(tree, "Button").props.disabled).toBe(false);
         expect(harness.destinations).toEqual([]);
+        expect(harness.events).toEqual([]);
       }
       succeeds = true;
       invoke(element(harness.render(), "Button"), "onClick");
       await flush();
       expect(harness.destinations).toEqual(["/"]);
+      expect(harness.events).toEqual(
+        scenario.transport === "identity-client"
+          ? ["retire", "navigate", "refresh"]
+          : ["retire", "navigate"],
+      );
       expect(elements(harness.render()).filter((node) => node.type === "Alert")).toEqual([]);
     });
+  }
+});
+
+describe("account deletion client recovery", () => {
+  for (const scenario of scenarios()) {
+    for (const [locale, translations] of Object.entries({
+      en: EN_MESSAGES.settings.danger,
+      fr: FR_MESSAGES.settings.danger,
+      ar: AR_MESSAGES.settings.danger,
+    })) {
+      test(`${scenario.label}/${locale} preserves input and auth state after typed and thrown failures`, async () => {
+        let failure: string | Error = "INVALID_PASSWORD";
+        const deleteAccount = async () => {
+          if (failure instanceof Error) throw failure;
+          return scenario.transport === "identity-client"
+            ? { error: { code: failure, message: "private provider detail" } }
+            : { ok: false, code: failure };
+        };
+        const harness = deletionHarness(scenario, deleteAccount, translations);
+        invoke(element(harness.render(), "Dialog"), "onOpenChange", true);
+        const form = harness.forms[0];
+        if (!form) throw new Error("Missing deletion form");
+        form.values.password = "preserved-password";
+        for (const [cause, message] of [
+          ["INVALID_PASSWORD", translations.invalidPassword],
+          ["SESSION_EXPIRED", translations.reauthenticate],
+          ["SESSION_NOT_FRESH", translations.reauthenticate],
+          [new Error("private provider detail"), translations.genericError],
+        ] as const) {
+          failure = cause;
+          await form.handleSubmit();
+          const tree = harness.render();
+          const alert = element(element(tree, "DialogContent"), "Alert");
+          expect(textContent(alert)).toContain(message);
+          expect(textContent(alert)).not.toContain("private provider detail");
+          expect(form.isSubmitting).toBe(false);
+          expect(form.values.password).toBe("preserved-password");
+          expect(element(tree, "Dialog").props.open).toBe(true);
+          expect(harness.destinations).toEqual([]);
+          expect(harness.events).toEqual([]);
+        }
+      });
+    }
   }
 });

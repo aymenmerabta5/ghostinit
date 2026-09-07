@@ -1,31 +1,21 @@
 import { file, type TemplateFile } from "../../../shared.js";
 
-export function settingsProfileCardContent(useServerActions = false): string {
-  const actionImport = useServerActions ? 'import { updateProfileAction } from "../actions";' : "";
-  const submit = useServerActions
-    ? `const result = await updateProfileAction({ name: value.name });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }`
-    : `const result = await identityClient.updateProfile({ name: value.name });
-      if (result.error) {
-        setError(result.error.message ?? t("errors.profileUpdate"));
-        return;
-      }`;
+export function settingsProfileCardContent(): string {
   return `"use client";
 
 import type * as React from "react";
 import { useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createProfileSchema, identityClient } from "@/lib/auth-client";
+import { getQueryClient, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { useQueryAuthSession } from "@/components/query-auth-boundary";
-${actionImport}
 
 interface ProfileEditorProps {
   email: string;
@@ -35,8 +25,8 @@ interface ProfileEditorProps {
 
 function ProfileEditor({ email, initialName, role }: ProfileEditorProps): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const form = useAppForm({
     defaultValues: { name: initialName },
     validators: {
@@ -48,10 +38,13 @@ function ProfileEditor({ email, initialName, role }: ProfileEditorProps): React.
     },
     onSubmit: async ({ value }) => {
       setError(null);
-      setSuccess(false);
       try {
-        ${submit.replaceAll("\n", "\n  ")}
-        setSuccess(true);
+        const result = await identityClient.updateProfile({ name: value.name });
+        if (result.error) { setError(t("errors.profileUpdate")); return; }
+        // Canonical identity refresh can remount the form; feedback belongs to the toast store.
+        toast.success(t("profile.successTitle"), { description: t("profile.successMessage") });
+        requestQueryAuthScopeRefresh(getQueryClient());
+        router.refresh();
       } catch {
         setError(t("errors.profileUpdate"));
       }
@@ -66,7 +59,6 @@ function ProfileEditor({ email, initialName, role }: ProfileEditorProps): React.
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? <Alert variant="destructive"><AlertTitle>{t("profile.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-        {success ? <Alert><AlertTitle>{t("profile.successTitle")}</AlertTitle><AlertDescription>{t("profile.successMessage")}</AlertDescription></Alert> : null}
         <form.AppForm>
           <Form form={form} className="flex flex-col gap-5">
             <FieldGroup>
@@ -121,9 +113,9 @@ export function ProfileCard({ initialUser }: ProfileCardProps): React.JSX.Elemen
 `;
 }
 
-export function settingsProfileCard(useServerActions = false): TemplateFile {
+export function settingsProfileCard(): TemplateFile {
   return file(
     "apps/web/src/app/settings/components/profile-card.tsx",
-    settingsProfileCardContent(useServerActions),
+    settingsProfileCardContent(),
   );
 }

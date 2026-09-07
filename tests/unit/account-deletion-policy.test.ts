@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { auth as authVersions } from "../../packages/versions/src/index.js";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
@@ -20,6 +21,8 @@ function capturedOptions(source: string): BetterAuthOptions {
     },
     drizzleAdapter: () => undefined,
     transactionalAccountDeletion: plugin,
+    APIError,
+    createAuthMiddleware,
     db: {},
     schema: {},
     nextCookies: plugin,

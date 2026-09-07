@@ -76,6 +76,8 @@ function generatedAuth(
     },
     drizzleAdapter,
     transactionalAccountDeletion: deletion.module.transactionalAccountDeletion,
+    APIError,
+    createAuthMiddleware,
     db: database,
     schema,
     ...schema,

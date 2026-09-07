@@ -1,8 +1,17 @@
 // @allow-long 510: isolated local-package harness exercises generated Worker scripts without network access
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import type { GenerationPlan } from "../../src/domain/generation/index.js";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
@@ -303,6 +312,7 @@ export interface WorkerFixtureOptions {
   readonly devVars?: string;
   readonly framework?: CloudflareFramework;
   readonly plan?: GenerationPlan;
+  readonly waitForPreviewIdentity?: boolean;
 }
 
 export interface RuntimeFixture {
@@ -322,6 +332,22 @@ export function withFailureDiagnostics(fixture: RuntimeFixture): RuntimeFixture 
     .replace(
       'throw new Error("POSIX process table contained an invalid identity");',
       'throw new Error("POSIX process table contained an invalid identity: " + JSON.stringify(line));',
+    )
+    .replace(
+      "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CreationDate",
+      "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CreationDate,Name",
+    )
+    .replace(
+      "createdAt = ([datetime]$_.CreationDate)",
+      "name = [string]$_.Name; createdAt = ([datetime]$_.CreationDate)",
+    )
+    .replace(
+      'throw new Error("Exited Windows child has unverified descendants");',
+      'throw new Error("Exited Windows child has unverified descendants: " + JSON.stringify({ pid, exitCode: child.exitCode, signalCode: child.signalCode, captured: state.records, unverified: state.unverifiedRecords }));',
+    )
+    .replace(
+      'throw new Error("Unverified descendants remain after a captured Windows parent exited");',
+      'throw new Error("Unverified descendants remain after a captured Windows parent exited: " + JSON.stringify({ pid, exitCode: child.exitCode, signalCode: child.signalCode, captured: state.records, unverified: state.unverifiedRecords }));',
     );
   writeFileSync(
     entry,
@@ -386,6 +412,37 @@ export function createWorkerFixture(options: WorkerFixtureOptions = {}): Runtime
     wrangler: "file:vendor/wrangler",
     ...(convexScript ? { convex: "file:vendor/convex" } : {}),
   });
+  if (options.waitForPreviewIdentity) {
+    const adapter = join(root, "node_modules", adapterName, "index.mjs");
+    const leasePath = join(root, ".dev.vars.ghostinit-build-lock");
+    // Metadata restoration requires an orderly, already-owned adapter exit.
+    // Unexpected pre-capture exits have separate fail-closed regressions.
+    writeFileSync(
+      adapter,
+      readFileSync(adapter, "utf8") +
+        `
+if (process.platform === "win32" && action === "preview") {
+  const deadline = Date.now() + 15_000;
+  let captured = false;
+  while (Date.now() < deadline) {
+    let lease;
+    try { lease = JSON.parse(readFileSync(${JSON.stringify(leasePath)}, "utf8")); }
+    catch { /* The owned lease is rewritten when the capture completes. */ }
+    const child = lease?.child;
+    if (lease?.version === 1 && lease.mode === "runtime-visible" &&
+        (child?.pid === process.pid || child?.pid === process.ppid) &&
+        typeof child.createdAt === "string" && Number.isFinite(Date.parse(child.createdAt))) {
+      writeFileSync(".preview-identity-ready", JSON.stringify({ child, adapterPid: process.pid, parentPid: process.ppid }));
+      captured = true;
+      break;
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+  }
+  if (!captured) throw new Error("Fixture preview did not receive its matching captured process identity");
+}
+`,
+    );
+  }
   mkdirSync(appRoot, { recursive: true });
   if (monorepoScript) {
     writeFileSync(
@@ -530,9 +587,28 @@ export function readEvents(root: string, name = "events.jsonl"): readonly Runtim
 }
 
 export function destroyFixture(fixture: RuntimeFixture): void {
-  const canonicalTemporaryRoot = join(tmpdir(), "ghostinit-cloudflare-");
-  if (!fixture.root.startsWith(canonicalTemporaryRoot)) {
+  const requested = resolve(fixture.root);
+  const metadata = lstatSync(requested);
+  const canonicalTemporaryRoot = realpathSync.native(tmpdir());
+  const canonicalRoot = realpathSync.native(requested);
+  const name = basename(canonicalRoot);
+  if (
+    !metadata.isDirectory() ||
+    metadata.isSymbolicLink() ||
+    relative(canonicalTemporaryRoot, canonicalRoot) !== name ||
+    !name.startsWith("ghostinit-cloudflare-")
+  ) {
     throw new Error(`Refusing to remove unexpected fixture root: ${fixture.root}`);
   }
-  rmSync(fixture.root, { recursive: true, force: true, maxRetries: 5 });
+  const current = lstatSync(canonicalRoot);
+  if (
+    !current.isDirectory() ||
+    current.isSymbolicLink() ||
+    current.dev !== metadata.dev ||
+    current.ino !== metadata.ino ||
+    current.birthtimeMs !== metadata.birthtimeMs
+  ) {
+    throw new Error(`Fixture root changed before cleanup: ${fixture.root}`);
+  }
+  rmSync(canonicalRoot, { recursive: true, force: true, maxRetries: 5 });
 }

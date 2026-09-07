@@ -117,20 +117,21 @@ export function rootPackageJson(
     baseScripts["start:production"] = "bun scripts/start-production.mjs";
   }
 
-  const scripts: Record<string, string> = isConvex
-    ? {
-        ...baseScripts,
-        "convex:dev": "convex dev",
-        "convex:deploy": "convex deploy",
-        "convex:codegen": "convex codegen",
-        "convex:dev:once": "convex dev --once",
-      }
-    : {
-        ...baseScripts,
-        "db:generate": "turbo run db:generate",
-        "db:migrate": "turbo run db:migrate",
-        "db:push": "turbo run db:push",
-      };
+  const scripts: Record<string, string> = { ...baseScripts };
+  if (isConvex) {
+    Object.assign(scripts, {
+      "convex:dev": "convex dev",
+      "convex:deploy": "convex deploy",
+      "convex:codegen": "convex codegen",
+      "convex:dev:once": "convex dev --once",
+    });
+  } else if (database !== "none") {
+    Object.assign(scripts, {
+      "db:generate": "turbo run db:generate",
+      "db:migrate": "turbo run db:migrate",
+      "db:push": "turbo run db:push",
+    });
+  }
   if (isCloudflare && isConvex) {
     scripts["convex:bootstrap"] = "bun scripts/cloudflare-convex.mjs bootstrap";
     scripts["convex:dev"] = "bun scripts/cloudflare-convex.mjs dev";

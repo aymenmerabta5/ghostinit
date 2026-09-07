@@ -63,7 +63,6 @@ describe("auth package template", () => {
     const files = authPackage();
     const index = files.find((f) => f.path === "packages/auth/src/index.ts")?.content ?? "";
     expect(index).toBe(`export { auth, getRequestUser, type Auth } from "./server";
-export { authErrorCode } from "./account-deletion";
 export {
   ac,
   roles,

@@ -1,5 +1,9 @@
 import { identityClientAdapterContent } from "../../../apps/fragments/auth/client-adapter.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../../auth-security.js";
+import {
+  profileUpdateValidationContent,
+  profileUpdateValidationImports,
+} from "../../../auth-profile.js";
 
 function authNetworkSecurityLines(): string[] {
   return [
@@ -141,6 +145,7 @@ export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptio
     "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { transactionalAccountDeletion } from './account-deletion';",
+    ...profileUpdateValidationImports.split("\n"),
     "import { nextCookies } from 'better-auth/next-js';",
     ...(expoScheme ? ["import { expo } from '@better-auth/expo';"] : []),
     "import { passkey } from '@better-auth/passkey';",
@@ -180,6 +185,7 @@ export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptio
     "};",
     "",
     ...authNetworkSecurityLines(),
+    ...profileUpdateValidationContent().split("\n"),
     "const configuredAuth = betterAuth({",
     "  appName: env.APP_NAME ?? 'GhostInit',",
     "  secret: _authSecret,",
@@ -242,6 +248,7 @@ export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptio
     ...durableAuthRateLimitLines(),
     "  plugins: [",
     "    transactionalAccountDeletion(),",
+    "    profileUpdateValidation(),",
     ...(expoScheme ? ["    expo(),"] : []),
     "    admin(),",
     "    twoFactor({ issuer: env.BETTER_AUTH_URL, twoFactorCookieMaxAge: 600, accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 } }),",
@@ -264,7 +271,6 @@ export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptio
     "});",
     "",
     "export const auth: Auth = configuredAuth;",
-    'export { authErrorCode } from "./account-deletion";',
     "",
     "export async function getRequestUser(headers: Headers) {",
     "  const session = await auth.api.getSession({ headers });",
@@ -283,6 +289,7 @@ export function serverAuthTanstackSingle(
     "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { transactionalAccountDeletion } from './account-deletion';",
+    ...profileUpdateValidationImports.split("\n"),
     "import { tanstackStartCookies } from 'better-auth/tanstack-start';",
     ...(expoScheme ? ["import { expo } from '@better-auth/expo';"] : []),
     "import { passkey } from '@better-auth/passkey';",
@@ -322,6 +329,7 @@ export function serverAuthTanstackSingle(
     "};",
     "",
     ...authNetworkSecurityLines(),
+    ...profileUpdateValidationContent().split("\n"),
     "const configuredAuth = betterAuth({",
     "  appName: env.APP_NAME ?? 'GhostInit',",
     "  secret: _authSecret,",
@@ -384,6 +392,7 @@ export function serverAuthTanstackSingle(
     ...durableAuthRateLimitLines(),
     "  plugins: [",
     "    transactionalAccountDeletion(),",
+    "    profileUpdateValidation(),",
     ...(expoScheme ? ["    expo(),"] : []),
     "    admin(),",
     "    twoFactor({ issuer: env.BETTER_AUTH_URL, twoFactorCookieMaxAge: 600, accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 } }),",
@@ -406,7 +415,6 @@ export function serverAuthTanstackSingle(
     "});",
     "",
     "export const auth: Auth = configuredAuth;",
-    'export { authErrorCode } from "./account-deletion";',
     "",
     "export async function getRequestUser(headers: Headers) {",
     "  const session = await auth.api.getSession({ headers });",

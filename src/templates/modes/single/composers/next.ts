@@ -303,7 +303,6 @@ export function buildNextFiles(
     if (hasBilling) files.push(...singleBillingApiFiles());
   }
   if (hasAuth) {
-    const useBetterAuthServerActions = !isConvex;
     files.push(
       file(
         "src/app/settings/layout.tsx",
@@ -311,20 +310,10 @@ export function buildNextFiles(
       ),
     );
     files.push(file("src/app/settings/hooks/use-settings.ts", useSettingsHookSingle()));
-    if (useBetterAuthServerActions || apiCapabilities.identity) {
-      files.push(
-        file(
-          "src/app/settings/actions.ts",
-          settingsActionsContent("single", apiCapabilities.identity, useBetterAuthServerActions),
-        ),
-      );
+    if (apiCapabilities.identity) {
+      files.push(file("src/app/settings/actions.ts", settingsActionsContent("single")));
     }
-    files.push(
-      file(
-        "src/app/settings/components/profile-card.tsx",
-        settingsProfileCardSingle(useBetterAuthServerActions),
-      ),
-    );
+    files.push(file("src/app/settings/components/profile-card.tsx", settingsProfileCardSingle()));
     if (hasEmail) {
       files.push(
         file("src/app/settings/components/password-card.tsx", settingsPasswordCardSingle()),
@@ -351,7 +340,7 @@ export function buildNextFiles(
     files.push(
       file(
         "src/app/settings/components/danger-zone-card.tsx",
-        settingsDangerZoneCardSingle(hasEmail, useBetterAuthServerActions),
+        settingsDangerZoneCardSingle(hasEmail),
       ),
     );
     files.push(

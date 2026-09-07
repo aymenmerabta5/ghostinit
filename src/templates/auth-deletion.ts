@@ -2,13 +2,8 @@ import { file, type TemplateFile } from "./shared.js";
 
 export function transactionalAccountDeletionContent(): string {
   return `import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { runWithTransaction } from "@better-auth/core/context";
-
-export function authErrorCode(error: unknown): string | undefined {
-  const code = isAPIError(error) ? error.body?.code : undefined;
-  return typeof code === "string" ? code : undefined;
-}
 
 function isRetainedRecordError(error: unknown): boolean {
   for (let depth = 0; depth < 5 && error && typeof error === "object"; depth++) {

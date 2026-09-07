@@ -120,26 +120,22 @@ describe("generated form rejection recovery", () => {
     expect(textContent(render())).toContain("Known operation failure");
   });
 
-  for (const { kind, useServerActions } of [
-    { kind: "profile", useServerActions: false },
-    { kind: "profile", useServerActions: true },
-    { kind: "password", useServerActions: false },
-  ] as const) {
-    test(`${kind}, Server Actions=${useServerActions}: rejected request preserves input and retry can succeed`, async () => {
+  for (const kind of ["profile", "password"] as const) {
+    test(`${kind}: rejected request preserves input and retry can succeed`, async () => {
       let fail = true;
       const successes: string[] = [];
       const operation = async () => {
         if (fail) throw new Error("private transport details");
-        return useServerActions ? { ok: true } : { error: null };
+        return { error: null };
       };
       const source =
-        kind === "profile"
-          ? settingsProfileCardContent(useServerActions)
-          : settingsPasswordCardContent();
+        kind === "profile" ? settingsProfileCardContent() : settingsPasswordCardContent();
       const name = kind === "profile" ? "ProfileEditor" : "PasswordCard";
       const ui = generatedFormHarness(source, [name], {
         identityClient: { updateProfile: operation, changePassword: operation },
-        updateProfileAction: operation,
+        getQueryClient: () => ({}),
+        requestQueryAuthScopeRefresh: () => undefined,
+        useRouter: () => ({ refresh: () => undefined }),
         toast: {
           success: (_title: string, options: { description: string }) =>
             successes.push(options.description),
@@ -166,8 +162,7 @@ describe("generated form rejection recovery", () => {
       expect(successes).toEqual([]);
       fail = false;
       await form.handleSubmit();
-      if (kind === "profile") expect(textContent(render())).toContain("profile.successMessage");
-      else expect(successes).toEqual(["password.successMessage"]);
+      expect(successes).toEqual([`${kind}.successMessage`]);
       expect(form.resets).toBe(kind === "password" ? 1 : 0);
     });
   }
@@ -224,7 +219,7 @@ describe("generated form rejection recovery", () => {
       } as { user: typeof initialUser } | null,
       isPending: false,
     };
-    const ui = generatedFormHarness(settingsProfileCardContent(true), ["ProfileCard"], {
+    const ui = generatedFormHarness(settingsProfileCardContent(), ["ProfileCard"], {
       identityClient: { useSession: () => current },
       useQueryAuthSession: () => null,
     });
@@ -268,7 +263,7 @@ describe("generated form rejection recovery", () => {
       isPending: false,
       error: null,
     };
-    const ui = generatedFormHarness(settingsProfileCardContent(true), ["ProfileCard"], {
+    const ui = generatedFormHarness(settingsProfileCardContent(), ["ProfileCard"], {
       identityClient: { useSession: () => ({ data: { user: provider }, isPending: false }) },
       useQueryAuthSession: () => canonical,
     });

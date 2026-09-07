@@ -403,6 +403,7 @@ describe("generated preview wrapper metadata lifecycle", () => {
           createWorkerFixture({
             framework: "tanstack-start",
             plan: cloudflarePlan({ framework: "tanstack-start", mode }),
+            waitForPreviewIdentity: true,
           }),
         );
         fixtures.push(fixture);
@@ -419,6 +420,9 @@ describe("generated preview wrapper metadata lifecycle", () => {
         const result = runFixture({ ...fixture, cwd }, ["preview"]);
         expect(result.status, result.stdout + result.stderr).toBe(0);
         const app = fixture.cwd ?? fixture.root;
+        if (process.platform === "win32") {
+          expect(existsSync(join(app, ".preview-identity-ready"))).toBe(true);
+        }
         expect(
           JSON.parse(readFileSync(join(app, "dist/server/wrangler.json"), "utf8")).secrets,
         ).toBeUndefined();
@@ -471,6 +475,7 @@ if (action === "preview") {
           framework: "tanstack-start",
           plan: cloudflarePlan({ framework: "tanstack-start", mode }),
           devVars: 'SERVER_SECRET="local-fixture-secret"\nAPP_NAME=""\n',
+          waitForPreviewIdentity: true,
         });
         fixtures.push(fixture);
         const adapter = join(fixture.root, "node_modules/vite/index.mjs");
@@ -491,6 +496,9 @@ if (action === "preview") {
         });
         expect(result.status).toBe(0);
         const app = fixture.cwd ?? fixture.root;
+        if (process.platform === "win32") {
+          expect(existsSync(join(app, ".preview-identity-ready"))).toBe(true);
+        }
         expect(
           JSON.parse(readFileSync(join(app, ".preview-binding-verdict.json"), "utf8")),
         ).toEqual({
@@ -539,7 +547,10 @@ if (action === "preview") {
     ).toBe(false);
   }, 60000);
   test("nonzero adapter exit restores after verified cleanup", () => {
-    const fixture = createWorkerFixture({ framework: "tanstack-start" });
+    const fixture = createWorkerFixture({
+      framework: "tanstack-start",
+      waitForPreviewIdentity: true,
+    });
     fixtures.push(fixture);
     const adapter = join(fixture.root, "node_modules/vite/index.mjs");
     writeFileSync(

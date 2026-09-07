@@ -969,6 +969,7 @@ export const EN_MESSAGES = {
       deleting: "Deleting account...",
       errorTitle: "Unable to delete",
       genericError: "The account could not be deleted. Try again.",
+      invalidPassword: "The password is incorrect. Try your current password.",
       retainedRecordError:
         "This account is referenced by retained records and cannot be deleted. Ask the application administrator to review it.",
       oauthDescription:

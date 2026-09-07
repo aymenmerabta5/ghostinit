@@ -127,10 +127,26 @@ Deletion descriptions and confirmations promise account deletion only and explai
 that retained records may block it. They do not promise deletion of all associated
 data or define a retention period. Only the typed `ACCOUNT_DELETION_RESTRICTED`
 failure selects English, French, or Arabic guidance to ask the application
-administrator for review; other failures retain their existing error handling.
-Next Server Actions return an allowlisted code with a fixed safe message, while
-OAuth-only flows retain recent-sign-in guidance. The alert does not promise that
+administrator for review. Typed incorrect-password and expired/recent-session
+failures select localized recovery guidance; unknown and thrown failures use a
+safe generic message without provider details. The alert does not promise that
 an administrator can remove retained records.
+
+Next.js and TanStack deletion use the public identity client so a successful
+operation also notifies the reactive session owner. After success, the private
+query scope is retired synchronously before navigating home; Next also refreshes
+the server-rendered route. Refused deletion leaves the dialog, credentials,
+session, and private cache intact. The password field, confirmation controls,
+spacing, colors, and theme treatment retain the existing settings design.
+
+Profile edits in Next.js and TanStack use the public identity client and refresh
+canonical identity after a successful save, so the header and settings agree
+without a manual reload. Success feedback uses the existing global toast store
+because refreshing identity can remount the form. Failed saves keep input and
+show a safe inline message. Next also refreshes server-rendered profile data.
+The public auth endpoint preserves the prior server rule for supplied names:
+trim whitespace and require 1–50 characters. Other user fields keep their existing
+admission rules; client forms retain their existing 2–50 character validation.
 
 ### Authentication and query ownership
 

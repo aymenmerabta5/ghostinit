@@ -1,5 +1,9 @@
 import type { ProjectMode } from "../../../lib/addons.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../auth-security.js";
+import {
+  profileUpdateValidationContent,
+  profileUpdateValidationImports,
+} from "../../auth-profile.js";
 
 export function convexAuthContent(
   mode: ProjectMode,
@@ -55,6 +59,7 @@ export function convexAuthContent(
     'import { components, internal } from "./_generated/api";',
     'import type { DataModel } from "./_generated/dataModel";',
     'import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";',
+    ...profileUpdateValidationImports.split("\n"),
     'import { twoFactor } from "better-auth/plugins/two-factor";',
     ...(hasMobile ? ['import { expo } from "@better-auth/expo";'] : []),
     ...(hasEmail ? ['import { magicLink } from "better-auth/plugins/magic-link";'] : []),
@@ -115,6 +120,7 @@ export function convexAuthContent(
     "const siteUrl = resolveSiteUrl();",
     "",
     ...authNetworkSecurityHelpers.split("\n"),
+    ...profileUpdateValidationContent().split("\n"),
     "",
     "// The installed Convex component has a static schema. Only advertise the plugin it contains.",
     'export const selectedIdentityPlugins = ["two-factor"] as const;',
@@ -279,6 +285,7 @@ export function convexAuthContent(
     "      ipAddress: authNetworkSecurity.ipAddress,",
     "    },",
     "    plugins: [",
+    "      profileUpdateValidation(),",
     ...(hasMobile ? ["      expo(),"] : []),
     "      // The stock component lacks account-lockout columns, so keep its schema-safe",
     "      // five-attempt signed-challenge lockout plus database-backed /two-factor rate limits.",
