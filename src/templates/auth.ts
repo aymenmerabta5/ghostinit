@@ -4,6 +4,7 @@ import * as v from "./versions.js";
 import type { AddonInstallerMap } from "../lib/addons.js";
 import { hasAddon } from "../lib/addons.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "./auth-security.js";
+import { transactionalAccountDeletionFile } from "./auth-deletion.js";
 import {
   identityCapabilityFor,
   identityPasskeyClientCapabilityFor,
@@ -206,6 +207,7 @@ import {
           "./identity-capabilities": "./src/identity-capabilities.ts",
         },
         dependencies: {
+          "@better-auth/core": `^${v.auth["@better-auth/core"]}`,
           "@better-auth/passkey": `^${v.auth["@better-auth/passkey"]}`,
           "better-auth": `^${v.auth["better-auth"]}`,
           ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
@@ -239,6 +241,7 @@ declare global {
 }
 
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { transactionalAccountDeletion } from "./account-deletion.js";
 ${cookieImport}${expoImport}
 import { passkey } from "@better-auth/passkey";
 import { admin } from "better-auth/plugins/admin";
@@ -312,6 +315,7 @@ const configuredAuth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, {
     provider: "pg",
+    transaction: true,
     schema: {
 ${renderBetterAuthSchemaBindings(identityDataModelBlueprint)}
     },
@@ -369,6 +373,7 @@ ${durableAuthRateLimitConfig}
     },
   },
   plugins: [
+    transactionalAccountDeletion(),
     ${expoPlugin}admin({ ac, roles, adminRoles: ["admin", "superAdmin"] }),
     twoFactor({
       issuer: env.BETTER_AUTH_URL,
@@ -396,6 +401,7 @@ export async function getRequestUser(headers: Headers) {
 
 `,
     ),
+    transactionalAccountDeletionFile("packages/auth/src"),
     file(
       "packages/auth/src/client.ts",
       `import { createAuthClient } from "better-auth/react";
@@ -422,6 +428,7 @@ ${hasEmail ? "    magicLinkClient(),\n" : ""}    passkeyClient(),
     file(
       "packages/auth/src/index.ts",
       `export { auth, getRequestUser, type Auth } from "./server.js";
+export { authErrorCode } from "./account-deletion.js";
 export {
   ac,
   roles,

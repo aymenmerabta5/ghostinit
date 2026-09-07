@@ -27,6 +27,7 @@ type Workflow = {
     string,
     {
       name?: string;
+      needs?: string | string[];
       if?: string | boolean;
       "continue-on-error"?: boolean;
       "runs-on"?: string;
@@ -52,6 +53,24 @@ type Workflow = {
 
 const parseWorkflow = (name: string): Workflow =>
   Bun.YAML.parse(readFileSync(resolve(root, `.github/workflows/${name}`), "utf8")) as Workflow;
+
+test("real Convex codegen is a blocking cross-platform Node LTS gate", () => {
+  const job = parseWorkflow("ci.yml").jobs["convex-codegen"];
+  expect(job.needs).toBe("check-and-test");
+  expect(job.if).toBeUndefined();
+  expect(job.strategy?.matrix?.os).toEqual(["ubuntu-latest", "windows-latest", "macos-latest"]);
+  expect(job.strategy?.["fail-fast"]).toBe(false);
+  const node = job.steps.find(({ uses }) => uses?.startsWith("actions/setup-node@"));
+  expect(node?.with?.["node-version"]).toBe(runtime.node);
+  const checks = job.steps
+    .filter(({ if: condition }) => condition === undefined)
+    .map(({ run }) => run);
+  const sourceCheck = checks.indexOf("bun run check");
+  const codegen = checks.indexOf("bun run test:convex-codegen");
+  expect(sourceCheck).toBeGreaterThanOrEqual(0);
+  expect(codegen).toBeGreaterThan(sourceCheck);
+  expect(checks.indexOf("git diff --exit-code")).toBeGreaterThan(codegen);
+});
 
 test("required CI uses exact branches, Bun, and retained gates", () => {
   const ci = parseWorkflow("ci.yml");
@@ -383,7 +402,7 @@ test("package CI and release scripts run each expensive gate once with Bun", () 
   expect(pkg.scripts["test:fixtures"]).toBe("bun run scripts/test-fixtures.ts");
   expect(pkg.scripts["test:workers"]).toBe("bun run scripts/test-generated.ts --workers");
   expect(pkg.scripts["test:ci"]).toBe(
-    "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
+    "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:convex-codegen && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
   );
   expect(pkg.scripts["check:capability-evidence"]).toBe(
     "bun run scripts/check-capability-evidence.ts",

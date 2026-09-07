@@ -170,7 +170,9 @@ export function rootPackageJson(
     devDependencies: {
       "bun-types": `^${v.runtime.bun}`,
       ...(isCloudflare ? { dotenv: `^${v.cloudflare.dotenv}` } : {}),
-      ...(isConvex ? { convex: `^${v.convex.convex}` } : {}),
+      ...(isConvex
+        ? { convex: `^${v.convex.convex}`, "@types/node": `^${v.runtime["@types/node"]}` }
+        : {}),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
       "oxc-parser": v.tooling["oxc-parser"],

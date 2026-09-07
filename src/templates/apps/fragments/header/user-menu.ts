@@ -114,16 +114,18 @@ ${signOut}
         <Avatar className="size-8"><AvatarFallback className="text-xs">{getInitials(user)}</AvatarFallback></Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex flex-col gap-1">
-          <span className="truncate font-medium">{user?.name ?? t("fallbackUser")}</span>
-          <span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex flex-col gap-1">
+            <span className="truncate font-medium">{user?.name ?? t("fallbackUser")}</span>
+            <span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
 ${dropdownNav}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void handleSignOut()}>{t("signOut")}</DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => void handleSignOut()}>{t("signOut")}</DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

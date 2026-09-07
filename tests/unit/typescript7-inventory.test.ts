@@ -81,6 +81,8 @@ test("TypeScript 7.0.2 obligations are enumerated and point to real sources", ()
         "src/templates/apps/desktop/package.ts",
         "src/templates/eve/package.ts",
         "src/templates/database/convex.ts",
+        "src/templates/database/convex/config.ts",
+        "tests/integration/convex-codegen-runtime.test.ts",
         "src/templates/modes/single/package.ts",
       ],
       phase: "3",

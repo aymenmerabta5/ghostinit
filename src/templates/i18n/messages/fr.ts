@@ -990,11 +990,11 @@ export const FR_MESSAGES = {
     danger: {
       title: "Zone dangereuse",
       description:
-        "Supprimez définitivement votre compte et toutes les données associées. Cette action est irréversible.",
+        "Supprimez définitivement votre compte. Des données conservées peuvent empêcher la suppression.",
       delete: "Supprimer le compte",
       dialogTitle: "Supprimer le compte ?",
       dialogDescription:
-        "Cette action supprimera définitivement votre compte et toutes les données associées. Elle est irréversible.",
+        "La suppression de votre compte est irréversible. Des données conservées peuvent l’empêcher.",
       passwordLabel: "Confirmer avec le mot de passe",
       passwordPlaceholder: "Votre mot de passe",
       passwordDescription: "Votre mot de passe actuel est requis.",
@@ -1005,8 +1005,10 @@ export const FR_MESSAGES = {
       deleting: "Suppression du compte...",
       errorTitle: "Impossible de supprimer",
       genericError: "Impossible de supprimer le compte. Réessayez.",
+      retainedRecordError:
+        "Des données conservées font référence à ce compte et empêchent sa suppression. Demandez à l’administrateur de l’application d’examiner la situation.",
       oauthDescription:
-        "Les comptes OAuth nécessitent une connexion datant de moins de cinq minutes avant la suppression définitive.",
+        "Les comptes OAuth nécessitent une connexion datant de moins de cinq minutes avant la suppression définitive. Des données conservées peuvent empêcher la suppression.",
       reauthenticate: "Reconnectez-vous avant de supprimer votre compte.",
     },
     passkeys: {

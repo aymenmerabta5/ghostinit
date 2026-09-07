@@ -495,7 +495,7 @@ export function DangerZoneSection({ deleteAccount }: {
     setError(null); setPending(true);
     try {
       const result = await deleteAccount();
-      if (!result.ok) { setError(result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : t("danger.genericError")); return; }
+      if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : t("danger.genericError")); return; }
       await navigate({ to: "/" });
     } catch { setError(t("danger.genericError")); }
     finally { setPending(false); }
@@ -531,13 +531,13 @@ export function DangerZoneSection({ deleteAccount }: {
     validators: { onSubmit: createRequiredPasswordSchema(t("validation.passwordRequired")) },
     onSubmit: async ({ value }) => {
       setError(null); const result = await deleteAccount(value.password);
-      if (!result.ok) { setError(result.message ?? t("errors.deleteAccount")); return; }
+      if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.message ?? t("errors.deleteAccount")); return; }
       setOpen(false); void navigate({ to: "/" });
     },
   });
   return <Card className="border-destructive/30"><CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-    {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) form.reset(); }}><DialogTrigger render={<Button variant="destructive" />}>{t("danger.delete")}</DialogTrigger><DialogContent><DialogHeader><DialogTitle>{t("danger.dialogTitle")}</DialogTitle><DialogDescription>{t("danger.dialogDescription")}</DialogDescription></DialogHeader>
+      {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
       <form.AppForm><Form form={form} className="flex flex-col gap-3"><FieldGroup><form.AppField name="password">{(field) => <field.PasswordField label={t("danger.passwordLabel")} description={t("danger.passwordDescription")} placeholder={t("danger.passwordPlaceholder")} autoComplete="current-password" required />}</form.AppField></FieldGroup><DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("danger.cancel")}</Button><form.SubmitButton variant="destructive" pendingLabel={t("danger.deleting")}>{t("danger.confirm")}</form.SubmitButton></DialogFooter></Form></form.AppForm>
     </DialogContent></Dialog>
   </CardContent></Card>;

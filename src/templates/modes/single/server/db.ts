@@ -74,7 +74,6 @@ export function serverDbIndexSingleConvex(): string {
     "const url = resolveConvexUrl();",
     "export const convexClient = new ConvexHttpClient(url);",
     "export function getConvexClient(): ConvexHttpClient { return convexClient; }",
-    "// Back-compat alias: some legacy code imports db, prefer convexClient directly",
     "export const db = convexClient;",
     "",
   ].join("\n");

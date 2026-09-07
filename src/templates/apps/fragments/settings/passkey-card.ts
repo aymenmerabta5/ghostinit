@@ -7,34 +7,40 @@ export function settingsPasskeyCardContent(
   const dataImport =
     dataAccess === "feature-adapter"
       ? `import { usePasskeyListQuery } from "./queries";
-import { deletePasskey, isPasskeyRecentAuthenticationError, registerPasskey, renamePasskey } from "./mutations";`
+import * as passkeyMutations from "./mutations";`
       : `import { identityPasskeyClient, isIdentityRecentAuthenticationError } from "@/lib/auth-client";`;
   const listQuery =
     dataAccess === "feature-adapter" ? "usePasskeyListQuery" : "identityPasskeyClient.useList";
   const recentAuthenticationError =
     dataAccess === "feature-adapter"
-      ? "isPasskeyRecentAuthenticationError"
+      ? "passkeyMutations.isPasskeyRecentAuthenticationError"
       : "isIdentityRecentAuthenticationError";
   const register =
-    dataAccess === "feature-adapter" ? "registerPasskey" : "identityPasskeyClient.register";
+    dataAccess === "feature-adapter"
+      ? "passkeyMutations.registerPasskey"
+      : "identityPasskeyClient.register";
   const rename =
-    dataAccess === "feature-adapter" ? "renamePasskey" : "identityPasskeyClient.rename";
+    dataAccess === "feature-adapter"
+      ? "passkeyMutations.renamePasskey"
+      : "identityPasskeyClient.rename";
   const remove =
-    dataAccess === "feature-adapter" ? "deletePasskey" : "identityPasskeyClient.delete";
+    dataAccess === "feature-adapter"
+      ? "passkeyMutations.deletePasskey"
+      : "identityPasskeyClient.delete";
   return `"use client";
 
-import type * as React from "react";
-import { useState } from "react";
+import { useState, type JSX } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Field, FieldLabel } from "@/components/ui/field";
 ${dataImport}
 import { useSurfaceTranslations } from "@/lib/translations";
 import { PasskeyList, type PasskeySummary } from "./passkey-list";
 
-export function PasskeyCard(): React.JSX.Element {
+export function PasskeyCard(): JSX.Element {
   const t = useSurfaceTranslations("settings");
   const passkeyQuery = ${listQuery}();
   const passkeys: PasskeySummary[] = passkeyQuery.data ?? [];
@@ -88,7 +94,7 @@ export function PasskeyCard(): React.JSX.Element {
       {error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
       {passkeyQuery.error ? <Alert variant="destructive"><AlertTitle>{t("passkeys.errorTitle")}</AlertTitle><AlertDescription>{errorMessage(passkeyQuery.error)}</AlertDescription></Alert> : null}
       {success ? <Alert><AlertTitle>{t("passkeys.successTitle")}</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
-      <div className="flex flex-col gap-2 sm:flex-row"><Input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("passkeys.namePlaceholder")} maxLength={64} /><Button disabled={pending !== null} onClick={() => void register()}>{pending === "register" ? t("passkeys.registering") : t("passkeys.register")}</Button></div>
+      <Field><FieldLabel htmlFor="passkey-registration-name">{t("passkeys.namePlaceholder")}</FieldLabel><div className="flex flex-col gap-2 sm:flex-row"><Input id="passkey-registration-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t("passkeys.namePlaceholder")} maxLength={64} /><Button disabled={pending !== null} onClick={() => void register()}>{pending === "register" ? t("passkeys.registering") : t("passkeys.register")}</Button></div></Field>
       <PasskeyList passkeys={passkeys} names={names} pending={pending} onNameChange={(id, name) => setNames((current) => ({ ...current, [id]: name }))} onRename={rename} onDelete={remove} />
     </CardContent>
   </Card>;

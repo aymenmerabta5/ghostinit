@@ -4,7 +4,7 @@ export function settingsActionsContent(
   useBetterAuthServerActions = true,
 ): string {
   const authImport = useBetterAuthServerActions
-    ? `import { auth } from "${mode === "monorepo" ? "@repo/auth" : "@/server/auth"}";`
+    ? `import { auth, authErrorCode } from "${mode === "monorepo" ? "@repo/auth" : "@/server/auth"}";`
     : "";
   const identityImport = hasIdentityTransport
     ? `import { createRequestApplicationForRequest } from "${mode === "monorepo" ? "@repo/services/application" : "@/server/services/application"}";`
@@ -45,7 +45,13 @@ export async function deleteAccountAction(input: unknown): Promise<ActionResult>
     await auth.api.deleteUser({ headers: await headers(), body: parsed.data });
     revalidatePath("/");
     return { ok: true };
-  } catch { return { ok: false, error: "Account could not be deleted" }; }
+  } catch (error) {
+    const code = authErrorCode(error);
+    if (code === "ACCOUNT_DELETION_RESTRICTED" || code === "SESSION_EXPIRED" || code === "SESSION_NOT_FRESH") {
+      return { ok: false, error: "Account could not be deleted", code };
+    }
+    return { ok: false, error: "Account could not be deleted" };
+  }
 }
 `
     : "";
@@ -56,6 +62,10 @@ import { z } from "zod";
 ${authImport}
 ${identityImport}
 
-type ActionResult = { ok: true } | { ok: false; error: string };
+type ActionResult = { ok: true } | {
+  ok: false;
+  error: string;
+  code?: "ACCOUNT_DELETION_RESTRICTED" | "SESSION_EXPIRED" | "SESSION_NOT_FRESH";
+};
 ${betterAuthActions}${identityHelpers}`;
 }

@@ -10,8 +10,8 @@ export function settingsDangerZoneCardContent(hasEmail = true, useServerActions 
       ? "const result = await deleteAccountAction({});"
       : "const result = await identityClient.deleteAccount();";
     const errorCheck = useServerActions
-      ? "if (!result.ok) { setError(result.error); return; }"
-      : 'if (result.error) { setError(isIdentityRecentAuthenticationError(result.error) ? t("danger.reauthenticate") : t("danger.genericError")); return; }';
+      ? 'if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : result.error); return; }'
+      : 'if (result.error) { setError(result.error.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : isIdentityRecentAuthenticationError(result.error) ? t("danger.reauthenticate") : t("danger.genericError")); return; }';
     return `"use client";
 
 import type * as React from "react";
@@ -49,8 +49,8 @@ export function DangerZoneCard(): React.JSX.Element {
     ? "const result = await deleteAccountAction({ password: value.password });"
     : "const result = await identityClient.deleteAccount({ password: value.password });";
   const errorCheck = useServerActions
-    ? "if (!result.ok) { setError(result.error); return; }"
-    : 'if (result.error) { setError(result.error.message ?? t("errors.deleteAccount")); return; }';
+    ? 'if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.error); return; }'
+    : 'if (result.error) { setError(result.error.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.error.message ?? t("errors.deleteAccount")); return; }';
   const authImport = useServerActions
     ? 'import { createRequiredPasswordSchema } from "@/lib/auth-client";'
     : 'import { createRequiredPasswordSchema, identityClient } from "@/lib/auth-client";';
@@ -92,7 +92,6 @@ export function DangerZoneCard(): React.JSX.Element {
       <CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription className="max-w-[65ch]">{t("danger.description")}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-4">
         <Separator />
-        {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <p className="text-sm text-muted-foreground">{t("danger.passwordDescription")}</p>
       </CardContent>
       <CardFooter>
@@ -100,6 +99,7 @@ export function DangerZoneCard(): React.JSX.Element {
           <DialogTrigger render={<Button variant="destructive" />}>{t("danger.delete")}</DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>{t("danger.dialogTitle")}</DialogTitle><DialogDescription className="max-w-[60ch]">{t("danger.dialogDescription")}</DialogDescription></DialogHeader>
+            {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
             <form.AppForm>
               <Form form={form} className="flex flex-col gap-4">
                 <FieldGroup>

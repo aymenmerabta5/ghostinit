@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import { transactionalAccountDeletionFile } from "../../../auth-deletion.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
 import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import {
@@ -377,7 +378,6 @@ export function buildNextFiles(
       files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
     }
     files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
-    // emit convex folder (only convex/* and convex.json) for single mode
     const convexAll = convexDatabaseFiles(projectName, runtime, "single", {
       auth: hasAuth,
       billing: hasBilling,
@@ -409,15 +409,13 @@ export function buildNextFiles(
     }
     files.push(file("drizzle.config.ts", serverDrizzleConfigSingle()));
   }
+  if (hasAuth && !isConvex) files.push(transactionalAccountDeletionFile("src/server/auth"));
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
-  // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
-  // Generic web lib (animations, feature-flags, storage, notifications, hooks, form-fields, dialogs) — scaffolder starter, not domain copy.
   for (const f of webLibFiles("src", "nextjs")) {
-    // singleWebUiFiles already covers form-fields/dialogs under web-ui, but webLibFiles also includes them via webUiFiles duplication.
-    // Filter to avoid duplicate paths: keep only lib/* and hooks/* and surface-styles
+    // These renderers share UI files, so retain each emitted path only once.
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||

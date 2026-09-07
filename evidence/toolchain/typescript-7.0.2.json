@@ -1,6 +1,6 @@
 {
   "compiler": "typescript@7.0.2",
-  "verifiedAt": "2026-09-05",
+  "verifiedAt": "2026-09-07",
   "entries": [
     {
       "id": "host-compiler",
@@ -61,11 +61,13 @@
         "src/templates/apps/desktop/package.ts",
         "src/templates/eve/package.ts",
         "src/templates/database/convex.ts",
+        "src/templates/database/convex/config.ts",
+        "tests/integration/convex-codegen-runtime.test.ts",
         "src/templates/modes/single/package.ts"
       ],
       "phase": "3",
       "disposition": "proof-required",
-      "replacement": "All generated apps and shared packages use the single TypeScript 7.0.2 catalog pin. Installed TanStack/Vite/Nitro, Expo, Electron, Eve declaration/build, and Convex root/component codegen gates remain required; Convex must use --typecheck=enable. Source audits and manifest checks do not prove runtime compatibility."
+      "replacement": "All generated apps and shared packages use the single TypeScript 7.0.2 catalog pin. Installed TanStack/Vite/Nitro, Expo, Electron and Eve gates remain required. test:convex-codegen verifies real root/component codegen with --typecheck=enable, strict generated contracts, rejected type errors, restoration and backend cleanup. Convex owns a separate strict tsconfig with Node ambient types. CI runs this gate on every supported OS with the catalog Node LTS. Source audits and manifest checks do not prove runtime compatibility."
     },
     {
       "id": "doctor-typescript-version",
@@ -85,7 +87,7 @@
       ],
       "phase": "6",
       "disposition": "proof-required",
-      "replacement": "Compile a focused TypeScript 7.0.2 desktop fixture; retain baseUrl only if the exact compiler accepts it, otherwise resolve paths relative to each tsconfig."
+      "replacement": "Desktop resolves aliases relative to each tsconfig without baseUrl. Installed standalone and multi-app desktop typecheck/build gates verify the TypeScript 7.0.2 toolchain."
     }
   ]
 }

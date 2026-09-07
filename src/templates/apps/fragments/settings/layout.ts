@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { Separator } from "@/components/ui/separator";
-${hasIdentityTransport ? 'import { useAuth } from "@/hooks/use-auth";' : ""}
+${hasIdentityTransport ? 'import { useQueryAuthSession } from "@/components/query-auth-boundary";' : ""}
 const nav = [
   { labelKey: "title", href: "/settings" },
 ${billingNavigation}
@@ -23,7 +23,7 @@ ${billingNavigation}
 export default function SettingsLayout({ children }: { children: React.ReactNode; }): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const pathname = usePathname();
-${hasIdentityTransport ? "  const { user } = useAuth();" : ""}
+${hasIdentityTransport ? "  const auth = useQueryAuthSession();\n  const user = auth?.hasCanonicalApi && !auth.isPending && !auth.error ? auth.currentRequest?.user : null;" : ""}
   return (
     <main className="min-h-screen bg-background p-6 md:p-8">
       <div className="mx-auto max-w-5xl flex flex-col gap-8">

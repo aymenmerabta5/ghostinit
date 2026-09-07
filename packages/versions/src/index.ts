@@ -70,6 +70,7 @@ export const convex = {
 
 export const auth = {
   "better-auth": "1.6.30",
+  "@better-auth/core": "1.6.30",
   // Passkeys moved to a dedicated official package in Better Auth 1.6.
   // Keep this exact pin aligned with better-auth so their plugin types agree.
   "@better-auth/passkey": "1.6.30",

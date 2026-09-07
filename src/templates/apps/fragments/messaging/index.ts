@@ -4,6 +4,7 @@ import { realtimeNextClientContent, realtimeTanstackClientContent } from "../rea
 import { messagingAttachmentRouteFiles } from "./attachments.js";
 import { messagingConvexAttachmentRouteFiles } from "./convex-attachments.js";
 import { messagingConvexTanstackWebFiles } from "./convex-tanstack.js";
+import { convexNextMessageViewsContent } from "./convex-next-data.js";
 import { nativeExpoMessagingFiles } from "./native-expo.js";
 import { nativeDesktopMessagingFiles } from "./native-desktop.js";
 import { nextUpgradeDispatcherContent } from "./next-upgrade.js";
@@ -979,44 +980,7 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSurfaceTranslations } from "@/lib/translations";
-
-interface MessageAttachmentView {
-  id: string;
-  url: string;
-  originalName: string;
-}
-
-interface MessageView {
-  id: string;
-  body: string | null;
-  attachments: MessageAttachmentView[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function attachmentView(value: unknown): MessageAttachmentView | null {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.url !== "string" || typeof value.originalName !== "string") return null;
-  return { id: value.id, url: value.url, originalName: value.originalName };
-}
-
-function messageView(value: unknown): MessageView | null {
-  if (!isRecord(value) || typeof value._id !== "string") return null;
-  const attachments = Array.isArray(value.attachments)
-    ? value.attachments.flatMap((attachment) => attachmentView(attachment) ?? [])
-    : [];
-  return {
-    id: value._id,
-    body: typeof value.body === "string" ? value.body : null,
-    attachments,
-  };
-}
-
-function messageViews(value: unknown): MessageView[] {
-  if (!isRecord(value) || !Array.isArray(value.messages)) return [];
-  return value.messages.flatMap((message) => messageView(message) ?? []);
-}
+import { messageViews } from "./convex-message-views";
 
 export function ConvexMessageThread({
   conversationId,
@@ -1091,6 +1055,10 @@ export function messagingConvexNextFiles(mode: "monorepo" | "single" = "monorepo
     file(
       `${root}src/app/(app)/messages/_components/convex-message-thread.tsx`,
       messagingConvexMessageThreadContent(mode),
+    ),
+    file(
+      `${root}src/app/(app)/messages/_components/convex-message-views.ts`,
+      convexNextMessageViewsContent(),
     ),
     file(`${root}src/app/(app)/messages/page.tsx`, messagingNextRouteContent(mode)),
   ];

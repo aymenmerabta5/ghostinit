@@ -64,7 +64,7 @@ export function webIdentityWorkspaceFiles(
       ? `${sourceRoot}/routes/settings.workspace.tsx`
       : `${sourceRoot}/app/settings/workspace/page.tsx`;
   return [
-    ...webIdentityWorkspaceFeatureFiles(mode, hasI18n),
+    ...webIdentityWorkspaceFeatureFiles(mode, hasI18n, router === "next" ? 2 : 1),
     ...webIdentityWorkspaceDataFiles(mode, router),
     file(routePath, webWorkspaceRouteContent(router, mode)),
   ];

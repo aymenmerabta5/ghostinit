@@ -89,9 +89,14 @@ describe("generated messaging read states", () => {
       test(`${mode}/${framework} Convex separates pending thread data from a verified empty thread`, () => {
         const read = generatedMessaging(mode, framework, "convex");
         let messages: unknown = undefined;
+        const messageViews =
+          framework === "nextjs"
+            ? renderer(read("/convex-message-views.ts"), "messageViews").render
+            : undefined;
         const thread = renderer(read("/convex-message-thread.tsx"), "ConvexMessageThread", {
           useQuery: (query: string) => (query === "messages" ? messages : []),
           useConvexMessages: () => messages,
+          ...(messageViews ? { messageViews } : {}),
         });
         const props = { conversationId: "conversation-a" };
         expectNoEmptyClaims(thread.render(props));

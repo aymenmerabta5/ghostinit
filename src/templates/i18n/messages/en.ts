@@ -951,12 +951,11 @@ export const EN_MESSAGES = {
     },
     danger: {
       title: "Danger zone",
-      description:
-        "Permanently delete your account and all associated data. This cannot be undone.",
+      description: "Permanently delete your account. Retained records may prevent deletion.",
       delete: "Delete account",
       dialogTitle: "Delete account?",
       dialogDescription:
-        "This will permanently delete your account and all associated data. This action cannot be undone.",
+        "Deleting your account cannot be undone. Retained records may prevent deletion.",
       passwordLabel: "Confirm with password",
       passwordPlaceholder: "Your password",
       passwordDescription: "Your current password is required.",
@@ -967,8 +966,10 @@ export const EN_MESSAGES = {
       deleting: "Deleting account...",
       errorTitle: "Unable to delete",
       genericError: "The account could not be deleted. Try again.",
+      retainedRecordError:
+        "This account is referenced by retained records and cannot be deleted. Ask the application administrator to review it.",
       oauthDescription:
-        "OAuth-only accounts require a sign-in from the last five minutes before permanent deletion.",
+        "OAuth-only accounts require a sign-in from the last five minutes before permanent deletion. Retained records may prevent deletion.",
       reauthenticate: "Sign in again before deleting your account.",
     },
     passkeys: {

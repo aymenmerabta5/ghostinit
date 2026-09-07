@@ -136,7 +136,10 @@ function buildDeps(
     deps["posthog-js"] = `^${v.analytics["posthog-js"]}`;
     deps["posthog-node"] = `^${v.analytics["posthog-node"]}`;
   }
-  if (hasAuth && !isConvex) deps["@better-auth/passkey"] = `^${v.auth["@better-auth/passkey"]}`;
+  if (hasAuth && !isConvex) {
+    deps["@better-auth/core"] = `^${v.auth["@better-auth/core"]}`;
+    deps["@better-auth/passkey"] = `^${v.auth["@better-auth/passkey"]}`;
+  }
 
   if (hasEmail) {
     deps["react-email"] = `^${v.email["react-email"]}`;

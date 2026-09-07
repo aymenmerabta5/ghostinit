@@ -49,7 +49,8 @@
     "test:fixtures": "bun run scripts/test-fixtures.ts",
     "test:e2e-build": "E2E_BUILD=1 bun test --timeout 1800000 tests/integration/e2e-build.test.ts",
     "test:realtime-runtime": "NITRO_WEBSOCKET_RUNTIME=1 bun test --timeout 900000 tests/integration/nitro-websocket-compat-runtime.test.ts",
-    "test:ci": "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
+    "test:convex-codegen": "CONVEX_CODEGEN_RUNTIME=1 bun test --timeout 900000 tests/integration/convex-codegen-runtime.test.ts",
+    "test:ci": "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:convex-codegen && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
     "test:generated": "bun run scripts/test-generated.ts",
     "test:workers": "bun run scripts/test-generated.ts --workers",
     "check:capability-evidence": "bun run scripts/check-capability-evidence.ts",
@@ -66,6 +67,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@better-auth/core": "1.6.30",
     "@better-auth/passkey": "1.6.30",
     "@electric-sql/pglite": "0.5.7",
     "@electric-sql/pglite-socket": "0.2.10",

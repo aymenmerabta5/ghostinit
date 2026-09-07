@@ -30,6 +30,14 @@ export function resolveNotificationDestination(value: unknown): NotificationDest
 // derived from type via humanize, with an empty extensible map for your domain.
 export function notificationsLibFiles(base = "apps/web/src"): TemplateFile[] {
   const libContent = `${notificationNavigationContent()}
+export interface NotificationItem {
+  id: string;
+  type: string;
+  payload: unknown;
+  readAt: string | Date | null;
+  createdAt: string | Date;
+}
+
 export interface FormattedNotification {
   title: string;
   message: string | null;
@@ -88,16 +96,10 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatNotification, getNotificationHref, type NotificationDestination } from "@/lib/notifications";
+import { formatNotification, getNotificationHref, type NotificationDestination, type NotificationItem as BellNotificationItem } from "@/lib/notifications";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-export interface NotificationItem {
-  id: string;
-  type: string;
-  payload: unknown;
-  readAt: string | Date | null;
-  createdAt: string | Date;
-}
+export type NotificationItem = BellNotificationItem;
 
 export function NotificationBell({ notifications, onMarkRead, onNavigate, loading = false, loadError = false, onRetry, captureAction }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void | Promise<void>; onNavigate?: (destination: NotificationDestination) => void; loading?: boolean; loadError?: boolean; onRetry?: () => void; captureAction?: () => () => boolean }) {
   const t = useSurfaceTranslations("notifications");

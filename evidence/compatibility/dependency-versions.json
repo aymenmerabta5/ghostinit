@@ -10,11 +10,11 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 163,
-    "uniquePackages": 135,
+    "auditedScopes": 165,
+    "uniquePackages": 136,
     "latestScopes": 140,
-    "compatibilityHeldScopes": 23,
-    "uniqueCompatibilityHolds": 18,
+    "compatibilityHeldScopes": 25,
+    "uniqueCompatibilityHolds": 19,
     "auditedLockfiles": 4,
     "lockedPackageVersions": 1070,
     "missingPins": 0,
@@ -106,6 +106,17 @@
         "https://registry.npmjs.org/better-auth"
       ],
       "scopes": ["auth.better-auth", "host.devDependencies.better-auth"]
+    },
+    {
+      "package": "@better-auth/core",
+      "pinned": "1.6.30",
+      "reasonCode": "better-auth-lockstep",
+      "detail": "Better Auth 1.6.30 depends on core 1.6.30. The public transaction context must use that same version in generated PostgreSQL auth and host regression fixtures.",
+      "evidence": [
+        "https://registry.npmjs.org/better-auth/1.6.30",
+        "https://registry.npmjs.org/@better-auth%2Fcore"
+      ],
+      "scopes": ["auth.@better-auth/core", "host.devDependencies.@better-auth/core"]
     },
     {
       "package": "@better-auth/passkey",
@@ -6764,6 +6775,22 @@
       "eligibleLatestPublishedAt": "2026-08-25T13:22:08.572Z"
     },
     {
+      "scope": "auth.@better-auth/core",
+      "group": "auth",
+      "key": "@better-auth/core",
+      "package": "@better-auth/core",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "compatibility-hold",
+      "pinned": "1.6.30",
+      "pinnedPublishedAt": "2026-08-17T19:11:14.311Z",
+      "registryLatest": "1.7.2",
+      "registryLatestPublishedAt": "2026-08-26T19:13:25.334Z",
+      "eligibleLatest": "1.7.1",
+      "eligibleLatestPublishedAt": "2026-08-18T18:51:38.502Z"
+    },
+    {
       "scope": "auth.@better-auth/expo",
       "group": "auth",
       "key": "@better-auth/expo",
@@ -7786,6 +7813,22 @@
       "registryLatestPublishedAt": "2026-08-29T17:55:42.775Z",
       "eligibleLatest": "4.4.3",
       "eligibleLatestPublishedAt": "2026-05-04T07:06:40.819Z"
+    },
+    {
+      "scope": "host.devDependencies.@better-auth/core",
+      "group": "host.devDependencies",
+      "key": "@better-auth/core",
+      "package": "@better-auth/core",
+      "source": "host",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "compatibility-hold",
+      "pinned": "1.6.30",
+      "pinnedPublishedAt": "2026-08-17T19:11:14.311Z",
+      "registryLatest": "1.7.2",
+      "registryLatestPublishedAt": "2026-08-26T19:13:25.334Z",
+      "eligibleLatest": "1.7.1",
+      "eligibleLatestPublishedAt": "2026-08-18T18:51:38.502Z"
     },
     {
       "scope": "host.devDependencies.@better-auth/passkey",

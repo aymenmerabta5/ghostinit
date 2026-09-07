@@ -1,9 +1,3 @@
-/**
- * convex/auth.ts — Better Auth component wiring and required-env guards.
- *
- * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
- */
-
 import type { ProjectMode } from "../../../lib/addons.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../auth-security.js";
 
@@ -68,9 +62,7 @@ export function convexAuthContent(
     'import authConfig from "./auth.config";',
     'import { query } from "./_generated/server";',
     "",
-    "// ------------------------------------------------------------------",
     "// Env validation — no insecure https://example.com fallback, require SITE_URL",
-    "// ------------------------------------------------------------------",
     "function requireEnv(name: string): string {",
     "  const value = process.env[name];",
     '  if (!value || value.startsWith("REPLACE_WITH") || value.trim() === "") {',
@@ -309,9 +301,7 @@ export function convexAuthContent(
     "",
     "export const createAuth = (ctx: GenericCtx<DataModel>) => betterAuth(createAuthOptions(ctx));",
     "",
-    "// ------------------------------------------------------------------",
     "// Identity-only queries. Application features authorize through users.me/lib/auth.",
-    "// ------------------------------------------------------------------",
     "export const getCurrentUser = query({",
     "  args: {},",
     "  handler: async (ctx) => {",
@@ -329,7 +319,6 @@ export function convexAuthContent(
     "  },",
     "});",
     "",
-    "// Helper for use in other files when GenericCtx available",
     "export async function getAuthUser(ctx: GenericCtx<DataModel>) {",
     "  return await authComponent.getAuthUser(ctx);",
     "}",

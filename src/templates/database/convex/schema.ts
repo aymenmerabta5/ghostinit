@@ -1,9 +1,3 @@
-/**
- * convex/schema.ts — hardened tables, composite indexes, tight validators.
- *
- * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
- */
-
 export interface ConvexSchemaFeatures {
   auth?: boolean;
   billing?: boolean;
@@ -19,12 +13,6 @@ export function convexSchemaContent(features: ConvexSchemaFeatures = {}): string
     `import { defineSchema${hasTables ? ", defineTable" : ""} } from "convex/server";`,
     ...(hasTables ? ['import { v } from "convex/values";'] : []),
     "",
-    "// ------------------------------------------------------------------",
-    "// Validators — tight unions, no loose v.string() for statuses",
-    "// metadata uses v.record instead of v.any() to avoid 1MB DoS and log leak",
-    "// payload in webhook_events intentionally v.any() for Stripe arbitrary JSON,",
-    "// but mutation checks size <900k",
-    "// ------------------------------------------------------------------",
     ...(hasBilling
       ? [
           'const billingProvider = v.union(v.literal("stripe"), v.literal("chargily"), v.literal("paddle"), v.literal("polar"));',
@@ -51,7 +39,6 @@ export function convexSchemaContent(features: ConvexSchemaFeatures = {}): string
     "",
     ...(hasBilling
       ? [
-          "// Metadata tightened: record<string, string|number|boolean|null> - no v.any()",
           "const metadataValidator = v.optional(",
           "  v.record(v.string(), v.union(v.string(), v.number(), v.boolean(), v.null())),",
           ");",

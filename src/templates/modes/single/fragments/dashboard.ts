@@ -1,6 +1,3 @@
-/**
- * Shared dashboard cards between Next and TanStack.
- */
 export const dashboardCards = {
   profileTitle: "Profile",
   quickActionsTitle: "Quick actions",

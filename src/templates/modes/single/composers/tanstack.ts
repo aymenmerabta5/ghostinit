@@ -4,6 +4,7 @@ import { tanstackSettingsFeatureFiles } from "../../../apps/fragments/settings/i
 import { webIdentityWorkspaceFiles } from "../../../apps/fragments/identity-workspace/index.js";
 import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import { file, type TemplateFile } from "../../../shared.js";
+import { transactionalAccountDeletionFile } from "../../../auth-deletion.js";
 import {
   type BillingProviderName,
   type AddonInstallerMap,
@@ -457,10 +458,10 @@ export function buildTanstackFiles(
     }
     files.push(file("drizzle.config.ts", serverDrizzleConfigSingle()));
   }
+  if (hasAuth && !isConvex) files.push(transactionalAccountDeletionFile("src/server/auth"));
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
   files.push(file("src/lib/utils.ts", libUtils()));
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
-  // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   for (const f of webLibFiles("src", "tanstack-start")) {
     if (

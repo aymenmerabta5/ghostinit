@@ -125,6 +125,9 @@ describe("generated passkey and native OAuth parity", () => {
         expect(webClient, call).toContain(call);
       }
       expect(signIn).toContain("identityPasskeyClient.authenticate()");
+      expect(passkeyCard).toContain('<FieldLabel htmlFor="passkey-registration-name">');
+      expect(passkeyCard).toContain('<Input id="passkey-registration-name"');
+      expect(passkeyCard).toContain('{t("passkeys.namePlaceholder")}</FieldLabel>');
       for (const operation of ["register", "useList", "rename", "delete"])
         expect(passkeyDataAccess, operation).toContain(`identityPasskeyClient.${operation}`);
       if (framework === "tanstack-start") {

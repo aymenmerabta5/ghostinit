@@ -231,7 +231,7 @@ Tooling + env verification:
 ghostinit doctor
 # [OK] bun: repository-pinned Bun version
 # [OK] node: Node 24.19.0
-# [OK] typescript: TypeScript 6.0.3
+# [OK] typescript: TypeScript 7.0.2
 # [OK] ghostinit-version: ghostinit 0.1.0
 # [OK] ghostinit-state: Project state found for my-app
 # [FAIL] BETTER_AUTH_SECRET: too short (<32)

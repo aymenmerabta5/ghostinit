@@ -119,6 +119,18 @@ synchronous duplicate guard closes the gap before React renders the pending
 state. Independent rows can remain usable. Errors stay near the affected action
 and preserve the user's input.
 
+Password-confirmed account deletion in Next.js and TanStack shows failures
+inside the active confirmation dialog using the existing localized destructive
+Alert. The dialog remains open with its input available so the user can retry.
+Deletion descriptions and confirmations promise account deletion only and explain
+that retained records may block it. They do not promise deletion of all associated
+data or define a retention period. Only the typed `ACCOUNT_DELETION_RESTRICTED`
+failure selects English, French, or Arabic guidance to ask the application
+administrator for review; other failures retain their existing error handling.
+Next Server Actions return an allowlisted code with a fixed safe message, while
+OAuth-only flows retain recent-sign-in guidance. The alert does not promise that
+an administrator can remove retained records.
+
 ### Authentication and query ownership
 
 Personalized query data belongs to the authenticated user, session, and active
@@ -171,8 +183,10 @@ query-provider path.
   methods clears entered credentials, and pending verification prevents switching.
   Setup verification and native challenges without a trust control never grant
   device trust automatically.
-- The settings sidebar shows administration only for the current authenticated
-  administrator when the identity API is included, matching the shared header.
+- The settings sidebar reads administrator roles from canonical application
+  identity when the identity API is included. Pending, failed, or anonymous
+  identity hides the control; API-disabled projects omit it. Provider session
+  types do not need to invent an application role.
 - Workspace guidance describes organizations, membership, and role permissions
   in plain language across web, desktop, and mobile instead of exposing internal
   service and tenancy terminology.
@@ -225,6 +239,17 @@ the needs of billing, settings, admin, or native screens.
   The card and list only render state and invoke supplied actions. Single and
   monorepo projects use the same producer, and API-disabled outputs omit the
   complete session slice.
+- The shared user menu places its account label and navigation items inside the
+  same Base UI group, with sign-out in a separate group. This preserves menu
+  semantics and avoids a missing group context when opening the menu in either
+  web framework or project layout.
+- Passkey registration exposes a visible, translated field label associated with
+  its name input. The existing optional-name behavior and registration feedback
+  remain unchanged, and the control uses the shared field primitives.
+- Next.js nests the workspace title at heading level two beneath the Settings
+  layout's page heading. TanStack's parent settings route renders only its outlet
+  for the workspace, so that standalone workspace retains its level-one title.
+  Both variants keep the same typography and spacing.
 - Next.js request-owned snapshots protect the complete private subtree for
   admin users, billing, settings, and the identity workspace. A changed account
   or tenant hides the old snapshot before display and refreshes the affected
@@ -316,6 +341,21 @@ start shows the generated project's bootstrap and development scripts, with
 service configuration delegated to its README instead of a mismatched scaffold
 command. Generation tests check every emitted marketing link against actual
 routes and every displayed command against the generated manifest.
+
+### Generated notification and Convex message size boundaries
+
+The shared notification library owns the bell's item contract; the bell preserves
+its public type export and retains its existing pending, error, read, and
+navigation ownership. Notification pages on web and desktop show the shared
+description once in the page header instead of repeating it in the creation
+card. The form fields, action labels, loading states, and query ownership remain
+the same across both web frameworks and i18n variants.
+
+Next.js Convex message threads delegate unknown-response normalization to a pure
+`convex-message-views.ts` sibling. The thread still owns its two live queries,
+send/typing mutations, draft, and submission state. No subscription or mutation
+moves into the view mapper. The generated 150-line component and 200-line page
+limits are unchanged and are checked after the installed formatter runs.
 
 ## Motion
 

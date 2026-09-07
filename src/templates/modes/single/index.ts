@@ -382,7 +382,6 @@ export function singleFiles(
     };
     packageFile.content = `${JSON.stringify(manifest, null, 2)}\n`;
   }
-  // --- GhostInit Phase A: proxy + permissions + shell for both modes ---
   const hasWebSingle = effectiveApps.includes("web");
   const hasPdfEarly = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (hasWebSingle) withoutOld.push(singleWebSmokeTest());
@@ -401,7 +400,6 @@ export function singleFiles(
   for (const f of accessFiles(mode)) withoutOld.push(f);
   if (hasWebSingle && isNextSingle)
     for (const f of shellFiles(mode, effectiveBilling.length > 0)) withoutOld.push(f);
-  // Deploy config (Dockerfile / fly.toml / vercel.json) — same emitter as monorepo
   for (const f of deployFiles(config.name, config.deploy ?? "none", runtime, {
     mode: "single",
     database: effectiveDatabaseSingle,
@@ -420,7 +418,6 @@ export function singleFiles(
     eve: hasEve && hasWebSingle,
   }))
     withoutOld.push(f);
-  // pdf: inject server pdf package + route + mobile/desktop helpers when opted in
   if (hasPdfEarly) {
     const isMobileSingle = effectiveApps.includes("mobile");
     const isDesktopSingle = effectiveApps.includes("desktop");
@@ -436,7 +433,6 @@ export function singleFiles(
     ))
       withoutOld.push(f);
   }
-  // messaging: inject realtime + storage + UI when opted in
   if (hasMessagingEarly && effectiveDatabaseSingle === "postgres") {
     for (const f of realtimePackage("single")) withoutOld.push(f);
     for (const f of singlePostgresMessagingFiles()) withoutOld.push(f);
@@ -461,7 +457,6 @@ export function singleFiles(
   if (hasMessagingEarly) {
     const frameworkStr = (framework ?? "nextjs") as string;
     const effectiveAppsSingle = effectiveApps as string[];
-    // For single, map apps/web/src/... to src/... if web-only single
     const singleFiles = messagingFilesFor(
       frameworkStr,
       effectiveDatabaseSingle,
@@ -513,7 +508,6 @@ export function singleFiles(
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
   let deduped = dedupeFilesOrThrow(adapterIntegrated);
   deduped = integrateDesignSystemApplications(deduped, "single", resolvedDesignSystemApps);
-  // Conditional stripping for frontend preset
   const hasAuth = effectiveAuth;
   const hasPdf = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (!hasAuth) {
@@ -543,7 +537,6 @@ export function singleFiles(
   if (!hasCache) {
     deduped = deduped.filter((f) => !f.path.includes("cache"));
   }
-  // pdf stripping — hide package and route when off
   if (!hasPdf) {
     deduped = deduped.filter(
       (f) =>
@@ -553,7 +546,6 @@ export function singleFiles(
         !f.content.includes("qrcode"),
     );
   } else {
-    // inject pdf deps into root package.json for single mode
     deduped = deduped.map((f) => {
       if (f.path !== "package.json") return f;
       try {
@@ -571,7 +563,6 @@ export function singleFiles(
         const overrides = (pkg.overrides ?? {}) as Record<string, string>;
         overrides.pdfkit = v.pdf.pdfkit;
         pkg.overrides = overrides;
-        // ensure types available
         const devDeps = (pkg.devDependencies ?? {}) as Record<string, string>;
         if (!devDeps["@types/qrcode"]) devDeps["@types/qrcode"] = `^${v.pdf["@types/qrcode"]}`;
         pkg.devDependencies = devDeps;

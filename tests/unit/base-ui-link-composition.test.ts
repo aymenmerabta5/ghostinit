@@ -170,6 +170,32 @@ function walk(value: unknown, visit: (node: Node) => void): void {
   }
 }
 
+function auditMenuGroups(path: string, source: string): string[] {
+  const parsed = parseSync(path, source);
+  const violations = parsed.errors.map((error) => `${path}: ${error.message}`);
+  const visit = (value: unknown, groups: number): void => {
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child, groups);
+      return;
+    }
+    if (!isNode(value)) return;
+    const name =
+      value.type === "JSXElement" && isNode(value.openingElement)
+        ? identifierName(value.openingElement.name)
+        : undefined;
+    if (name === "DropdownMenu" || name === "DropdownMenuSub") groups = 0;
+    if (name === "DropdownMenuGroup") groups += 1;
+    if ((name === "DropdownMenuLabel" || name === "DropdownMenuItem") && groups === 0) {
+      violations.push(`${path}: ${name} must belong to a DropdownMenuGroup`);
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (key !== "type" && key !== "start" && key !== "end") visit(child, groups);
+    }
+  };
+  visit(parsed.program, 0);
+  return violations;
+}
+
 function auditLinkButtons(
   path: string,
   source: string,
@@ -263,7 +289,13 @@ describe("generated Base UI link-button composition", () => {
         for (const match of file.content.matchAll(/<Button\b[^>]*\basChild\b[^>]*>/g)) {
           violations.push(`${file.path}: Radix-only Button asChild in ${match[0]}`);
         }
+        if (/<DropdownMenu(?:Label|Item)\b/.test(file.content)) {
+          violations.push(...auditMenuGroups(file.path, file.content));
+        }
       }
+
+      const userMenu = byPath.get(`${sourceRoot}components/header-user-menu.tsx`);
+      expect(userMenu).toContain("<DropdownMenuLabel");
 
       const targets = { ...TARGETS[entry.mode][entry.framework] };
       if (entry.billing.length === 0 && entry.mode === "monorepo") {

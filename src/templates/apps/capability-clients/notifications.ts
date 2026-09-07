@@ -211,7 +211,6 @@ ${i18nState}${routerState}
   const [pending, setPending] = React.useState(false);
   const inbox = useNotificationInbox(${initialQuery});
   const items = inbox.data ?? [];
-  const loading = inbox.isPending;
   const [title, setTitle] = React.useState(${options.i18n ? 't("defaultTitle")' : '"Hello from GhostInit"'});
   const [body, setBody] = React.useState(${options.i18n ? 't("defaultBody")' : '"This notification is persisted for your account."'});
   const [error, setError] = React.useState<string | null>(null);
@@ -240,7 +239,7 @@ ${navigate}
   }
   return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
     <header><h1 className="text-2xl font-semibold">${label("title", "Notifications")}</h1><p className="text-sm text-muted-foreground">${label("description", "Account-owned inbox shared across your apps.")}</p></header>
-    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle><CardDescription>${label("description", "Account-owned inbox shared across your apps.")}</CardDescription></CardHeader><CardContent><form onSubmit={(event) => {
+    <Card><CardHeader><CardTitle>${label("create", "Create notification")}</CardTitle></CardHeader><CardContent><form onSubmit={(event) => {
       event.preventDefault();
       void runAction(async () => {
         ${publish}
@@ -251,7 +250,7 @@ ${navigate}
       <Button className="w-fit" type="submit" disabled={pending} aria-busy={pending}>${label("create", "Create notification")}{pending ? "…" : ""}</Button>
     </FieldGroup></form></CardContent></Card>
     {displayedError ? <Alert variant="destructive"><AlertTitle>${label("unavailable", "Notifications unavailable")}</AlertTitle><AlertDescription>{displayedError}{inbox.error ? <Button type="button" size="sm" variant="outline" disabled={inbox.isFetching || pending} onClick={() => void refresh()}>${label("retry", "Retry")}</Button> : null}</AlertDescription></Alert> : null}
-    <section aria-label=${options.i18n ? '{t("title")}' : '"Notifications"'} className="flex flex-col gap-2" aria-busy={inbox.isFetching}>{loading && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Empty><EmptyHeader><EmptyTitle>${label("empty", "No notifications yet.")}</EmptyTitle><EmptyDescription>${label("description", "Account-owned inbox shared across your apps.")}</EmptyDescription></EmptyHeader></Empty> : items.map((item) => {
+    <section aria-label=${options.i18n ? '{t("title")}' : '"Notifications"'} className="flex flex-col gap-2" aria-busy={inbox.isFetching}>{inbox.isPending && items.length === 0 ? <><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></> : items.length === 0 ? inbox.error ? null : <Empty><EmptyHeader><EmptyTitle>${label("empty", "No notifications yet.")}</EmptyTitle><EmptyDescription>${label("description", "Account-owned inbox shared across your apps.")}</EmptyDescription></EmptyHeader></Empty> : items.map((item) => {
       const destination = resolveNotificationDestination(item.href);
       return <Card key={item.id}><CardHeader><CardTitle>{item.title}</CardTitle><CardDescription>{item.body}</CardDescription></CardHeader><CardContent className="flex gap-2">{destination ? <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => void runAction(() => openNotification(item))}>${label("open", "Open")}</Button> : null}<Button type="button" size="sm" variant="outline" disabled={pending || item.readAt !== null} onClick={() => void runAction(async () => { await markNotificationRead(item.id); })}>{item.readAt ? ${options.i18n ? 't("read")' : '"Read"'} : ${options.i18n ? 't("markRead")' : '"Mark read"'}}</Button></CardContent></Card>})}</section>
   </main>;

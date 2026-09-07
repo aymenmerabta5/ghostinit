@@ -371,12 +371,14 @@ bun test --timeout 100000 tests/integration tests/unit   # official script
 # Fixtures (frozen install + high-severity lock audit + fixture-specific checks)
 bun run test:fixtures
 
+bun run test:convex-codegen # real local Convex root/component codegen and strict type contracts
+
 # Real generated projects: verified bootstrap + installed dependency audit + format/check + architecture + typecheck + lint:all + root tests
 bun run test:generated -- --all # all 24 configured representative corners
 bun run test:workers            # four Cloudflare Worker build/dry-run/runtime corners
 
 # Full CI
-bun run test:ci # static + host/fixtures + generated --all + oRPC WS runtime + six audited production builds
+bun run test:ci # static + host/fixtures + Convex codegen + generated --all + oRPC WS runtime + six audited production builds
 ```
 
 For local checks under a strict RAM budget, use `bun --smol test <file>` in a

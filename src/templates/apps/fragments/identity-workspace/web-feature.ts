@@ -7,8 +7,9 @@ import {
 import { identityWorkspaceWebI18n } from "./web-i18n.js";
 import { identityWorkspacePresentationContents } from "./web-presentation.js";
 
-export function webWorkspaceFeatureContent(hasI18n = false): string {
+export function webWorkspaceFeatureContent(hasI18n = false, headingLevel: 1 | 2 = 1): string {
   const i18n = identityWorkspaceWebI18n(hasI18n);
+  const heading = headingLevel === 2 ? "h2" : "h1";
   return `"use client";
 import type * as React from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,7 +25,7 @@ export function IdentityWorkspace({ initialData }: { initialData?: IdentityWorks
 ${i18n.hookLine}
   const workspace = useIdentityWorkspaceController(t("operationError"), initialData);
   return <div className="flex flex-col gap-6">
-    <div><p className="text-sm font-medium text-primary">${i18n.child("kicker")}</p><h1 className="text-3xl font-semibold tracking-tight">${i18n.child("title")}</h1><p className="mt-2 max-w-[65ch] text-sm text-muted-foreground">${i18n.child("webDescription")}</p></div>
+    <div><p className="text-sm font-medium text-primary">${i18n.child("kicker")}</p><${heading} className="text-3xl font-semibold tracking-tight">${i18n.child("title")}</${heading}><p className="mt-2 max-w-[65ch] text-sm text-muted-foreground">${i18n.child("webDescription")}</p></div>
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
     <div className="flex flex-col gap-6">
       <OrganizationsCard workspace={workspace} />
@@ -44,10 +45,11 @@ ${i18n.hookLine}
 export function webIdentityWorkspaceFeatureFiles(
   mode: IdentityWorkspaceMode,
   hasI18n = false,
+  headingLevel: 1 | 2 = 1,
 ): TemplateFile[] {
   const root = identityWorkspaceFeatureRoot(mode);
   return [
-    file(`${root}/identity-workspace.tsx`, webWorkspaceFeatureContent(hasI18n)),
+    file(`${root}/identity-workspace.tsx`, webWorkspaceFeatureContent(hasI18n, headingLevel)),
     file(`${root}/controller.ts`, identityWorkspaceControllerContent()),
     file(`${root}/types.ts`, identityWorkspaceTypesContent()),
     ...identityWorkspacePresentationContents(hasI18n).map(({ content, path }) =>

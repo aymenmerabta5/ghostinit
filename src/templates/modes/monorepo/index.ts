@@ -310,9 +310,8 @@ export function monorepoFiles(
   );
   const merged = [...integrated, ...enrichedAgents];
 
-  // Collapses same-path emissions and FAILS if two composers disagree on the
-  // content. A silent last-writer-wins here previously hid a whole duplicate
-  // webhook implementation for months — see dedupeFiles in ../../shared.ts.
+  // Same-path emissions must agree on content so one composer cannot silently
+  // replace another's implementation.
   const deduped = dedupeFilesOrThrow(merged);
 
   const hasWeb = effectiveApps.includes("web" as AppName);
@@ -327,7 +326,6 @@ export function monorepoFiles(
         !f.path.includes("/auth") &&
         !f.path.includes("auth-client"),
     );
-    // Also strip auth-related app routes that may have been emitted by app composers.
     filteredFiles = filteredFiles.filter(
       (f) =>
         !f.path.includes("apps/web/src/app/(auth)") &&
@@ -431,7 +429,6 @@ export function monorepoFiles(
     filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("packages/storage/"));
   }
 
-  // Strip workspace deps for disabled packages from remaining package.json files
   const disabledPackages = new Set<string>();
   if (!hasAuth) disabledPackages.add("@repo/auth");
   if (!hasApi) disabledPackages.add("@repo/api");
@@ -444,7 +441,6 @@ export function monorepoFiles(
   if (!hasStorage || effectiveDatabase === "convex") {
     disabledPackages.add("@repo/storage");
   }
-  // billing is handled separately via effectiveBilling, but if no billing selected strip all billing providers
   if (effectiveBilling.length === 0) {
     disabledPackages.add("@repo/billing");
   }
@@ -468,7 +464,6 @@ export function monorepoFiles(
                 changed = true;
               }
             }
-            // Also strip transitive billing provider deps if billing disabled? keep simple
           }
         }
         if (changed) {

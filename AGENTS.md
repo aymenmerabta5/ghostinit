@@ -21,7 +21,8 @@ bun run test:fixtures  # runner installs and fully checks all compatibility fixt
 bun run test:generated # generate + install + format/check + architecture + typecheck + lint:all + root tests
 bun run check:versions # every pinned + generated dependency version exists on npm
 bun run test:workers   # four Cloudflare Worker build/dry-run/runtime corners
-bun run test:ci        # static + host/fixtures + 24 generated corners + oRPC WS runtime + six audited production builds
+bun run test:convex-codegen # opt-in public anonymous-local Convex root/component codegen proof
+bun run test:ci        # static + host/fixtures + Convex codegen + 24 generated corners + oRPC WS runtime + six audited production builds
 ```
 
 For local checks under a strict RAM budget, use `bun --smol test <file>` and a
@@ -29,6 +30,16 @@ fresh guarded process per file. More frequent garbage collection reduces heap
 retention; process isolation also releases module-level fixtures. Preserve the
 complete test manifest and report interrupted files as failed verification.
 CI retains the full workload without a local machine's memory limits.
+
+`test:convex-codegen` installs an isolated backend fixture with the catalog pins
+and seven-day policy, audits it, and uses public Convex `init`/`env set`/`dev --once`/`codegen`
+commands. A bounded `--start` helper retains one local backend while the explicit
+codegen checks run. It checks actual generated auth/users/posts files and a local source
+component, including deliberate type errors and restored successes. It requires
+Node.js >=20 and network access for the first local-backend download. Backend
+version/digest and process cleanup are recorded; this proves code generation and
+types, not executed application functions. The ordinary generated-project gate
+remains required independently.
 
 Manual generation smoke:
 
@@ -66,6 +77,9 @@ The versioned edge matrix in `src/lib/architecture/rules/layer-policy.ts` is aut
   `experimental.useTypeScriptCli` to `false`. TypeScript 7 does not provide the
   classic JavaScript compiler API. Changes to compiler consumers require real
   installed build/runtime gates; source inspection alone is not compatibility proof.
+- Convex checks `convex/tsconfig.json` independently of the app's root config.
+  Its generated strict config explicitly selects Node types for `process.env`,
+  and the owning root manifest declares the catalog's `@types/node` dependency.
 - Generated `turbo.json`: manifest-derived `globalEnv`, filtered to selected capabilities and app audiences — see the table below.
 
 **Env vars — 5 places (keep in sync):**

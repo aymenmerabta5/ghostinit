@@ -42,7 +42,6 @@ export function databaseComposerFiles(
     ];
     if (!hasMessaging) return base;
     const extra = convexMessagingFiles();
-    // Patch convex/schema.ts to include messaging tables + typingIndicators
     const schemaIdx = base.findIndex((f) => f.path === "convex/schema.ts");
     if (schemaIdx !== -1) {
       const orig = base[schemaIdx].content;
@@ -103,7 +102,6 @@ export function databaseComposerFiles(
         '  }).index("by_conversation", ["conversationId"]).index("by_conversation_user", ["conversationId", "userId"]),',
         "",
       ].join("\n");
-      // Insert before final posts block closing: find "  posts: defineTable" and insert patch before it
       let newContent: string;
       if (orig.includes("  posts: defineTable")) {
         newContent = orig.replace("  posts: defineTable", `${patch}  posts: defineTable`);
