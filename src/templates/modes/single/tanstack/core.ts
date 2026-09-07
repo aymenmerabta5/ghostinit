@@ -23,7 +23,7 @@ export function singleNitroConfigTanstackContent(
     hasEve
       ? `  preset: process.env.GHOSTINIT_EVE_RUNTIME === '1' ? (process.env.VERCEL ? 'vercel' : 'node-server') : '${preset}',`
       : `  preset: '${preset}',`,
-    ...(hasEve ? eveNitroResolverHooks().split("\n") : []),
+    ...(hasEve ? eveNitroResolverHooks(true).split("\n") : []),
     ...(hasWebSocketMessaging ? ["  serverDir: 'server',"] : []),
     ...(hasWebSocketMessaging ? ["  experimental: { websocket: true },"] : []),
     ...(hasWebSocketMessaging

@@ -6,6 +6,7 @@ import { messagingConvexAttachmentRouteFiles } from "./convex-attachments.js";
 import { messagingConvexTanstackWebFiles } from "./convex-tanstack.js";
 import { nativeExpoMessagingFiles } from "./native-expo.js";
 import { nativeDesktopMessagingFiles } from "./native-desktop.js";
+import { nextUpgradeDispatcherContent } from "./next-upgrade.js";
 
 function messagingHookContent(router: "next" | "tanstack"): string {
   const content = `"use client";
@@ -1723,30 +1724,13 @@ import {
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
 const hostname = process.env.HOST ?? "0.0.0.0";
 
-class ApplicationHttpServer extends Server {
-  override emit(event: string, ...args: unknown[]): boolean {
-    if (event === "upgrade") {
-      const [request, socket, head] = args;
-      if (request instanceof IncomingMessage && socket instanceof Duplex && Buffer.isBuffer(head)) {
-        let pathname: string;
-        try { pathname = new URL(request.url ?? "/", "http://localhost").pathname; }
-        catch { socket.destroy(); return true; }
-        if (pathname === "/api/ws") {
-          // Dispatch before Next's asynchronous catch-all route listener can close this socket.
-          void upgradeRequest(request, socket, head).catch(() => {
-            if (!socket.destroyed) rejectUpgrade(socket, 500, "Internal Server Error");
-          });
-          return true;
-        }
-      }
-    }
-    return super.emit(event, ...args);
-  }
-}
+${nextUpgradeDispatcherContent()}
 
 const server = new ApplicationHttpServer(async (request, response) => {
   await handle(request, response);
 });
+// Upgrade admission must work before Next installs its listener on the first HTTP request.
+server.on("upgrade", () => {});
 const app = next({
   dev: process.env.NODE_ENV !== "production",
   // Bun cannot resolve new Turbopack external-package links after a cold start.

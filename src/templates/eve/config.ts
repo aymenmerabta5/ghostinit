@@ -58,13 +58,25 @@ function resolveEveAbsoluteImport(source${sourceType})${returnType} {
 `;
 }
 
-export function eveNitroResolverHooks(): string {
+export function eveNitroResolverHooks(typescript = false): string {
+  const sourceType = typescript ? ": string" : "";
+  const externalRuleType = typescript ? ": string | RegExp" : "";
+  const pluginType = typescript ? ": unknown" : "";
   return `  hooks: {
     "rollup:before"(_nitro, config) {
+      // Eve's development hook preserves function externals but drops other forms.
+      if (config.external && typeof config.external !== "function") {
+        const external = (Array.isArray(config.external) ? config.external : [config.external])
+          .map((entry${externalRuleType}) => typeof entry === "string" ? entry
+            : new RegExp(entry.source, entry.flags.replace(/[gy]/g, "")));
+        config.external = (source${sourceType}) => external.some((entry${externalRuleType}) =>
+          typeof entry === "string" ? entry === source : entry.test(source),
+        );
+      }
       const plugins = Array.isArray(config.plugins) ? config.plugins : [];
       if (
         plugins.some(
-          (plugin) =>
+          (plugin${pluginType}) =>
             typeof plugin === "object" &&
             plugin !== null &&
             Reflect.get(plugin, "name") === EVE_RESOLVER_PLUGIN_NAME,
@@ -74,7 +86,7 @@ export function eveNitroResolverHooks(): string {
       }
       plugins.unshift({
         name: EVE_RESOLVER_PLUGIN_NAME,
-        resolveId(source) {
+        resolveId(source${sourceType}) {
           const absolute = resolveEveAbsoluteImport(source);
           if (absolute) return absolute;
           if (source === "eve" || source.startsWith("eve/")) {
