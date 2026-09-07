@@ -10,24 +10,34 @@ function appRoot(mode: MessagingMode): string {
   return mode === "monorepo" ? "apps/web/" : "";
 }
 
-function routeGeneratedRoot(mode: MessagingMode): string {
-  return mode === "monorepo" ? "../../../../convex/_generated" : "../../convex/_generated";
-}
-
 function componentGeneratedRoot(mode: MessagingMode): string {
   return mode === "monorepo"
     ? "../../../../../../convex/_generated"
     : "../../../../convex/_generated";
 }
 
-function routeContent(mode: MessagingMode): string {
-  const generated = routeGeneratedRoot(mode);
+function routeContent(): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { loadInitialConversations, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
+import { ConvexMessagesPage } from "./-components/messages/convex-messages";
+
+export const Route = createFileRoute("/messages")({
+  beforeLoad: ({ context }) => requireProtectedRoute(context.queryClient),
+  loader: ({ context }) => Promise.all([
+    loadProtectedRoute(context),
+    loadInitialConversations(context),
+  ]),
+  component: ConvexMessagesPage,
+});
+`;
+}
+
+function pageContent(mode: MessagingMode): string {
+  const generated = componentGeneratedRoot(mode);
   return `"use client";
 import * as React from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { loadInitialConversations, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
 import { currentQueryAuthScope, messagingConversationsQueryKey } from "@/lib/query-client";
 import type { Id } from "${generated}/dataModel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -35,10 +45,10 @@ import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
-import { ConvexMessageThread } from "./-components/messages/convex-message-thread";
-import { useConvexConversations, useStartConvexConversation } from "./-components/messages/convex-messaging-queries";
+import { ConvexMessageThread } from "./convex-message-thread";
+import { useConvexConversations, useStartConvexConversation } from "./convex-messaging-queries";
 
-function MessagesPage(): React.JSX.Element {
+export function ConvexMessagesPage(): React.JSX.Element {
   const t = useSurfaceTranslations("messaging");
   const queryClient = useQueryClient();
   const scope = currentQueryAuthScope(queryClient);
@@ -77,15 +87,6 @@ function MessagesPage(): React.JSX.Element {
     </div>
   </main>;
 }
-
-export const Route = createFileRoute("/messages")({
-  beforeLoad: ({ context }) => requireProtectedRoute(context.queryClient),
-  loader: ({ context }) => Promise.all([
-    loadProtectedRoute(context),
-    loadInitialConversations(context),
-  ]),
-  component: MessagesPage,
-});
 `;
 }
 
@@ -258,7 +259,8 @@ export function messagingConvexTanstackWebFiles(mode: MessagingMode = "monorepo"
   const root = appRoot(mode);
   const componentRoot = `${root}src/routes/-components/messages`;
   return [
-    file(`${root}src/routes/messages.tsx`, routeContent(mode)),
+    file(`${root}src/routes/messages.tsx`, routeContent()),
+    file(`${componentRoot}/convex-messages.tsx`, pageContent(mode)),
     file(
       `${componentRoot}/convex-messaging-data.ts`,
       convexTanstackMessagingDataContent(componentGeneratedRoot(mode)),

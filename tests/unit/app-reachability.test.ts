@@ -310,12 +310,13 @@ describe("generated application reachability", () => {
     const desktopInbox = read(files, "apps/desktop/src/renderer/features/notifications/page.tsx");
     for (const source of [webInbox, expoInbox, desktopInbox]) {
       expect(source).toMatch(
-        /const destination = resolveNotificationDestination\(item\.href\);[\s\S]*?if \(!destination\) return;[\s\S]*?(?:router\.push\(destination\)|navigate\(\{ to: destination \}\))/,
+        /const isCurrent = captureEffect\(\);[\s\S]*?const destination = resolveNotificationDestination\(item\.href\);[\s\S]*?if \(!destination \|\| !isCurrent\(\)\) return;[\s\S]*?if \(item\.readAt === null\) await markNotificationRead\(item\.id\);[\s\S]*?if \(!isCurrent\(\)\) return;[\s\S]*?(?:router\.push\(destination\)|navigate\(\{ to: destination \}\))/,
       );
     }
     expect(bell).toMatch(
-      /const destination = getNotificationHref\([\s\S]*?if \(destination\) onNavigate\?\.\(destination\.href\)/,
+      /const destination = getNotificationHref\([\s\S]*?const isCurrent = captureAction\?\.\(\) \?\? \(\(\) => true\);[\s\S]*?await onMarkRead\?\.\(notification\.id\);[\s\S]*?if \(isCurrent\(\) && destination\) onNavigate\?\.\(destination\.href\)/,
     );
+    expect(bellAdapter).toContain("captureAction={captureEffect}");
     expect(bellAdapter).toMatch(
       /onNavigate=\{\(destination: NotificationDestination\) => \{ router\.push\(destination\); \}\}/,
     );

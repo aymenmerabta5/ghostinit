@@ -550,7 +550,7 @@ async function runLongLived(args, cwd, env, stopOnStdinEnd, onCleanupVerified) {
   }
   try {
     releaseEnvironmentLifecycleLock.trackChild(child);
-    captureProcessTree(child);
+    await captureProcessTree(child);
     releaseEnvironmentLifecycleLock.trackChild(child);
     const terminal = await Promise.race([completion, interrupted]);
     const terminationError = await (terminationPromise ??= terminateSupervisedProcessTree(child, completion)
@@ -1439,7 +1439,7 @@ if (action === "dev" && !forwarded.includes("--once")) {
   };
   try {
     releaseEnvironmentLifecycleLock.trackChild(child);
-    captureProcessTree(child);
+    await captureProcessTree(child);
     releaseEnvironmentLifecycleLock.trackChild(child);
     await Promise.race([waitForStableGeneratedEnvironment(child), interrupted.then(() => { throw new Error("Convex dev startup interrupted by signal " + requestedSignal); })]);
     const generatedContent = validateConfiguredOutput();

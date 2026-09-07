@@ -54,20 +54,27 @@ describe("jobs and messaging deployment integration", () => {
     for (const runtime of ["bun", "node"] as const) {
       for (const database of ["postgres", "convex"] as const) {
         test(`composes ${mode}/${runtime}/${database} process artifacts end to end`, () => {
-          const files = generateProjectFiles({
+          const resolution = resolveCreateConfig({
             name: "demo",
-            version: "0.1.0",
             mode,
             runtime,
             database,
+            databaseWasExplicit: true,
             framework: "nextjs",
             apps: ["web"],
             billing: [],
             features: [],
-            messaging: true,
-            jobs: true,
+            preset: "saas",
+            cache: "none",
+            withMessaging: true,
+            withJobs: true,
             deploy: "fly",
-          } as ProjectConfig);
+          });
+          expect(resolution.ok).toBe(true);
+          if (!resolution.ok) throw new Error(resolution.message);
+          const files = buildProjectGenerationPlan(resolution.resolvedConfig, {
+            desiredConfig: resolution.desiredConfig,
+          }).files.map(({ physicalPath, content }) => ({ path: physicalPath, content }));
           const pkg = JSON.parse(content(files, "package.json")) as GeneratedPackage;
 
           expect(pkg.packageManager).toBe(`bun@${toolchainRuntime.bun}`);
@@ -94,6 +101,9 @@ describe("jobs and messaging deployment integration", () => {
             const server = mode === "monorepo" ? "apps/web/server.ts" : "next-server.ts";
             expect(files.some(({ path }) => path === server)).toBe(true);
             expect(pkg.scripts.start).toContain(`start-next-server.mjs ${runtime} start`);
+            const launcher = content(files, "scripts/start-next-server.mjs");
+            expect(launcher).toContain("Bun.build({");
+            expect(launcher).toContain('if (phase !== "start")');
             expect(pkg.scripts["jobs:worker"]).toBeDefined();
             expect(pkg.scripts["jobs:scheduler"]).toBeDefined();
             expect(files.some(({ path }) => path === "scripts/start-jobs.mjs")).toBe(true);
@@ -107,7 +117,6 @@ describe("jobs and messaging deployment integration", () => {
             );
             if (runtime === "node") {
               expect(pkg.scripts.start).toContain("start-next-server.mjs node start");
-              expect(files.some(({ path }) => path === "scripts/start-next-server.mjs")).toBe(true);
             }
           } else {
             expect(pkg.scripts["jobs:deploy"]).toBe("bun x --no-install convex deploy");

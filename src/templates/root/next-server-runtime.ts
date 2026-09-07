@@ -146,8 +146,12 @@ try {
 }
 if (!validateOutput(false)) throw new Error("Run bun run build before starting the custom Next server");
 if (phase === "build") process.exit(0);
-// Initialize PDFKit's package-local standard fonts before Next installs its require hook.
-const preloads = runtime === "bun" && ${JSON.stringify(hasPdf)} ? ["--preload", "@react-pdf/renderer"] : [];
+${
+  hasPdf
+    ? `// Initialize PDFKit's package-local standard fonts before Next installs its require hook.
+const preloads = runtime === "bun" ? ["--preload", "@react-pdf/renderer"] : [];`
+    : "const preloads = [];"
+}
 const child = spawn(runtime === "bun" ? process.execPath : "node", [...preloads, outputFile, appRoot], {
   cwd: appRoot,
   env: { ...process.env, NODE_ENV: phase === "dev" ? "development" : "production" },

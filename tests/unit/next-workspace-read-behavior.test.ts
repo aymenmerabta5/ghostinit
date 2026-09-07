@@ -48,9 +48,10 @@ function source(files: Map<string, string>, path: string): string {
 }
 
 function javascript(value: string): string {
-  return new Bun.Transpiler({ loader: "ts" }).transformSync(
-    value.replace(/^import\s+[\s\S]*?;\r?\n/gm, "").replace(/^export\s+/gm, ""),
-  );
+  return new Bun.Transpiler({
+    loader: "tsx",
+    tsconfig: { compilerOptions: { jsx: "react" } },
+  }).transformSync(value.replace(/^import\s+[\s\S]*?;\r?\n/gm, "").replace(/^export\s+/gm, ""));
 }
 
 function application(facade: string, canReadInvitations: boolean) {
@@ -63,7 +64,7 @@ function application(facade: string, canReadInvitations: boolean) {
   )(Error) as (dependencies: Record<string, unknown>) => object;
   const instance = createApplication({
     principal: {
-      userId: "actor",
+      userId: "application-actor",
       identityUserId: "actor",
       sessionId: "session",
       email: "actor@example.test",
@@ -98,24 +99,53 @@ function application(facade: string, canReadInvitations: boolean) {
 }
 
 async function renderWorkspace(page: string, instance: object): Promise<Snapshot> {
-  // Execute the emitted server loader and facade; replace only JSX delivery so
-  // this behavioral test does not need a Next server or React rendering runtime.
-  const loader = page
-    .slice(page.indexOf("async function WorkspaceData"), page.indexOf("export default function"))
-    .replace("return <IdentityWorkspace initialData={initialData} />;", "return initialData;");
+  // Execute the emitted loader and retain its JSX ownership envelope. Only the
+  // element factory is substituted; request reads and scope delivery stay real.
+  interface Element {
+    type: string;
+    props: Record<string, unknown>;
+    children: Element[];
+  }
+  const loader = page.slice(
+    page.indexOf("async function WorkspaceData"),
+    page.indexOf("export default function"),
+  );
   const read = new Function(
+    "React",
+    "RequestOwnedSnapshot",
+    "IdentityWorkspace",
     "headers",
     "createRequestApplicationForRequest",
     "redirect",
     `${javascript(loader)}; return WorkspaceData;`,
   )(
+    {
+      createElement: (type: string, props: Record<string, unknown>, ...children: Element[]) => ({
+        type,
+        props,
+        children,
+      }),
+    },
+    "RequestOwnedSnapshot",
+    "IdentityWorkspace",
     async () => new Headers(),
     async () => instance,
     (path: string) => {
       throw new Error(`Unexpected redirect ${path}`);
     },
-  ) as () => Promise<Snapshot>;
-  return read();
+  ) as () => Promise<Element>;
+  const rendered = await read();
+  expect(rendered.type).toBe("RequestOwnedSnapshot");
+  expect(rendered.props.scope).toEqual({
+    userId: "actor",
+    sessionId: "session",
+    tenantId: "org-active",
+    teamId: "team-active",
+  });
+  expect(rendered.children).toHaveLength(1);
+  const workspace = rendered.children[0]!;
+  expect(workspace.type).toBe("IdentityWorkspace");
+  return workspace.props.initialData as Snapshot;
 }
 
 interface QueryOptions {

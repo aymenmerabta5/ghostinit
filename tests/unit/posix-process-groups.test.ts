@@ -7,6 +7,7 @@ import {
 import { startPostgresJobsSupervisorContent } from "../../src/templates/adapters/jobs/scripts.js";
 import { productionProcessSupervisorContent } from "../../src/templates/root/process-supervisor.js";
 import { posixProcessGroupHelpersContent } from "../../src/templates/shared/posix-process-groups.js";
+import { cloudflareProcessHelpers } from "../../src/templates/root/cloudflare-process.js";
 
 function errno(code: string): Error & { code: string } {
   return Object.assign(new Error(`injected ${code}`), { code });
@@ -49,6 +50,59 @@ function generatedProcessGroupProtocol(
     readonly signal: SignalGroup;
   };
 }
+
+function cloudflareGroupProtocol(table: string, rejectInspection = false) {
+  const signals: number[] = [];
+  const protocol = new Function(
+    "process",
+    "spawnSync",
+    "existsSync",
+    `${cloudflareProcessHelpers()}\nreturn { exists: posixProcessGroupExists, terminate: terminateSupervisedProcessTree };`,
+  )(
+    {
+      platform: "darwin",
+      env: {},
+      kill: (target: number) => {
+        signals.push(target);
+        throw errno("EPERM");
+      },
+    },
+    () => ({ error: null, status: rejectInspection ? 1 : 0, signal: null, stdout: table }),
+    () => true,
+  ) as {
+    exists(pid: number): boolean;
+    terminate(
+      child: { pid: number; exitCode: number | null; signalCode: null },
+      completion: Promise<unknown>,
+    ): Promise<void>;
+  };
+  return { ...protocol, signals };
+}
+
+describe("Cloudflare macOS process state inspection", () => {
+  test("an unavailable unrelated task state does not invalidate the process table", async () => {
+    const protocol = cloudflareGroupProtocol("  101  101 ?\n  902  900 Z+\n");
+    expect(protocol.exists(900)).toBe(false);
+    await protocol.terminate({ pid: 900, exitCode: 0, signalCode: null }, Promise.resolve());
+    expect(protocol.signals).toEqual([]);
+  });
+
+  test("unavailable target task state remains live and cannot authorize cleanup", async () => {
+    const protocol = cloudflareGroupProtocol("  901  900 ?s\n");
+    expect(protocol.exists(900)).toBe(true);
+    await expect(
+      protocol.terminate({ pid: 900, exitCode: 0, signalCode: null }, Promise.resolve()),
+    ).rejects.toThrow("EPERM");
+    expect(protocol.signals).toEqual([-900]);
+  });
+
+  test("malformed identity columns and failed inspections cannot prove group absence", () => {
+    expect(() => cloudflareGroupProtocol("  901 invalid ?\n").exists(900)).toThrow(
+      "invalid identity",
+    );
+    expect(() => cloudflareGroupProtocol("", true).exists(900)).toThrow("Could not verify");
+  });
+});
 
 describe("fail-closed POSIX process groups", () => {
   test("discovers Linux group members from /proc stat without signaling", () => {

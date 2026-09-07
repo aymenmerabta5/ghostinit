@@ -18,7 +18,7 @@ const openApiHandler = new OpenAPIHandler(appRouter, {
   plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
 });
 
-export async function handleOpenApiOperation(request: Request): Promise<Response> {
+async function handleOpenApiOperation(request: Request): Promise<Response> {
   const requestBoundaryRejection = rejectUnsafeOrpcRequest(request);
   if (requestBoundaryRejection) return requestBoundaryRejection;
   const context = await createContext(request.headers);
@@ -58,7 +58,7 @@ export const DELETE = handleOpenApiOperation;
 }
 
 export function tanstackOpenApiOperationsServerContent(apiImport = "@repo/api"): string {
-  return openApiOperationsHandlerContent(apiImport);
+  return `${openApiOperationsHandlerContent(apiImport)}\nexport { handleOpenApiOperation };\n`;
 }
 
 export function tanstackOpenApiOperationsRouteContent(): string {

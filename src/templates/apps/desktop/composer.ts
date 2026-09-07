@@ -2,11 +2,6 @@ import type { AddonInstallerMap } from "../../../lib/addons.js";
 import { file, type TemplateFile } from "../../shared.js";
 import { desktopAnalyticsFile } from "../fragments/desktop-analytics.js";
 import {
-  desktopEmailFlowFiles,
-  desktopFullSettingsRouteContent,
-  desktopWorkspaceRouteContent,
-} from "../fragments/identity-workspace/index.js";
-import {
   desktopEveFiles,
   eveProtocolAcceptanceFile,
   eveProtocolFile,
@@ -18,7 +13,8 @@ import {
 } from "../fragments/query-auth.js";
 import { queryAuthRegressionFile } from "../fragments/query-auth-tests.js";
 import { authOwnedEffectFile } from "../fragments/auth-owned-effect.js";
-import { desktopAuthContent, desktopQueryClientContent } from "./clients.js";
+import { desktopQueryClientContent } from "./clients.js";
+import { desktopIdentityFiles } from "./identity-files.js";
 import { desktopApiTransportContent, desktopRendererFetchContent } from "./api-transport.js";
 import { desktopUiChatFiles } from "./ui/chat.js";
 import { desktopMainContent } from "./main.js";
@@ -35,15 +31,7 @@ import {
 } from "./routes/admin-users.js";
 import { desktopRouteBillingContent } from "./routes/billing.js";
 import { billingMoneyFile } from "../../billing/ui/money.js";
-import { desktopRouteSignInContent, desktopRouteSignUpContent } from "./routes/credentials.js";
-import { desktopRouteDashboardContent } from "./routes/dashboard.js";
-import {
-  desktopRouteForgotPasswordContent,
-  desktopRouteResetPasswordContent,
-} from "./routes/recovery.js";
 import { desktopRouteTreeGenContent } from "./routes/route-tree.js";
-import { desktopRouteSettingsContent } from "./routes/settings.js";
-import { desktopRouteTwoFactorContent } from "./routes/two-factor.js";
 import {
   desktopProvidersContent,
   desktopRendererCssContent,
@@ -51,7 +39,6 @@ import {
   desktopRendererMainContent,
   desktopRouteIndexContent,
   desktopRouteRootContent,
-  desktopUseAuthContent,
 } from "./shell/index.js";
 import {
   desktopThemeProviderContent,
@@ -226,67 +213,7 @@ export function desktopCoreFiles(
       queryAuthRegressionFile("apps/desktop", "../src/renderer/lib/query-client"),
     );
   }
-  if (capabilities.hasAuth) {
-    files.push(
-      file(
-        "apps/desktop/src/renderer/lib/auth.ts",
-        desktopAuthContent(hasConvexAuth, capabilities.hasAdmin, "monorepo", capabilities.hasEmail),
-      ),
-      file("apps/desktop/src/renderer/hooks/useAuth.ts", desktopUseAuthContent()),
-      file(
-        "apps/desktop/src/renderer/routes/dashboard.tsx",
-        desktopRouteDashboardContent(capabilities, "monorepo"),
-      ),
-      file(
-        "apps/desktop/src/renderer/routes/settings.tsx",
-        capabilities.hasApi
-          ? desktopFullSettingsRouteContent("monorepo", capabilities.hasI18n, capabilities.hasEmail)
-          : desktopRouteSettingsContent(
-              capabilities.hasBilling,
-              capabilities.hasEmail,
-              capabilities.hasI18n,
-              "monorepo",
-            ),
-      ),
-      file(
-        "apps/desktop/src/renderer/routes/sign-in.tsx",
-        desktopRouteSignInContent(capabilities.hasEmail, capabilities.hasI18n, "monorepo"),
-      ),
-      file(
-        "apps/desktop/src/renderer/routes/sign-up.tsx",
-        desktopRouteSignUpContent(capabilities.hasI18n, "monorepo", capabilities.hasEmail),
-      ),
-    );
-    if (capabilities.hasEmail) {
-      files.push(
-        file(
-          "apps/desktop/src/renderer/routes/2fa.tsx",
-          desktopRouteTwoFactorContent(capabilities.hasI18n, "monorepo"),
-        ),
-      );
-    }
-    if (capabilities.hasEmail) {
-      files.push(
-        file(
-          "apps/desktop/src/renderer/routes/forgot-password.tsx",
-          desktopRouteForgotPasswordContent(capabilities.hasI18n, "monorepo"),
-        ),
-        file(
-          "apps/desktop/src/renderer/routes/reset-password.tsx",
-          desktopRouteResetPasswordContent(capabilities.hasI18n, "monorepo"),
-        ),
-        ...desktopEmailFlowFiles("monorepo", capabilities.hasI18n),
-      );
-    }
-    if (capabilities.hasApi) {
-      files.push(
-        file(
-          "apps/desktop/src/renderer/routes/workspace.tsx",
-          desktopWorkspaceRouteContent("monorepo", capabilities.hasI18n),
-        ),
-      );
-    }
-  }
+  files.push(...desktopIdentityFiles(capabilities));
   if (capabilities.hasBilling || capabilities.hasNotifications) {
     files.push(authOwnedEffectFile("apps/desktop/src/renderer"));
   }

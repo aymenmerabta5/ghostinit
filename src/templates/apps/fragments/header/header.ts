@@ -124,13 +124,13 @@ export function Header(): React.JSX.Element {
   return (
     <header className="${sharedHeaderStructure.shellClass}">
       <div className="${sharedHeaderStructure.innerClass}">
-        <div className="flex items-center gap-6">
+        <div className="flex min-w-0 items-center gap-6">
           ${homeLink}
             <span className="text-sm font-semibold tracking-tight">GhostInit</span>
             <Badge variant="secondary" className="hidden sm:inline-flex">{t("productBadge")}</Badge>
           </Link>
           {isAuthenticated ? (
-            <nav className="hidden items-center gap-1 md:flex">
+            <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto xl:flex">
 ${navLinks}
             </nav>
           ) : null}

@@ -312,6 +312,41 @@ export interface RuntimeFixture {
   readonly script: string;
 }
 
+export function withFailureDiagnostics(fixture: RuntimeFixture): RuntimeFixture {
+  const entry = join(fixture.root, fixture.script);
+  const source = readFileSync(entry, "utf8")
+    .replace(
+      'throw new Error("Could not verify the POSIX process table");',
+      'throw new Error("Could not verify the POSIX process table: " + JSON.stringify({ status: result.status, signal: result.signal, code: result.error?.code, stderr: result.stderr }));',
+    )
+    .replace(
+      'throw new Error("POSIX process table contained an invalid identity");',
+      'throw new Error("POSIX process table contained an invalid identity: " + JSON.stringify(line));',
+    );
+  writeFileSync(
+    entry,
+    `import { realpathSync as fixtureRealpath } from "node:fs";
+const fixtureDiagnosticSeen = new Set();
+function fixtureErrorDetails(error) {
+  if (!error || typeof error !== "object" || fixtureDiagnosticSeen.has(error) || fixtureDiagnosticSeen.size >= 32) return [];
+  fixtureDiagnosticSeen.add(error);
+  return [
+    { name: error.name, message: error.message, code: error.code },
+    ...fixtureErrorDetails(error.cause),
+    ...(Array.isArray(error.errors) ? error.errors.flatMap(fixtureErrorDetails) : []),
+  ];
+}
+function fixtureFailure(error) {
+  console.error("Fixture error tree: " + JSON.stringify({ cwd: process.cwd(), realCwd: fixtureRealpath(process.cwd()), errors: fixtureErrorDetails(error) }));
+  process.exit(1);
+}
+process.once("uncaughtException", fixtureFailure);
+process.once("unhandledRejection", fixtureFailure);
+${source}`,
+  );
+  return fixture;
+}
+
 export function createWorkerFixture(options: WorkerFixtureOptions = {}): RuntimeFixture {
   const framework = options.framework ?? "nextjs";
   const plan = options.plan ?? cloudflarePlan({ framework });

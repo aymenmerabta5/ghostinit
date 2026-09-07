@@ -24,7 +24,7 @@ import { getRequestUser } from "@repo/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
 
-export const getCachedSession = cache(async () => {
+const getCachedSession = cache(async () => {
   const user = await getRequestUser(${isConvex ? "" : "await headers()"});
   return user ? { user } : null;
 });

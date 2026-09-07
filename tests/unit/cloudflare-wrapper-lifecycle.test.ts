@@ -3,7 +3,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   cloudflarePlan,
   createConvexFixture,
@@ -12,9 +11,13 @@ import {
   generatedContent,
   runFixture,
   testEnvironment,
+  withFailureDiagnostics,
   type RuntimeFixture,
 } from "../helpers/cloudflare-runtime-fixture.js";
-import { resolveWindowsSystemExecutable } from "../helpers/process-tree.js";
+import {
+  resolveWindowsSystemExecutable,
+  terminateProcessTree as terminateVerifiedProcessTree,
+} from "../helpers/process-tree.js";
 
 const fixtures: RuntimeFixture[] = [];
 const track = (fixture: RuntimeFixture): RuntimeFixture => (fixtures.push(fixture), fixture);
@@ -53,30 +56,6 @@ function startWrapper(fixture: RuntimeFixture, action: string, extra: NodeJS.Pro
     child.once("exit", resolveExit);
   });
   return { child, exited, output: () => output };
-}
-
-function withFailureDiagnostics(fixture: RuntimeFixture): RuntimeFixture {
-  const script = "fixture-error-diagnostics.mjs";
-  writeFileSync(
-    join(fixture.root, script),
-    `const seen = new Set();
-function details(error) {
-  if (!error || typeof error !== "object" || seen.has(error)) return [];
-  seen.add(error);
-  return [
-    { name: error.name, message: error.message, code: error.code },
-    ...details(error.cause),
-    ...(Array.isArray(error.errors) ? error.errors.flatMap(details) : []),
-  ];
-}
-try { await import(${JSON.stringify(pathToFileURL(join(fixture.root, fixture.script)).href)}); }
-catch (error) {
-  console.error("Fixture error tree: " + JSON.stringify(details(error)));
-  process.exitCode = 1;
-}
-`,
-  );
-  return { ...fixture, script };
 }
 
 function installDescendantAdapter(fixture: RuntimeFixture, packageName: "vite" | "convex") {
@@ -130,26 +109,55 @@ ${boundary}`,
 
 async function stopFixtureProcesses(fixture: RuntimeFixture, wrapper: ChildProcess) {
   const cwd = fixture.cwd ?? fixture.root;
-  for (const name of [".runtime-pid", ".descendant-pid"]) {
-    const path = join(cwd, name);
-    if (!existsSync(path)) continue;
-    const pid = Number(readFileSync(path, "utf8"));
-    if (!Number.isSafeInteger(pid) || pid <= 1 || !processIsLive(pid)) continue;
-    if (process.platform === "win32") {
-      spawnSync(resolveWindowsSystemExecutable("taskkill"), ["/PID", String(pid), "/T", "/F"], {
-        stdio: "ignore",
-        windowsHide: true,
-      });
-    } else {
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  let verified = false;
+  try {
+    if (process.platform === "win32" && wrapper.exitCode === null && wrapper.signalCode === null) {
+      // Include the wrapper's inspection subprocesses before deleting their working directory.
+      await terminateVerifiedProcessTree(wrapper);
+    }
+    for (const name of [".runtime-pid", ".descendant-pid"]) {
+      const path = join(cwd, name);
+      if (!existsSync(path)) continue;
+      const pid = Number(readFileSync(path, "utf8"));
+      if (!Number.isSafeInteger(pid) || pid <= 1 || !processIsLive(pid)) continue;
+      if (process.platform === "win32") {
+        const result = spawnSync(
+          resolveWindowsSystemExecutable("taskkill"),
+          ["/PID", String(pid), "/T", "/F"],
+          {
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 10_000,
+            windowsHide: true,
+          },
+        );
+        if (
+          result.error ||
+          result.signal !== null ||
+          result.status === null ||
+          (result.status !== 0 && processIsLive(pid))
+        ) {
+          throw new Error("Fixture process termination could not be verified for PID " + pid);
+        }
+        await waitUntil(() => !processIsLive(pid), 5_000);
+      } else {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
       }
     }
+    if (wrapper.exitCode === null && wrapper.signalCode === null) wrapper.kill("SIGKILL");
+    await waitUntil(() => wrapper.exitCode !== null || wrapper.signalCode !== null, 5_000);
+    verified = true;
+  } finally {
+    if (!verified) {
+      for (let index = fixtures.length - 1; index >= 0; index--) {
+        if (fixtures[index]?.root === fixture.root) fixtures.splice(index, 1);
+      }
+      console.error("Retained fixture after unverified process cleanup: " + fixture.root);
+    }
   }
-  if (wrapper.exitCode === null && wrapper.signalCode === null) wrapper.kill("SIGKILL");
-  await Bun.sleep(75);
 }
 
 describe("generated Worker process supervision", () => {
@@ -183,7 +191,9 @@ describe("generated Worker process supervision", () => {
     test.skipIf(process.platform === "win32")(
       `a parent-targeted SIGTERM stops the ${action} process group before releasing the lock`,
       async () => {
-        const fixture = track(createWorkerFixture({ framework: "tanstack-start" }));
+        const fixture = track(
+          withFailureDiagnostics(createWorkerFixture({ framework: "tanstack-start" })),
+        );
         installDescendantAdapter(fixture, "vite");
         const wrapper = startWrapper(fixture, action);
         const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
@@ -221,6 +231,7 @@ describe("generated Worker process supervision", () => {
       const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
       try {
         await waitUntil(() => existsSync(join(fixture.root, ".descendant-heartbeat")));
+        await waitUntil(() => Boolean(JSON.parse(readFileSync(lockPath, "utf8")).child?.createdAt));
         // Windows TerminateProcess bypasses JS handlers; no graceful cleanup is claimed.
         wrapper.child.kill("SIGTERM");
         await wrapper.exited;
@@ -412,16 +423,10 @@ setInterval(() => {
     const generated = generatedContent(plan, "scripts/cloudflare-convex.mjs");
     const boundary =
       '  writeFileSync(path, content, { encoding: "utf8", mode: 0o600, flag: "wx" });';
-    const instrumented = generated
-      .replace(boundary, '  throw new Error("injected recovery-marker write failure");')
-      .replace(
-        'throw new Error("Could not verify the POSIX process table");',
-        'throw new Error("Could not verify the POSIX process table: " + JSON.stringify({ status: result.status, signal: result.signal, code: result.error?.code, stderr: result.stderr }));',
-      )
-      .replace(
-        'throw new Error("POSIX process table contained an invalid identity");',
-        'throw new Error("POSIX process table contained an invalid identity: " + JSON.stringify(line));',
-      );
+    const instrumented = generated.replace(
+      boundary,
+      '  throw new Error("injected recovery-marker write failure");',
+    );
     expect(instrumented).not.toBe(generated);
     const fixture = track(
       withFailureDiagnostics(createConvexFixture(instrumented, "NEXT_PUBLIC_CONVEX_URL")),

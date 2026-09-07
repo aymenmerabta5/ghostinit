@@ -57,6 +57,7 @@ jobs:
           tests/unit/jobs-supervisor-portability.test.ts
           tests/unit/next-runtime-deployment.test.ts
           tests/unit/posix-process-groups.test.ts
+          tests/unit/cloudflare-process-inspection.test.ts
           tests/unit/process-tree.test.ts
           tests/unit/probe-process-identity.test.ts
           tests/unit/e2e-runtime-evidence.test.ts

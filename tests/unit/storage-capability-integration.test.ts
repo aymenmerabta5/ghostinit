@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -191,7 +191,7 @@ describe("standalone storage capability integration", () => {
     expect(files.has("scripts/typescript-worker-loader.mjs")).toBe(true);
   });
 
-  test("Node cleanup loaders resolve source-authored explicit JavaScript specifiers", () => {
+  test("Node cleanup loader and compiled runtime resolve source-authored explicit JavaScript specifiers", () => {
     const files = byPath(
       generateProjectFiles(
         projectConfigSchema.parse({
@@ -220,27 +220,52 @@ describe("standalone storage capability integration", () => {
         join(root, "entry.ts"),
         'import { value } from "./value.js"; console.log(value);\n',
       );
-      for (const [index, loaderPath] of [
-        "scripts/typescript-worker-loader.mjs",
-        "scripts/typescript-runtime-loader.mjs",
-      ].entries()) {
-        const loader = files.get(loaderPath);
-        if (!loader) throw new Error(`Missing generated loader: ${loaderPath}`);
-        const localLoader = join(root, `loader-${index}.mjs`);
-        writeFileSync(localLoader, loader);
-        const launched = spawnSync(
-          "node",
-          [
-            "--import",
-            pathToFileURL(localLoader).href,
-            "--experimental-strip-types",
-            join(root, "entry.ts"),
-          ],
-          { encoding: "utf8", cwd: root },
-        );
-        expect(launched.status, `${loaderPath}: ${launched.stderr}`).toBe(0);
-        expect(launched.stdout.trim()).toBe("42");
-      }
+      const loader = files.get("scripts/typescript-worker-loader.mjs");
+      const launcher = files.get("scripts/start-next-server.mjs");
+      if (!loader || !launcher) throw new Error("Generated Node execution support is incomplete");
+      const options = { encoding: "utf8" as const, cwd: root, timeout: 10_000, windowsHide: true };
+      const localLoader = join(root, "worker-loader.mjs");
+      writeFileSync(localLoader, loader);
+      const worker = spawnSync(
+        "node",
+        [
+          "--import",
+          pathToFileURL(localLoader).href,
+          "--experimental-strip-types",
+          join(root, "entry.ts"),
+        ],
+        options,
+      );
+      expect(worker.status, worker.stderr).toBe(0);
+      expect(worker.stdout.trim()).toBe("42");
+
+      mkdirSync(join(root, "apps/web"), { recursive: true });
+      mkdirSync(join(root, "scripts"));
+      const localLauncher = join(root, "scripts/start-next-server.mjs");
+      writeFileSync(localLauncher, launcher);
+      writeFileSync(
+        join(root, "apps/web/server.ts"),
+        'import { value } from "../../value.js"; console.log(JSON.stringify({ value, bun: "bun" in process.versions }));\n',
+      );
+      const built = spawnSync(
+        process.execPath,
+        ["--smol", localLauncher, "node", "build"],
+        options,
+      );
+      expect(built.status, built.stderr).toBe(0);
+      const artifactPath = join(
+        root,
+        "apps/web/.ghostinit/runtime/next-server-node-production.mjs",
+      );
+      const artifact = readFileSync(artifactPath, "utf8");
+      const started = spawnSync(
+        process.execPath,
+        ["--smol", localLauncher, "node", "start"],
+        options,
+      );
+      expect(started.status, started.stderr).toBe(0);
+      expect(JSON.parse(started.stdout)).toEqual({ value: 42, bun: false });
+      expect(readFileSync(artifactPath, "utf8")).toBe(artifact);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

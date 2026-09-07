@@ -17,9 +17,9 @@ export function eveSandboxFile(): TemplateFile {
 import { justbash } from "eve/sandbox/just-bash";
 import { vercel } from "eve/sandbox/vercel";
 
-export default defineSandbox({
-  backend: process.env.VERCEL ? vercel() : justbash({ autoInstall: false }),
-});
+export default process.env.VERCEL
+  ? defineSandbox({ backend: vercel() })
+  : defineSandbox({ backend: justbash({ autoInstall: false }) });
 `,
   );
 }

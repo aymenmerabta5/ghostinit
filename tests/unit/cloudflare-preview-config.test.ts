@@ -22,6 +22,7 @@ import {
   destroyFixture,
   runFixture,
   testEnvironment,
+  withFailureDiagnostics,
   type RuntimeFixture,
 } from "../helpers/cloudflare-runtime-fixture.js";
 
@@ -398,10 +399,12 @@ describe("generated preview wrapper metadata lifecycle", () => {
   for (const mode of ["single", "monorepo"] as const) {
     for (const direct of [false, true]) {
       test(`${mode} supports a ${direct ? "workspace" : "workspace-parent"} junction cwd`, () => {
-        const fixture = createWorkerFixture({
-          framework: "tanstack-start",
-          plan: cloudflarePlan({ framework: "tanstack-start", mode }),
-        });
+        const fixture = withFailureDiagnostics(
+          createWorkerFixture({
+            framework: "tanstack-start",
+            plan: cloudflarePlan({ framework: "tanstack-start", mode }),
+          }),
+        );
         fixtures.push(fixture);
         const aliasRoot = createTemporaryWorkspace("ghostinit-preview-metadata-alias-");
         roots.push(aliasRoot);
@@ -414,7 +417,7 @@ describe("generated preview wrapper metadata lifecycle", () => {
         const aliasedWorkspace = direct ? alias : join(alias, basename(fixture.root));
         const cwd = mode === "monorepo" ? join(aliasedWorkspace, "apps/web") : aliasedWorkspace;
         const result = runFixture({ ...fixture, cwd }, ["preview"]);
-        expect(result.status).toBe(0);
+        expect(result.status, result.stdout + result.stderr).toBe(0);
         const app = fixture.cwd ?? fixture.root;
         expect(
           JSON.parse(readFileSync(join(app, "dist/server/wrangler.json"), "utf8")).secrets,

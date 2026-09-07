@@ -8,6 +8,7 @@ import { z } from "zod";
 type Mode = "monorepo" | "single";
 
 const CLIENT_FILES = [
+  "convex-messages.tsx",
   "convex-messaging-data.ts",
   "convex-messaging-queries.ts",
   "convex-attachment-upload.ts",
@@ -133,6 +134,7 @@ describe("TanStack Convex web messaging attachments", () => {
       ]);
       expect(() => schemas.convexTypingListSchema!.parse([{ userId: 42 }])).toThrow();
       const route = content(byPath, `${root}src/routes/messages.tsx`);
+      const messagingPage = content(byPath, `${componentRoot}/convex-messages.tsx`);
       const thread = content(byPath, `${componentRoot}/convex-message-thread.tsx`);
       const queries = content(byPath, `${componentRoot}/convex-messaging-queries.ts`);
       expect(queries).toContain("const rawConversations: unknown = useQuery");
@@ -140,9 +142,15 @@ describe("TanStack Convex web messaging attachments", () => {
       expect(queries).toContain("convexConversationSchema.parse(await start");
       expect(queries).toContain("const rawMessages: unknown = useQuery");
       expect(queries).toContain("rawMessages === undefined ? undefined");
-      expect(route).toContain("useConvexConversations()");
+      expect(route).toContain('from "./-components/messages/convex-messages"');
+      expect(route).toContain("component: ConvexMessagesPage");
+      expect(route).toContain("requireProtectedRoute(context.queryClient)");
+      expect(route).toContain("loadInitialConversations(context)");
+      expect(route).not.toContain("React.useState");
+      expect(messagingPage).toContain("useConvexConversations()");
+      expect(messagingPage).toContain("messagingConversationsQueryKey(scope)");
       expect(thread).toContain("useConvexMessages(conversationId)");
-      expect(`${source}\n${queries}\n${route}\n${thread}`).not.toMatch(
+      expect(`${source}\n${queries}\n${route}\n${messagingPage}\n${thread}`).not.toMatch(
         /\bas any\b|@ts-(?:ignore|expect-error|nocheck)/,
       );
     });

@@ -159,7 +159,6 @@ export function singleHealthRouteContent(): string {
     "  await connection();",
     "  const response = NextResponse.json({",
     '    status: "ok",',
-    "    ok: true,",
     "    time: new Date().toISOString(),",
     "  });",
     '  response.headers.set("X-Content-Type-Options", "nosniff");',

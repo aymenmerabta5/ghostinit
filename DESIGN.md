@@ -273,6 +273,21 @@ renders nothing and adds no visible loading state; existing server pages retain
 their own request and Suspense boundaries. This keeps cookie/header-selected
 titles and descriptions without caching a request's locale globally.
 
+TanStack Convex messaging routes now own only authentication admission and
+parallel initial reads. The adjacent `-components/messages/convex-messages.tsx`
+owns the conversation controls, selection, empty/error states, and thread view.
+Both packaging modes use that same boundary and retain their existing layout
+and interaction behavior. Desktop authentication and workspace file composition
+also has a dedicated identity module; generated desktop routes are unchanged.
+
+The shared authenticated web header uses its account menu for navigation below
+the extra-large breakpoint. Inline navigation has a shrinkable scroll region for
+long translated labels, so it cannot push the locale, theme, and account controls
+outside the viewport. The existing destinations and role checks stay the same.
+Organization selectors stack the name above the slug and wrap long values within
+the card. These repairs address measured tablet header overflow and mobile
+workspace overflow while retaining the semantic colors, controls, and states.
+
 ### Single-project marketing
 
 Single Next.js and TanStack Start landing sections receive explicit resolved
