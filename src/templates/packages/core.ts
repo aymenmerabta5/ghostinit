@@ -85,22 +85,27 @@ export function corePackagesFiles(runtime: "node" | "bun" = "bun"): TemplateFile
     ),
     file(
       "packages/kernel/src/admin.ts",
-      `export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }\nexport interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; search: string; setSearch: (value: string) => void; page: number; setPage: (value: number) => void; limit: number; }\n`,
+      `export const USER_ROLES = ["user", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+  export interface AdminUser { id: string; authId?: string | null; name: string | null; email: string; role: UserRole; banned: boolean; }
+  export interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (authId: string, banned: boolean) => Promise<void>; setRole: (authId: string, currentRole: UserRole) => Promise<void>; }
+export function isUserRole(value: unknown): value is UserRole { return value === "user" || value === "admin"; }
+`,
     ),
     file(
       "packages/kernel/src/hooks.ts",
-      `export interface UseCopyReturn { copy: (text: string) => Promise<boolean>; copied: boolean; }\n`,
+      `export interface UseCopyReturn { copy: (text: string) => Promise<boolean>; copied: boolean; error: string | null; }\n`,
     ),
     file(
       "packages/kernel/src/index.ts",
-      `export * from "./result.js";\nexport type { BillingSubscription, UseBillingReturn } from "./billing.js";\nexport type { AdminUser, UseAdminUsersReturn } from "./admin.js";\nexport type { UseCopyReturn } from "./hooks.js";\n`,
+      `export * from "./result.js";\nexport type { BillingSubscription, UseBillingReturn } from "./billing.js";\nexport { USER_ROLES, isUserRole } from "./admin.js";\nexport type { AdminUser, UserRole, UseAdminUsersReturn } from "./admin.js";\nexport type { UseCopyReturn } from "./hooks.js";\n`,
     ),
     file(
       "packages/testing/package.json",
       packageJson({
         name: "@repo/testing",
         exports: { ".": "./src/index.ts" },
-        scripts: codeScripts({ test: runtime === "bun" ? "bun test" : "npm run test:unit" }),
+        scripts: codeScripts({ test: "bun test" }),
         devDependencies: {
           // Must match the tsconfig `types` below, or TS2688.
           ...(runtime === "bun"

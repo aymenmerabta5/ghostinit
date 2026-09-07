@@ -1,79 +1,171 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function settingsSessionsCard(): TemplateFile {
-  return file(
-    "apps/web/src/app/settings/components/sessions-card.tsx",
-    `"use client";
+
+export function settingsSessionsListContent(): string {
+  return `"use client";
 import * as React from "react";
-import { useEffect, useState, useCallback } from "react";
-import { authClient } from "../../../lib/auth-client.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-type Session = { id: string; ipAddress?: string | null; userAgent?: string | null; createdAt: string; expiresAt: string; isCurrent?: boolean };
-export function SessionsCard(): React.JSX.Element {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const refresh = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const res = await (authClient as unknown as { listSessions: () => Promise<{ data?: Session[]; error?: { message?: string } }> }).listSessions?.();
-      if (res?.error) { setError(res.error.message ?? "Failed to load sessions"); return; }
-      if (res?.data) setSessions(res.data as Session[]);
-      else {
-        // fallback to useSession + single session view
-        const { data: sess } = authClient.useSession() as unknown as { data: { session?: { id: string; ipAddress?: string; userAgent?: string; createdAt: string; expiresAt: string } } | null };
-        if (sess?.session) setSessions([{ id: sess.session.id, ipAddress: sess.session.ipAddress ?? null, userAgent: sess.session.userAgent ?? null, createdAt: String(sess.session.createdAt), expiresAt: String(sess.session.expiresAt), isCurrent: true }]);
-      }
-    } catch (e) { setError(e instanceof Error ? e.message : "Failed to load"); } finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
-  const revoke = useCallback(async (id: string) => {
-    setError(null);
-    const res = await (authClient as unknown as { revokeSession: (opts:{id:string})=>Promise<{error?:{message?:string}}> }).revokeSession?.({ id });
-    if (res?.error) { setError(res.error.message ?? "Failed to revoke"); return; }
-    await refresh();
-  }, [refresh]);
-  const revokeAll = useCallback(async () => {
-    const res = await (authClient as unknown as { revokeSessions: ()=>Promise<{error?:{message?:string}}> }).revokeSessions?.();
-    if (res?.error) setError(res.error.message ?? "Failed"); else await refresh();
-  }, [refresh]);
+import { useSurfaceLocale, useSurfaceTranslations } from "@/lib/translations";
+
+export interface IdentitySessionItem {
+  id: string;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  expiresAt: string | number | Date;
+}
+
+interface SessionListProps {
+  currentSessionId?: string;
+  isLoading: boolean;
+  pendingSessionId?: string;
+  sessions: IdentitySessionItem[];
+  onRevoke: (sessionId: string) => void;
+}
+
+export function SessionList({
+  currentSessionId,
+  isLoading,
+  pendingSessionId,
+  sessions,
+  onRevoke,
+}: SessionListProps): React.JSX.Element {
+  const t = useSurfaceTranslations("settings");
+  const locale = useSurfaceLocale();
+  const dateFormatter = React.useMemo(
+    () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
+    [locale],
+  );
+  if (isLoading) return <div className="flex flex-col gap-2" aria-busy="true" aria-label={t("sessions.loading")}>
+    {Array.from({ length: 3 }).map((_, index) => <div key={index} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3.5 w-16" /></div>)}
+  </div>;
+  if (sessions.length === 0) return <p className="text-sm text-muted-foreground">{t("sessions.empty")}</p>;
+  return <div className="flex flex-col gap-2">{sessions.map((session) => {
+    const isCurrent = session.id === currentSessionId;
+    const isRevoking = pendingSessionId === session.id;
+    return <div key={session.id} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="truncate font-mono text-xs">{session.id.slice(0, 8)}…{session.userAgent ?? t("sessions.unknownDevice")}</span>
+        <span className="text-xs text-muted-foreground">{session.ipAddress ?? t("sessions.unknownIp")} • {t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {isCurrent ? <Badge variant="secondary">{t("sessions.current")}</Badge> : null}
+        <Button size="sm" variant="outline" disabled={isCurrent || isRevoking} onClick={() => onRevoke(session.id)}>{isRevoking ? t("sessions.revoking") : t("sessions.revoke")}</Button>
+      </div>
+    </div>;
+  })}</div>;
+}
+`;
+}
+
+export function settingsSessionsCardContent(useServerActions = false): string {
+  const actionImport = useServerActions
+    ? 'import { revokeIdentitySessionAction, revokeOtherIdentitySessionsAction } from "../actions";'
+    : "";
+  const revokeSessionOptions = useServerActions
+    ? `return { mutationFn: async (input: { sessionId: string }) => {
+    const result = await revokeIdentitySessionAction(input);
+    if (!result.ok) throw new Error(result.error);
+    return result;
+  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
+    : `return orpc.identity.sessions.revoke.mutationOptions({
+    onSuccess: async () => invalidateIdentitySessions(queryClient),
+  });`;
+  const revokeOthersOptions = useServerActions
+    ? `return { mutationFn: async (_input: Record<string, never>) => {
+    const result = await revokeOtherIdentitySessionsAction();
+    if (!result.ok) throw new Error(result.error);
+    return result;
+  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
+    : `return orpc.identity.sessions.revokeOthers.mutationOptions({
+    onSuccess: async () => invalidateIdentitySessions(queryClient),
+  });`;
+  return `"use client";
+import type * as React from "react";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { identityClient } from "@/lib/auth-client";
+import { orpc } from "@/lib/orpc";
+import { useSurfaceTranslations } from "@/lib/translations";
+import { SessionList } from "./session-list";
+${actionImport}
+
+export interface IdentitySessionInitialData {
+  id: string; userId: string; createdAt: string; authenticatedAt: string; expiresAt: string;
+  revokedAt: string | null; activeOrganizationId?: string | null; activeTeamId?: string | null;
+  ipAddress?: string | null; userAgent?: string | null;
+}
+
+export function identitySessionsQueryOptions(initialData?: IdentitySessionInitialData[]) {
+  return orpc.identity.sessions.list.queryOptions({ input: {}, initialData });
+}
+
+export function identitySessionsQueryKey() {
+  return orpc.identity.sessions.list.key({ type: "query" });
+}
+
+async function invalidateIdentitySessions(queryClient: QueryClient): Promise<void> {
+  await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey() });
+}
+
+export function revokeIdentitySessionMutationOptions(queryClient: QueryClient) {
+  ${revokeSessionOptions}
+}
+
+export function revokeOtherIdentitySessionsMutationOptions(queryClient: QueryClient) {
+  ${revokeOthersOptions}
+}
+
+export function SessionsCard({ initialSessions }: { initialSessions?: IdentitySessionInitialData[] }): React.JSX.Element {
+  const t = useSurfaceTranslations("settings");
+  const queryClient = useQueryClient();
+  const sessionsQuery = useQuery(identitySessionsQueryOptions(initialSessions));
+  const revokeSession = useMutation(revokeIdentitySessionMutationOptions(queryClient));
+  const revokeOthers = useMutation(revokeOtherIdentitySessionsMutationOptions(queryClient));
+  const { data: currentSession } = identityClient.useSession();
+  const sessions = (sessionsQuery.data ?? []).filter((session) => session.revokedAt === null);
+  const operationError = sessionsQuery.error ?? revokeSession.error ?? revokeOthers.error;
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">Active sessions</CardTitle><Badge variant="secondary">{sessions.length}</Badge></div>
-        <CardDescription className="max-w-[60ch]">Manage your active sessions. Revoke any session you don&apos;t recognize. Current session is highlighted.</CardDescription>
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{t("sessions.title")}</CardTitle><Badge variant="secondary">{sessions.length}</Badge></div>
+        <CardDescription className="max-w-[60ch]">{t("sessions.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {error ? <Alert variant="destructive"><AlertTitle>Sessions</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+        {operationError ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{operationError instanceof Error ? operationError.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={loading}>{loading ? "Loading…" : "Refresh"}</Button>
-          <Button size="sm" variant="destructive" onClick={() => void revokeAll()} disabled={sessions.length<=1}>Revoke others</Button>
+          <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()} disabled={sessionsQuery.isFetching}>{sessionsQuery.isFetching ? t("sessions.loading") : t("sessions.refresh")}</Button>
+          <Button size="sm" variant="destructive" onClick={() => revokeOthers.mutate({})} disabled={sessions.length <= 1 || revokeOthers.isPending}>{revokeOthers.isPending ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
         </div>
         <Separator />
-        {loading ? <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading sessions">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3.5 w-16" /></div>)}</div> : sessions.length===0 ? <p className="text-sm text-muted-foreground">No other active sessions — this device only.</p> : (
-          <div className="flex flex-col gap-2">
-            {sessions.map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2">
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span className="font-mono text-xs truncate">{s.id.slice(0,8)}…{s.userAgent ?? "unknown device"}</span>
-                  <span className="text-xs text-muted-foreground">{s.ipAddress ?? "no ip"} • expires {new Date(s.expiresAt).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {s.isCurrent ? <Badge variant="secondary">current</Badge> : null}
-                  <Button size="sm" variant="outline" disabled={!!s.isCurrent} onClick={() => void revoke(s.id)}>Revoke</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <SessionList
+          currentSessionId={currentSession?.session.id}
+          isLoading={sessionsQuery.isPending}
+          pendingSessionId={revokeSession.isPending ? revokeSession.variables?.sessionId : undefined}
+          sessions={sessions}
+          onRevoke={(sessionId) => revokeSession.mutate({ sessionId })}
+        />
       </CardContent>
     </Card>
   );
 }
-`,
+`;
+}
+
+export function settingsSessionsCard(useServerActions = false): TemplateFile {
+  return file(
+    "apps/web/src/app/settings/components/sessions-card.tsx",
+    settingsSessionsCardContent(useServerActions),
+  );
+}
+
+export function settingsSessionsList(): TemplateFile {
+  return file(
+    "apps/web/src/app/settings/components/session-list.tsx",
+    settingsSessionsListContent(),
   );
 }

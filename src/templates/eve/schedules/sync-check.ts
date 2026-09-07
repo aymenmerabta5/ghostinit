@@ -16,7 +16,7 @@ Hourly 0 * * * * UTC.
 
 export function scheduleSyncCheckExample(): TemplateFile {
   return file(
-    "apps/eve/agent/schedules/sync-check.example.ts",
+    "apps/eve/examples/schedules/sync-check.ts",
     `import { defineSchedule } from "eve/schedules";
 export default defineSchedule({ cron: "0 * * * *", markdown: "Run ghostinit sync --check in parent project root and report drift." });
 `,

@@ -1,6 +1,6 @@
 import type { ProjectMode } from "../../lib/addons.js";
 
-export function integrationsAuthContent(mode: ProjectMode): string {
+export function integrationsAuthContent(mode: ProjectMode, worker = false): string {
   const serverImport = mode === "monorepo" ? "../server/posthog-server.js" : "../posthog-server.js";
   const typesImport = mode === "monorepo" ? "../types.js" : "../types.js";
   return `import { capture, identify, alias } from "${serverImport}";
@@ -14,7 +14,7 @@ export interface TrackAuthEvent {
   traits?: UserTraits;
 }
 
-export function trackSignedUp(input: TrackAuthEvent): void {
+export ${worker ? "async " : ""}function trackSignedUp(input: TrackAuthEvent): ${worker ? "Promise<void>" : "void"} {
   const distinctId = input.userId;
   const props = {
     email: input.email,
@@ -25,48 +25,48 @@ export function trackSignedUp(input: TrackAuthEvent): void {
       ...input.traits,
     } as Record<string, unknown>,
   };
-  capture({ distinctId, event: "signed_up", properties: props });
-  identify({ distinctId, properties: { email: input.email, name: input.name, ...input.traits } });
+  ${worker ? "await " : ""}capture({ distinctId, event: "signed_up", properties: props });
+  ${worker ? "await " : ""}identify({ distinctId, properties: { email: input.email, name: input.name, ...input.traits } });
 }
 
-export function trackSignedIn(input: TrackAuthEvent): void {
-  capture({
+export ${worker ? "async " : ""}function trackSignedIn(input: TrackAuthEvent): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "signed_in",
     properties: { method: input.method ?? "email", email: input.email },
   });
   if (input.email || input.name) {
-    identify({
+    ${worker ? "await " : ""}identify({
       distinctId: input.userId,
       properties: { email: input.email, name: input.name, ...input.traits },
     });
   }
 }
 
-export function trackSignedOut(input: { userId: string }): void {
-  capture({ distinctId: input.userId, event: "signed_out" });
+export ${worker ? "async " : ""}function trackSignedOut(input: { userId: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({ distinctId: input.userId, event: "signed_out" });
 }
 
-export function trackOnboardingStarted(input: { userId: string; step?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackOnboardingStarted(input: { userId: string; step?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "onboarding_started",
     properties: { step: input.step ?? "start" },
   });
 }
 
-export function trackOnboardingCompleted(input: { userId: string; durationMs?: number }): void {
-  capture({
+export ${worker ? "async " : ""}function trackOnboardingCompleted(input: { userId: string; durationMs?: number }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "onboarding_completed",
     properties: { durationMs: input.durationMs },
   });
 }
 
-export function linkAnonymousToUser(opts: { anonymousId: string; userId: string }): void {
+export ${worker ? "async " : ""}function linkAnonymousToUser(opts: { anonymousId: string; userId: string }): ${worker ? "Promise<void>" : "void"} {
   try {
-    alias({ distinctId: opts.userId, alias: opts.anonymousId });
-  } catch {}
+    ${worker ? "await " : ""}alias({ distinctId: opts.userId, alias: opts.anonymousId });
+  } catch {${worker ? ' throw new Error("Analytics operation failed"); ' : ""}}
 }
 
 export const authAnalytics = {
@@ -80,7 +80,7 @@ export const authAnalytics = {
 `;
 }
 
-export function integrationsBillingContent(mode: ProjectMode): string {
+export function integrationsBillingContent(mode: ProjectMode, worker = false): string {
   const serverImport = mode === "monorepo" ? "../server/posthog-server.js" : "../posthog-server.js";
   return `import { capture, groupIdentify } from "${serverImport}";
 
@@ -95,8 +95,8 @@ export interface BillingTrackInput {
   metadata?: Record<string, unknown>;
 }
 
-export function trackCheckoutStarted(input: BillingTrackInput): void {
-  capture({
+export ${worker ? "async " : ""}function trackCheckoutStarted(input: BillingTrackInput): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "checkout_started",
     properties: {
@@ -111,8 +111,8 @@ export function trackCheckoutStarted(input: BillingTrackInput): void {
   });
 }
 
-export function trackCheckoutCompleted(input: BillingTrackInput & { checkoutId?: string; subscriptionId?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackCheckoutCompleted(input: BillingTrackInput & { checkoutId?: string; subscriptionId?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "checkout_completed",
     properties: {
@@ -129,7 +129,7 @@ export function trackCheckoutCompleted(input: BillingTrackInput & { checkoutId?:
   });
 
   if (input.organizationId) {
-    groupIdentify({
+    ${worker ? "await " : ""}groupIdentify({
       groupType: "organization",
       groupKey: input.organizationId,
       properties: { plan: input.plan, billing_provider: input.provider },
@@ -137,8 +137,8 @@ export function trackCheckoutCompleted(input: BillingTrackInput & { checkoutId?:
   }
 }
 
-export function trackCheckoutFailed(input: BillingTrackInput & { reason?: string; code?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackCheckoutFailed(input: BillingTrackInput & { reason?: string; code?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "checkout_failed",
     properties: {
@@ -152,8 +152,8 @@ export function trackCheckoutFailed(input: BillingTrackInput & { reason?: string
   });
 }
 
-export function trackSubscriptionCreated(input: BillingTrackInput & { subscriptionId: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackSubscriptionCreated(input: BillingTrackInput & { subscriptionId: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "subscription_created",
     properties: {
@@ -167,8 +167,8 @@ export function trackSubscriptionCreated(input: BillingTrackInput & { subscripti
   });
 }
 
-export function trackSubscriptionUpdated(input: BillingTrackInput & { subscriptionId: string; previousPlan?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackSubscriptionUpdated(input: BillingTrackInput & { subscriptionId: string; previousPlan?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "subscription_updated",
     properties: {
@@ -182,8 +182,8 @@ export function trackSubscriptionUpdated(input: BillingTrackInput & { subscripti
   });
 }
 
-export function trackSubscriptionCanceled(input: BillingTrackInput & { subscriptionId: string; reason?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackSubscriptionCanceled(input: BillingTrackInput & { subscriptionId: string; reason?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "subscription_canceled",
     properties: {
@@ -197,8 +197,8 @@ export function trackSubscriptionCanceled(input: BillingTrackInput & { subscript
   });
 }
 
-export function trackPaymentSucceeded(input: BillingTrackInput & { invoiceId?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackPaymentSucceeded(input: BillingTrackInput & { invoiceId?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "payment_succeeded",
     properties: {
@@ -212,8 +212,8 @@ export function trackPaymentSucceeded(input: BillingTrackInput & { invoiceId?: s
   });
 }
 
-export function trackPaymentFailed(input: BillingTrackInput & { invoiceId?: string; reason?: string }): void {
-  capture({
+export ${worker ? "async " : ""}function trackPaymentFailed(input: BillingTrackInput & { invoiceId?: string; reason?: string }): ${worker ? "Promise<void>" : "void"} {
+  ${worker ? "await " : ""}capture({
     distinctId: input.userId,
     event: "payment_failed",
     properties: {

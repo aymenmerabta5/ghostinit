@@ -6,6 +6,7 @@ export function clientComponentsContent(mode: ProjectMode): string {
   return `"use client";
 
 import React, { useEffect, useState } from "react";
+import { Button as BaseButton } from "@base-ui/react/button";
 import {
   useFeatureFlag,
   useExperiment,
@@ -87,6 +88,7 @@ export function ExperimentGate({
 
 export function PostHogToolbar() {
   const [show, setShow] = useState(false);
+  const posthog = usePostHog();
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
     try {
@@ -101,23 +103,18 @@ export function PostHogToolbar() {
   if (process.env.NODE_ENV === "production") return null;
 
   return (
-    <div className="fixed bottom-3 right-3 z-[9999] rounded-lg bg-primary px-2.5 py-1.5 font-mono text-[11px] text-primary-foreground shadow-lg">
-      PostHog Debug —{" "}
-      <a
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          try {
-            const c = (window as unknown as { posthog?: { debug?: (v: boolean) => void; getFeatureFlags?: () => Record<string, string | boolean>; opt_in_capturing?: () => void; opt_out_capturing?: () => void; get_distinct_id?: () => string } }).posthog;
-            c?.debug?.(true);
-            // [analytics] flags logged via debug only in dev - avoid console.log in prod
-          } catch {}
-        }}
-        className="text-primary-foreground underline underline-offset-2 hover:opacity-80"
-      >
-        debug
-      </a>
-    </div>
+    <BaseButton
+      type="button"
+      onClick={() => {
+        try {
+          posthog?.debug(true);
+          // [analytics] flags logged via debug only in dev - avoid console.log in prod
+        } catch {}
+      }}
+      className="fixed bottom-3 end-3 rounded-md bg-primary px-3 py-2 font-mono text-xs text-primary-foreground shadow-lg"
+    >
+      PostHog Debug
+    </BaseButton>
   );
 }
 
@@ -135,6 +132,7 @@ export function ConsentBanner({
   description = "We use PostHog to improve your experience. You can opt-out of analytics tracking.",
 }: ConsentBannerProps) {
   const [visible, setVisible] = useState(false);
+  const posthog = usePostHog();
 
   useEffect(() => {
     try {
@@ -148,13 +146,14 @@ export function ConsentBanner({
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[10000] flex items-center justify-between gap-3 border-t border-border bg-background p-4 shadow-lg">
+    <aside aria-label="Analytics consent" className="fixed inset-x-0 bottom-0 flex items-center justify-between gap-3 border-t border-border bg-background p-4 shadow-lg">
       <div>
         <div className="text-sm font-semibold text-foreground">{title}</div>
         <div className="mt-1 text-[13px] text-muted-foreground">{description}</div>
       </div>
       <div className="flex gap-2">
-        <button
+        <BaseButton
+          type="button"
           onClick={() => {
             try {
               optIn(["analytics"]);
@@ -169,7 +168,7 @@ export function ConsentBanner({
                     timestamp: new Date().toISOString(),
                   }),
                 );
-                (window as unknown as { posthog?: { opt_in_capturing?: () => void } }).posthog?.opt_in_capturing?.();
+                posthog?.opt_in_capturing();
               } catch {}
             }
             setVisible(false);
@@ -178,8 +177,9 @@ export function ConsentBanner({
           className="cursor-pointer rounded-lg bg-primary px-3.5 py-2 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Accept
-        </button>
-        <button
+        </BaseButton>
+        <BaseButton
+          type="button"
           onClick={() => {
             try {
               optOut(["analytics", "marketing"]);
@@ -194,7 +194,7 @@ export function ConsentBanner({
                     timestamp: new Date().toISOString(),
                   }),
                 );
-                (window as unknown as { posthog?: { opt_out_capturing?: () => void } }).posthog?.opt_out_capturing?.();
+                posthog?.opt_out_capturing();
               } catch {}
             }
             setVisible(false);
@@ -203,9 +203,9 @@ export function ConsentBanner({
           className="cursor-pointer rounded-lg bg-muted px-3.5 py-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Decline
-        </button>
+        </BaseButton>
       </div>
-    </div>
+    </aside>
   );
 }
 
@@ -217,7 +217,7 @@ export function FeatureFlagsDebug() {
 
   return (
     <pre className="max-h-[200px] overflow-auto rounded-lg border border-border bg-muted p-2 font-mono text-[11px] text-foreground">
-      {JSON.stringify({ flags, distinctId: (posthog as unknown as { get_distinct_id?: () => string })?.get_distinct_id?.() }, null, 2)}
+      {JSON.stringify({ flags, distinctId: posthog?.get_distinct_id() }, null, 2)}
     </pre>
   );
 }

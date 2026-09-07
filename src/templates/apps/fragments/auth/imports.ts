@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";`,
   field: `import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";`,
-  form: `import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";`,
+  form: `import { Form, useAppForm } from "@/components/ui/form";`,
 };
 
 export function routerImports(router: RouterType): string {

@@ -1,8 +1,10 @@
 export {
   securityHeaders,
+  cacheComponentsConfigBlock,
   nextConfigHeadersFunction,
   transpilePackagesList,
   posthogRewritesBlock,
+  tanstackSecurityPolicyDeclaration,
   viteSecurityHeaders,
 } from "./security.js";
 export { postcssConfigContent } from "./config.js";

@@ -14,4 +14,12 @@ export {
 } from "./validation.js";
 export { CLI_OPTIONS, parseRawArgs, parseCreateSpecific, buildGlobalOptions } from "./args.js";
 export type { ParsedCli, CreateParsed } from "./args.js";
+export {
+  CLI_OPTION_NAMES,
+  COMMAND_NAMES,
+  COMMAND_SPECS,
+  isCommandName,
+  isOptionApplicable,
+} from "./spec.js";
+export type { CliOptionName, CommandSpec } from "./spec.js";
 export { main } from "./main.js";

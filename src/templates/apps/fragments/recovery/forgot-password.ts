@@ -2,133 +2,100 @@ import { file, type TemplateFile } from "../../../shared.js";
 
 export type RouterType = "next" | "tanstack";
 
-const nextContent = `"use client";
-import * as React from "react";
+export function forgotPasswordPageContent(router: RouterType = "next"): string {
+  const isTanstack = router === "tanstack";
+  const imports = isTanstack
+    ? `"use client";
+import type * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Form, useAppForm } from "@/components/ui/form";
+import { createEmailSchema, identityClient } from "@/lib/auth-client";
+import { useSurfaceTranslations } from "@/lib/translations";
+
+export const Route = createFileRoute("/forgot-password")({ component: ForgotPasswordPage });`
+    : `"use client";
+import type * as React from "react";
 import Link from "next/link";
 import { useState } from "react";
-import { authClient } from "../../lib/auth-client.js";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
-interface ForgotPasswordForm { email: string; }
-export default function ForgotPasswordPage(): React.JSX.Element {
-  const [status, setStatus] = useState<string | null>(null);
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Form, useAppForm } from "@/components/ui/form";
+import { createEmailSchema, identityClient } from "@/lib/auth-client";
+import { useSurfaceTranslations } from "@/lib/translations";`;
+  const backHome = isTanstack
+    ? `<Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("forgotPassword.backHome")}</Link>`
+    : `<Link href="/" className="text-sm text-muted-foreground hover:text-foreground">← {t("forgotPassword.backHome")}</Link>`;
+  const footer = isTanstack
+    ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("forgotPassword.backSignIn")}</Link><Link to="/sign-up" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("forgotPassword.createAccount")}</Link>`
+    : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("forgotPassword.backSignIn")}</Link><Link href="/sign-up" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("forgotPassword.createAccount")}</Link>`;
+
+  return `${imports}
+
+${isTanstack ? "function" : "export default function"} ForgotPasswordPage(): React.JSX.Element {
+  const t = useSurfaceTranslations("recovery");
+  const authT = useSurfaceTranslations("auth");
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const form = useForm({
-    defaultValues: { email: "" } as ForgotPasswordForm,
+  const form = useAppForm({
+    defaultValues: { email: "" },
+    validators: { onSubmit: createEmailSchema(authT("validation.invalidEmail")) },
     onSubmit: async ({ value }) => {
-      setError(null); setStatus(null);
-      if (!value.email.includes("@")) { setError("Enter a valid email that contains @"); return; }
-      const result = await authClient.requestPasswordReset({ email: value.email, redirectTo: "/reset-password" });
-      if (result.error) { setError(result.error.message ?? "Failed to send reset link"); return; }
-      setStatus("If this email exists in our system, check your inbox for the reset link.");
+      setError(null);
+      setSuccess(false);
+      const result = await identityClient.requestPasswordReset({
+        email: value.email,
+        redirectTo: "/reset-password",
+      });
+      if (result.error) {
+        setError(t("forgotPassword.genericError"));
+        return;
+      }
+      setSuccess(true);
+      form.reset();
     },
   });
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-background">
-      <div className="w-full max-w-[420px] flex flex-col gap-8">
-        <div className="flex flex-col gap-2"><Link href="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link></div>
-        <Card><CardHeader><CardTitle>Forgot password</CardTitle><CardDescription>Enter your email and we will send you a link to reset your password. The link expires in 1 hour and can only be used once.</CardDescription></CardHeader>
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="flex w-full max-w-[420px] flex-col gap-6">
+        ${backHome}
+        <Card>
+          <CardHeader className="gap-2">
+            <CardTitle className="text-2xl tracking-tight">{t("forgotPassword.title")}</CardTitle>
+            <CardDescription className="max-w-[60ch]">{t("forgotPassword.description")}</CardDescription>
+          </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            {error ? <Alert variant="destructive"><AlertTitle>Unable to send link</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-            {status ? <Alert><AlertTitle>Check your email</AlertTitle><AlertDescription>{status}</AlertDescription></Alert> : null}
-            <Form form={form} className="flex flex-col gap-6">
-              <FieldGroup><TanStackField form={form} name="email" validators={{ onSubmit: ({ value }) => (value.includes("@") ? undefined : "Enter a valid email") }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription> : <FieldDescription>We send a reset link to this address if it exists in our system.</FieldDescription>}</Field>)}</TanStackField></FieldGroup>
-              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
-              </form.Subscribe>
-            </Form>
+            {error ? <Alert variant="destructive"><AlertTitle>{t("forgotPassword.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+            {success ? <Alert><AlertTitle>{t("forgotPassword.successTitle")}</AlertTitle><AlertDescription>{t("forgotPassword.successMessage")}</AlertDescription></Alert> : null}
+            <form.AppForm>
+              <Form form={form} className="flex flex-col gap-6">
+                <FieldGroup>
+                  <form.AppField name="email">
+                    {(field) => <field.TextField type="email" label={t("forgotPassword.emailLabel")} description={t("forgotPassword.emailDescription")} placeholder={t("forgotPassword.emailPlaceholder")} autoComplete="email" required />}
+                  </form.AppField>
+                </FieldGroup>
+                <form.SubmitButton className="w-full" pendingLabel={t("forgotPassword.submitting")}>{t("forgotPassword.submit")}</form.SubmitButton>
+              </Form>
+            </form.AppForm>
           </CardContent>
-          <CardFooter className="flex flex-col gap-3"><div className="flex w-full justify-between text-sm"><Link href="/sign-in" className="text-muted-foreground hover:text-foreground underline underline-offset-4">Back to sign in</Link><Link href="/sign-up" className="text-muted-foreground hover:text-foreground underline underline-offset-4">Create account</Link></div></CardFooter>
+          <CardFooter className="flex-col gap-3"><div className="flex w-full justify-between text-sm">${footer}</div></CardFooter>
         </Card>
       </div>
     </main>
   );
 }
 `;
-
-const tanstackContent = `"use client"
-import * as React from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState } from 'react'
-import { z } from "zod";
-import { authClient } from '../lib/auth-client.js'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
-import { Form, Field as TanStackField, SubmitButton, useForm } from "@/components/ui/form";
-
-const forgotPasswordSchema = z.object({ email: z.string().email("Enter a valid email") });
-
-interface ForgotPasswordForm { email: string; }
-
-export const Route = createFileRoute('/forgot-password')({
-  component: ForgotPasswordPage,
-})
-
-function ForgotPasswordPage(): React.JSX.Element {
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const form = useForm({
-    defaultValues: { email: "" } as ForgotPasswordForm,
-    validators: {
-      onSubmit: ({ value }) => {
-        const parsed = forgotPasswordSchema.safeParse(value);
-        if (!parsed.success) return parsed.error.issues[0]?.message ?? "Enter a valid email";
-        return undefined;
-      },
-    },
-    onSubmit: async ({ value }) => {
-      setError(null); setSuccess(null);
-      // Server-side validation via zod (mirrors better-auth server schema)
-      const parsed = forgotPasswordSchema.safeParse(value);
-      if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Enter a valid email"); return; }
-      const result = await authClient.requestPasswordReset({ email: parsed.data.email, redirectTo: '/reset-password' })
-      if (result.error) { setError(result.error.message ?? 'Failed to send reset email'); return; }
-      setSuccess('Check your email for a password reset link.')
-    },
-  })
-
-  return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-background">
-      <div className="w-full max-w-[420px] flex flex-col gap-6">
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back to home</Link>
-        <Card>
-          <CardHeader className="gap-2">
-            <CardTitle className="text-2xl tracking-tight">Forgot password</CardTitle>
-            <CardDescription className="max-w-[60ch]">Enter your email to receive a reset link.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-6">
-            {error ? <Alert variant="destructive"><AlertTitle>Unable to send</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-            {success ? <Alert><AlertTitle>Check your email</AlertTitle><AlertDescription>{success}</AlertDescription></Alert> : null}
-            <Form form={form} className="flex flex-col gap-6">
-              <FieldGroup>
-                <TanStackField form={form} name="email" validators={{ onChange: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined), onSubmit: ({ value }) => (!/\\S+@\\S+\\.\\S+/.test(value) ? "Enter a valid email" : undefined) }}>
-                  {(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor="forgot-email">Email</FieldLabel><Input id="forgot-email" name={field.name} type="email" placeholder="you@example.com" autoComplete="email" required aria-invalid={field.state.meta.errors.length > 0} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className="text-destructive">{field.state.meta.errors.join(", ")}</FieldDescription>) : (<FieldDescription>We will send a reset link to this address.</FieldDescription>)}</Field>)}
-                </TanStackField>
-              </FieldGroup>
-              <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-                {([canSubmit, isSubmitting]) => (<SubmitButton className="w-full" disabled={!canSubmit} isPending={isSubmitting}>Send reset link</SubmitButton>)}
-              </form.Subscribe>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
-  )
-}
-`;
-
-export function forgotPasswordPageContent(router: RouterType = "next"): string {
-  return router === "tanstack" ? tanstackContent : nextContent;
 }
 
 export function forgotPasswordPage(router: RouterType = "next"): TemplateFile {
-  if (router === "tanstack") {
-    return file("apps/web/src/routes/forgot-password.tsx", tanstackContent);
-  }
-  return file("apps/web/src/app/forgot-password/page.tsx", nextContent);
+  const path =
+    router === "tanstack"
+      ? "apps/web/src/routes/forgot-password.tsx"
+      : "apps/web/src/app/forgot-password/page.tsx";
+  return file(path, forgotPasswordPageContent(router));
 }

@@ -1,47 +1,35 @@
 /**
  * Stripe client init — server-only.
- * Stripe Node v19.1.0 clover API version
+ * Stripe Node v22.5.0 Dahlia API version.
  */
-// @ts-ignore - optional dep, not installed in CLI
 import Stripe from "stripe";
+import { STRIPE_API_VERSION } from "./api-version.js";
 
-export const STRIPE_API_VERSION = "2025-09-30.clover" as const;
+export { STRIPE_API_VERSION };
 
 type StripeConfig = {
   secretKey?: string;
   webhookSecret?: string;
-  publishableKey?: string;
 };
 
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 export function resolveStripeConfig(config?: Record<string, unknown>): StripeConfig {
-  const envSecret =
-    typeof process !== "undefined"
-      ? (process.env.STRIPE_SECRET_KEY as string | undefined)
-      : undefined;
-  const envWebhook =
-    typeof process !== "undefined"
-      ? (process.env.STRIPE_WEBHOOK_SECRET as string | undefined)
-      : undefined;
-  const envPublishable =
-    typeof process !== "undefined"
-      ? (process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string | undefined)
-      : undefined;
+  const envSecret = typeof process !== "undefined" ? process.env.STRIPE_SECRET_KEY : undefined;
+  const envWebhook = typeof process !== "undefined" ? process.env.STRIPE_WEBHOOK_SECRET : undefined;
 
   return {
     secretKey:
-      (config?.secretKey as string | undefined) ??
-      (config?.STRIPE_SECRET_KEY as string | undefined) ??
+      optionalString(config?.secretKey) ??
+      optionalString(config?.STRIPE_SECRET_KEY) ??
       envSecret ??
       "",
     webhookSecret:
-      (config?.webhookSecret as string | undefined) ??
-      (config?.STRIPE_WEBHOOK_SECRET as string | undefined) ??
+      optionalString(config?.webhookSecret) ??
+      optionalString(config?.STRIPE_WEBHOOK_SECRET) ??
       envWebhook ??
-      "",
-    publishableKey:
-      (config?.publishableKey as string | undefined) ??
-      (config?.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string | undefined) ??
-      envPublishable ??
       "",
   };
 }
@@ -52,8 +40,7 @@ export function getStripeClient(secretKey: string): Stripe {
       "STRIPE_SECRET_KEY is not configured - set STRIPE_SECRET_KEY env var server-only",
     );
   }
-  // vendor untyped: Stripe apiVersion literal requires string assert, SDK type is string union
   return new Stripe(secretKey, {
-    apiVersion: STRIPE_API_VERSION as unknown as Stripe.StripeConfig["apiVersion"],
+    apiVersion: STRIPE_API_VERSION,
   });
 }

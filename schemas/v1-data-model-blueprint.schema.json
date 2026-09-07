@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/v1-data-model-blueprint.schema.json",
+  "title": "GhostInit V1 data model blueprint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "id",
+    "revision",
+    "compatibility",
+    "entities",
+    "operations",
+    "mutationConsistency",
+    "targets"
+  ],
+  "properties": {
+    "$schema": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "revision": { "type": "string", "minLength": 1 },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["betterAuth", "passkey", "convexBetterAuth", "verification"],
+      "properties": {
+        "betterAuth": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "passkey": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "convexBetterAuth": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "verification": { "const": "package-schema-audited-renderer" }
+      }
+    },
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entity" }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/operation" }
+    },
+    "mutationConsistency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unitOfWork",
+        "rollbackOnAuditFailure",
+        "serializedScopes",
+        "conditionalWriteEntities"
+      ],
+      "properties": {
+        "unitOfWork": { "const": "identity-and-audit" },
+        "rollbackOnAuditFailure": { "const": true },
+        "serializedScopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "conditionalWriteEntities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["postgres", "convex"],
+      "properties": {
+        "postgres": { "$ref": "#/$defs/capability" },
+        "convex": { "$ref": "#/$defs/capability" }
+      }
+    }
+  },
+  "$defs": {
+    "plugin": { "enum": ["admin", "two-factor", "passkey", "organization"] },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "field", "onDelete"],
+      "properties": {
+        "entity": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "onDelete": { "enum": ["cascade", "restrict", "set-null"] }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "column", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "column": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": ["bigint", "boolean", "integer", "json", "text", "timestamp", "uuid", "varchar"]
+        },
+        "maxLength": { "type": "integer", "minimum": 1 },
+        "required": { "type": "boolean" },
+        "primaryKey": { "type": "boolean" },
+        "unique": { "type": "boolean" },
+        "default": {
+          "anyOf": [{ "type": "boolean" }, { "type": "number" }, { "type": "string" }]
+        },
+        "sensitive": { "type": "boolean" },
+        "typeScriptType": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/$defs/reference" }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "fields"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "unique": { "type": "boolean" }
+      }
+    },
+    "constraint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "fields", "references"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "foreign-key" },
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "references": { "$ref": "#/$defs/reference" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "fields"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "unique" },
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "expression"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "check" },
+            "expression": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ownership",
+        "storage",
+        "fields",
+        "indexes",
+        "constraints",
+        "lifecycle",
+        "operationIds"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "ownership": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authority", "plugin"],
+          "properties": {
+            "authority": { "enum": ["application", "better-auth"] },
+            "plugin": {
+              "enum": [
+                "admin",
+                "app-admin-audit",
+                "app-identity-audit",
+                "core",
+                "organization",
+                "passkey",
+                "two-factor"
+              ]
+            },
+            "ownerField": { "type": "string", "minLength": 1 },
+            "tenantField": { "type": "string", "minLength": 1 }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["shared-record", "table"] },
+            "postgresTable": { "type": "string", "minLength": 1 },
+            "postgresExport": { "type": "string", "minLength": 1 },
+            "betterAuthModel": { "type": "string", "minLength": 1 },
+            "convexTable": { "type": "string", "minLength": 1 },
+            "recordDiscriminator": { "type": "string", "minLength": 1 }
+          }
+        },
+        "fields": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/field" } },
+        "indexes": { "type": "array", "items": { "$ref": "#/$defs/index" } },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+        "lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deletion"],
+          "properties": {
+            "createdAt": { "type": "string", "minLength": 1 },
+            "updatedAt": { "type": "string", "minLength": 1 },
+            "expiresAt": { "type": "string", "minLength": 1 },
+            "deletion": { "enum": ["cascade", "consume", "explicit", "expire", "restrict"] },
+            "retention": { "type": "string", "minLength": 1 }
+          }
+        },
+        "operationIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^identity\\." }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "entity", "action", "authorization"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^identity\\." },
+        "entity": { "type": "string", "minLength": 1 },
+        "action": { "enum": ["create", "delete", "execute", "read", "update"] },
+        "authorization": {
+          "enum": [
+            "administrator",
+            "authenticated",
+            "invited-user",
+            "member",
+            "owner",
+            "public-token",
+            "system"
+          ]
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selectedPlugins", "rejectedPlugins", "limitations"],
+      "properties": {
+        "selectedPlugins": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/plugin" }
+        },
+        "rejectedPlugins": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "admin": { "type": "string", "minLength": 1 },
+            "two-factor": { "type": "string", "minLength": 1 },
+            "passkey": { "type": "string", "minLength": 1 },
+            "organization": { "type": "string", "minLength": 1 }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

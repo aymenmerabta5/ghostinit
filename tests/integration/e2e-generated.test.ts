@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { cwd } from "node:process";
 
 const CLI = join(cwd(), "dist", "cli.js");
+const BUN_EXECUTABLE = process.execPath;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,9 +22,21 @@ const CLI = join(cwd(), "dist", "cli.js");
 
 function createProject(tmp: string, name: string, extraArgs: string[] = []): string {
   const result = spawnSync(
-    "node",
-    [CLI, "create", name, "--cwd", tmp, "--no-install", "--force", "--json", ...extraArgs],
-    { encoding: "utf-8" },
+    BUN_EXECUTABLE,
+    [
+      CLI,
+      "create",
+      name,
+      "--cwd",
+      tmp,
+      "--no-install",
+      "--force",
+      "--runtime",
+      "bun",
+      "--json",
+      ...extraArgs,
+    ],
+    { encoding: "utf-8", maxBuffer: 16 * 1024 * 1024, shell: false },
   );
   if (result.status !== 0) {
     throw new Error(
@@ -95,25 +108,6 @@ const EXPECTED_MINIMAL_FILES = [
   "packages/typescript-config/base.json",
   "packages/typescript-config/nextjs.json",
   ".github/workflows/ci.yml",
-];
-
-const EXPECTED_TURBO_GLOBAL_ENV_MIN_COUNT = 50;
-
-const EXPECTED_TURBO_REQUIRED_VARS = [
-  "DATABASE_URL",
-  "BETTER_AUTH_SECRET",
-  "BETTER_AUTH_URL",
-  "NEXT_PUBLIC_APP_URL",
-  "VITE_APP_URL",
-  "RESEND_API_KEY",
-  "STRIPE_SECRET_KEY",
-  "CHARGILY_API_KEY",
-  "PADDLE_API_KEY",
-  "POLAR_ACCESS_TOKEN",
-  "POSTHOG_HOST",
-  "POSTHOG_API_KEY",
-  "NEXT_PUBLIC_*",
-  "VITE_*",
 ];
 
 // ---------------------------------------------------------------------------
@@ -197,20 +191,51 @@ describe("e2e: generated project structure (no install)", () => {
     }
   });
 
-  it("turbo.json globalEnv has >= 50 entries (exhaustive env hygiene)", () => {
+  it("turbo.json tracks every emitted environment key without duplicate cache inputs", () => {
     const projectRoot = createProject(tmp, "demo");
     const turbo = readJson(join(projectRoot, "turbo.json"));
     const globalEnv: string[] = turbo.globalEnv ?? [];
+    const passThroughEnv: string[] = turbo.tasks?.start?.passThroughEnv ?? [];
+    const emittedKeys = [".env.example", ".env.local"].flatMap((name) =>
+      readFileSync(join(projectRoot, name), "utf8")
+        .split(/\r?\n/)
+        .map((line) => line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1])
+        .filter((key): key is string => key !== undefined),
+    );
 
-    expect(globalEnv.length).toBeGreaterThanOrEqual(EXPECTED_TURBO_GLOBAL_ENV_MIN_COUNT);
-
-    for (const must of EXPECTED_TURBO_REQUIRED_VARS) {
-      expect(globalEnv.includes(must), `turbo.json globalEnv missing: ${must}`).toBe(true);
+    expect(globalEnv.length).toBeGreaterThan(0);
+    expect(new Set(globalEnv).size).toBe(globalEnv.length);
+    for (const key of emittedKeys) {
+      const coveredByWildcard = globalEnv.some(
+        (candidate) => candidate.endsWith("*") && key.startsWith(candidate.slice(0, -1)),
+      );
+      expect(
+        globalEnv.includes(key) || passThroughEnv.includes(key) || coveredByWildcard,
+        `turbo.json does not track emitted environment key: ${key}`,
+      ).toBe(true);
+    }
+    expect(globalEnv).toContain("NEXT_PUBLIC_*");
+    expect(globalEnv.some((key) => key.startsWith("VITE_"))).toBe(false);
+    expect(globalEnv.some((key) => key.startsWith("EXPO_PUBLIC_"))).toBe(false);
+    expect(globalEnv.some((key) => key.startsWith("DESKTOP_"))).toBe(false);
+    expect(globalEnv.some((key) => key.startsWith("ELECTRON_"))).toBe(false);
+    for (const disabledKey of [
+      "STRIPE_SECRET_KEY",
+      "CHARGILY_API_KEY",
+      "PADDLE_API_KEY",
+      "POLAR_ACCESS_TOKEN",
+      "STORAGE_DRIVER",
+      "NEXT_PUBLIC_WS_URL",
+      "NOTIFICATION_TOKEN_ENCRYPTION_KEY",
+      "AI_GATEWAY_API_KEY",
+      "JOB_WORKER_ID",
+    ]) {
+      expect(globalEnv, `disabled capability leaked ${disabledKey}`).not.toContain(disabledKey);
     }
   });
 
-  it("turbo.json globalEnv includes all billing+analytics groups", () => {
-    const projectRoot = createProject(tmp, "demo");
+  it("turbo.json globalEnv includes every selected billing and analytics group", () => {
+    const projectRoot = createProject(tmp, "demo", ["--billing", "all", "--with-analytics"]);
     const turbo = readJson(join(projectRoot, "turbo.json"));
     const env: string[] = turbo.globalEnv ?? [];
 
@@ -219,7 +244,7 @@ describe("e2e: generated project structure (no install)", () => {
       chargily: ["CHARGILY_API_KEY", "CHARGILY_SECRET_KEY", "CHARGILY_MODE"],
       paddle: ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET", "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN"],
       polar: ["POLAR_ACCESS_TOKEN", "POLAR_WEBHOOK_SECRET", "POLAR_ORG_ID"],
-      posthog: ["POSTHOG_HOST", "POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY", "VITE_POSTHOG_KEY"],
+      posthog: ["POSTHOG_HOST", "POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"],
     };
 
     for (const [group, vars] of Object.entries(groups)) {
@@ -240,6 +265,9 @@ describe("e2e: generated project structure (no install)", () => {
     expect(rootPkg.scripts.typecheck).toBeDefined();
     expect(rootPkg.workspaces).toContain("apps/*");
     expect(rootPkg.workspaces).toContain("packages/*");
+    // Prepublication generation must not resolve an unpublished CLI from the registry.
+    expect(rootPkg.dependencies?.ghostinit).toBeUndefined();
+    expect(rootPkg.devDependencies?.ghostinit).toBeUndefined();
 
     const webPkg = readJson(join(projectRoot, "apps/web/package.json"));
     expect(webPkg.name).toBeDefined();
@@ -299,26 +327,44 @@ describe("e2e: generated project structure (no install)", () => {
   it("ghostinit check via CLI --json reports no HIGH/BLOCKER", () => {
     const projectRoot = createProject(tmp, "demo");
 
-    const result = spawnSync("node", [CLI, "check", "--cwd", projectRoot, "--json"], {
+    const result = spawnSync(BUN_EXECUTABLE, [CLI, "check", "--cwd", projectRoot, "--json"], {
       encoding: "utf-8",
+      maxBuffer: 16 * 1024 * 1024,
+      shell: false,
     });
+    expect(result.error).toBeUndefined();
+    expect(result.status, `check failed: ${result.stdout}\n${result.stderr}`).toBe(0);
 
-    // CLI check should exit 0 or at least return JSON with findings that have no HIGH/BLOCKER
-    let parsed: any;
+    let parsed: {
+      $schema?: unknown;
+      schemaVersion?: unknown;
+      success?: unknown;
+      exitCode?: unknown;
+      meta?: { command?: unknown; durationMs?: unknown };
+      data?: { findings?: Array<{ severity?: unknown }>; summary?: Record<string, unknown> };
+    };
     try {
       parsed = JSON.parse(result.stdout);
-    } catch {
-      // If stdout not JSON, try stderr output or consider CLI returned non-JSON; still allow structure check via analyzeProject above
-      return;
+    } catch (error) {
+      throw new Error(
+        `check did not emit valid JSON: ${error instanceof Error ? error.message : String(error)}\n${result.stdout}`,
+      );
     }
 
-    if (parsed.data?.findings) {
-      const highBlocker = (parsed.data.findings as any[]).filter(
-        (f) => f.severity === "HIGH" || f.severity === "BLOCKER",
-      );
-      expect(highBlocker).toEqual([]);
-    }
-    // If check subcommand not yet implemented as JSON or exits differently, above e2e-generated already covers it
+    expect(parsed).toMatchObject({
+      $schema: "https://ghostinit.dev/schemas/json-envelope.schema.json",
+      schemaVersion: 2,
+      success: true,
+      exitCode: 0,
+      meta: { command: "check" },
+    });
+    expect(typeof parsed.meta?.durationMs).toBe("number");
+    expect(Array.isArray(parsed.data?.findings)).toBe(true);
+    expect(parsed.data?.summary).toMatchObject({ blockers: 0, highs: 0 });
+    const highBlocker = (parsed.data?.findings ?? []).filter(
+      (finding) => finding.severity === "HIGH" || finding.severity === "BLOCKER",
+    );
+    expect(highBlocker).toEqual([]);
   });
 
   it("create with --billing all includes billing package files", () => {

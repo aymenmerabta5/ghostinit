@@ -6,14 +6,19 @@ export function featureFlagsLibFiles(
   base = "apps/web/src",
   framework: "nextjs" | "tanstack-start" = "nextjs",
 ): TemplateFile[] {
-  const envImport = base.startsWith("apps") ? "@repo/config" : "@/lib/env";
-  const serverOnlyImport = framework === "nextjs" ? `import "server-only";\n` : "";
-  const serverContent = `${serverOnlyImport}import { env } from "${envImport}";
+  const configImport = base === "src" ? "@/lib/env/server" : "@repo/config/server";
+  const publicEntry = framework === "tanstack-start" ? "vite" : "next";
+  const clientConfigImport =
+    base === "src" ? `@/lib/env/${publicEntry}` : `@repo/config/${publicEntry}`;
+  const clientAnalyticsDisabled =
+    framework === "tanstack-start"
+      ? "env.VITE_ANALYTICS_DISABLED"
+      : "env.NEXT_PUBLIC_ANALYTICS_DISABLED";
+  const serverContent = `import "server-only";
+import { env } from "${configImport}";
 
-// Add your flags here. Example:
-// BILLING: env.FEATURE_BILLING === "true",
 export const FEATURE_FLAGS = {
-  EXAMPLE: (env as unknown as Record<string, string | undefined>).FEATURE_EXAMPLE === "true",
+  ANALYTICS: env.ANALYTICS_DISABLED !== "true",
 } as const;
 
 export type ServerFeatureFlag = keyof typeof FEATURE_FLAGS;
@@ -23,17 +28,10 @@ export function isFeatureEnabled(flag: ServerFeatureFlag): boolean {
 `;
 
   const clientContent = `"use client";
-import { env } from "${envImport}";
-
-// Mirror server flags for the browser. Keep keys in sync with feature-flags.ts.
-// For Next.js use NEXT_PUBLIC_*, for TanStack Start use VITE_* — the helper handles both.
-function pickClientFlag(nextKey: string, viteKey: string): boolean {
-  const e = env as unknown as Record<string, string | undefined>;
-  return e[nextKey] === "true" || e[viteKey] === "true";
-}
+import { env } from "${clientConfigImport}";
 
 export const CLIENT_FEATURE_FLAGS = {
-  EXAMPLE: pickClientFlag("NEXT_PUBLIC_FEATURE_EXAMPLE", "VITE_FEATURE_EXAMPLE"),
+  ANALYTICS: ${clientAnalyticsDisabled} !== "true",
 } as const;
 
 export type ClientFeatureFlag = keyof typeof CLIENT_FEATURE_FLAGS;

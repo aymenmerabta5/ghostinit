@@ -18,21 +18,21 @@ export interface MarketingSections {
   footerInner: string;
 }
 
-export const sharedHeroTitle = `The open-source<br />control plane<br />for your monorepo.`;
+export const sharedHeroTitle = `{t("hero.title")}`;
 
-export const sharedHeroDescNext = `Orchestrate Next.js, Drizzle, oRPC, Better Auth from one surface. Bring your own billing. Fork the whole thing.`;
+export const sharedHeroDescNext = `{t("hero.descriptionNext")}`;
 
-export const sharedHeroDescTanStack = `Orchestrate TanStack Start, Drizzle, oRPC, Better Auth from one surface. Bring your own stack. Fork the whole thing.`;
+export const sharedHeroDescTanStack = `{t("hero.descriptionTanstack")}`;
 
 export const sharedWhyHeader = `<div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-semibold tracking-tight">Why GhostInit</h2>
-            <p className="max-w-[60ch] text-sm text-muted-foreground">A well-structured monorepo with architectural linting that doesn't fight you. Like t3.codes for your app.</p>
+            <h2 className="text-2xl font-semibold tracking-tight">{t("features.title")}</h2>
+            <p className="max-w-[60ch] text-sm text-muted-foreground">{t("features.description")}</p>
           </div>`;
 
 export const sharedFeatureCardsNext = `            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">One command to scaffold</CardTitle>
-                <CardDescription className="max-w-[60ch]">Every thread writes to its own branch. When it's good, one button opens the PR. No terminal dance.</CardDescription>
+                <CardTitle className="text-base">{t("features.scaffoldTitle")}</CardTitle>
+                <CardDescription className="max-w-[60ch]">{t("features.scaffoldDescriptionNext")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md bg-muted p-3 font-mono text-xs">bunx ghostinit create my-app --billing stripe,chargily<br />cd my-app && bun install && bun run dev</div>
@@ -41,8 +41,8 @@ export const sharedFeatureCardsNext = `            <Card className="md:col-span-
 
             <Card className="md:col-span-5 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Pure oRPC only</CardTitle>
-                <CardDescription>Single port 3000. Webhooks via Next routes raw Buffer.</CardDescription>
+                <CardTitle className="text-base">{t("features.apiTitle")}</CardTitle>
+                <CardDescription>{t("features.apiDescriptionNext")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground font-mono">RPCHandler + Buffer.from(await request.arrayBuffer())</p>
@@ -51,8 +51,8 @@ export const sharedFeatureCardsNext = `            <Card className="md:col-span-
 
             <Card className="md:col-span-5 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Flexible billing</CardTitle>
-                <CardDescription>Any combo: Stripe, Chargily, Paddle, Polar. Shared tables, idempotent webhooks.</CardDescription>
+                <CardTitle className="text-base">{t("features.billingTitle")}</CardTitle>
+                <CardDescription>{t("features.billingDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 <Badge variant="secondary">stripe</Badge>
@@ -64,16 +64,16 @@ export const sharedFeatureCardsNext = `            <Card className="md:col-span-
 
             <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">If you don't like it, fork it</CardTitle>
-                <CardDescription className="max-w-[60ch]">MIT licensed. Change the UI, add a provider, ship your own build. Like t3.codes.</CardDescription>
+                <CardTitle className="text-base">{t("features.forkTitle")}</CardTitle>
+                <CardDescription className="max-w-[60ch]">{t("features.forkDescriptionNext")}</CardDescription>
               </CardHeader>
               <CardContent className="rounded-md bg-muted p-3 font-mono text-xs">gh repo fork aymenmerabta5/ghostinit --clone<br />cd ghostinit && bun install && bun run dev</CardContent>
             </Card>`;
 
 export const sharedFeatureCardsTanStack = `            <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">One command to scaffold</CardTitle>
-                <CardDescription className="max-w-[60ch]">TanStack Start + Vite, same oRPC, same tokens. One surface.</CardDescription>
+                <CardTitle className="text-base">{t("features.scaffoldTitle")}</CardTitle>
+                <CardDescription className="max-w-[60ch]">{t("features.scaffoldDescriptionTanstack")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="rounded-md bg-muted p-3 font-mono text-xs">bunx ghostinit create my-app --framework tanstack-start<br />cd my-app && bun install && bun run dev</div>
@@ -82,8 +82,8 @@ export const sharedFeatureCardsTanStack = `            <Card className="md:col-s
 
             <Card className="md:col-span-5 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Pure oRPC only</CardTitle>
-                <CardDescription>Single port 3000. Webhooks via Start server routes.</CardDescription>
+                <CardTitle className="text-base">{t("features.apiTitle")}</CardTitle>
+                <CardDescription>{t("features.apiDescriptionTanstack")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground font-mono">createServerFn + getRequestHeaders</p>
@@ -92,8 +92,8 @@ export const sharedFeatureCardsTanStack = `            <Card className="md:col-s
 
             <Card className="md:col-span-5 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">Flexible billing</CardTitle>
-                <CardDescription>Any combo: Stripe, Chargily, Paddle, Polar.</CardDescription>
+                <CardTitle className="text-base">{t("features.billingTitle")}</CardTitle>
+                <CardDescription>{t("features.billingDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 <Badge variant="secondary">stripe</Badge>
@@ -105,8 +105,8 @@ export const sharedFeatureCardsTanStack = `            <Card className="md:col-s
 
             <Card className="md:col-span-7 border bg-card">
               <CardHeader>
-                <CardTitle className="text-base">If you don't like it, fork it</CardTitle>
-                <CardDescription className="max-w-[60ch]">MIT. Change the UI, add an agent, ship your own build.</CardDescription>
+                <CardTitle className="text-base">{t("features.forkTitle")}</CardTitle>
+                <CardDescription className="max-w-[60ch]">{t("features.forkDescriptionTanstack")}</CardDescription>
               </CardHeader>
               <CardContent className="rounded-md bg-muted p-3 font-mono text-xs">gh repo fork aymenmerabta5/ghostinit --clone<br />cd ghostinit && bun install</CardContent>
             </Card>`;
@@ -137,10 +137,10 @@ export function marketingSections(): {
   footerTagline: string;
 } {
   return {
-    heroBadge: `Bun only • oRPC • Better Auth`,
+    heroBadge: `{t("hero.eyebrow")}`,
     heroTitle: sharedHeroTitle,
     features: sharedWhyHeader,
-    quickStartTitle: `Quick start`,
-    footerTagline: `Built with shadcn + Base UI + Tailwind v4 • OKLCH paper + indigo ≤10%`,
+    quickStartTitle: `{t("quickStart.title")}`,
+    footerTagline: `{t("footer.tagline")}`,
   };
 }

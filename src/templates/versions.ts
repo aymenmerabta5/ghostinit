@@ -20,10 +20,12 @@ if (!_versions.ghostinitVersion || typeof _versions.ghostinitVersion !== "string
 // Explicit re-exports only — no `export *` per host guideline
 export {
   ghostinitVersion,
+  supplyChain,
   catalog,
   runtime,
   typescript,
   nextStack,
+  expoReact,
   database,
   convex,
   auth,

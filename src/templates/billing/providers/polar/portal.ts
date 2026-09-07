@@ -3,6 +3,14 @@
  */
 import type { CreatePortalSessionInput, CreatePortalSessionOutput } from "../interface.js";
 import { getPolarClientAsync } from "./client.js";
+import {
+  PolarProviderError,
+  isRecord,
+  requirePolarCapability,
+  requirePolarClient,
+  requirePolarResponseString,
+  wrapPolarFailure,
+} from "./types.js";
 
 export async function createPolarPortalSession(
   config: Record<string, unknown> | undefined,
@@ -11,30 +19,38 @@ export async function createPolarPortalSession(
   if (!input.customerId || !input.returnUrl)
     throw new Error("INVALID_INPUT: customerId, returnUrl required for Polar portal");
 
-  const { client, accessToken, environment } = await getPolarClientAsync(config);
-
-  if (!client || !accessToken) {
-    const url = `${input.returnUrl}?polar_portal=1&customer=${encodeURIComponent(input.customerId)}`;
-    return { url };
-  }
+  const resolved = await getPolarClientAsync(config);
+  const client = requirePolarClient(resolved.client, resolved.accessToken, "create portal session");
+  const customerSessions = requirePolarCapability(
+    client.customerSessions,
+    "create portal session",
+    "customerSessions",
+  );
+  const createSession = requirePolarCapability(
+    customerSessions.create,
+    "create portal session",
+    "customerSessions.create",
+  );
 
   try {
-    const session = (await client.customerSessions.create({ customerId: input.customerId })) as {
-      token?: string;
-      customerSession?: string;
-      id?: string;
-    };
-    const token =
-      (session.token as string) ??
-      (session.customerSession as string) ??
-      session.id ??
-      input.customerId;
-    const portalBase =
-      environment === "production" ? "https://polar.sh/portal" : "https://sandbox.polar.sh/portal";
-    const url = `${portalBase}?customer_session=${encodeURIComponent(token)}&return_url=${encodeURIComponent(input.returnUrl)}`;
+    const session = await createSession.call(customerSessions, {
+      customerId: input.customerId,
+      returnUrl: input.returnUrl,
+    });
+    if (!isRecord(session)) {
+      throw new PolarProviderError(
+        "INVALID_RESPONSE",
+        "create portal session",
+        "SDK returned a non-object response",
+      );
+    }
+    const url = requirePolarResponseString(
+      session.customerPortalUrl,
+      "create portal session",
+      "customerPortalUrl",
+    );
     return { url };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`POLAR_CREATE_PORTAL_FAILED: ${msg}`);
+    wrapPolarFailure("create portal session", error);
   }
 }

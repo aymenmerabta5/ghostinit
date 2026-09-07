@@ -3,7 +3,11 @@ import type { BillingProviderName } from "../../../lib/addons.js";
 import { ENV_PLACEHOLDERS } from "../../../lib/constants.js";
 import { type EnvAudience, publicVarLines } from "./core.js";
 
-const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false };
+const DEFAULT_AUDIENCE: EnvAudience = {
+  framework: "nextjs",
+  hasWeb: true,
+  hasMobile: false,
+};
 
 function billingPublicVarLines(audience: EnvAudience, name: string, value: string): string[] {
   return publicVarLines(audience, name, value);
@@ -22,11 +26,21 @@ export function billingEnvLines(
     out.push("# Example when enabled:");
     out.push(`# STRIPE_SECRET_KEY=${ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`);
     out.push(`# STRIPE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`);
-    out.push(`# NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
+    out.push(`# BILLING_STRIPE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_STRIPE_PRO_PRICE_ID}`);
+    out.push(
+      ...billingPublicVarLines(
+        audience,
+        "STRIPE_PUBLISHABLE_KEY",
+        ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE,
+      ).map((line) => `# ${line}`),
+    );
     out.push(`# CHARGILY_API_KEY=${ENV_PLACEHOLDERS.CHARGILY_API_KEY}`);
     out.push(`# CHARGILY_SECRET_KEY=${ENV_PLACEHOLDERS.CHARGILY_SECRET}`);
+    out.push(`# BILLING_CHARGILY_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_CHARGILY_PRO_PRICE_ID}`);
     out.push(`# PADDLE_API_KEY=${ENV_PLACEHOLDERS.PADDLE_API_KEY}`);
+    out.push(`# BILLING_PADDLE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_PADDLE_PRO_PRICE_ID}`);
     out.push(`# POLAR_ACCESS_TOKEN=${ENV_PLACEHOLDERS.POLAR_ACCESS_TOKEN}`);
+    out.push(`# BILLING_POLAR_PRO_PRODUCT_ID=${ENV_PLACEHOLDERS.BILLING_POLAR_PRO_PRODUCT_ID}`);
     return out;
   }
   out.push("# Billing (flexible any combo none/both/one/all) — selected providers only");
@@ -34,6 +48,7 @@ export function billingEnvLines(
     out.push("# Stripe global cards");
     out.push(`STRIPE_SECRET_KEY=${ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`);
     out.push(`STRIPE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`);
+    out.push(`BILLING_STRIPE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_STRIPE_PRO_PRICE_ID}`);
     out.push(
       ...billingPublicVarLines(
         audience,
@@ -47,6 +62,7 @@ export function billingEnvLines(
     out.push("# Chargily Algeria EDAHABIA/CIB");
     out.push(`CHARGILY_API_KEY=${ENV_PLACEHOLDERS.CHARGILY_API_KEY}`);
     out.push(`CHARGILY_SECRET_KEY=${ENV_PLACEHOLDERS.CHARGILY_SECRET}`);
+    out.push(`BILLING_CHARGILY_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_CHARGILY_PRO_PRICE_ID}`);
     out.push("CHARGILY_MODE=test");
     out.push("");
   }
@@ -54,6 +70,7 @@ export function billingEnvLines(
     out.push("# Paddle MoR");
     out.push(`PADDLE_API_KEY=${ENV_PLACEHOLDERS.PADDLE_API_KEY}`);
     out.push(`PADDLE_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.PADDLE_WEBHOOK_SECRET}`);
+    out.push(`BILLING_PADDLE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_PADDLE_PRO_PRICE_ID}`);
     out.push("PADDLE_ENVIRONMENT=sandbox");
     out.push(
       ...billingPublicVarLines(
@@ -70,6 +87,7 @@ export function billingEnvLines(
     out.push(`POLAR_ACCESS_TOKEN=${ENV_PLACEHOLDERS.POLAR_ACCESS_TOKEN}`);
     out.push(`POLAR_WEBHOOK_SECRET=${ENV_PLACEHOLDERS.POLAR_WEBHOOK_SECRET}`);
     out.push(`POLAR_ORG_ID=${ENV_PLACEHOLDERS.POLAR_ORG_ID}`);
+    out.push(`BILLING_POLAR_PRO_PRODUCT_ID=${ENV_PLACEHOLDERS.BILLING_POLAR_PRO_PRODUCT_ID}`);
     out.push("POLAR_ENVIRONMENT=sandbox");
     out.push("");
   }
@@ -100,6 +118,7 @@ function providerLocalLines(
       return [
         `STRIPE_SECRET_KEY=${secrets.stripeSecretKey ?? ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`,
         `STRIPE_WEBHOOK_SECRET=${secrets.stripeWebhookSecret ?? ENV_PLACEHOLDERS.STRIPE_WEBHOOK_SECRET}`,
+        `BILLING_STRIPE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_STRIPE_PRO_PRICE_ID}`,
         ...billingPublicVarLines(audience, "STRIPE_PUBLISHABLE_KEY", pk),
         "",
       ];
@@ -108,6 +127,7 @@ function providerLocalLines(
       return [
         `CHARGILY_API_KEY=${secrets.chargilyApiKey ?? ENV_PLACEHOLDERS.CHARGILY_API_KEY}`,
         `CHARGILY_SECRET_KEY=${secrets.chargilySecretKey ?? ENV_PLACEHOLDERS.CHARGILY_SECRET}`,
+        `BILLING_CHARGILY_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_CHARGILY_PRO_PRICE_ID}`,
         "CHARGILY_MODE=test",
         "",
       ];
@@ -116,6 +136,7 @@ function providerLocalLines(
       return [
         `PADDLE_API_KEY=${secrets.paddleApiKey ?? ENV_PLACEHOLDERS.PADDLE_API_KEY}`,
         `PADDLE_WEBHOOK_SECRET=${secrets.paddleWebhookSecret ?? ENV_PLACEHOLDERS.PADDLE_WEBHOOK_SECRET}`,
+        `BILLING_PADDLE_PRO_PRICE_ID=${ENV_PLACEHOLDERS.BILLING_PADDLE_PRO_PRICE_ID}`,
         "PADDLE_ENVIRONMENT=sandbox",
         ...billingPublicVarLines(audience, "PADDLE_CLIENT_TOKEN", ct),
         ...billingPublicVarLines(audience, "PADDLE_ENVIRONMENT", "sandbox"),
@@ -127,6 +148,7 @@ function providerLocalLines(
         `POLAR_ACCESS_TOKEN=${secrets.polarAccessToken ?? ENV_PLACEHOLDERS.POLAR_ACCESS_TOKEN}`,
         `POLAR_WEBHOOK_SECRET=${secrets.polarWebhookSecret ?? ENV_PLACEHOLDERS.POLAR_WEBHOOK_SECRET}`,
         `POLAR_ORG_ID=${secrets.polarOrgId ?? ENV_PLACEHOLDERS.POLAR_ORG_ID}`,
+        `BILLING_POLAR_PRO_PRODUCT_ID=${ENV_PLACEHOLDERS.BILLING_POLAR_PRO_PRODUCT_ID}`,
         "POLAR_ENVIRONMENT=sandbox",
         "",
       ];

@@ -1,64 +1,225 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function adminUsersPage(): TemplateFile {
-  return file(
-    "apps/web/src/app/admin/users/page.tsx",
-    `"use client";
-import * as React from "react";
-import Link from "next/link";
+import { adminFeatureRoot, type AdminTemplateOptions } from "./model.js";
+
+function featureIndexContent(): string {
+  return `"use client";
+
 import { Button } from "@/components/ui/button";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
-import { useAdminUsers } from "./hooks/use-admin-users.js";
-import { UserRow } from "./components/user-row.js";
-export default function AdminUsersPage(): React.JSX.Element {
-  const { data, error, toggleBan, setRole, search, setSearch, page, setPage, limit } = useAdminUsers() as unknown as { data: { users: Array<{id:string;name:string|null;email:string;role:string;banned:boolean}>; total:number } | null; error: string | null; toggleBan:(a:string,b:boolean)=>void; setRole:(a:string,b:string)=>void; search:string; setSearch:(s:string)=>void; page:number; setPage:(n:number)=>void; limit:number };
-  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / limit));
-  const isLoading = !data && !error;
+import { CreateUserForm } from "./components/create-user-form";
+import { AdminUserFilters } from "./components/filters";
+import { AdminUsersResults } from "./components/user-results";
+import { useAdminUsers } from "./hooks/use-admin-users";
+import { useAdminUserMutations } from "./mutations";
+import {
+  formatAdminUsersAccountCount,
+  translateAdminUsersError,
+  useAdminUsersTranslations,
+} from "./translations";
+import type { AdminUsersInitialData } from "./types";
+
+export interface AdminUsersFeatureProps {
+  initialData?: AdminUsersInitialData;
+}
+
+export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): React.JSX.Element {
+  const translate = useAdminUsersTranslations();
+  const admin = useAdminUsers(initialData);
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-4"><h1 className="text-2xl font-semibold tracking-tight">Users</h1><Button asChild><Link href="/admin/users/create">Create user</Link></Button></div>
-        <p className="text-sm text-muted-foreground max-w-[65ch]">Manage accounts, roles, and bans. Total {data?.total ?? 0} users.</p>
-        <div className="flex items-center gap-2">
-          <input aria-label="Search users" placeholder="Search email or name…" value={search} onChange={(e)=>{ setSearch((e.target as HTMLInputElement).value); setPage(1); }} className="flex h-9 w-full max-w-sm rounded-md border border-input bg-background px-3 py-1 text-sm" />
-          <span className="text-xs text-muted-foreground">Page {page}/{totalPages}</span>
-          <Button size="sm" variant="outline" disabled={page<=1} onClick={()=> setPage(page-1)}>Prev</Button>
-          <Button size="sm" variant="outline" disabled={page>=totalPages} onClick={()=> setPage(page+1)}>Next</Button>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{translate("list.title")}</h1>
+          <p className="max-w-[65ch] text-sm text-muted-foreground">
+            {translate("list.description")} {formatAdminUsersAccountCount(translate, admin.total, admin.totalIsExact)}
+          </p>
         </div>
-      </div>
+        <Button render={<a href="/admin/users/create" />} nativeButton={false}>
+          {translate("list.create")}
+        </Button>
+      </header>
+
+      <AdminUserFilters
+        search={admin.filters.search}
+        isFetching={admin.isFetching}
+        onApply={admin.applyFilters}
+        onClear={admin.clearFilters}
+      />
       <Separator />
-      {error ? <Alert variant="destructive"><AlertTitle>Failed to load</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-      {isLoading ? (
-        <div className="rounded-lg border bg-card divide-y divide-border overflow-hidden" aria-busy="true" aria-label="Loading users">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 p-4">
-              <Skeleton className="size-8 rounded-full" />
-              <div className="flex flex-col gap-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3 w-56" /></div>
-              <Skeleton className="ml-auto h-6 w-20" />
-            </div>
-          ))}
-        </div>
-      ) : data && data.users.length === 0 ? (
-        <Empty className="rounded-lg border bg-card">
-          <EmptyHeader>
-            <EmptyTitle>{search ? "No matching users" : "No users yet"}</EmptyTitle>
-            <EmptyDescription>{search ? \`Nothing matches "\${search}". Try a different email or name.\` : "Accounts appear here as people sign up. Create the first one to get started."}</EmptyDescription>
-          </EmptyHeader>
-          {!search ? (
-            <EmptyContent className="flex justify-center"><Button asChild><Link href="/admin/users/create">Create user</Link></Button></EmptyContent>
-          ) : null}
-        </Empty>
-      ) : data ? (
-        <div className="rounded-lg border bg-card divide-y divide-border overflow-hidden">
-          {data.users.map((user) => (<UserRow key={user.id} user={user} onToggleBan={toggleBan} onSetRole={setRole} />))}
-        </div>
-      ) : null}
-      <p className="text-xs text-muted-foreground">Audit log: every ban/role change is persisted via better-auth and can be extended to @repo/observability.</p>
-    </div>
+      <AdminUsersResults admin={admin} translate={translate} />
+    </main>
   );
 }
-`,
+
+export interface AdminCreateUserFeatureProps {
+  onCreated(): void;
+}
+
+export function AdminCreateUserFeature({ onCreated }: AdminCreateUserFeatureProps): React.JSX.Element {
+  const translate = useAdminUsersTranslations();
+  const mutations = useAdminUserMutations();
+  return (
+    <CreateUserForm
+      error={translateAdminUsersError(mutations.error, translate, "errors.createFailed")}
+      pending={mutations.createPending}
+      onCreate={mutations.createUser}
+      onCreated={onCreated}
+    />
   );
+}
+
+export { adminUsersFilterSchema, adminUserRoleSchema, createAdminUserSchema } from "./schema";
+export {
+  formatAdminUsersAccountCount,
+  translateAdminUsersError,
+  useAdminUsersTranslations,
+} from "./translations";
+export type { AdminUsersMessageKey, AdminUsersTranslate } from "./translations";
+export { DEFAULT_ADMIN_USERS_FILTERS } from "./types";
+export type {
+  AdminUser,
+  AdminUserRole,
+  AdminUsersFilterInput,
+  AdminUsersFilters,
+  AdminUsersInitialData,
+  AdminUsersResult,
+  CreateAdminUserInput,
+} from "./types";
+`;
+}
+
+function userResultsContent(): string {
+  return `"use client";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { AdminUsersPagination } from "./filters";
+import { UserTable, UserTableSkeleton } from "./user-table";
+import type { useAdminUsers } from "../hooks/use-admin-users";
+import type { AdminUsersTranslate } from "../translations";
+
+export interface AdminUsersResultsProps {
+  admin: ReturnType<typeof useAdminUsers>;
+  translate: AdminUsersTranslate;
+}
+
+export function AdminUsersResults({ admin, translate }: AdminUsersResultsProps): React.JSX.Element {
+  const showEmpty = !admin.isPending && !admin.queryError && admin.users.length === 0;
+  return <>
+    {admin.queryError ? (
+      <Alert variant="destructive" role="alert">
+        <AlertTitle>{translate("list.loadErrorTitle")}</AlertTitle>
+        <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>{admin.queryError}</span>
+          {admin.retry ? <Button type="button" size="sm" variant="outline" onClick={() => void admin.retry?.()}>{translate("list.retry")}</Button> : null}
+        </AlertDescription>
+      </Alert>
+    ) : null}
+    {admin.mutationError ? (
+      <Alert variant="destructive" role="alert">
+        <AlertTitle>{translate("list.saveErrorTitle")}</AlertTitle>
+        <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span>{admin.mutationError}</span>
+          <Button type="button" size="sm" variant="outline" onClick={admin.resetMutationError}>{translate("list.dismiss")}</Button>
+        </AlertDescription>
+      </Alert>
+    ) : null}
+    {admin.isPending ? (
+      <UserTableSkeleton />
+    ) : showEmpty ? (
+      <Empty className="rounded-lg border bg-card">
+        <EmptyHeader>
+          <EmptyTitle>{translate(admin.filters.search ? "list.emptySearchTitle" : "list.emptyTitle")}</EmptyTitle>
+          <EmptyDescription>
+            {admin.filters.search
+              ? admin.hasMore
+                ? translate("list.emptyLoadedDescription")
+                : translate("list.emptySearchDescription")
+              : translate("list.emptyDescription")}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent className="flex justify-center gap-2">
+          {admin.filters.search ? (
+            admin.hasMore
+              ? <Button type="button" variant="outline" onClick={() => admin.nextPage()}>{translate("list.searchNextBatch")}</Button>
+              : <Button type="button" variant="outline" onClick={admin.clearFilters}>{translate("list.clearSearch")}</Button>
+          ) : (
+            <Button render={<a href="/admin/users/create" />} nativeButton={false}>{translate("list.create")}</Button>
+          )}
+        </EmptyContent>
+      </Empty>
+    ) : (
+      <UserTable
+        users={admin.users}
+        total={admin.total}
+        totalIsExact={admin.totalIsExact}
+        rolePendingId={admin.rolePendingId}
+        banPendingId={admin.banPendingId}
+        onToggleRole={admin.toggleRole}
+        onToggleBanned={admin.toggleBanned}
+      />
+    )}
+    {!admin.isPending && !admin.queryError && !showEmpty ? (
+      <AdminUsersPagination
+        page={admin.filters.page}
+        totalPages={admin.totalPages}
+        hasMore={admin.hasMore}
+        isFetching={admin.isFetching}
+        onPrevious={admin.previousPage}
+        onNext={admin.nextPage}
+      />
+    ) : null}
+  </>;
+}
+`;
+}
+
+function nextPageContent(options: AdminTemplateOptions): string {
+  const applicationModule =
+    options.mode === "monorepo" ? "@repo/services/application" : "@/server/services/application";
+  return `import type * as React from "react";
+import { headers } from "next/headers";
+import { Suspense } from "react";
+import { createRequestApplicationForRequest } from "${applicationModule}";
+import { AdminUsersFeature, DEFAULT_ADMIN_USERS_FILTERS } from "@/features/admin-users";
+
+async function AdminUsersData(): Promise<React.JSX.Element> {
+  const application = await createRequestApplicationForRequest(new Headers(await headers()));
+  const data = await application.admin.listUsers(DEFAULT_ADMIN_USERS_FILTERS);
+  const initialData = {
+    total: data.total,
+    users: data.users.map((user) => ({ ...user, identityId: user.id })),
+  };
+  return <AdminUsersFeature initialData={initialData} />;
+}
+
+export default function AdminUsersPage(): React.JSX.Element {
+  return <Suspense fallback={<div className="min-h-48" aria-busy="true" />}><AdminUsersData /></Suspense>;
+}
+`;
+}
+
+export function adminFeatureIndexFile(options: AdminTemplateOptions): TemplateFile {
+  return file(`${adminFeatureRoot(options)}/index.tsx`, featureIndexContent());
+}
+
+export function adminUserResultsFile(options: AdminTemplateOptions): TemplateFile {
+  return file(`${adminFeatureRoot(options)}/components/user-results.tsx`, userResultsContent());
+}
+
+export function nextAdminUsersPage(options: AdminTemplateOptions): TemplateFile {
+  const appRoot = options.sourceRoot === "src" ? "src/app" : "apps/web/src/app";
+  return file(`${appRoot}/admin/users/page.tsx`, nextPageContent(options));
+}
+
+/** @deprecated Use nextAdminUsersPage with explicit template options. */
+export function adminUsersPage(): TemplateFile {
+  return nextAdminUsersPage({
+    database: "postgres",
+    framework: "next",
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  });
 }

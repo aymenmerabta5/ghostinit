@@ -2,6 +2,9 @@ import { file, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 
 export function evePackageJson(projectName: string, isBun: boolean): TemplateFile {
+  // Compatibility callers still pass the execution-runtime flag, but package
+  // Management is fixed to the canonical Bun version for every generated project.
+  void isBun;
   const pkgName = projectName ? `${projectName}-eve` : "eve-agent";
   return file(
     "apps/eve/package.json",
@@ -11,15 +14,16 @@ export function evePackageJson(projectName: string, isBun: boolean): TemplateFil
         private: true,
         type: "module",
         version: "0.1.0",
-        description: `${projectName} durable backend agent via eve@0.24.6 filesystem-first framework`,
+        description: `${projectName} durable backend agent via eve@${v.eve.eve} filesystem-first framework`,
         imports: { "#*": "./agent/*", "#evals/*": "./evals/*" },
         scripts: {
           build: "eve build",
-          dev: "eve dev",
-          start: "eve start",
+          "dev:diagnostic": "eve dev",
+          "start:diagnostic": "eve start",
           typecheck: "tsc --noEmit",
-          test: isBun ? "bun test" : "npm run test:unit",
-          lint: "oxlint .",
+          test: "bun test",
+          lint: "oxlint --deny-warnings .",
+          format: "oxfmt --write .",
           "format:check": "oxfmt --check .",
         },
         dependencies: {
@@ -42,7 +46,7 @@ export function evePackageJson(projectName: string, isBun: boolean): TemplateFil
         },
         overrides: { ai: v.eve.ai },
         engines: { node: v.runtime.node },
-        packageManager: isBun ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
+        packageManager: `bun@${v.runtime.bun}`,
       },
       null,
       2,

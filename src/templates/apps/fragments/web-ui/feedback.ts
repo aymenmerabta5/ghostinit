@@ -57,14 +57,18 @@ AvatarFallback.displayName = "AvatarFallback";
       "apps/web/src/components/ui/sonner.tsx",
       `"use client";
 
-import { Toaster as SonnerToaster } from "sonner";
+import { Toaster as SonnerToaster, type ToasterProps as SonnerToasterProps } from "sonner";
+import { useTheme } from "next-themes";
 
-export type ToasterProps = React.ComponentProps<typeof SonnerToaster>;
+export type ToasterProps = SonnerToasterProps;
 
 export function Toaster({ ...props }: ToasterProps) {
+  const { resolvedTheme } = useTheme();
+  const theme = resolvedTheme === "dark" ? "dark" : resolvedTheme === "light" ? "light" : "system";
+
   return (
     <SonnerToaster
-      theme="light"
+      theme={theme}
       className="toaster group"
       toastOptions={{
         classNames: {
@@ -213,17 +217,19 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 
 import * as React from "react";
 import { cn } from "../../lib/utils.js";
+import { useSurfaceTranslations } from "../../lib/translations.js";
 
 export function Spinner({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  const t = useSurfaceTranslations("common");
   return (
     <div
       role="status"
-      aria-label="Loading"
+      aria-label={t("loading")}
       data-slot="spinner"
       className={cn("size-4 animate-spin rounded-full border-2 border-muted border-t-foreground", className)}
       {...props}
     >
-      <span className="sr-only">Loading</span>
+      <span className="sr-only">{t("loading")}</span>
     </div>
   );
 }

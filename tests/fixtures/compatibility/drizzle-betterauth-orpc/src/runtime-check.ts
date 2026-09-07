@@ -1,66 +1,63 @@
-import { oc } from "@orpc/contract";
-import { implement, ORPCError } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { OpenAPIGenerator } from "@orpc/openapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod";
-import { z } from "zod";
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { appRouter, generateOpenAPI } from "./orpc.js";
 
-// GhostInit templates use `os.prefix` then `implement(contract).router(...)`.
-// Verify that v1.14 contract prefix and implement().router compose correctly.
-const contract = oc.prefix("/api").router({
-  greet: oc
-    .route({ method: "POST", path: "/greet" }) // explicit path required for prefix to apply
-    .input(z.object({ names: z.array(z.string()).min(1) }))
-    .output(z.object({ greetings: z.array(z.string()) })),
-});
-
-const impl = implement(contract);
-
-const router = impl.router({
-  greet: impl.greet.handler(({ input }) => ({
-    greetings: input.names.map((n) => `Hello ${n}`),
-  })),
-});
-
-const handler = new RPCHandler(router);
-
-async function run() {
-  console.log(
-    "ORPCError construct",
-    (() => {
-      try {
-        const e = new ORPCError("NOT_FOUND", { message: "missing" });
-        return e.code === "NOT_FOUND" && e.message === "missing";
-      } catch {
-        return false;
-      }
-    })(),
-  );
-
-  const spec = await new OpenAPIGenerator({
-    schemaConverters: [new ZodToJsonSchemaConverter()],
-  }).generate(router, {
-    info: { title: "Fixture API", version: "1.0.0" },
-    servers: [{ url: "http://localhost:3000/api" }],
-  });
-  console.log("OpenAPI paths", Object.keys((spec as any).paths ?? {}));
-
-  console.log(
-    "Matcher tree keys",
-    Object.keys((handler as any).standardHandler.matcher.tree ?? {}),
-  );
-
-  const res = await handler.handle(
-    new Request("http://localhost:3000/api/greet", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ names: ["World"] }),
-    }),
-  );
-  console.log("POST /api/greet matched", res.matched, "status", res.response?.status);
+interface OpenAPIDocument {
+  paths?: Record<string, unknown>;
+  servers?: Array<{ url?: unknown }>;
 }
 
-run().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+interface TogglePayload {
+  json?: { enabled?: unknown };
+}
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
+/** Exercise the exact oRPC router, fetch transport, Zod converter, and error API used by templates. */
+export async function verifyOrpcRuntimeCompatibility(): Promise<void> {
+  const error = new ORPCError("NOT_FOUND", { message: "missing" });
+  assert(error.code === "NOT_FOUND", "ORPCError did not preserve its code");
+  assert(error.message === "missing", "ORPCError did not preserve its message");
+
+  const spec = (await generateOpenAPI()) as OpenAPIDocument;
+  assert(spec.paths !== undefined, "OpenAPI generation did not produce paths");
+  assert("/api/hello" in spec.paths, "OpenAPI output is missing /api/hello");
+  assert("/api/toggle" in spec.paths, "OpenAPI output is missing /api/toggle");
+  assert(spec.servers?.[0]?.url === "/", "OpenAPI server URL duplicated the /api router prefix");
+
+  const openApiHandler = new OpenAPIHandler(appRouter);
+  const openApiResult = await openApiHandler.handle(
+    new Request("http://localhost:3000/api/toggle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    }),
+  );
+  assert(openApiResult.matched, "OpenAPIHandler did not match POST /api/toggle");
+  assert(openApiResult.response?.status === 200, "OpenAPIHandler did not return status 200");
+  const misplacedOpenApiResult = await openApiHandler.handle(
+    new Request("http://localhost:3000/api/rpc/toggle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    }),
+  );
+  assert(!misplacedOpenApiResult.matched, "OpenAPIHandler unexpectedly matched /api/rpc/toggle");
+
+  const handler = new RPCHandler(appRouter);
+  const result = await handler.handle(
+    new Request("http://localhost:3000/api/orpc/toggle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ json: { enabled: true } }),
+    }),
+    { prefix: "/api/orpc" },
+  );
+  assert(result.matched, "RPCHandler did not match POST /api/orpc/toggle");
+  assert(result.response?.status === 200, "RPCHandler did not return status 200");
+  const payload = (await result.response.json()) as TogglePayload;
+  assert(payload.json?.enabled === true, "RPCHandler returned an unexpected toggle payload");
+}

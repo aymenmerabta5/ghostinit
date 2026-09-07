@@ -127,6 +127,23 @@ describe("projectConfigSchema", () => {
     expect(parsed.database).toBe("postgres");
   });
 
+  it("preserves normalized storage, notification, remote flags, and jobs selections", () => {
+    const parsed = projectConfigSchema.parse({
+      name: "my-app",
+      storage: true,
+      notifications: true,
+      featureFlags: "posthog",
+      jobs: true,
+    });
+    expect(parsed.storage).toBe(true);
+    expect(parsed.notifications).toBe(true);
+    expect(parsed.featureFlags).toBe("posthog");
+    expect(parsed.jobs).toBe(true);
+    expect(projectConfigSchema.safeParse({ name: "my-app", featureFlags: "static" }).success).toBe(
+      false,
+    );
+  });
+
   it("preserves name regex validation with new fields", () => {
     const result = projectConfigSchema.safeParse({
       name: "MyApp",

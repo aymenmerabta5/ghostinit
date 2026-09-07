@@ -10,13 +10,12 @@
  *   - create src/templates/billing/providers/<name>/ with core files
  *     (client, checkout, customer, portal?, webhook, subscriptions, mappers?)
  *   - update BILLING_PROVIDER_NAMES in interface/types.ts
- *   - factory convention create<Cap>Provider auto-discovered by loop in billing/index.ts
+ *   - register the factory export in billing-generator.ts
  *   - add webhook fragments in billing/webhooks/providers/<name>.ts
  *   - add env vars in shared/env/billing.ts billingEnvLines() (same loop pattern via
  *     BILLING_PROVIDERS — codegen pattern reused, dogfooding possible)
- *   - turbo.json globalEnv, pgEnum, UI panels etc still need touch — env generation
- *     already loops, barrel generation could via same pattern in CLI codegen, but
- *     test safety-net is sufficient for now (simpler than full codegen).
+ *   - turbo.json globalEnv, pgEnum, UI panels etc still need touch — env and provider
+ *     registry generation already loop over the canonical provider list.
  */
 
 import { describe, it, expect } from "bun:test";
@@ -46,12 +45,15 @@ describe("billing barrel — SSOT and filesystem safety net", () => {
     // Should NOT have a second manual array that duplicates list without import (drift risk)
     // The file may still define ALL_BILLING_PROVIDERS but as alias
     expect(content).toMatch(/ALL_BILLING_PROVIDERS/);
-    // But ensure it does NOT have 4 explicit import("./providers/stripe.js") try blocks (old pattern)
+    // The source template describes the default all-provider registry with
+    // literal lazy imports. billing-generator.ts filters this exact map.
     const explicitImports = (
-      content.match(/import\("\.\/providers\/(stripe|chargily|paddle|polar)\.js"\)/g) ?? []
+      content.match(/import\("\.\/providers\/(stripe|chargily|paddle|polar)"\)/g) ?? []
     ).length;
-    // After fix, should use loop with template literal ./providers/${provider}.js
-    expect(explicitImports).toBe(0);
+    expect(explicitImports).toBe(BILLING_PROVIDERS.length);
+    expect(content).not.toContain("import(`./providers/${provider}.js`)");
+    expect(content).not.toMatch(/import\("\.\/providers\/(stripe|chargily|paddle|polar)\.js"\)/);
+    expect(content).toContain("billingProviderLoaders");
     expect(content).toContain("for (const provider of BILLING_PROVIDER_NAMES)");
   });
 

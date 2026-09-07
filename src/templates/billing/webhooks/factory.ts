@@ -4,6 +4,7 @@
  */
 export {
   webhookContent,
+  webhookRouteFiles,
   webhookFilesForProvider,
   allWebhookFiles,
   webhookFilesFiltered,

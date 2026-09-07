@@ -12,58 +12,90 @@
     "tooling/*"
   ],
   "files": [
-    "dist/cli.js",
+    "dist/**/*",
     "src/**/*",
+    "schemas/**/*",
+    "policy/**/*",
+    "evidence/compatibility/**/*",
+    "docs/engineering/**/*",
     "README.md",
+    "VISION.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "type": "module",
   "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
-    }
+    },
+    "./schemas/*": "./schemas/*",
+    "./compatibility/*": "./evidence/compatibility/*"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
     "dev": "bun run --watch src/cli.ts",
-    "typecheck": "tsc -b",
+    "typecheck": "bunx --no-install tsc -b && bun run typecheck:scripts",
+    "typecheck:scripts": "bunx --no-install tsc -p tsconfig.scripts.json --noEmit",
     "check": "oxlint . && oxfmt --check . && tsc --noEmit",
     "format": "oxfmt --write .",
     "pretest": "bun run build",
     "test": "bun test --timeout 100000 tests/integration tests/unit",
-    "pretest:fixtures": "cd tests/fixtures/compatibility/drizzle-betterauth-orpc && bun install && cd ../next-tailwind-biome && bun install",
-    "test:fixtures": "bun test tests/fixtures",
-    "test:ci": "bun run test && bun run pretest:fixtures && bun run test:fixtures && bun run test:generated -- --all",
+    "test:fixtures": "bun run scripts/test-fixtures.ts",
+    "test:e2e-build": "E2E_BUILD=1 bun test --timeout 1800000 tests/integration/e2e-build.test.ts",
+    "test:realtime-runtime": "NITRO_WEBSOCKET_RUNTIME=1 bun test --timeout 900000 tests/integration/nitro-websocket-compat-runtime.test.ts",
+    "test:ci": "bun run check:lock-age && bun run check && bun run typecheck && bun run scripts/sync-turbo-env.ts --check && bun run check:versions && bun run check:capability-evidence && bun audit --audit-level=high && git diff --check && bun run test && bun run test:fixtures && bun run test:generated -- --all && bun run test:realtime-runtime && bun run test:e2e-build",
     "test:generated": "bun run scripts/test-generated.ts",
+    "test:workers": "bun run scripts/test-generated.ts --workers",
+    "check:capability-evidence": "bun run scripts/check-capability-evidence.ts",
+    "check:lock-age": "bun run scripts/check-lock-release-age.ts",
     "check:versions": "bun run scripts/check-versions.ts",
-    "release": "bun run check:versions && bun run build && bun run test:generated -- --workers && bun pm pack"
+    "release:artifact": "bun run scripts/release-artifact.ts",
+    "release": "bun run test:ci && bun run release:artifact"
   },
   "dependencies": {
-    "@clack/prompts": "0.8.2",
-    "oxc-parser": "0.139.0",
-    "zod": "^4.4.3"
+    "@chargily/chargily-pay": "2.1.0",
+    "@clack/prompts": "1.7.0",
+    "oxc-parser": "0.147.0",
+    "oxfmt": "0.65.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
-    "@chargily/chargily-pay": "2.1.0",
-    "@orpc/contract": "^1.14.7",
-    "@orpc/server": "^1.14.7",
-    "@orpc/zod": "^1.14.7",
-    "bun-types": "1.4.0",
-    "drizzle-orm": "^0.45.2",
-    "oxfmt": "0.58.0",
-    "oxlint": "1.73.0",
-    "typescript": "6.0.3"
+    "@better-auth/passkey": "1.6.30",
+    "@electric-sql/pglite": "0.5.7",
+    "@electric-sql/pglite-socket": "0.2.10",
+    "@orpc/client": "1.15.0",
+    "@orpc/contract": "1.15.0",
+    "@orpc/server": "1.15.0",
+    "@orpc/zod": "1.15.0",
+    "@playwright/test": "1.62.1",
+    "@react-pdf/renderer": "4.8.1",
+    "@types/bun": "1.4.0",
+    "@types/node": "24.13.3",
+    "@upstash/redis": "1.38.2",
+    "ajv": "8.20.0",
+    "better-auth": "1.6.30",
+    "dejavu-fonts-ttf": "2.37.3",
+    "drizzle-kit": "0.31.10",
+    "drizzle-orm": "0.45.2",
+    "eve": "0.44.4",
+    "oxlint": "1.80.0",
+    "pg": "8.23.0",
+    "react": "19.2.8",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "@types/node": "24.13.3"
   },
   "engines": {
-    "bun": ">=1.4.0",
-    "node": ">=22.0.0"
+    "bun": "1.4.0",
+    "node": ">=22.12.0"
   },
   "packageManager": "bun@1.4.0",
-  "_comment_private": "Root IS the publishable CLI (bin ghostinit). Keep private false so npm publish works. Bun allows workspaces with private false - this is intentional, not a monorepo root that is never published."
+  "_comment_private": "Root IS the publishable CLI (bin ghostinit). Keep private false so Bun can publish it to the npm registry. This is intentional, not a monorepo root that is never published."
 }

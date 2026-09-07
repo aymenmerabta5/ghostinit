@@ -1,3 +1,4 @@
+/** Reference identity, billing, and messaging domain module package. */
 import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import { billingApplicationsFiles } from "./billing/applications/billing.js";
 import * as v from "./versions.js";
@@ -20,7 +21,7 @@ export function modulesPackage(
       "packages/modules/package.json",
       packageJson({
         name: "@repo/modules",
-        scripts: codeScripts({ test: runtime === "bun" ? "bun test" : "npm run test:unit" }),
+        scripts: codeScripts({ test: "bun test" }),
         exports: {
           ".": "./src/index.ts",
           "./*": "./src/*/index.ts",
@@ -28,22 +29,11 @@ export function modulesPackage(
         },
         dependencies: {
           "@repo/contracts": "workspace:*",
-          ...(hasBilling
-            ? {
-                "@repo/kernel": "workspace:*",
-                "@repo/services": "workspace:*",
-              }
-            : {}),
-          ...(hasMessaging
-            ? {
-                "@repo/database": "workspace:*",
-                "@repo/realtime": "workspace:*",
-                "drizzle-orm": `^${v.database["drizzle-orm"]}`,
-              }
-            : {}),
+          ...(hasBilling ? { "@repo/kernel": "workspace:*", "@repo/services": "workspace:*" } : {}),
         },
         devDependencies: {
-          ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
+          "bun-types": `^${v.runtime.bun}`,
+          ...(runtime === "node" ? { "@types/node": `^${v.runtime["@types/node"]}` } : {}),
           typescript: `^${v.typescript.typescript}`,
         },
       }),
@@ -52,7 +42,9 @@ export function modulesPackage(
       "packages/modules/tsconfig.json",
       tsconfig({
         include: ["src/**/*", "tests/**/*"],
-        compilerOptions: { types: runtime === "bun" ? ["bun-types"] : ["node"] },
+        compilerOptions: {
+          types: runtime === "bun" ? ["bun-types"] : ["bun-types/test", "node"],
+        },
       }),
     ),
     // Sorted alphabetically so the on-disk file matches what `sync` rebuilds.
@@ -104,8 +96,8 @@ ${exports}
       `import { describe, it, expect } from "bun:test";\nimport { getProfileUseCase } from "../../src/identity/application/get-profile.js";\n\ndescribe("getProfileUseCase", () => {\n  it("returns the profile when found", async () => {\n    const profile = { id: "1", email: "a@example.com", name: "A" };\n    const result = await getProfileUseCase(\n      { userId: "1" },\n      { findById: async () => profile },\n    );\n    expect(result).toEqual(profile);\n  });\n\n  it("returns null when missing", async () => {\n    const result = await getProfileUseCase(\n      { userId: "2" },\n      { findById: async () => null },\n    );\n    expect(result).toBeNull();\n  });\n});\n`,
     ),
     // The billing module is the reference demonstration for the 6-layer chain:
-    // app/api/** (or app/api/billing/** in the transport) → @repo/api
-    // (oRPC procedures, Transport layer 2) → @repo/modules/billing/application/*
+    // app/api/rpc/** (Transport layer 2) → @repo/api oRPC procedures
+    // → @repo/modules/billing/application/*
     // (Domain/application layer 3) → @repo/services/billing/* (Capabilities layer 4)
     // → @repo/billing/providers/* (Vendors layer 5) → @repo/database/@repo/config
     // (Supporting layer 6). This is what `ghostinit check` enforces with
@@ -134,36 +126,15 @@ export { createPortalSessionUseCase, type CreatePortalSessionUseCaseInput, type 
       ? [
           file(
             "packages/modules/src/messaging/index.ts",
-            `export * from "./domain/index.js";\nexport * from "./application/index.js";\n`,
+            `export type { Conversation, Message, MessageAttachment, Participant, TypingIndicator } from "./domain/types.js";\n`,
           ),
           file(
             "packages/modules/src/messaging/domain/types.ts",
             `export interface Conversation { id: string; createdBy: string; createdAt: Date; updatedAt: Date; }\nexport interface Participant { conversationId: string; userId: string; joinedAt: Date; lastReadAt?: Date | null; }\nexport interface Message { id: string; conversationId: string; senderId: string; body?: string | null; replyToId?: string | null; createdAt: Date; }\nexport interface MessageAttachment { id: string; messageId: string; storageKey: string; url: string; mimeType: string; byteSize: number; originalName: string; createdAt: Date; }\nexport interface TypingIndicator { conversationId: string; userId: string; isTyping: boolean; updatedAt: Date; }\n`,
           ),
-          file("packages/modules/src/messaging/domain/index.ts", `export * from "./types.js";\n`),
           file(
-            "packages/modules/src/messaging/application/get-or-create-conversation.ts",
-            `import type { Conversation } from "../domain/types.js";\nimport { db } from "@repo/database";\nimport { conversations, conversationParticipants } from "@repo/database";\nimport { eq, and } from "drizzle-orm";\nexport interface GetOrCreateInput { peerUserId: string; currentUserId: string; }\nexport async function getOrCreateConversationUseCase(input: GetOrCreateInput): Promise<Conversation> {\n  if (input.peerUserId === input.currentUserId) throw new Error("Cannot create conversation with yourself");\n  const a = input.currentUserId < input.peerUserId ? input.currentUserId : input.peerUserId;\n  const b = input.currentUserId < input.peerUserId ? input.peerUserId : input.currentUserId;\n  const myParts = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { userId: unknown }).userId, input.currentUserId) });\n  for (const p of myParts as unknown as { conversationId: string }[]) {\n    const others = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { conversationId: unknown }).conversationId, p.conversationId) });\n    const ids = (others as unknown as { userId: string }[]).map((o) => o.userId).sort();\n    if (ids.length === 2 && ids[0] === a && ids[1] === b) {\n      const conv = await (db as unknown as { query: { conversations: { findFirst: (o: unknown) => Promise<Conversation | undefined> } } }).query.conversations.findFirst({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { id: unknown }).id, p.conversationId) });\n      if (conv) return conv;\n    }\n  }\n  const [conv] = await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => { returning: () => Promise<Conversation[]> } } }).insert(conversations).values({ createdBy: input.currentUserId }).returning();\n  await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<void> } }).insert(conversationParticipants).values([{ conversationId: conv.id, userId: input.currentUserId }, { conversationId: conv.id, userId: input.peerUserId }]);\n  return conv;\n}\n`,
-          ),
-          file(
-            "packages/modules/src/messaging/application/list-conversations.ts",
-            `import type { Conversation } from "../domain/types.js";\nimport { db } from "@repo/database";\nexport interface ListConversationsInput { userId: string; }\nexport async function listConversationsUseCase(input: ListConversationsInput): Promise<Conversation[]> {\n  const parts = await (db as unknown as { query: { conversationParticipants: { findMany: (o: unknown) => Promise<unknown[]> } } }).query.conversationParticipants.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { userId: unknown }).userId, input.userId) });\n  const ids = [...new Set((parts as unknown as { conversationId: string }[]).map((p) => p.conversationId))];\n  const convs: Conversation[] = [];\n  for (const id of ids) {\n    const c = await (db as unknown as { query: { conversations: { findFirst: (o: unknown) => Promise<Conversation | undefined> } } }).query.conversations.findFirst({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { id: unknown }).id, id) });\n    if (c) convs.push(c);\n  }\n  return convs.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());\n}\n`,
-          ),
-          file(
-            "packages/modules/src/messaging/application/list-messages.ts",
-            `import type { Message } from "../domain/types.js";\nimport { db } from "@repo/database";\nimport { conversationParticipants } from "@repo/database";\nimport { eq, and } from "drizzle-orm";\nexport interface ListMessagesInput { conversationId: string; userId?: string; limit?: number; cursor?: string; }\nexport interface ListMessagesOutput { messages: Message[]; nextCursor: string | null; }\nexport async function listMessagesUseCase(input: ListMessagesInput): Promise<ListMessagesOutput> {\n  if (input.userId) {\n    const part = await (db as unknown as { query: { conversationParticipants: { findFirst: (o: unknown) => Promise<unknown> } } }).query.conversationParticipants.findFirst({ where: (t: unknown, { eq: eq2, and: and2 }: { eq: unknown; and: unknown }) => and2(eq2((t as { conversationId: unknown }).conversationId, input.conversationId), eq2((t as { userId: unknown }).userId, input.userId)) });\n    if (!part) throw new Error("Forbidden: not a participant");\n  }\n  const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);\n  const msgs = await (db as unknown as { query: { messages: { findMany: (o: unknown) => Promise<Message[]> } } }).query.messages.findMany({ where: (t: unknown, { eq: eq2 }: { eq: unknown }) => eq2((t as { conversationId: unknown }).conversationId, input.conversationId), orderBy: (t: unknown, { desc }: { desc: (c: unknown) => unknown }) => [desc((t as { createdAt: unknown }).createdAt)], limit });\n  return { messages: (msgs as Message[]).reverse(), nextCursor: null };\n}\n`,
-          ),
-          file(
-            "packages/modules/src/messaging/application/send-message.ts",
-            `import type { Message } from "../domain/types.js";\nimport { db } from "@repo/database";\nimport { messages, messageAttachments, conversationParticipants } from "@repo/database";\nimport { publish } from "@repo/realtime";\nimport { eq, and } from "drizzle-orm";\nexport interface SendMessageInput { conversationId: string; senderId: string; body?: string; replyToId?: string; attachmentIds?: string[]; }\nexport async function sendMessageUseCase(input: SendMessageInput): Promise<Message> {\n  if (!input.body && !input.attachmentIds?.length) throw new Error("body or attachment required");\n  if (input.body && input.body.length > 4000) throw new Error("body too long");\n  const part = await (db as unknown as { query: { conversationParticipants: { findFirst: (o: unknown) => Promise<unknown> } } }).query.conversationParticipants.findFirst({ where: (t: unknown, { eq: eq2, and: and2 }: { eq: unknown; and: unknown }) => and2(eq2((t as { conversationId: unknown }).conversationId, input.conversationId), eq2((t as { userId: unknown }).userId, input.senderId)) });\n  if (!part) throw new Error("Forbidden: not a participant");\n  const [msg] = await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => { returning: () => Promise<Message[]> } } }).insert(messages).values({ conversationId: input.conversationId, senderId: input.senderId, body: input.body ?? null, replyToId: input.replyToId ?? null }).returning();\n  if (input.attachmentIds?.length) {\n    const rows = input.attachmentIds.map((k) => ({ messageId: msg.id, storageKey: k, url: \`/api/messaging/attachments?key=\${k}\`, mimeType: "application/octet-stream", byteSize: 0, originalName: k }));\n    await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<void> } }).insert(messageAttachments).values(rows as unknown as never);\n  }\n  try { publish(input.conversationId, { type: "message", conversationId: input.conversationId, payload: { message: msg, userId: input.senderId }, timestamp: Date.now() }); } catch {}\n  return msg;\n}\n`,
-          ),
-          file(
-            "packages/modules/src/messaging/application/mark-read.ts",
-            `import { db } from "@repo/database";\nimport { conversationParticipants } from "@repo/database";\nimport { eq, and } from "drizzle-orm";\nimport { publish } from "@repo/realtime";\nexport interface MarkReadInput { conversationId: string; userId: string; messageId: string; }\nexport async function markReadUseCase(input: MarkReadInput): Promise<{ ok: true }> {\n  const part = await (db as unknown as { query: { conversationParticipants: { findFirst: (o: unknown) => Promise<unknown> } } }).query.conversationParticipants.findFirst({ where: (t: unknown, { eq: eq2, and: and2 }: { eq: unknown; and: unknown }) => and2(eq2((t as { conversationId: unknown }).conversationId, input.conversationId), eq2((t as { userId: unknown }).userId, input.userId)) });\n  if (!part) throw new Error("Forbidden: not a participant");\n  await (db as unknown as { update: (t: unknown) => { set: (v: unknown) => { where: (c: unknown) => Promise<void> } } }).update(conversationParticipants).set({ lastReadAt: new Date() }).where(and(eq(conversationParticipants.conversationId, input.conversationId), eq(conversationParticipants.userId, input.userId)));\n  try { publish(input.conversationId, { type: "read", conversationId: input.conversationId, payload: { userId: input.userId, messageId: input.messageId }, timestamp: Date.now() }); } catch {}\n  return { ok: true };\n}\n`,
-          ),
-          file(
-            "packages/modules/src/messaging/application/index.ts",
-            `export { getOrCreateConversationUseCase } from "./get-or-create-conversation.js";\nexport { listConversationsUseCase } from "./list-conversations.js";\nexport { listMessagesUseCase } from "./list-messages.js";\nexport { sendMessageUseCase } from "./send-message.js";\nexport { markReadUseCase } from "./mark-read.js";\n`,
+            "packages/modules/src/messaging/domain/index.ts",
+            `export type { Conversation, Message, MessageAttachment, Participant, TypingIndicator } from "./types.js";\n`,
           ),
         ]
       : []),

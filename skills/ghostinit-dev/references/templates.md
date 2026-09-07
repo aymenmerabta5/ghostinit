@@ -2,11 +2,13 @@
 
 ## Pipeline
 
-`src/templates/default.ts` `generateProjectFiles(config, ctx)`:
+The production path calls `src/templates/default.ts` `buildProjectGenerationPlan()` with an immutable resolved configuration. `src/generation/resolved-template-compiler.ts` owns policy, attribution, lifecycle, and secret declarations while the remaining legacy adapter returns path/content pairs. Do not bypass the plan from a CLI command.
+
+The compatibility emitter `generateProjectFiles(config, ctx)` dispatches to the mode composers:
 
 - `config.mode` defaults `monorepo`, else `single`.
-- If monorepo → `modes/monorepo/index.ts` `monorepoFiles(config, secrets=buildSecrets(), ctx, addons)` where `buildSecrets()` random via `secret()` helper + `selectedBillingFromAddons()`, `hasEve/hasI18n`, `effectiveFramework`.
-- Else single → `modes/single.ts` `singleFiles()` flat Next.
+- If monorepo → `modes/monorepo/index.ts` `monorepoFiles(config, secrets=buildSecrets(), ctx, addons)`. The direct legacy default mints only self-issued secrets; production compilation supplies placeholders and declares secret operations in the plan.
+- Else single → `modes/single/index.ts` `singleFiles()` through the `modes/single.ts` compatibility barrel. `composers/next.ts` and `composers/tanstack.ts` emit web projects; `composers/expo.ts` and `composers/desktop.ts` emit frontend-only native projects. Single web routes live in `src/app/` for Next or `src/routes/` for TanStack, with selected backend code under `src/server/`.
 
 `monorepoFiles()`:
 
@@ -22,7 +24,7 @@ Each composer `<5 imports` guideline, monorepo/index.ts exceeds but via intentio
 
 ## Composers Overview
 
-- `root-composer.ts` → `genRootFiles()` from `root/` folder split: root package.json, turbo.json exhaustive globalEnv, bunfig.toml hoist=true (generated), oxlint/oxfmt configs, .gitignore, .env.example via `filteredEnvExample()` replacing raw, README minimal. `filteredEnvExample()` uses `shared/env` builders selectedBilling aware.
+- `root-composer.ts` → `genRootFiles()` from `root/` folder split: root package.json, manifest-derived Turbo inputs filtered to selected capabilities/app audiences, bunfig.toml hoist=true (generated), oxlint/oxfmt configs, .gitignore, .env.example via `filteredEnvExample()` replacing raw, README minimal. `filteredEnvExample()` uses `shared/env` builders selectedBilling aware.
 - `packages-composer.ts` → `genPackageFiles(runtime)` filtered excluding `typescript-config` (emitted by apps-composer authoritative @/* @repo/* aliases) + `genToolingFiles()` + `genAnalyticsFiles()`.
 - `database-composer.ts` → database package + start-database.sh script. `database.ts` `databasePackage()` aggregates billing schema duplicate copy to avoid circular dep database→billing→database (copies `billing/schema/` tables into `database/src/schema/` for `db.query.webhook_events` support). `tryLoadBilling()` reads billing schema files via `readFileSync` relative thisDir, fallback barrel if missing.
 - `auth-composer.ts` → auth package with framework resolution `resolveAuthFramework()` handles string|object+addons map detection TanStack vs Next cookie `nextCookies()` vs `tanstackStartCookies()`, security review flags: `autoSignInAfterRegistration false`, `httpOnly secure sameSite lax`, rateLimit memory, TRUSTED_PROXY guard ipAddressHeaders, backgroundTasks waitUntil, plugins admin twoFactor issuer.
@@ -37,7 +39,7 @@ Each composer `<5 imports` guideline, monorepo/index.ts exceeds but via intentio
 
 Located in `src/templates/shared.ts` (or similar) — helpers return `TemplateFile {path, content}`. `file(path, content)` raw. `packageJson({name, exports, scripts, dependencies, devDependencies})` stringifies package.json with deterministic ordering + workspace:* handling. `tsconfig({include, compilerOptions})` stringifies tsconfig. `codeScripts()` default scripts `{lint, typecheck, ...}`.
 
-Version injection: `import * as v from "./versions.js"` re-export of `@repo/versions`, then e.g., `stripe: "^" + v.billing.stripe`.
+Version injection: `import * as v from "./versions.js"` re-export of `@repo/versions`. Stripe is exact (`stripe: v.billing.stripe`) because its SDK release and `LatestApiVersion` type literal are coupled; ordinary semver-compatible dependencies use `^`.
 
 Internal deps `workspace:*` for `@repo/*`.
 
@@ -50,6 +52,27 @@ Internal deps `workspace:*` for `@repo/*`.
 - - maybe package.ts, turbo.ts, bunfig.ts, lint.ts, env.ts etc each small.
 
 Same pattern for `shared/env/` split 449 LOC → `billing.ts`, `core.ts`, `builders.ts` each <300 etc.
+
+Deployment output is split between `root/deploy.ts` (target selection, Dockerfile, provider bindings, operational health route), `root/deploy-guides.ts` (BuildKit secret command, health probe, production Compose, and platform guidance), and `root/cloudflare.ts` (framework-aware Worker artifacts and operations). Keep the 30-second Compose/Fly grace aligned with `process-supervisor.ts`'s 20-second graceful plus 5-second forced budget. Docker Eve state must use the explicit named volume in `compose.production.yml`; never replace it with an anonymous Dockerfile `VOLUME`.
+
+Cloudflare must remain a first-class `ResolvedProjectConfig`/`GenerationPlan`
+target. Next emits OpenNext config, Edge `middleware.ts`, an R2 incremental
+cache, `DOQueueHandler` queue binding, and `DOShardedTagCache` binding with
+immutable `v1` plus additive `v2` migrations. TanStack emits the native
+Cloudflare Vite plugin, `vite-tsconfig-paths`, and a Fetch Worker entrypoint;
+never retain the Nitro adapter in that profile. Both paths emit
+`wrangler.jsonc`, `scripts/cloudflare.mjs`, and the generated deployment guide.
+The wrapper rejects runtime `.env*` files, requires the regular root lock,
+builds without implicitly loading `.dev.vars`, and scans the bounded artifact
+for non-public secret-like process values. Keep production build variables and
+runtime Worker secrets separate, and preserve dashboard variables on deploy
+with `--keep-vars`.
+
+Support-catalog bindings allow Cloudflare only for web + Convex/none. Reject
+PostgreSQL until Hyperdrive is request-scoped, Eve until its runtime is
+Workers-native, and PDF until admission is globally coordinated. Any change
+must preserve owner/lifecycle/provenance records and the four installed Worker
+corners; do not patch the final template array post hoc.
 
 Maintain <300 LOC guideline per file with `// @allow-long <LOC>: <reason>` escape if aggregation legit.
 

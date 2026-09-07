@@ -12,6 +12,7 @@ export function checkModuleToModule(
   absFile: string,
   imp: string,
   pkg: PackageInfo | undefined,
+  resolvedTarget?: string,
 ): void {
   if (!pkg || !file.includes("/modules/")) return;
   const moduleMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(file);
@@ -33,6 +34,20 @@ export function checkModuleToModule(
     const resolved = resolve(dirname(absFile), imp);
     const normalized = normalizePath(resolved);
     const targetMatch = /\/packages\/modules\/src\/([a-z0-9-]+)\//.exec(normalized);
+    if (targetMatch && targetMatch[1] !== currentModule) {
+      findings.push({
+        id: "module-to-module-import",
+        severity: "HIGH",
+        message: `Module ${currentModule} imports another module ${targetMatch[1]}: ${imp}`,
+        file,
+        rule: "module-isolation",
+      });
+    }
+  }
+  if (resolvedTarget) {
+    const targetMatch = /(?:^|\/)packages\/modules\/src\/([a-z0-9-]+)(?:\/|$)/.exec(
+      resolvedTarget.replace(/\\/g, "/"),
+    );
     if (targetMatch && targetMatch[1] !== currentModule) {
       findings.push({
         id: "module-to-module-import",

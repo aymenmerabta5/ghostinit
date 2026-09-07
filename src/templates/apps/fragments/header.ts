@@ -2,11 +2,13 @@
  * Header fragments shim — split 312 LOC file into header/ folder (<150 each).
  * Keeps backwards-compatible import path "./fragments/header.js".
  */
-export type { RouterType } from "./header/shared.js";
+export type { HeaderNavigationCapabilities, RouterType } from "./header/shared.js";
 export {
   getInitialsFunction,
   getInitialsTanstackVariant,
   sharedHeaderStructure,
 } from "./header/shared.js";
 export { headerFileContent } from "./header/header.js";
-export { signOutButtonContent, adminGuardContent } from "./header/guards.js";
+export { headerActionsContent } from "./header/actions.js";
+export { headerUserMenuContent } from "./header/user-menu.js";
+export { signOutButtonContent } from "./header/guards.js";

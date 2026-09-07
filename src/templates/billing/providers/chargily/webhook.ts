@@ -1,10 +1,28 @@
 /**
  * Chargily webhook verification.
  */
-// @ts-ignore - optional dep
 import { verifySignature } from "@chargily/chargily-pay";
+import { createHash } from "node:crypto";
 import { ensureServerOnly, resolveChargilyConfig, type ChargilyProviderConfig } from "./client.js";
 import type { VerifyWebhookInput, VerifyWebhookOutput, BillingEvent } from "../interface.js";
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function chargilyDeliveryId(payload: Record<string, unknown>, rawBody: Buffer): string {
+  // Chargily's documented event envelope uses the top-level id. data.id is the
+  // checkout resource and must not be used to deduplicate separate deliveries.
+  return (
+    nonEmptyString(payload.id) ??
+    nonEmptyString(payload.event_id) ??
+    `body_sha256:${createHash("sha256").update(rawBody).digest("hex")}`
+  );
+}
 
 export async function verifyChargilyWebhook(
   input: VerifyWebhookInput,
@@ -46,28 +64,22 @@ export async function verifyChargilyWebhook(
     return { valid: false, error: "Invalid JSON payload — return 400" };
   }
 
-  const p = payload as Record<string, unknown>;
-  const data =
-    (p.data as Record<string, unknown> | undefined) ??
-    (p.checkout as Record<string, unknown> | undefined) ??
-    p;
-  const eventId =
-    (p.id as string | undefined) ??
-    (data.id as string | undefined) ??
-    (p.event_id as string | undefined) ??
-    "evt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  if (!isRecord(payload)) return { valid: false, error: "Invalid webhook payload — return 400" };
+
+  const p = payload;
+  const data = isRecord(p.data) ? p.data : isRecord(p.checkout) ? p.checkout : p;
+  const eventId = chargilyDeliveryId(p, rawBody);
   const eventType =
-    (p.type as string | undefined) ??
-    (p.event as string | undefined) ??
-    "checkout." +
-      ((data.status as string | undefined) ?? (p.status as string | undefined) ?? "updated");
+    nonEmptyString(p.type) ??
+    nonEmptyString(p.event) ??
+    `checkout.${nonEmptyString(data.status) ?? nonEmptyString(p.status) ?? "updated"}`;
 
   const billingEvent: BillingEvent = {
     id: eventId,
     provider: "chargily",
     providerEventId: eventId,
     type: eventType,
-    payload: payload as Record<string, unknown>,
+    payload,
     processed: false,
     createdAt: new Date(),
   };

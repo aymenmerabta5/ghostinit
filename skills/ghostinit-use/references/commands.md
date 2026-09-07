@@ -16,13 +16,14 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 - Validation:
   - `billing + database=none` blocked → needs DB for subscriptions.
   - `single + apps both|all|web,mobile` blocked → single supports only one target; use monorepo for web+mobile.
+  - `single + apps mobile|desktop` is frontend-only. Server-backed capabilities, database/cache/deploy selections, and implicit SaaS defaults are rejected with typed reason `single-native-server-capabilities-unsupported`.
   - `apps none` or empty alone blocked → at least one app required.
     Emits warning + exits 2 if invalid.
-- Output: folder `<cwd>/<name>` with scaffolded files, `.env.example`, `.env.local` placeholders, `.ghostinit/state.json`, `start-database.sh`, `turbo.json` exhaustive globalEnv (including EXPO_PUBLIC_*), `bunfig.toml` hoist=true.
+- Output: folder `<cwd>/<name>` with scaffolded files, `.env.example`, `.env.local` placeholders (`.dev.vars` for Cloudflare), `.ghostinit/state.json`, `start-database.sh`, `turbo.json` exhaustive globalEnv (including EXPO_PUBLIC_*), `bunfig.toml` hoist=true.
   - `apps/web` when web selected (Next.js app router or TanStack Start src/routes).
-  - `apps/mobile` when mobile selected (Expo SDK 54 Router app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore).
+  - `apps/mobile` when mobile selected (Expo SDK 57 Router app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore).
   - `apps/web + apps/mobile` when both selected (monorepo only).
-  - Single mode `apps mobile` → flat `app/` + `src/server/` + `app.json` Expo structure.
+  - Single mode `apps mobile|desktop` → flat frontend-only native structure with no generated backend host.
 - If `existsSync(projectRoot)` and no `--force` → exit 18 conflict.
 - If install fails → exit 22 generation error but files still written.
 - If prompt cancelled → exit 130.
@@ -34,9 +35,10 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--preset`            | `saas,frontend,custom`                                    | `saas`     | Preset: saas=full Auth+DB+API+Email+Analytics; frontend=minimal; custom=pick via --with-*                                                                     |
 | `--mode`              | `monorepo`, `single`                                      | `monorepo` | Structure: workspaces vs flat                                                                                                                                 |
 | `--framework`         | `nextjs`, `tanstack-start`                                | `nextjs`   | Frontend framework for web target                                                                                                                             |
-| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron 41 + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                               |
+| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                                  |
 | `--billing`           | `stripe,chargily,paddle,polar,both,all,none` comma/repeat | `none`     | Any combo allowed                                                                                                                                             |
 | `--cache`             | `redis,none` (alias `upstash`)                            | `none`     | Cache via Upstash Redis + memory fallback                                                                                                                     |
+| `--deploy`            | `vercel,fly,docker,cloudflare,none`                       | `none`     | Provider deployment output; Cloudflare supports web + Convex/none (Next via OpenNext, TanStack native)                                                        |
 | `--stack`             | `nextjs,tanstack-start,expo,both`                         | —          | Frontend shorthand: maps to framework+apps for frontend preset                                                                                                |
 | `--with-auth`         | flag                                                      | off        | Opt-in Auth (requires DB postgres                                                                                                                             | convex); custom only, saas forces on, frontend off unless --with-* |
 | `--with-api`          | flag                                                      | off        | Opt-in oRPC API contract-first                                                                                                                                |
@@ -51,7 +53,7 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--database`          | `postgres,convex,none`                                    | `postgres` | DB provider; frontend defaults to none if not set                                                                                                             |
 | `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                                                                                                                                |
 | `--cwd`               | path                                                      | `.`        | Parent where project created                                                                                                                                  |
-| `--no-install`        | flag                                                      | off        | Skip bun install                                                                                                                                              |
+| `--no-install`        | flag                                                      | off        | Skip verified install; run `bun run install:bootstrap` once in the fresh output                                                                               |
 | `--force`             | flag                                                      | off        | Bypass exists + dirty git + drift                                                                                                                             |
 | `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                                                                                                                          |
 | `--yes` / `--ci`      | flag                                                      | off        | Non-interactive; --yes defaults to saas unless --preset set                                                                                                   |
@@ -61,7 +63,7 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
 | `--list`              | flag                                                      | off        | List (only `add`/`status`): `add --list` modules, `status --list` alias                                                                                       |
 | `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                                                                                                                                 |
 
-Invalid `--mode/framework/database/apps/preset/cache` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`.
+Invalid `--mode/framework/database/apps/preset/cache/deploy` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`. Cloudflare validation rejects PostgreSQL, Eve, and server-side PDF; select Convex or no database and keep those capabilities off.
 
 Interactive when TTY and no --json/--yes/--ci: preset-first wizard. First prompts project name (if missing), then `What are you building?` select SaaS Starter / Frontend Only / Custom. Branching: SaaS → mode, framework, database (postgres|convex), billing multiselect, apps, features (eve/i18n); Frontend → mode, stack (nextjs|tanstack-start|expo|both), install confirm; Custom → mode, framework, database (postgres|convex|none), apps, addons 7-toggle (auth/api/email/analytics/cache/eve/i18n), billing, install confirm. Cancel → exit 130.
 
@@ -78,13 +80,24 @@ ghostinit create my-app --preset frontend --stack nextjs --yes --no-install
 ghostinit create my-app --preset custom --with-auth --with-api --with-cache --cache redis --with-eve --database postgres --yes --no-install
 
 ghostinit create my-app --apps web,mobile
-ghostinit create my-app --apps mobile --mode monorepo
-ghostinit create my-app --apps mobile --mode single
+ghostinit create my-app --apps mobile --mode monorepo --preset frontend --database none
+ghostinit create my-app --apps mobile --mode single --preset frontend --database none
 ghostinit create my-app --apps both --framework tanstack-start
 ghostinit create my-app --dry-run --yes --no-install
 ghostinit create my-app --dry-run --json --yes | jq .data.files
 ghostinit create my-app --preset saas --billing stripe --with-pdf --with-messaging --deploy docker --yes --no-install
+ghostinit create my-worker --preset frontend --framework tanstack-start --database none --deploy cloudflare --yes --no-install
 ```
+
+## `upgrade [--dry-run] [--force] [--json]`
+
+Compiles the current V2 desired state and applies a hash-gated transactional
+re-render. Generator-owned files update only from their recorded base hash;
+user-owned seed edits are preserved and retired from management when needed,
+and conflicting managed edits stop the entire operation before commit. The
+plan also covers path moves, environment migrations, and self-issued secret
+materialization. Run `ghostinit upgrade --dry-run` first, especially when a
+deployment change moves `.env.local` values into Cloudflare `.dev.vars`.
 
 ## `add module <name>`
 
@@ -145,7 +158,9 @@ ghostinit add action orders submit
 
 ## `sync [--check] [--dry-run] [--force] [--json]`
 
-Rebuilds 4 registries deterministically:
+When desired configuration or a pending operation exists, sync first runs the
+same hash-gated transactional reconciliation used by upgrade. It then rebuilds
+4 registries deterministically:
 
 - `packages/modules/src/index.ts`
 - `packages/api/src/contract.ts`
@@ -153,7 +168,8 @@ Rebuilds 4 registries deterministically:
 - `packages/database/src/schema/index.ts`
 
 - `--check` mode no writes, exits 8 DRIFT if changed or drift detected (tracked files modified externally vs checksums in state).
-- `--dry-run` logs would-change list, skips writeFile + saveState.
+- `--dry-run` previews the desired-state plan (including conflicts) and registry
+  changes without locking or writing.
 - Normal mode writes + updates checksums + `state.json`.
 
 ```bash
@@ -213,8 +229,8 @@ Tooling + env verification:
 
 ```bash
 ghostinit doctor
-# [OK] bun: Bun 1.4.0
-# [OK] node: Node 24.18.0
+# [OK] bun: repository-pinned Bun version
+# [OK] node: Node 24.19.0
 # [OK] typescript: TypeScript 6.0.3
 # [OK] ghostinit-version: ghostinit 0.1.0
 # [OK] ghostinit-state: Project state found for my-app

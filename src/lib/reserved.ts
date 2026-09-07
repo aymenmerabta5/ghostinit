@@ -9,6 +9,12 @@
 // Workspace package names that already exist in generated projects.
 // Single source imported from constants.ts (canonical definition).
 import { RESERVED_WORKSPACE_PACKAGES } from "./constants.js";
+import {
+  isWindowsReservedDeviceName,
+  PORTABLE_NAME_MAX_UTF8_BYTES,
+  portableNameUtf8Bytes,
+  PROJECT_NAME_PATTERN,
+} from "../domain/project/choices.js";
 
 const WORKSPACE_PACKAGES = new Set<string>(RESERVED_WORKSPACE_PACKAGES as readonly string[]);
 
@@ -96,11 +102,16 @@ const LANGUAGE_RESERVED = new Set([
 ]);
 
 export const INVALID_NAME_RE = /[^a-z0-9-]/;
-export const VALID_NAME_RE = /^[a-z][a-z0-9-]*$/;
+export const VALID_NAME_RE = PROJECT_NAME_PATTERN;
 
 export function isReservedName(name: string): boolean {
   if (!name) return true;
-  return WORKSPACE_PACKAGES.has(name) || GENERATED_NAMES.has(name) || LANGUAGE_RESERVED.has(name);
+  return (
+    WORKSPACE_PACKAGES.has(name) ||
+    GENERATED_NAMES.has(name) ||
+    LANGUAGE_RESERVED.has(name) ||
+    isWindowsReservedDeviceName(name)
+  );
 }
 
 export function validateArtifactName(
@@ -109,6 +120,19 @@ export function validateArtifactName(
 ): { valid: true } | { valid: false; reason: string } {
   if (!name) {
     return { valid: false, reason: `${context}: name is required` };
+  }
+  const utf8Bytes = portableNameUtf8Bytes(name);
+  if (utf8Bytes > PORTABLE_NAME_MAX_UTF8_BYTES) {
+    return {
+      valid: false,
+      reason: `${context}: "${name}" must be at most ${PORTABLE_NAME_MAX_UTF8_BYTES} UTF-8 bytes (received ${utf8Bytes})`,
+    };
+  }
+  if (isWindowsReservedDeviceName(name)) {
+    return {
+      valid: false,
+      reason: `${context}: "${name}" uses a Windows-reserved device basename`,
+    };
   }
   if (name.startsWith("-") || name.endsWith("-")) {
     return {

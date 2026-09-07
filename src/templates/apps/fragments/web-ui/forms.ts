@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import { fieldFiles } from "./field.js";
 
 export function formsFiles(): TemplateFile[] {
   return [
@@ -12,20 +13,18 @@ import { cn } from "../../lib/utils.js";
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
-      <input
-        type={type}
-        data-slot="input"
-        className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20",
-          className,
-        )}
-        ref={ref}
-        {...props}
-      />
-    );
-  },
+  ({ className, type, ...props }, ref) => (
+    <input
+      ref={ref}
+      type={type}
+      data-slot="input"
+      className={cn(
+        "flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20",
+        className,
+      )}
+      {...props}
+    />
+  ),
 );
 Input.displayName = "Input";
 `,
@@ -55,169 +54,15 @@ export const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
 Label.displayName = "Label";
 `,
     ),
+    ...fieldFiles(),
     file(
-      "apps/web/src/components/ui/field.tsx",
+      "apps/web/src/components/ui/form-context.tsx",
       `"use client";
 
-import * as React from "react";
-import { cn } from "../../lib/utils.js";
+import { createFormHookContexts } from "@tanstack/react-form";
 
-export const FieldGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-slot="field-group"
-      className={cn("@container/field-group flex flex-col gap-6", className)}
-      {...props}
-    />
-  ),
-);
-FieldGroup.displayName = "FieldGroup";
-
-export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
-  "data-invalid"?: boolean;
-}
-
-export const Field = React.forwardRef<HTMLDivElement, FieldProps>(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    data-slot="field"
-    data-invalid={props["data-invalid"] ? "true" : undefined}
-    className={cn("group/field flex w-full flex-col gap-2 data-[invalid=true]:text-destructive", className)}
-    {...props}
-  />
-));
-Field.displayName = "Field";
-
-export const FieldContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="field-content" className={cn("flex flex-1 flex-col gap-1.5", className)} {...props} />
-  ),
-);
-FieldContent.displayName = "FieldContent";
-
-export const FieldLabel = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttributes<HTMLLabelElement>>(
-  ({ className, ...props }, ref) => (
-    <label
-      ref={ref}
-      data-slot="field-label"
-      className={cn(
-        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 group-data-[invalid=true]/field:text-destructive",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
-FieldLabel.displayName = "FieldLabel";
-
-export const FieldDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
-  ({ className, ...props }, ref) => (
-    <p
-      ref={ref}
-      data-slot="field-description"
-      className={cn("text-[0.8rem] text-muted-foreground group-data-[invalid=true]/field:text-destructive", className)}
-      {...props}
-    />
-  ),
-);
-FieldDescription.displayName = "FieldDescription";
-
-export const FieldError = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
-  ({ className, children, ...props }, ref) => {
-    if (!children) return null;
-    return (
-      <p
-        ref={ref}
-        data-slot="field-error"
-        className={cn("text-[0.8rem] font-medium text-destructive", className)}
-        {...props}
-      >
-        {children}
-      </p>
-    );
-  },
-);
-FieldError.displayName = "FieldError";
-
-export const FieldSet = React.forwardRef<HTMLFieldSetElement, React.FieldsetHTMLAttributes<HTMLFieldSetElement>>(
-  ({ className, ...props }, ref) => (
-    <fieldset ref={ref} data-slot="field-set" className={cn("flex flex-col gap-6", className)} {...props} />
-  ),
-);
-FieldSet.displayName = "FieldSet";
-
-export const FieldLegend = React.forwardRef<HTMLLegendElement, React.HTMLAttributes<HTMLLegendElement>>(
-  ({ className, ...props }, ref) => (
-    <legend ref={ref} data-slot="field-legend" className={cn("text-sm font-medium leading-none", className)} {...props} />
-  ),
-);
-FieldLegend.displayName = "FieldLegend";
-
-export const InputGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-slot="input-group"
-      className={cn(
-        "flex items-center rounded-md border border-input bg-background shadow-sm transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:border-ring has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-destructive/20",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
-InputGroup.displayName = "InputGroup";
-
-export const InputGroupInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
-    <input
-      ref={ref}
-      data-slot="input-group-input"
-      className={cn(
-        "flex h-9 w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
-InputGroupInput.displayName = "InputGroupInput";
-
-export const InputGroupAddon = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="input-group-addon" className={cn("flex items-center px-3 text-sm text-muted-foreground", className)} {...props} />
-  ),
-);
-InputGroupAddon.displayName = "InputGroupAddon";
-
-export const ToggleGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-slot="toggle-group"
-      className={cn("inline-flex items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground", className)}
-      {...props}
-    />
-  ),
-);
-ToggleGroup.displayName = "ToggleGroup";
-
-export const ToggleGroupItem = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { "data-state"?: "on" | "off" }
->(({ className, ...props }, ref) => (
-  <button
-    ref={ref}
-    data-slot="toggle-group-item"
-    className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-sm data-[active]:bg-background data-[active]:text-foreground data-[active]:shadow-sm",
-      className,
-    )}
-    {...props}
-  />
-));
-ToggleGroupItem.displayName = "ToggleGroupItem";
+export const { fieldContext, formContext, useFieldContext, useFormContext } =
+  createFormHookContexts();
 `,
     ),
     file(
@@ -225,34 +70,48 @@ ToggleGroupItem.displayName = "ToggleGroupItem";
       `"use client";
 
 import * as React from "react";
-import { Field, useForm } from "@tanstack/react-form";
-import { Button, type ButtonProps } from "./button.js";
+import {
+  createFormHook,
+  Field as TanStackField,
+  useForm,
+} from "@tanstack/react-form";
+import {
+  AppCheckboxField,
+  AppOtpField,
+  AppPasswordField,
+  AppSelectField,
+  AppTextAreaField,
+  AppTextField,
+} from "../form-fields/index.js";
 import { cn } from "../../lib/utils.js";
+import { Button, type ButtonProps } from "./button.js";
+import { fieldContext, formContext, useFormContext } from "./form-context.js";
+import { Spinner } from "./spinner.js";
 
-export { Field, useForm };
+export { TanStackField as Field, useForm };
+export { useFieldContext, useFormContext } from "./form-context.js";
+
+export interface FormController {
+  handleSubmit(): Promise<void> | void;
+}
 
 export interface FormProps {
-  form: { handleSubmit: () => unknown | Promise<unknown> };
-  onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
+  form: FormController;
+  onSubmit?: (event: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Form({
-  form,
-  onSubmit,
-  children,
-  className,
-}: FormProps): React.JSX.Element {
+export function Form({ form, onSubmit, children, className }: FormProps): React.JSX.Element {
   return (
     <form
       data-slot="form"
       className={cn("flex flex-col gap-6", className)}
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         void form.handleSubmit();
-        onSubmit?.(e);
+        onSubmit?.(event);
       }}
     >
       {children}
@@ -261,31 +120,60 @@ export function Form({
 }
 
 export interface SubmitButtonProps extends ButtonProps {
-  children?: React.ReactNode;
-  isPending?: boolean;
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
-export const SubmitButton = React.forwardRef<HTMLButtonElement, SubmitButtonProps>(
-  ({ children, isPending, disabled, className, ...props }, ref) => (
-    <Button
-      type="submit"
-      ref={ref}
-      data-slot="form-submit"
-      disabled={disabled || isPending}
-      className={cn(isPending && "relative", className)}
-      {...props}
-    >
-      {isPending && (
-        <span data-icon className="absolute left-4 inline-flex">
-          <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        </span>
+export function SubmitButton({ ref, ...props }: SubmitButtonProps): React.JSX.Element {
+  return <Button ref={ref} type="submit" data-slot="form-submit" {...props} />;
+}
+
+export interface AppFormSubmitButtonProps extends Omit<SubmitButtonProps, "disabled"> {
+  pendingLabel?: React.ReactNode;
+}
+
+export function AppFormSubmitButton({
+  children,
+  pendingLabel = "Submitting…",
+  ...props
+}: AppFormSubmitButtonProps): React.JSX.Element {
+  const form = useFormContext();
+  return (
+    <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
+      {([canSubmit, isSubmitting]) => (
+        <SubmitButton
+          disabled={!canSubmit || isSubmitting}
+          aria-busy={isSubmitting}
+          {...props}
+        >
+          {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+          {isSubmitting ? pendingLabel : children}
+        </SubmitButton>
       )}
-      <span className={cn(isPending && "opacity-0")}>{children}</span>
-      {isPending && <span className="sr-only">Submitting</span>}
-    </Button>
-  ),
-);
-SubmitButton.displayName = "SubmitButton";
+    </form.Subscribe>
+  );
+}
+
+export const {
+  extendForm,
+  useAppForm,
+  useTypedAppFormContext,
+  withFieldGroup,
+  withForm,
+} = createFormHook({
+  fieldContext,
+  formContext,
+  fieldComponents: {
+    CheckboxField: AppCheckboxField,
+    OtpField: AppOtpField,
+    PasswordField: AppPasswordField,
+    SelectField: AppSelectField,
+    TextAreaField: AppTextAreaField,
+    TextField: AppTextField,
+  },
+  formComponents: {
+    SubmitButton: AppFormSubmitButton,
+  },
+});
 `,
     ),
   ];

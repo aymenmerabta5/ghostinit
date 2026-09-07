@@ -1,0 +1,590 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/v1-generated-unsafe-syntax-dispositions.schema.json",
+  "title": "GhostInit V1 generated unsafe-syntax disposition policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "catalogEvidence",
+    "projectionEvidence",
+    "gateEvidence",
+    "defaultProjection",
+    "zeroGatePhase",
+    "rules"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "../../schemas/v1-generated-unsafe-syntax-dispositions.schema.json"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "catalogEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configKeys",
+        "occurrenceRows",
+        "uniqueOwnerPathPatterns",
+        "uniqueSourceOwners",
+        "provenanceRules"
+      ],
+      "properties": {
+        "configKeys": {
+          "$ref": "#/$defs/catalogConfigKeys"
+        },
+        "occurrenceRows": {
+          "const": 0
+        },
+        "uniqueOwnerPathPatterns": {
+          "const": 0
+        },
+        "uniqueSourceOwners": {
+          "const": 0
+        },
+        "provenanceRules": {
+          "const": 0
+        }
+      }
+    },
+    "projectionEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configKeys",
+        "occurrenceRows",
+        "uniqueOwnerPathPatterns",
+        "uniqueSourceOwners",
+        "provenanceRules",
+        "fullCapabilityKeys"
+      ],
+      "properties": {
+        "configKeys": {
+          "$ref": "#/$defs/projectionConfigKeys"
+        },
+        "occurrenceRows": {
+          "const": 0
+        },
+        "uniqueOwnerPathPatterns": {
+          "const": 0
+        },
+        "uniqueSourceOwners": {
+          "const": 0
+        },
+        "provenanceRules": {
+          "const": 0
+        },
+        "fullCapabilityKeys": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["configKeys", "removeInStabilization", "deferredV1"],
+          "properties": {
+            "configKeys": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+                },
+                {
+                  "const": "single/nextjs/postgres/capabilities-on"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true
+            },
+            "removeInStabilization": {
+              "const": 0
+            },
+            "deferredV1": {
+              "const": 0
+            }
+          }
+        }
+      }
+    },
+    "gateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configurations", "occurrenceRows"],
+      "properties": {
+        "configurations": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/nextMonorepoGate"
+            },
+            {
+              "$ref": "#/$defs/singleNextGate"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "occurrenceRows": {
+          "const": 0
+        }
+      }
+    },
+    "defaultProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configKeys", "removeInStabilization", "deferredV1"],
+      "properties": {
+        "configKeys": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "gate/next-monorepo"
+            },
+            {
+              "const": "gate/single-next"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "removeInStabilization": {
+          "const": 0
+        },
+        "deferredV1": {
+          "const": 0
+        }
+      }
+    },
+    "zeroGatePhase": {
+      "const": "V2 Phase 6"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rule"
+      },
+      "maxItems": 0,
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "catalogConfigKeys": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "gate/next-monorepo"
+        },
+        {
+          "const": "gate/single-next"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/nextjs/none/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/none/capabilities-stateless"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/tanstack-start/none/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/none/capabilities-stateless"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-desktop"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off-desktop"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off-mobile"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-stateless"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-desktop"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-desktop"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off-desktop"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off-mobile"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-stateless"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile"
+        }
+      ],
+      "items": false,
+      "minItems": 38,
+      "maxItems": 38,
+      "uniqueItems": true
+    },
+    "projectionConfigKeys": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": "monorepo/nextjs/convex/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/nextjs/none/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/none/capabilities-stateless"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-off"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps"
+        },
+        {
+          "const": "monorepo/tanstack-start/none/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/none/capabilities-stateless"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-off"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-desktop"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off-desktop"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-off-mobile"
+        },
+        {
+          "const": "single/nextjs/none/capabilities-stateless"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-off"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-desktop"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-desktop"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off-desktop"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-off-mobile"
+        },
+        {
+          "const": "single/tanstack-start/none/capabilities-stateless"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-off"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile"
+        }
+      ],
+      "items": false,
+      "minItems": 36,
+      "maxItems": 36,
+      "uniqueItems": true
+    },
+    "nextMonorepoGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configKey",
+        "mode",
+        "framework",
+        "database",
+        "billing",
+        "apps",
+        "capabilities",
+        "occurrenceRows"
+      ],
+      "properties": {
+        "configKey": {
+          "const": "gate/next-monorepo"
+        },
+        "mode": {
+          "const": "monorepo"
+        },
+        "framework": {
+          "const": "nextjs"
+        },
+        "database": {
+          "const": "postgres"
+        },
+        "billing": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "stripe"
+            },
+            {
+              "const": "chargily"
+            },
+            {
+              "const": "paddle"
+            },
+            {
+              "const": "polar"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "apps": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "web"
+            }
+          ],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "const": "on"
+        },
+        "occurrenceRows": {
+          "const": 0
+        }
+      }
+    },
+    "singleNextGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configKey",
+        "mode",
+        "framework",
+        "database",
+        "billing",
+        "apps",
+        "capabilities",
+        "occurrenceRows"
+      ],
+      "properties": {
+        "configKey": {
+          "const": "gate/single-next"
+        },
+        "mode": {
+          "const": "single"
+        },
+        "framework": {
+          "const": "nextjs"
+        },
+        "database": {
+          "const": "postgres"
+        },
+        "billing": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "stripe"
+            },
+            {
+              "const": "chargily"
+            },
+            {
+              "const": "paddle"
+            },
+            {
+              "const": "polar"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "apps": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "web"
+            }
+          ],
+          "items": false,
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true
+        },
+        "capabilities": {
+          "const": "on"
+        },
+        "occurrenceRows": {
+          "const": 0
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceOwner",
+        "emittedPathPattern",
+        "applicableConfigKeys",
+        "expectedOccurrences",
+        "disposition",
+        "removalPhase"
+      ],
+      "properties": {
+        "sourceOwner": {
+          "type": "string",
+          "pattern": "^src/templates/"
+        },
+        "emittedPathPattern": {
+          "type": "string",
+          "minLength": 3
+        },
+        "applicableConfigKeys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "expectedOccurrences": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "disposition": {
+          "enum": ["remove-in-stabilization", "deferred-v1"]
+        },
+        "removalPhase": {
+          "enum": ["Phase 1A", "V2 Phase 6"]
+        }
+      }
+    }
+  }
+}

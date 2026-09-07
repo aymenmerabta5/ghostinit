@@ -6,20 +6,24 @@ import {
 } from "../lib/errors.js";
 import { envelope, printJson } from "../lib/json.js";
 import { Logger } from "../lib/logger.js";
-import { COMMANDS, COMMAND_REGISTRY, type RealCommandName } from "./registry.js";
+import { COMMAND_REGISTRY, type RealCommandName } from "./registry.js";
+import { isCommandName } from "./spec.js";
 import { showHelp, printVersion, printHelpOutput } from "./help.js";
 import {
   findClosestCommand,
   getBoolean,
   validateRuntime,
   validateKind,
-  validateNoExtraPositionals,
+  validateCommandInvocation,
   rejectInvalid,
 } from "./validation.js";
 import { parseRawArgs, parseCreateSpecific, buildGlobalOptions } from "./args.js";
 
 export async function main(argv: string[]): Promise<ExitCodeType> {
-  const start = Date.now();
+  // Successful create/init previews own a deterministic zero-duration
+  // envelope and must not consult a clock before command dispatch.
+  const start = argv.includes("--dry-run") ? 0 : Date.now();
+  const durationMs = () => (start === 0 ? 0 : Date.now() - start);
   let values: Record<string, unknown> = {};
   let positionals: string[] = [];
   let logger: Logger | undefined;
@@ -29,7 +33,11 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
     const parsed = parseRawArgs(argv);
     values = parsed.values;
     positionals = parsed.positionals;
-    const command = parsed.command;
+    let command = parsed.command;
+    if (!parsed.rawCommand) {
+      if (getBoolean(values.version)) command = "version";
+      else if (getBoolean(values.help) || getBoolean(values.h)) command = "help";
+    }
 
     jsonFlag = getBoolean(values.json);
     const quietFlag = getBoolean(values.quiet);
@@ -41,21 +49,43 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
       level: debugFlag ? "debug" : "info",
     });
 
-    if (Boolean(values.version) || command === "version") {
+    if (!isCommandName(command)) {
+      const suggestion = findClosestCommand(command);
+      const suggestionText = suggestion ? ` Did you mean '${suggestion}'?` : "";
+      const helpHint = " Run 'ghostinit help' to see available commands.";
+      const fullMessage = `Unknown command: ${command}.${suggestionText}${helpHint}`;
+      logger.error(fullMessage);
+      if (jsonFlag) {
+        printJson(
+          envelope({
+            success: false,
+            exitCode: ExitCode.INVALID_ARGUMENTS,
+            error: { message: fullMessage, code: exitCodeName(ExitCode.INVALID_ARGUMENTS) },
+            command,
+            durationMs: durationMs(),
+          }),
+        );
+      } else {
+        process.stdout.write("\n" + showHelp());
+      }
+      return ExitCode.INVALID_ARGUMENTS;
+    }
+
+    try {
+      validateCommandInvocation(command, values, positionals);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return rejectInvalid(message, command, jsonFlag, logger, start);
+    }
+
+    if (getBoolean(values.version) || command === "version") {
       printVersion(jsonFlag, start);
       return ExitCode.OK;
     }
 
-    if (Boolean(values.help) || Boolean(values.h) || command === "help") {
+    if (getBoolean(values.help) || getBoolean(values.h) || command === "help") {
       printHelpOutput(jsonFlag, start);
       return ExitCode.OK;
-    }
-
-    try {
-      validateNoExtraPositionals(command, positionals);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return rejectInvalid(message, command, jsonFlag, logger, start);
     }
 
     let runtime: "node" | "bun";
@@ -66,103 +96,7 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
       return rejectInvalid(message, command, jsonFlag, logger, start);
     }
 
-    const hasKind = values.kind !== undefined;
     const hasCheck = getBoolean(values.check);
-
-    // Flags that only make sense while scaffolding a new project. Listed once so
-    // adding a create-only flag cannot silently skip the gate — `--apps` was
-    // omitted from the old hand-maintained condition, so `sync --apps mobile`
-    // was accepted and quietly ignored.
-    const SCAFFOLD_ONLY_FLAGS = [
-      "mode",
-      "framework",
-      "billing",
-      "features",
-      "database",
-      "apps",
-      "preset",
-      "cache",
-      "deploy",
-      "stack",
-      "with-auth",
-      "with-api",
-      "with-email",
-      "with-analytics",
-      "with-cache",
-      "with-eve",
-      "with-i18n",
-      "with-pdf",
-      "with-messaging",
-    ] as const;
-
-    if (command !== "create" && command !== "init") {
-      const offending = SCAFFOLD_ONLY_FLAGS.filter((flag) => values[flag] !== undefined).map(
-        (flag) => `--${flag}`,
-      );
-      if (offending.length > 0) {
-        return rejectInvalid(
-          `${offending.join(", ")} can only be used with 'create' or 'init'`,
-          command,
-          jsonFlag,
-          logger,
-          start,
-        );
-      }
-    }
-
-    if (command !== "add" && hasKind) {
-      return rejectInvalid(
-        "--kind can only be used with 'add' command",
-        command,
-        jsonFlag,
-        logger,
-        start,
-      );
-    }
-
-    if (command !== "sync" && hasCheck) {
-      return rejectInvalid(
-        "--check can only be used with 'sync' command",
-        command,
-        jsonFlag,
-        logger,
-        start,
-      );
-    }
-
-    const hasFix = getBoolean(values.fix);
-    const hasVerbose = getBoolean(values.verbose);
-    const hasList = getBoolean(values.list);
-
-    if (hasFix && !["check", "doctor"].includes(command)) {
-      return rejectInvalid(
-        "--fix can only be used with 'check' or 'doctor' commands",
-        command,
-        jsonFlag,
-        logger,
-        start,
-      );
-    }
-
-    if (hasVerbose && !["status", "check", "doctor"].includes(command)) {
-      return rejectInvalid(
-        "--verbose can only be used with 'status', 'check' or 'doctor' commands",
-        command,
-        jsonFlag,
-        logger,
-        start,
-      );
-    }
-
-    if (hasList && !["add", "status"].includes(command)) {
-      return rejectInvalid(
-        "--list can only be used with 'add' or 'status' commands",
-        command,
-        jsonFlag,
-        logger,
-        start,
-      );
-    }
 
     let kind: "command" | "query" | undefined;
     try {
@@ -181,28 +115,6 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
     }
 
     const globals = buildGlobalOptions(values, createParsed, logger, runtime, kind, hasCheck);
-
-    if (!(COMMANDS as readonly string[]).includes(command)) {
-      const suggestion = findClosestCommand(command);
-      const suggestionText = suggestion ? ` Did you mean '${suggestion}'?` : "";
-      const helpHint = " Run 'ghostinit help' to see available commands.";
-      const fullMessage = `Unknown command: ${command}.${suggestionText}${helpHint}`;
-      logger.error(fullMessage);
-      if (globals.json) {
-        printJson(
-          envelope({
-            success: false,
-            exitCode: ExitCode.INVALID_ARGUMENTS,
-            error: { message: fullMessage, code: exitCodeName(ExitCode.INVALID_ARGUMENTS) },
-            command: String(command),
-            durationMs: Date.now() - start,
-          }),
-        );
-      } else {
-        process.stdout.write("\n" + showHelp());
-      }
-      return ExitCode.INVALID_ARGUMENTS;
-    }
 
     let exitCode: number = ExitCode.OK;
     const registryEntry = COMMAND_REGISTRY.get(command as RealCommandName);
@@ -223,10 +135,10 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
               error: {
                 message: err.message,
                 code: codeLabel,
-                ...(err instanceof GhostinitError ? err.details : {}),
+                ...(err instanceof GhostinitError && err.details ? { details: err.details } : {}),
               },
               command,
-              durationMs: Date.now() - start,
+              durationMs: durationMs(),
             }),
           );
         } else {
@@ -266,7 +178,7 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
             exitCode: ExitCode.INVALID_ARGUMENTS,
             error: { message, code: exitCodeName(ExitCode.INVALID_ARGUMENTS) },
             command: effectiveCommand,
-            durationMs: Date.now() - start,
+            durationMs: durationMs(),
           }),
         );
       } else {
@@ -286,10 +198,10 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
           error: {
             message: err.message,
             code: codeLabel,
-            ...(err instanceof GhostinitError ? err.details : {}),
+            ...(err instanceof GhostinitError && err.details ? { details: err.details } : {}),
           },
           command: effectiveCommand,
-          durationMs: Date.now() - start,
+          durationMs: durationMs(),
         }),
       );
     } else {

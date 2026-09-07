@@ -6,10 +6,9 @@ type DatabaseVal = "postgres" | "convex" | "none" | undefined;
 /**
  * Which public env prefixes a project actually consumes.
  *
- * The public prefix is framework-specific: @repo/config builds on
- * `@t3-oss/env-nextjs` (implicit NEXT_PUBLIC_) for Next.js and `@t3-oss/env-core`
- * with `clientPrefix: "VITE_"` for TanStack Start, and declares exactly ONE of
- * those families. EXPO_PUBLIC_ only exists when a mobile app is generated.
+ * Public validation is runtime-specific: @repo/config/next, /vite, and /expo.
+ * This audience model controls which corresponding variables appear in the
+ * generated .env files; it never combines their runtime modules.
  *
  * These files used to emit all three families unconditionally, so a Next-only
  * project shipped 8 VITE_ and 8 EXPO_PUBLIC_ variables in both .env.example and
@@ -18,11 +17,20 @@ type DatabaseVal = "postgres" | "convex" | "none" | undefined;
  */
 export interface EnvAudience {
   framework?: "nextjs" | "tanstack-start" | string;
+  /** Whether the generated project contains a browser web application. */
+  hasWeb?: boolean;
   hasMobile?: boolean;
   hasDesktop?: boolean;
+  hasEve?: boolean;
 }
 
-const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false, hasDesktop: false };
+const DEFAULT_AUDIENCE: EnvAudience = {
+  framework: "nextjs",
+  hasWeb: true,
+  hasMobile: false,
+  hasDesktop: false,
+  hasEve: false,
+};
 
 /** The web framework's own public prefix. */
 export function webPublicPrefix(framework?: string): "NEXT_PUBLIC_" | "VITE_" {
@@ -31,10 +39,12 @@ export function webPublicPrefix(framework?: string): "NEXT_PUBLIC_" | "VITE_" {
 
 /** Every public prefix this project consumes, web first. */
 export function publicPrefixes(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
-  const prefixes: string[] = [webPublicPrefix(audience.framework)];
+  const hasWeb = audience.hasWeb ?? true;
+  const prefixes: string[] = [];
+  if (hasWeb) prefixes.push(webPublicPrefix(audience.framework));
   if (audience.hasMobile) prefixes.push("EXPO_PUBLIC_");
-  if (audience.hasDesktop) prefixes.push("DESKTOP_");
-  return prefixes;
+  if (audience.hasDesktop) prefixes.push("VITE_");
+  return [...new Set(prefixes)];
 }
 
 /** `PREFIX_NAME=value` for each prefix the project actually consumes. */
@@ -51,6 +61,7 @@ function postgresExampleLines(projectName: string): string[] {
     "POSTGRES_PORT=5432",
     `POSTGRES_DB=${projectName}`,
     "DATABASE_SSL=false",
+    "DATABASE_SSL_CA=",
     "DATABASE_POOL_SIZE=20",
   ];
 }
@@ -63,12 +74,13 @@ function postgresLocalLines(projectName: string, secrets: RootSecrets): string[]
     "POSTGRES_PORT=5432",
     `POSTGRES_DB=${projectName}`,
     "DATABASE_SSL=false",
+    "DATABASE_SSL_CA=",
     "DATABASE_POOL_SIZE=20",
   ];
 }
 function convexExampleLinesFull(audience: EnvAudience): string[] {
   return [
-    "# Convex (used when --database convex) — set via `npx convex dev` or dashboard",
+    "# Convex (used when --database convex) — set via `bunx convex dev` or dashboard",
     `CONVEX_DEPLOYMENT=${ENV_PLACEHOLDERS.CONVEX_DEPLOYMENT}`,
     `CONVEX_URL=${ENV_PLACEHOLDERS.CONVEX_URL}`,
     ...publicVarLines(audience, "CONVEX_URL", ENV_PLACEHOLDERS.NEXT_PUBLIC_CONVEX_URL),
@@ -79,7 +91,7 @@ function convexExampleLinesFull(audience: EnvAudience): string[] {
 }
 function convexLocalLinesFull(audience: EnvAudience): string[] {
   return [
-    "# Convex (used when --database convex) — set via `npx convex dev` or dashboard",
+    "# Convex (used when --database convex) — set via `bunx convex dev` or dashboard",
     "# CONVEX_DEPLOYMENT is set by the convex CLI; the URLs come from the .env.local that `convex dev` writes",
     `CONVEX_DEPLOYMENT=dev:example-123`,
     `CONVEX_URL=https://example-123.convex.cloud`,
@@ -100,6 +112,12 @@ export function coreEnvExampleLines(
     "BETTER_AUTH_URL=http://localhost:3000",
     ...publicVarLines(audience, "APP_URL", "http://localhost:3000"),
     ...publicVarLines(audience, "API_URL", "http://localhost:3000"),
+    ...(audience.hasDesktop
+      ? [
+          "# Electron development default; set an HTTPS value in .env.production.local before packaging",
+          "DESKTOP_API_URL=http://localhost:3000",
+        ]
+      : []),
     `APP_NAME=${projectName}`,
   ];
   const db = (database as DatabaseVal) ?? "postgres";
@@ -114,11 +132,17 @@ export function coreEnvExampleLines(
     base.push("# Optional Convex if you switch to --database convex");
     base.push(`# CONVEX_URL=${ENV_PLACEHOLDERS.CONVEX_URL}`);
   }
+  base.push("# Set true only when the origin is private and your proxy overwrites X-Forwarded-For");
+  base.push(
+    "# Required for non-local BETTER_AUTH_URL values so rate limiting never shares one fallback bucket",
+  );
   base.push("TRUSTED_PROXY=false");
   base.push("");
   base.push("# Maintenance mode — MAINTENANCE_MODE=true serves /maintenance to visitors");
   base.push("MAINTENANCE_MODE=false");
-  base.push("# Optional bypass: append ?maintenance_bypass=<token> once to bypass while enabled");
+  base.push(
+    "# Optional bypass: submit this token through the /maintenance form; never place it in a URL",
+  );
   base.push("# MAINTENANCE_BYPASS_TOKEN=");
   base.push("");
   base.push("# OAuth — optional, set to enable social login (google, github)");
@@ -139,6 +163,12 @@ export function coreEnvLocalLines(
     "BETTER_AUTH_URL=http://localhost:3000",
     ...publicVarLines(audience, "APP_URL", "http://localhost:3000"),
     ...publicVarLines(audience, "API_URL", "http://localhost:3000"),
+    ...(audience.hasDesktop
+      ? [
+          "# DESKTOP_API_URL defaults to http://localhost:3000 only in development",
+          "# Set DESKTOP_API_URL=https://api.example.com in .env.production.local before packaging",
+        ]
+      : []),
     `APP_NAME=${projectName}`,
   ];
   const db = (database as DatabaseVal) ?? "postgres";
@@ -149,11 +179,17 @@ export function coreEnvLocalLines(
   } else {
     base.push(...postgresLocalLines(projectName, secrets));
   }
+  base.push("# Set true only when the origin is private and your proxy overwrites X-Forwarded-For");
+  base.push(
+    "# Required for non-local BETTER_AUTH_URL values so rate limiting never shares one fallback bucket",
+  );
   base.push("TRUSTED_PROXY=false");
   base.push("");
   base.push("# Maintenance mode — MAINTENANCE_MODE=true serves /maintenance to visitors");
   base.push("MAINTENANCE_MODE=false");
-  base.push("# Optional bypass: append ?maintenance_bypass=<token> once to bypass while enabled");
+  base.push(
+    "# Optional bypass: submit this token through the /maintenance form; never place it in a URL",
+  );
   base.push("# MAINTENANCE_BYPASS_TOKEN=");
   base.push("");
   base.push("# OAuth — optional, set to enable social login (google, github)");
@@ -164,24 +200,22 @@ export function coreEnvLocalLines(
   return base;
 }
 
-export function convexEnvExampleLines(): string[] {
+export function convexEnvExampleLines(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
   return [
     "# Convex deployment",
     `CONVEX_DEPLOYMENT=${ENV_PLACEHOLDERS.CONVEX_DEPLOYMENT}`,
     `CONVEX_URL=${ENV_PLACEHOLDERS.CONVEX_URL}`,
-    `NEXT_PUBLIC_CONVEX_URL=${ENV_PLACEHOLDERS.NEXT_PUBLIC_CONVEX_URL}`,
+    ...publicVarLines(audience, "CONVEX_URL", ENV_PLACEHOLDERS.NEXT_PUBLIC_CONVEX_URL),
     `CONVEX_SITE_URL=${ENV_PLACEHOLDERS.CONVEX_SITE_URL}`,
     `SITE_URL=${ENV_PLACEHOLDERS.SITE_URL}`,
   ];
 }
-export function convexEnvLocalLines(): string[] {
+export function convexEnvLocalLines(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
   return [
-    "# Convex deployment — generated by `npx convex dev`",
+    "# Convex deployment — generated by `bunx convex dev`",
     `CONVEX_DEPLOYMENT=dev:example-123`,
     `CONVEX_URL=https://example-123.convex.cloud`,
-    `NEXT_PUBLIC_CONVEX_URL=https://example-123.convex.cloud`,
-    "VITE_CONVEX_URL=https://example-123.convex.cloud",
-    "EXPO_PUBLIC_CONVEX_URL=https://example-123.convex.cloud",
+    ...publicVarLines(audience, "CONVEX_URL", "https://example-123.convex.cloud"),
     `CONVEX_SITE_URL=https://example-123.convex.site`,
     `SITE_URL=http://localhost:3000`,
   ];

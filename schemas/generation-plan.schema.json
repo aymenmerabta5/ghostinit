@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/generation-plan.schema.json",
+  "title": "GhostInit V2 deterministic generation plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "projectConfigHash", "planHash", "files", "secrets"],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/generation-plan.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "projectConfigHash": { "$ref": "#/$defs/hash" },
+    "planHash": { "$ref": "#/$defs/hash" },
+    "files": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/file" }
+    },
+    "secrets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/secret" }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//).+$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9./:_-]*$"
+    },
+    "capabilityId": {
+      "enum": [
+        "transport",
+        "auth",
+        "billing",
+        "messaging",
+        "email",
+        "storage",
+        "cache",
+        "analytics",
+        "i18n",
+        "pdf",
+        "eve",
+        "notifications",
+        "featureFlags",
+        "jobs"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "renderer",
+        "source",
+        "capability",
+        "appId",
+        "target",
+        "artifacts",
+        "acceptance",
+        "contribution"
+      ],
+      "properties": {
+        "renderer": { "$ref": "#/$defs/identifier" },
+        "source": { "$ref": "#/$defs/identifier" },
+        "capability": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/capabilityId" }]
+        },
+        "appId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" }
+          ]
+        },
+        "target": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["nextjs", "tanstack-start", "expo", "electron"] }
+          ]
+        },
+        "artifacts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["route", "adapter", "manifest", "acceptance"] }
+        },
+        "acceptance": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "contribution": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logicalPath",
+        "physicalPath",
+        "content",
+        "contentHash",
+        "owner",
+        "lifecycle",
+        "provenance"
+      ],
+      "properties": {
+        "logicalPath": { "$ref": "#/$defs/path" },
+        "physicalPath": { "$ref": "#/$defs/path" },
+        "content": { "type": "string" },
+        "contentHash": { "$ref": "#/$defs/hash" },
+        "owner": {
+          "enum": [
+            "root",
+            "ui",
+            "transport",
+            "application",
+            "domain",
+            "adapter",
+            "platform",
+            "tooling",
+            "documentation",
+            "ghostinit"
+          ]
+        },
+        "lifecycle": {
+          "enum": ["generator-owned", "seed-once", "structured-merge"]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["physicalPath", "format", "field"],
+      "properties": {
+        "physicalPath": { "$ref": "#/$defs/path" },
+        "format": { "enum": ["dotenv", "json-field"] },
+        "field": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+      }
+    },
+    "secretBase": {
+      "type": "object",
+      "required": ["reference", "environmentKey", "destinations"],
+      "properties": {
+        "reference": { "$ref": "#/$defs/identifier" },
+        "environmentKey": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "destinations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/destination" }
+        }
+      }
+    },
+    "secret": {
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/secretBase" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "reference",
+                "environmentKey",
+                "provider",
+                "placeholder",
+                "destinations"
+              ],
+              "properties": {
+                "kind": { "const": "require-external" },
+                "reference": { "$ref": "#/$defs/identifier" },
+                "environmentKey": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]*$"
+                },
+                "provider": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+                "placeholder": { "type": "string", "pattern": "^REPLACE_WITH_[A-Z0-9_]+$" },
+                "destinations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/destination" }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/secretBase" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "reference",
+                "environmentKey",
+                "bytes",
+                "encoding",
+                "destinations"
+              ],
+              "properties": {
+                "kind": { "const": "generate-self-issued" },
+                "reference": { "$ref": "#/$defs/identifier" },
+                "environmentKey": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]*$"
+                },
+                "bytes": { "type": "integer", "minimum": 16, "maximum": 128 },
+                "encoding": { "enum": ["base64url", "hex"] },
+                "destinations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/destination" }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

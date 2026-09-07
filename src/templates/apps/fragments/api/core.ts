@@ -1,3 +1,7 @@
+import { authRouteBoundaryCode } from "./auth-boundary.js";
+import { standardApiRequestCode } from "./http-request.js";
+import { MAX_ORPC_BODY_BYTES } from "../../../api/body-limits.js";
+
 export type RouterType = "next" | "tanstack";
 export type ResponseLib = "NextResponse" | "Response";
 
@@ -15,76 +19,252 @@ function shouldEmitProvider(provider: BillingProviderName, selected: BillingProv
   return selected.includes(provider);
 }`;
 
-export const sharedAuthHandlerLogic = `const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
-async function handle(request: Request): Promise<Response> {
-  if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
-  return auth.handler(request);
-}`;
+export const sharedAuthHandlerLogic = `${authRouteBoundaryCode(false)}
 
-export function authFileContent(router: RouterType): string {
-  if (router === "tanstack") {
-    return `import { createFileRoute } from '@tanstack/react-router'
-import { auth } from '@repo/auth'
-export const runtime = "nodejs" as const;
-const ALLOWED = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
-async function handle({ request }: { request: Request }): Promise<Response> {
-  if (!ALLOWED.has(request.method)) return new Response('Method not allowed', { status: 405 })
-  return (auth as unknown as { handler: (req: Request) => Promise<Response> }).handler(request)
-}
-export const Route = createFileRoute('/api/auth/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
-`;
-  }
-  return `import { auth } from "@repo/auth";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 async function handle(request: Request): Promise<Response> {
   if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
-  return auth.handler(request);
+  const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
+  if (directPrivilegedRejection) return directPrivilegedRejection;
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
+}`;
+
+export function tanstackAuthServerHandlerContent(
+  authImport = "@repo/auth",
+  trustedCloudflareRuntime = false,
+): string {
+  return `import "server-only";
+import { auth } from "${authImport}";
+
+${authRouteBoundaryCode(trustedCloudflareRuntime)}
+const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+
+export async function handleAuthRequest(request: Request): Promise<Response> {
+  if (!ALLOWED_AUTH_METHODS.has(request.method)) {
+    return new Response("Method not allowed", { status: 405 });
+  }
+  const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
+  if (directPrivilegedRejection) return directPrivilegedRejection;
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
+}
+`;
+}
+
+export function tanstackAuthRouteContent(): string {
+  return `import { createServerOnlyFn } from "@tanstack/react-start";
+import { createFileRoute } from "@tanstack/react-router";
+
+const dispatchAuthRequest = createServerOnlyFn(async (request: Request): Promise<Response> => {
+  const { handleAuthRequest } = await import("@/server/http/auth.server");
+  return await handleAuthRequest(request);
+});
+
+export const Route = createFileRoute("/api/auth/$")({
+  server: {
+    handlers: {
+      GET: ({ request }: { request: Request }) => dispatchAuthRequest(request),
+      POST: ({ request }: { request: Request }) => dispatchAuthRequest(request),
+      PUT: ({ request }: { request: Request }) => dispatchAuthRequest(request),
+      PATCH: ({ request }: { request: Request }) => dispatchAuthRequest(request),
+      DELETE: ({ request }: { request: Request }) => dispatchAuthRequest(request),
+    },
+  },
+});
+`;
+}
+
+export const storageUploadPreflight = `// 15 MiB admits the 14 MiB base64 storage contract plus its JSON/oRPC envelope.
+const MAX_ORPC_BODY_BYTES = ${MAX_ORPC_BODY_BYTES};
+const MAX_CONCURRENT_STORAGE_UPLOADS = 2;
+const STORAGE_UPLOAD_PATHS = new Set([
+  "/api/storage/upload",
+  "/api/rpc/storage/upload",
+  "/api/storage/objects",
+  "/api/storage/objects/base64",
+  "/api/rpc/storage/uploadBase64",
+]);
+const activeStorageUploadActors = new Set<string>();
+let activeStorageUploadCount = 0;
+
+function normalizedStorageUploadPath(request: Request): string | null {
+  try {
+    const pathname = decodeURIComponent(new URL(request.url).pathname);
+    return pathname.replace(/[/]+$/, "") || "/";
+  } catch {
+    return null;
+  }
+}
+
+function isStorageUploadRequest(request: Request): boolean {
+  if (request.method !== "POST") return false;
+  const pathname = normalizedStorageUploadPath(request);
+  return pathname !== null && STORAGE_UPLOAD_PATHS.has(pathname);
+}
+
+function storageUploadActorId(context: object): string | null {
+  if (
+    !("storageActor" in context) ||
+    typeof context.storageActor !== "object" ||
+    context.storageActor === null ||
+    !("id" in context.storageActor) ||
+    typeof context.storageActor.id !== "string" ||
+    context.storageActor.id.length === 0
+  ) {
+    return null;
+  }
+  return context.storageActor.id;
+}
+
+function isUnauthenticatedStorageUpload(request: Request, context: object): boolean {
+  return isStorageUploadRequest(request) && storageUploadActorId(context) === null;
+}
+
+function acquireStorageUploadAdmission(actorId: string): (() => void) | null {
+  if (
+    activeStorageUploadCount >= MAX_CONCURRENT_STORAGE_UPLOADS ||
+    activeStorageUploadActors.has(actorId)
+  ) {
+    return null;
+  }
+  activeStorageUploadCount += 1;
+  activeStorageUploadActors.add(actorId);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeStorageUploadCount -= 1;
+    activeStorageUploadActors.delete(actorId);
+  };
+}`;
+
+export function authFileContent(router: RouterType, trustedCloudflareRuntime = false): string {
+  if (router === "tanstack") {
+    return tanstackAuthRouteContent();
+  }
+  return `import { auth } from "@repo/auth";
+${authRouteBoundaryCode(trustedCloudflareRuntime)}
+const ALLOWED_AUTH_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+async function handle(request: Request): Promise<Response> {
+  if (!ALLOWED_AUTH_METHODS.has(request.method)) return new Response("Method not allowed", { status: 405 });
+  const directPrivilegedRejection = rejectDirectPrivilegedAuthRequest(request);
+  if (directPrivilegedRejection) return directPrivilegedRejection;
+  const preparedAuthRequest = prepareAuthRequestForRuntime(request);
+  if (preparedAuthRequest.rejection) return preparedAuthRequest.rejection;
+  return auth.handler(preparedAuthRequest.request);
 }
 export const GET = handle; export const POST = handle; export const PUT = handle; export const PATCH = handle; export const DELETE = handle;
 `;
 }
 
-export function orpcFileContent(router: RouterType): string {
-  const sharedLogicTanstack = `export const runtime = "nodejs" as const;
-const rpcHandler = new RPCHandler(appRouter);
-const openapiHandler = new OpenAPIHandler(appRouter);
-async function handle({ request }: { request: Request }): Promise<Response> {
+export function tanstackRpcServerHandlerContent(apiImport = "@repo/api"): string {
+  return `import "server-only";
+import { BodyLimitPlugin, RPCHandler } from "@orpc/server/fetch";
+import {
+  appRouter,
+  applyApiContextResponseHeaders,
+  createContext,
+  rejectUnsafeOrpcRequest,
+} from "${apiImport}";
+
+export const runtime = "nodejs" as const;
+${storageUploadPreflight}
+${standardApiRequestCode}
+const rpcHandler = new RPCHandler(appRouter, {
+  plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
+});
+
+export async function handleRpcRequest(request: Request): Promise<Response> {
+  const requestBoundaryRejection = rejectUnsafeOrpcRequest(request);
+  if (requestBoundaryRejection) return requestBoundaryRejection;
   const context = await createContext(request.headers);
-  const matchOptions = { context };
-  const rpcResult = await rpcHandler.handle(request, matchOptions);
-  if (rpcResult.matched && rpcResult.response) { const response = rpcResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
-  const openApiResult = await openapiHandler.handle(request, matchOptions);
-  if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); return response; }
-  return new Response("Not found", { status: 404 });
-}`;
-  const sharedLogicNext = `import { after } from "next/server";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-const rpcHandler = new RPCHandler(appRouter);
-const openapiHandler = new OpenAPIHandler(appRouter);
-async function handle(request: Request): Promise<Response> {
-  const context = await createContext(request.headers);
-  const matchOptions = { context };
-  const rpcResult = await rpcHandler.handle(request, matchOptions);
-  if (rpcResult.matched && rpcResult.response) { const response = rpcResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
-  const openApiResult = await openapiHandler.handle(request, matchOptions);
-  if (openApiResult.matched && openApiResult.response) { const response = openApiResult.response; response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
-  return new Response("Not found", { status: 404 });
-}`;
-  if (router === "tanstack") {
-    return `import { createFileRoute } from '@tanstack/react-router'
-import { RPCHandler } from '@orpc/server/fetch'
-import { OpenAPIHandler } from '@orpc/openapi/fetch'
-import { appRouter, createContext } from '@repo/api'
-${sharedLogicTanstack}
-export const Route = createFileRoute('/api/rpc/$splat')({ server: { handlers: { GET: handle, POST: handle, PUT: handle, PATCH: handle, DELETE: handle, }, }, })
-`;
+  if (isUnauthenticatedStorageUpload(request, context)) {
+    return Response.json({ error: "Authentication is required" }, { status: 401 });
   }
-  return `import { RPCHandler } from "@orpc/server/fetch";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { appRouter, createContext } from "@repo/api";
+  const storageUploadActor = isStorageUploadRequest(request) ? storageUploadActorId(context) : null;
+  const releaseStorageUploadAdmission = storageUploadActor
+    ? acquireStorageUploadAdmission(storageUploadActor)
+    : undefined;
+  if (storageUploadActor && !releaseStorageUploadAdmission) {
+    return Response.json({ error: "Upload capacity is temporarily exhausted" }, { status: 429 });
+  }
+  try {
+    const result = await rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context });
+    if (!result.matched) return new Response("Not found", { status: 404 });
+    const response = applyApiContextResponseHeaders(result.response, context);
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    return response;
+  } finally {
+    releaseStorageUploadAdmission?.();
+  }
+}
+`;
+}
+
+export function tanstackRpcRouteContent(): string {
+  return `import { createServerOnlyFn } from "@tanstack/react-start";
+import { createFileRoute } from "@tanstack/react-router";
+
+const dispatchRpcRequest = createServerOnlyFn(async (request: Request): Promise<Response> => {
+  const { handleRpcRequest } = await import("@/server/http/rpc.server");
+  return await handleRpcRequest(request);
+});
+
+export const Route = createFileRoute("/api/rpc/$")({
+  server: {
+    handlers: {
+      GET: ({ request }: { request: Request }) => dispatchRpcRequest(request),
+      POST: ({ request }: { request: Request }) => dispatchRpcRequest(request),
+      PUT: ({ request }: { request: Request }) => dispatchRpcRequest(request),
+      PATCH: ({ request }: { request: Request }) => dispatchRpcRequest(request),
+      DELETE: ({ request }: { request: Request }) => dispatchRpcRequest(request),
+    },
+  },
+});
+`;
+}
+
+export function orpcFileContent(router: RouterType): string {
+  const sharedLogicNext = `import { after } from "next/server";
+${storageUploadPreflight}
+${standardApiRequestCode}
+const rpcHandler = new RPCHandler(appRouter, {
+  plugins: [new BodyLimitPlugin({ maxBodySize: MAX_ORPC_BODY_BYTES })],
+});
+async function handle(request: Request): Promise<Response> {
+  const requestBoundaryRejection = rejectUnsafeOrpcRequest(request);
+  if (requestBoundaryRejection) return requestBoundaryRejection;
+  const context = await createContext(request.headers);
+  if (isUnauthenticatedStorageUpload(request, context)) {
+    return Response.json({ error: "Authentication is required" }, { status: 401 });
+  }
+  const storageUploadActor = isStorageUploadRequest(request) ? storageUploadActorId(context) : null;
+  const releaseStorageUploadAdmission = storageUploadActor
+    ? acquireStorageUploadAdmission(storageUploadActor)
+    : undefined;
+  if (storageUploadActor && !releaseStorageUploadAdmission) {
+    return Response.json({ error: "Upload capacity is temporarily exhausted" }, { status: 429 });
+  }
+  try {
+    const rpcResult = await rpcHandler.handle(toStandardApiRequest(request), { prefix: "/api/rpc", context });
+    if (rpcResult.matched) { const response = applyApiContextResponseHeaders(rpcResult.response, context); response.headers.set("X-Content-Type-Options", "nosniff"); response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin"); after(() => { /* analytics after response */ }); return response; }
+    return new Response("Not found", { status: 404 });
+  } finally {
+    releaseStorageUploadAdmission?.();
+  }
+}`;
+  if (router === "tanstack") return tanstackRpcRouteContent();
+  return `import { BodyLimitPlugin, RPCHandler } from "@orpc/server/fetch";
+import {
+  appRouter,
+  applyApiContextResponseHeaders,
+  createContext,
+  rejectUnsafeOrpcRequest,
+} from "@repo/api";
 ${sharedLogicNext}
 export const GET = handle; export const POST = handle; export const PUT = handle; export const PATCH = handle; export const DELETE = handle;
 `;
@@ -97,11 +277,10 @@ export const runtime = "nodejs" as const;
 export const Route = createFileRoute('/api/health')({ server: { handlers: { GET: async () => { const body = JSON.stringify({ status: 'ok', time: new Date().toISOString() }); return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', }, }); }, }, }, })
 `;
   }
-  return `import { NextResponse } from "next/server";
-import { after } from "next/server";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+  return `import { after, connection, NextResponse } from "next/server";
 export async function GET(): Promise<NextResponse> {
+  // Health timestamps are request-scoped and must never be frozen at build time.
+  await connection();
   const response = NextResponse.json({ status: "ok", time: new Date().toISOString() });
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -114,19 +293,48 @@ export async function GET(): Promise<NextResponse> {
 `;
 }
 
+export function tanstackOpenApiServerHandlerContent(apiImport = "@repo/api/openapi"): string {
+  return `import "server-only";
+import { generateOpenAPISpec } from "${apiImport}";
+
+export async function handleOpenApiRequest(): Promise<Response> {
+  if (process.env.NODE_ENV === "production" || process.env.ENABLE_OPENAPI === "false") {
+    return new Response("Not found", { status: 404 });
+  }
+  const spec = await generateOpenAPISpec();
+  return new Response(JSON.stringify(spec), { headers: { "Content-Type": "application/json" } });
+}
+`;
+}
+
+export function tanstackOpenApiRouteContent(): string {
+  return `import { createServerOnlyFn } from "@tanstack/react-start";
+import { createFileRoute } from "@tanstack/react-router";
+
+const dispatchOpenApiRequest = createServerOnlyFn(async (): Promise<Response> => {
+  const { handleOpenApiRequest } = await import("@/server/http/openapi.server");
+  return await handleOpenApiRequest();
+});
+
+export const Route = createFileRoute("/api/openapi")({
+  server: {
+    handlers: {
+      GET: () => dispatchOpenApiRequest(),
+    },
+  },
+});
+`;
+}
+
 export function openapiFileContent(router: RouterType): string {
   if (router === "tanstack") {
-    return `import { createFileRoute } from '@tanstack/react-router'
-import { generateOpenAPISpec } from '@repo/api/openapi'
-export const runtime = "nodejs" as const;
-export const Route = createFileRoute('/api/openapi')({ server: { handlers: { GET: async () => { if (process.env.NODE_ENV === 'production') return new Response('Not found', { status: 404 }); if (process.env.ENABLE_OPENAPI === 'false') return new Response('Not found', { status: 404 }); const spec = await generateOpenAPISpec(); return new Response(JSON.stringify(spec), { headers: { 'Content-Type': 'application/json', }, }); }, }, }, })
-`;
+    return tanstackOpenApiRouteContent();
   }
-  return `import { NextResponse } from "next/server";
+  return `import { connection, NextResponse } from "next/server";
 import { generateOpenAPISpec } from "@repo/api/openapi";
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 export async function GET(): Promise<NextResponse> {
+  // Keep development-only schema generation out of build-time prerendering.
+  await connection();
   if (process.env.NODE_ENV === "production") return new NextResponse("Not found", { status: 404 });
   if (process.env.ENABLE_OPENAPI === "false") return new NextResponse("Not found", { status: 404 });
   const spec = await generateOpenAPISpec();

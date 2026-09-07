@@ -34,6 +34,8 @@ export type {
   CreateCustomerOutput,
   CreatePortalSessionInput,
   CreatePortalSessionOutput,
+  CreatePaymentLinkInput,
+  CreatePaymentLinkOutput,
   VerifyWebhookInput,
   VerifyWebhookOutput,
   ListSubscriptionsInput,

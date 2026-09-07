@@ -4,13 +4,27 @@ import * as v from "../../versions.js";
 export function nextI18nConfigFile(filePath: string, routingImport: string): TemplateFile {
   return file(
     filePath,
-    `import { routing, localeDirection, type Locale } from "${routingImport}";
+    `import {
+  defaultLocale,
+  isValidLocale,
+  localeCookieMaxAge,
+  localeCookieName,
+  localeDirection,
+  locales,
+  routing,
+  type Locale,
+} from "${routingImport}";
 
-export { routing, localeDirection };
+export {
+  defaultLocale,
+  isValidLocale,
+  localeCookieMaxAge,
+  localeCookieName,
+  localeDirection,
+  locales,
+  routing,
+};
 export type { Locale };
-
-export const defaultLocale: Locale = routing.defaultLocale;
-export const locales: readonly Locale[] = routing.locales;
 
 export const localeNames: Record<Locale, string> = {
   en: "English",
@@ -33,11 +47,7 @@ export const localeDisplay: Record<Locale, string> = {
 export const timeZone = "Africa/Algiers" as const;
 
 export function isRtl(locale: string): boolean {
-  return (localeDirection as Record<string, string>)[locale] === "rtl";
-}
-
-export function isValidLocale(value: unknown): value is Locale {
-  return typeof value === "string" && (routing.locales as readonly string[]).includes(value);
+  return isValidLocale(locale) && localeDirection[locale] === "rtl";
 }
 
 export const nextIntlVersion = "${v.i18n["next-intl"]}" as const;

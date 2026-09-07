@@ -1,71 +1,164 @@
 /**
- * Polar subscriptions — create + list
- * Context7 polar-sh/sdk 0.48.1
- * subscriptions.create requires productId + customerId for free tier activation
- * Scope needed: subscriptions:write for creating free subscriptions and paid
+ * Polar subscriptions — verified create + paginated list.
+ * Programmatic creation is supported only for free products and requires the
+ * subscriptions:write scope; paid products must use checkout.
  */
 import type { ListSubscriptionsInput, Subscription } from "../interface.js";
 import { getPolarClientAsync } from "./client.js";
 import { mapPolarSubscriptionStatus } from "./mappers.js";
+import {
+  PolarProviderError,
+  isRecord,
+  nonEmptyString,
+  requirePolarCapability,
+  requirePolarClient,
+  requirePolarResponseString,
+  wrapPolarFailure,
+} from "./types.js";
+
+function toDate(value: unknown): Date | null {
+  if (!(value instanceof Date) && typeof value !== "string" && typeof value !== "number") {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return isRecord(value) && typeof Reflect.get(value, Symbol.asyncIterator) === "function";
+}
+
+function recordItems(value: unknown, operation: string): Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    if (!value.every(isRecord)) {
+      throw new PolarProviderError(
+        "INVALID_RESPONSE",
+        operation,
+        "subscription page contained a non-object item",
+      );
+    }
+    return value;
+  }
+  if (!isRecord(value)) {
+    throw new PolarProviderError("INVALID_RESPONSE", operation, "SDK returned a non-object page");
+  }
+  if (Array.isArray(value.items)) return recordItems(value.items, operation);
+  if (isRecord(value.result) && Array.isArray(value.result.items)) {
+    return recordItems(value.result.items, operation);
+  }
+  throw new PolarProviderError(
+    "INVALID_RESPONSE",
+    operation,
+    "subscription page did not include items or result.items",
+  );
+}
+
+function firstPriceId(value: Record<string, unknown>): string | undefined {
+  const direct = nonEmptyString(value.productPriceId) ?? nonEmptyString(value.priceId);
+  if (direct) return direct;
+  if (!Array.isArray(value.prices)) return undefined;
+  const firstPrice = value.prices.find(isRecord);
+  return firstPrice ? nonEmptyString(firstPrice.id) : undefined;
+}
+
+function toSubscription(
+  value: Record<string, unknown>,
+  input: Pick<ListSubscriptionsInput, "userId">,
+): Subscription {
+  const operation = "list subscriptions";
+  const id = requirePolarResponseString(value.id, operation, "subscription id");
+  const metadata = isRecord(value.metadata) ? value.metadata : undefined;
+  const customerId = nonEmptyString(value.customerId) ?? nonEmptyString(value.customer_id);
+  const userId = input.userId ?? nonEmptyString(metadata?.userId);
+  if (!userId) {
+    throw new PolarProviderError(
+      "INVALID_RESPONSE",
+      operation,
+      `subscription ${id} cannot be associated with an application user`,
+    );
+  }
+  const rawStatus = nonEmptyString(value.status) ?? nonEmptyString(value.state);
+  return {
+    id,
+    provider: "polar",
+    providerSubscriptionId: id,
+    userId,
+    status: mapPolarSubscriptionStatus(rawStatus),
+    currentPeriodEnd: toDate(value.currentPeriodEnd ?? value.current_period_end),
+    trialEnd: toDate(value.trialEnd ?? value.trial_end),
+    priceId: firstPriceId(value) ?? null,
+    productId: nonEmptyString(value.productId) ?? nonEmptyString(value.product_id) ?? null,
+    metadata,
+    customerId,
+    createdAt: toDate(value.createdAt ?? value.created_at) ?? undefined,
+    updatedAt: toDate(value.modifiedAt ?? value.updatedAt ?? value.updated_at) ?? undefined,
+  };
+}
 
 export async function createPolarSubscription(
   config: Record<string, unknown> | undefined,
-  input: { productId: string; customerId: string; metadata?: Record<string, unknown> },
+  input: {
+    productId: string;
+    customerId: string;
+    userId?: string;
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<Subscription> {
-  if (!input.productId || !input.customerId)
+  if (!input.productId || !input.customerId) {
     throw new Error(
       "INVALID_INPUT: productId and customerId required — subscriptions.create needs productId + customerId",
     );
-  const { client, accessToken } = await getPolarClientAsync(config);
-  // Free tier handling: if product is free price, no checkout needed
-  const isFreeProduct = String(input.productId).toLowerCase().includes("free");
-  void isFreeProduct;
-  const scopeNote = "subscriptions:write";
-  void scopeNote;
-  if (!client || !accessToken) {
-    return {
-      id: `sub_${input.productId.slice(0, 8)}_${Date.now()}`,
-      provider: "polar" as const,
-      providerSubscriptionId: `sub_${Date.now()}`,
-      userId: input.customerId,
-      status: "active" as const,
-      currentPeriodEnd: null,
-      trialEnd: null,
-      priceId: null,
-      productId: input.productId,
-      metadata: input.metadata,
-      customerId: input.customerId,
-    };
   }
+  const userId = nonEmptyString(input.userId) ?? nonEmptyString(input.metadata?.userId);
+  if (!userId) {
+    throw new Error("INVALID_INPUT: userId is required to associate the Polar subscription");
+  }
+  const resolved = await getPolarClientAsync(config);
+  const client = requirePolarClient(resolved.client, resolved.accessToken, "create subscription");
+  const subscriptions = requirePolarCapability(
+    client.subscriptions,
+    "create subscription",
+    "subscriptions",
+  );
+  const createSubscription = requirePolarCapability(
+    subscriptions.create,
+    "create subscription",
+    "subscriptions.create",
+  );
+  const requestMetadata: Record<string, unknown> = { ...input.metadata, userId };
+
   try {
-    const payload = {
+    const result = await createSubscription.call(subscriptions, {
       productId: input.productId,
       customerId: input.customerId,
-      metadata: input.metadata,
-    };
-    const result = (await client.subscriptions.create(payload)) as {
-      id: string;
-      productId?: string;
-      priceId?: string;
-      status?: string;
-      currentPeriodEnd?: string;
-    };
+      metadata: requestMetadata,
+    });
+    if (!isRecord(result)) {
+      throw new PolarProviderError(
+        "INVALID_RESPONSE",
+        "create subscription",
+        "SDK returned a non-object response",
+      );
+    }
+    const id = requirePolarResponseString(result.id, "create subscription", "id");
+    const metadata = isRecord(result.metadata) ? result.metadata : requestMetadata;
     return {
-      id: String(result.id),
-      provider: "polar" as const,
-      providerSubscriptionId: String(result.id),
-      userId: input.customerId,
-      status: mapPolarSubscriptionStatus(result.status),
-      currentPeriodEnd: result.currentPeriodEnd ? new Date(result.currentPeriodEnd) : null,
-      trialEnd: null,
-      priceId: (result.priceId as string) ?? null,
-      productId: (result.productId as string) ?? input.productId,
-      metadata: input.metadata,
-      customerId: input.customerId,
+      id,
+      provider: "polar",
+      providerSubscriptionId: id,
+      userId,
+      status: mapPolarSubscriptionStatus(nonEmptyString(result.status)),
+      currentPeriodEnd: toDate(result.currentPeriodEnd),
+      trialEnd: toDate(result.trialEnd),
+      priceId: firstPriceId(result) ?? null,
+      productId: nonEmptyString(result.productId) ?? input.productId,
+      metadata,
+      customerId: nonEmptyString(result.customerId) ?? input.customerId,
+      createdAt: toDate(result.createdAt) ?? undefined,
+      updatedAt: toDate(result.modifiedAt) ?? undefined,
     };
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`POLAR_CREATE_SUBSCRIPTION_FAILED: ${msg}`);
+    wrapPolarFailure("create subscription", error);
   }
 }
 
@@ -73,96 +166,53 @@ export async function listPolarSubscriptions(
   config: Record<string, unknown> | undefined,
   input: ListSubscriptionsInput,
 ): Promise<Subscription[]> {
-  const { client, accessToken, orgId } = await getPolarClientAsync(config);
-  if (!client || !accessToken) return [];
+  const resolved = await getPolarClientAsync(config);
+  const client = requirePolarClient(resolved.client, resolved.accessToken, "list subscriptions");
+  const subscriptions = requirePolarCapability(
+    client.subscriptions,
+    "list subscriptions",
+    "subscriptions",
+  );
+  const listSubscriptions = requirePolarCapability(
+    subscriptions.list,
+    "list subscriptions",
+    "subscriptions.list",
+  );
 
   try {
     const listInput: Record<string, unknown> = {};
-    if (orgId) listInput.organizationId = orgId;
+    const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
+    if (resolved.orgId) listInput.organizationId = resolved.orgId;
     if (input.customerId) listInput.customerId = input.customerId;
-    if (input.limit) listInput.limit = input.limit;
+    listInput.limit = limit;
 
-    const maybeList = (
-      client.subscriptions as {
-        list?: (i: Record<string, unknown>) => Promise<unknown> | AsyncIterable<unknown>;
-      }
-    ).list;
-    if (!maybeList) return [];
-
-    const result = await (
-      maybeList as (i: Record<string, unknown>) => Promise<unknown> | AsyncIterable<unknown>
-    )(listInput);
+    const response = await listSubscriptions.call(subscriptions, listInput);
     const items: Record<string, unknown>[] = [];
-
-    if (result && typeof (result as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function") {
-      for await (const page of result as AsyncIterable<
-        { items?: Record<string, unknown>[] } | Record<string, unknown>[]
-      >) {
-        if (Array.isArray(page)) items.push(...(page as Record<string, unknown>[]));
-        else if (
-          (page as { items?: unknown }).items &&
-          Array.isArray((page as { items: unknown[] }).items)
-        ) {
-          items.push(
-            ...((page as { items: Record<string, unknown>[] }).items as Record<string, unknown>[]),
-          );
-        } else items.push(page as Record<string, unknown>);
+    if (isAsyncIterable(response)) {
+      for await (const page of response) {
+        items.push(...recordItems(page, "list subscriptions"));
+        if (items.length >= limit) break;
       }
-    } else if (Array.isArray(result)) {
-      items.push(...(result as Record<string, unknown>[]));
-    } else if (
-      (result as { items?: unknown }).items &&
-      Array.isArray((result as { items: unknown[] }).items)
-    ) {
-      items.push(
-        ...((result as { items: Record<string, unknown>[] }).items as Record<string, unknown>[]),
-      );
-    } else if ((result as { result?: { items?: unknown[] } }).result) {
-      const inner = (result as { result: { items: unknown[] } }).result;
-      if (Array.isArray(inner.items)) items.push(...(inner.items as Record<string, unknown>[]));
+    } else {
+      items.push(...recordItems(response, "list subscriptions"));
     }
 
-    let filtered = items;
-    if (input.status && input.status !== "all") {
-      const wanted = Array.isArray(input.status) ? input.status : [input.status];
-      const wantedNorm = wanted.map((s) => String(s).toLowerCase());
-      filtered = items.filter((it) => {
-        const st = String((it.status as string) ?? (it.state as string) ?? "").toLowerCase();
-        return wantedNorm.includes(st);
-      });
-    }
+    const wantedStatuses =
+      input.status && input.status !== "all"
+        ? (Array.isArray(input.status) ? input.status : [input.status]).map((status) =>
+            status.toLowerCase(),
+          )
+        : undefined;
 
-    return filtered.map((it) => {
-      const id = String((it.id as string) ?? `sub_${Date.now()}`);
-      const customerId = (it.customerId as string) ?? (it.customer_id as string) ?? undefined;
-      const productId = (it.productId as string) ?? (it.product_id as string) ?? undefined;
-      const priceId = (it.productPriceId as string) ?? (it.priceId as string) ?? undefined;
-      const status = mapPolarSubscriptionStatus((it.status as string) ?? (it.state as string));
-      const currentPeriodEnd = it.currentPeriodEnd
-        ? new Date(it.currentPeriodEnd as string)
-        : it.current_period_end
-          ? new Date(it.current_period_end as string)
-          : null;
-      const trialEnd = it.trialEnd ? new Date(it.trialEnd as string) : null;
-
-      return {
-        id,
-        provider: "polar" as const,
-        providerSubscriptionId: id,
-        userId: input.userId ?? customerId ?? id,
-        status,
-        currentPeriodEnd,
-        trialEnd,
-        priceId: priceId ?? null,
-        productId: productId ?? null,
-        metadata: it.metadata as Record<string, unknown> | undefined,
-        customerId,
-        createdAt: it.createdAt ? new Date(it.createdAt as string) : undefined,
-        updatedAt: it.modifiedAt ? new Date(it.modifiedAt as string) : undefined,
-      } satisfies Subscription;
-    });
+    return items
+      .slice(0, limit)
+      .filter((item) => {
+        if (!wantedStatuses) return true;
+        const rawStatus = nonEmptyString(item.status) ?? nonEmptyString(item.state);
+        return rawStatus ? wantedStatuses.includes(rawStatus.toLowerCase()) : false;
+      })
+      .map((item) => toSubscription(item, input));
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`POLAR_LIST_SUBSCRIPTIONS_FAILED: ${msg}`);
+    wrapPolarFailure("list subscriptions", error);
   }
 }

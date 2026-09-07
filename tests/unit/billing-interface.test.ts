@@ -3,6 +3,7 @@ import { billingFiles } from "../../src/templates/billing-generator";
 import { generateProjectFiles } from "../../src/templates/default";
 import { billingProviders } from "../../src/lib/addons";
 import { BILLING_PROVIDER_NAMES } from "../../src/templates/billing/providers/interface";
+import { billingProviderSupportsClientOperation } from "../../src/domain/capabilities/billing-provider-operations.js";
 
 function aggInterface(files: any[]) {
   return files
@@ -118,11 +119,11 @@ describe("billing interface — provider enum", () => {
     expect(content).toContain("phone?: string");
   });
 
-  it("createPortalSession not for chargily — comment says not supported", () => {
+  it("declares optional portals while the domain excludes Chargily support", () => {
     const files = billingFiles("monorepo");
-    const allContent = [...files.map((f: any) => f.content), aggInterface(files)].join("\n");
-    expect(allContent.toLowerCase()).toContain("chargily");
-    expect(allContent.toLowerCase()).toContain("not supported");
+    expect(aggInterface(files)).toContain("createPortalSession?");
+    expect(billingProviderSupportsClientOperation("chargily", "billing.portal.v1")).toBe(false);
+    expect(billingProviderSupportsClientOperation("stripe", "billing.portal.v1")).toBe(true);
   });
 });
 
@@ -162,6 +163,8 @@ describe("billing schema — Drizzle provider enum all 4", () => {
     const schema = aggSchema(billingFiles("monorepo"));
     expect(schema).toContain("checkouts");
     expect(schema).toContain("providerCheckoutId");
+    expect(schema).toContain("userId");
+    expect(schema).toContain("providerEventAt");
     expect(schema).toContain("url");
     expect(schema).toContain("pending");
     expect(schema).toContain("paid");
@@ -195,6 +198,11 @@ describe("billing schema — Drizzle provider enum all 4", () => {
     const schema = aggSchema(billingFiles("monorepo"));
     expect(schema).toContain("providerCustomerId");
     expect(schema).toContain("billing_customers");
+    expect(schema).toContain('userId: text("user_id").notNull()');
+    expect(
+      schema.match(/userId: text\("user_id"\)\.notNull\(\)/g)?.length ?? 0,
+    ).toBeGreaterThanOrEqual(3);
+    expect(schema).not.toContain('userId: uuid("user_id").notNull()');
   });
 
   it("products has name provider providerProductId", () => {

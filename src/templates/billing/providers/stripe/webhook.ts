@@ -1,7 +1,6 @@
 /**
  * Stripe webhook verification — raw Buffer required.
  */
-// @ts-ignore
 import type Stripe from "stripe";
 import type { VerifyWebhookInput, VerifyWebhookOutput, BillingEvent } from "../interface.js";
 
@@ -22,13 +21,15 @@ export async function verifyStripeWebhook(
   }
 
   try {
-    const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret || "");
+    // Stripe's Bun/worker build uses SubtleCrypto, so synchronous verification
+    // is unsupported. The async API works in Bun and Node runtimes.
+    const event = await stripe.webhooks.constructEventAsync(rawBody, sig, webhookSecret || "");
     const billingEvent: BillingEvent = {
       id: event.id,
       provider: "stripe",
       providerEventId: event.id,
       type: event.type,
-      payload: event as unknown as Record<string, unknown>,
+      payload: { ...event },
       processed: false,
       createdAt: new Date((event.created ?? Math.floor(Date.now() / 1000)) * 1000),
     };

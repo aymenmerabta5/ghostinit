@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../shared.js";
+import * as v from "../versions.js";
 
 export function huskyFiles(): TemplateFile[] {
   return [
@@ -6,28 +7,29 @@ export function huskyFiles(): TemplateFile[] {
       ".husky/pre-commit",
       `#!/usr/bin/env sh
 # GhostInit pre-commit — lint + format + architecture
-# Installed via \`bunx husky init\` or \`npx husky init\`. If husky is not installed, run:
-#   bun add -d husky && bunx husky init
-# Or use lefthook: see lefthook.yml
+# Installed by the package.json prepare script. Or use lefthook: see lefthook.yml.
 
 set -e
 
 echo "[pre-commit] oxlint..."
-bunx oxlint . 2>/dev/null || bun run lint 2>/dev/null || npx oxlint . 2>/dev/null || echo "oxlint not found, skipping"
+bunx --no-install oxlint --deny-warnings .
 
 echo "[pre-commit] oxfmt check..."
-bunx oxfmt --check . 2>/dev/null || bun run format:check 2>/dev/null || npx oxfmt --check . 2>/dev/null || echo "oxfmt not found, skipping"
+bunx --no-install oxfmt --check .
 
 echo "[pre-commit] ghostinit check..."
-# Prefer local ghostinit binary if available, else try npx
-if [ -f "./dist/cli.js" ]; then
-  node ./dist/cli.js check 2>/dev/null || bun run check 2>/dev/null || true
-elif command -v ghostinit >/dev/null 2>&1; then
-  ghostinit check 2>/dev/null || true
-elif [ -f "./node_modules/.bin/ghostinit" ]; then
-  ./node_modules/.bin/ghostinit check 2>/dev/null || true
+# Never trust an unversioned global binary. Use an exact local package when
+# present, otherwise acquire the exact generator version with Bun.
+expected_ghostinit_version="${v.ghostinitVersion}"
+if [ -f "./node_modules/ghostinit/package.json" ]; then
+  installed_ghostinit_version="$(bun -e 'const manifest = await Bun.file("./node_modules/ghostinit/package.json").json(); process.stdout.write(String(manifest.version ?? ""));')"
+  if [ "$installed_ghostinit_version" != "$expected_ghostinit_version" ]; then
+    echo "[pre-commit] expected ghostinit@$expected_ghostinit_version, found ghostinit@$installed_ghostinit_version" >&2
+    exit 1
+  fi
+  bun ./node_modules/ghostinit/dist/cli.js check --json
 else
-  npx --yes ghostinit check 2>/dev/null || true
+  bunx --bun "ghostinit@$expected_ghostinit_version" check --json
 fi
 
 echo "[pre-commit] ok"
@@ -42,11 +44,11 @@ pre-commit:
   parallel: false
   commands:
     oxlint:
-      run: bunx oxlint . || bun run lint
+      run: bunx --no-install oxlint --deny-warnings .
     oxfmt:
-      run: bunx oxfmt --check . || bun run format:check
+      run: bunx --no-install oxfmt --check .
     arch:
-      run: npx --yes ghostinit check 2>/dev/null || bun run check 2>/dev/null || true
+      run: bunx --bun ghostinit@${v.ghostinitVersion} check --json
 `,
     ),
   ];

@@ -59,15 +59,84 @@ export function webhookContent(
   framework: WebhookFramework,
   mode: WebhookMode = "monorepo",
   database: DatabaseProvider | string = "postgres",
+  emittedPath?: string,
 ): TemplateFile {
   const effectiveMode: WebhookMode = framework === "single" ? "single" : mode;
   const effectiveFramework: WebhookFramework = framework === "single" ? "next" : framework;
   const isMonorepo = effectiveMode === "monorepo";
   const imp = getDbImports(isMonorepo);
-  const path = getPath(provider, effectiveFramework, effectiveMode);
+  const path = emittedPath ?? getPath(provider, effectiveFramework, effectiveMode);
   const isConvex = resolveIsConvexDatabase(database as DatabaseProvider);
   const content = contentFor(provider, effectiveFramework, imp, isConvex, isMonorepo, path);
   return file(path, content);
+}
+
+function tanstackWebhookServerPath(provider: BillingProviderName, mode: WebhookMode): string {
+  const root = mode === "monorepo" ? "apps/web/" : "";
+  return `${root}src/server/http/webhooks/${provider}.server.ts`;
+}
+
+function tanstackWebhookRouteContent(provider: BillingProviderName): string {
+  return `import { createServerOnlyFn } from "@tanstack/react-start";
+import { createFileRoute } from "@tanstack/react-router";
+
+const dispatchWebhook = createServerOnlyFn(
+  async (context: { request: Request }): Promise<Response> => {
+    const { POST } = await import("@/server/http/webhooks/${provider}.server");
+    return await POST(context);
+  },
+);
+
+export const Route = createFileRoute("/api/webhooks/${provider}")({
+  server: {
+    handlers: {
+      POST: (context) => dispatchWebhook(context),
+    },
+  },
+});
+`;
+}
+
+function tanstackWebhookServerContent(content: string, provider: BillingProviderName): string {
+  const routeImport = 'import { createFileRoute } from "@tanstack/react-router";\n';
+  const routeRegistration = `export const Route = createFileRoute("/api/webhooks/${provider}")({ server: { handlers: { POST } } });`;
+  if (!content.startsWith(routeImport) || !content.includes(routeRegistration)) {
+    throw new Error(`Unable to split the ${provider} TanStack webhook server implementation`);
+  }
+  const server = content
+    .slice(routeImport.length)
+    .replace(routeRegistration, "")
+    .replace("async function POST(", "export async function POST(");
+  if (!server.includes("export async function POST(")) {
+    throw new Error(`The ${provider} TanStack webhook has no server POST handler`);
+  }
+  return `import "server-only";\n${server.trim()}\n`;
+}
+
+/** Production route files; TanStack handlers live outside the client-discovered route tree. */
+export function webhookRouteFiles(
+  provider: BillingProviderName,
+  framework: WebhookFramework,
+  mode: WebhookMode = "monorepo",
+  database: DatabaseProvider | string = "postgres",
+): TemplateFile[] {
+  if (framework !== "tanstack") return [webhookContent(provider, framework, mode, database)];
+  const routePath = getPath(provider, framework, mode);
+  const serverPath = tanstackWebhookServerPath(provider, mode);
+  const isMonorepo = mode === "monorepo";
+  const imp = getDbImports(isMonorepo);
+  const serverSource = contentFor(
+    provider,
+    framework,
+    imp,
+    resolveIsConvexDatabase(database),
+    isMonorepo,
+    serverPath,
+  );
+  return [
+    file(routePath, tanstackWebhookRouteContent(provider)),
+    file(serverPath, tanstackWebhookServerContent(serverSource, provider)),
+  ];
 }
 
 type ConvexContentGenerators = ContentGenerators & {

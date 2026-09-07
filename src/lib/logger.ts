@@ -10,7 +10,6 @@ import type { Writable } from "node:stream";
 import {
   SECRET_SUBSTRINGS,
   SECRET_PATTERN,
-  URL_SECRET_PARAM_PATTERN,
   looksLikeSecret as looksLikeSecretFromConstants,
 } from "./constants.js";
 
@@ -40,24 +39,53 @@ export function looksLikeSecret(key: string): boolean {
   return looksLikeSecretFromConstants(key);
 }
 
-function redactUrlToken(value: string): string {
+const EMBEDDED_URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"'`]+/gi;
+const TRAILING_URL_PUNCTUATION = /[),.;!?]+$/;
+
+function redactUrl(value: string): string {
   try {
     const url = new URL(value);
-    const needsRedaction =
-      url.password || (url.searchParams.toString() && URL_SECRET_PARAM_PATTERN.test(url.search));
-    if (!needsRedaction) return value;
-    for (const param of Array.from(url.searchParams.keys())) {
-      if (looksLikeSecretFromConstants(param)) {
-        url.searchParams.set(param, "***");
-      }
+    let changed = false;
+    if (url.username) {
+      url.username = "***";
+      changed = true;
     }
     if (url.password) {
       url.password = "***";
+      changed = true;
     }
-    return url.toString();
+    for (const param of Array.from(url.searchParams.keys())) {
+      if (looksLikeSecretFromConstants(param)) {
+        url.searchParams.set(param, "***");
+        changed = true;
+      }
+    }
+    if (url.hash.length > 1) {
+      const fragment = new URLSearchParams(url.hash.slice(1));
+      let fragmentChanged = false;
+      for (const param of Array.from(fragment.keys())) {
+        if (looksLikeSecretFromConstants(param)) {
+          fragment.set(param, "***");
+          fragmentChanged = true;
+        }
+      }
+      if (fragmentChanged) {
+        url.hash = fragment.toString();
+        changed = true;
+      }
+    }
+    return changed ? url.toString() : value;
   } catch {
     return value;
   }
+}
+
+function redactUrlToken(value: string): string {
+  return value.replace(EMBEDDED_URL_PATTERN, (candidate) => {
+    const trailing = candidate.match(TRAILING_URL_PUNCTUATION)?.[0] ?? "";
+    const url = trailing ? candidate.slice(0, -trailing.length) : candidate;
+    return `${redactUrl(url)}${trailing}`;
+  });
 }
 
 /**
@@ -79,6 +107,8 @@ const SECRET_VALUE_PATTERNS: RegExp[] = [
   // postgres://user:password@host — credentials embedded in a connection string
   /\b([a-z][a-z0-9+.-]*:\/\/[^:\s/]+):[^@\s]+@/gi,
 ];
+const SECRET_ASSIGNMENT_PATTERN =
+  /\b([A-Za-z][A-Za-z0-9_.-]{0,63})(\s*(?:=|:)\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;&]+)/g;
 
 export function redactSecretValues(text: string): string {
   let out = text;
@@ -88,6 +118,9 @@ export function redactSecretValues(text: string): string {
       typeof prefix === "string" ? `${prefix}:***@` : "***",
     );
   }
+  out = out.replace(SECRET_ASSIGNMENT_PATTERN, (match, key: string, separator: string) =>
+    looksLikeSecretFromConstants(key) ? `${key}${separator}***` : match,
+  );
   return out;
 }
 
@@ -101,7 +134,9 @@ export function redact(value: unknown, key = "", seen = new WeakSet<object>()): 
   if (Array.isArray(value)) {
     if (seen.has(value)) return "[Circular]";
     seen.add(value);
-    return value.map((v, i) => redact(v, String(i), seen));
+    const out = value.map((v, i) => redact(v, String(i), seen));
+    seen.delete(value);
+    return out;
   }
   if (value && typeof value === "object" && !(value instanceof Date)) {
     if (seen.has(value)) return "[Circular]";
@@ -110,6 +145,7 @@ export function redact(value: unknown, key = "", seen = new WeakSet<object>()): 
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       out[k] = redact(v, k, seen);
     }
+    seen.delete(value);
     return out;
   }
   return value;

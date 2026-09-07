@@ -26,6 +26,8 @@ export function buildSecrets(): RootSecrets {
   return {
     authSecret: secret(),
     postgresPassword: secret(),
+    notificationTokenEncryptionKey: secret(32),
+    eveInternalAuthSecret: secret(32),
   };
 }
 
@@ -74,6 +76,7 @@ export function filteredEnvLocal(
     framework: "nextjs",
     hasMobile: false,
   },
+  includeResend = true,
 ): TemplateFile {
   return sharedFilteredEnvLocal(
     projectName,
@@ -83,5 +86,6 @@ export function filteredEnvLocal(
     "monorepo",
     database,
     audience,
+    includeResend,
   );
 }

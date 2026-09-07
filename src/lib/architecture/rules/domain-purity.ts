@@ -4,10 +4,9 @@
 
 import type { ArchitectureFinding } from "../types.js";
 import { FRAMEWORK_PACKAGES } from "../constants.js";
-import { getBasePackage, isFrameworkEntryPoint } from "../utils.js";
+import { getBasePackage } from "../utils.js";
 
 export function checkDomainLayer(findings: ArchitectureFinding[], file: string, imp: string): void {
-  if (isFrameworkEntryPoint(file)) return;
   if (!/\/domain\//.test(file)) return;
   if (FRAMEWORK_PACKAGES.has(imp) || FRAMEWORK_PACKAGES.has(getBasePackage(imp))) {
     findings.push({

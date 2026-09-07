@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { pascalCase, prepareGeneration, commitGeneration } from "./shared.js";
+import type { GenerationExecution } from "./shared.js";
 import { validateArtifactName } from "../lib/reserved.js";
 import type { GlobalOptions } from "../commands/types.js";
 
@@ -9,6 +10,7 @@ export async function generateUseCase(
   useCaseName: string,
   kind: "command" | "query",
   options: GlobalOptions,
+  execution: GenerationExecution = {},
 ): Promise<boolean> {
   const moduleCheck = validateArtifactName(moduleName, "module name");
   if (!moduleCheck.valid) {
@@ -22,23 +24,29 @@ export async function generateUseCase(
     throw new Error(`Invalid use-case kind: ${kind}. Use "command" or "query".`);
   }
 
-  const ctx = await prepareGeneration(cwd, options);
+  const ctx = await prepareGeneration(cwd, options, execution);
   const pascalUseCase = pascalCase(useCaseName);
   const kindPascal = kind === "command" ? "Command" : "Query";
   const functionName = `${pascalUseCase}${kindPascal}UseCase`;
   const fileName = `${useCaseName}.${kind}.ts`;
-  const filePath = `packages/modules/src/${moduleName}/application/${fileName}`;
-  const indexPath = `packages/modules/src/${moduleName}/application/index.ts`;
+  const filePath = `${ctx.layout.moduleRoot}/${moduleName}/application/${fileName}`;
+  const indexPath = `${ctx.layout.moduleRoot}/${moduleName}/application/index.ts`;
+  const moduleIndexPath = `${ctx.layout.moduleRoot}/${moduleName}/index.ts`;
 
   const existingFile = existsSync(`${cwd}/${filePath}`);
   const existingIndex = (await ctx.tx.readText(indexPath)) ?? "";
+  const existingModuleIndex = (await ctx.tx.readText(moduleIndexPath)) ?? "";
   const newExport = `export { ${functionName} } from "./${useCaseName}.${kind}";`;
   const newTypeExport = `export type { ${pascalUseCase}Input, ${pascalUseCase}Output, ${pascalUseCase}Deps, ${pascalUseCase}UseCase } from "./${useCaseName}.${kind}";`;
+  const moduleValueExport = `export { ${functionName} } from "./application/${useCaseName}.${kind}";`;
+  const moduleTypeExport = `export type { ${pascalUseCase}Input, ${pascalUseCase}Output, ${pascalUseCase}Deps, ${pascalUseCase}UseCase } from "./application/${useCaseName}.${kind}";`;
 
   if (
     existingFile &&
     hasNormalizedExport(existingIndex, newExport) &&
-    hasNormalizedExport(existingIndex, newTypeExport)
+    hasNormalizedExport(existingIndex, newTypeExport) &&
+    hasNormalizedExport(existingModuleIndex, moduleValueExport) &&
+    hasNormalizedExport(existingModuleIndex, moduleTypeExport)
   ) {
     return true; // noop
   }
@@ -82,6 +90,20 @@ export async function ${functionName}(
       ? `${base}\n${suffix}\n`
       : `// Application use-cases for ${moduleName}\n${suffix}\n`;
     await ctx.tx.write(indexPath, dedupeExports(combined));
+  }
+
+  const moduleExports = [
+    hasNormalizedExport(existingModuleIndex, moduleValueExport) ? "" : moduleValueExport,
+    hasNormalizedExport(existingModuleIndex, moduleTypeExport) ? "" : moduleTypeExport,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  if (moduleExports) {
+    const base = existingModuleIndex.trimEnd();
+    await ctx.tx.write(
+      moduleIndexPath,
+      dedupeExports(base ? `${base}\n${moduleExports}\n` : `${moduleExports}\n`),
+    );
   }
 
   function normalizeExportLine(line: string): string {

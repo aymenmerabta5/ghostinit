@@ -18,6 +18,7 @@ ghostinit create my-app --yes --no-install       # non-interactive CI-friendly (
 ghostinit create my-app --preset frontend --stack nextjs --yes --no-install   # minimal frontend: apps/web + ui + config only
 ghostinit create my-app --preset saas --billing stripe,chargily --framework tanstack-start --database postgres --with-eve --with-i18n --yes --no-install
 ghostinit create my-app --preset custom --with-auth --with-api --with-cache --with-eve --yes --no-install   # pick addons explicitly
+ghostinit create my-worker --preset frontend --framework tanstack-start --database none --deploy cloudflare --yes --no-install
 ghostinit create my-app --dry-run --yes --no-install  # preview 237 files + sizes without writing
 ghostinit create my-app --dry-run --json --yes | jq .data.files  # machine diff: files[], totalBytes, previewFiles
 # --features eve,i18n still works as deprecated alias for --with-eve/--with-i18n
@@ -31,11 +32,12 @@ Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with lett
 | ------------------ | --------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--preset`         | `saas`, `frontend`, `custom`                              | `saas`     | saas=full Auth+DB+API+Email+Analytics+optional billing/cache; frontend=minimal apps/web+ui+config only; custom=pick via --with-*                                                                                                                    |
 | `--mode`           | `monorepo`, `single`                                      | `monorepo` | monorepo = `apps/* + packages/* + tooling/*`                                                                                                                                                                                                        |
-| `--framework`      | `nextjs`, `tanstack-start`                                | `nextjs`   | Next 16.2.10 App Router vs TanStack Start Vite+Nitro                                                                                                                                                                                                |
-| `--apps`           | `web,mobile,desktop,both,all` comma/repeat                | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 54 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, desktop=Electron 41 + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop monorepo                                        |
+| `--framework`      | `nextjs`, `tanstack-start`                                | `nextjs`   | Catalog-pinned Next 16 App Router vs TanStack Start Vite+Nitro                                                                                                                                                                                      |
+| `--apps`           | `web,mobile,desktop,both,all` comma/repeat                | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 57 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop monorepo                                           |
 | `--billing`        | `stripe,chargily,paddle,polar,both,all,none` or any combo | `none`     | `chargily` DZ checkout-only, `stripe` global cards, `chargily,stripe` dual, `all` all 4                                                                                                                                                             |
 | `--database`       | `postgres,convex,none`                                    | `postgres` | `billing` requires `postgres` or `convex`; `auth` also requires `postgres` or `convex`                                                                                                                                                              |
-| `--cache`          | `redis`, `none` (`upstash` alias for redis)               | `none`     | Cache via Upstash Redis (@upstash/redis 1.35.0) + memory fallback when REPLACE_WITH placeholder; or `none`                                                                                                                                          |
+| `--cache`          | `redis`, `none` (`upstash` alias for redis)               | `none`     | Optional fail-closed cache via catalog-pinned Upstash Redis; production API rate limiting may use the same credentials even when the cache package is off                                                                                           |
+| `--deploy`         | `vercel`, `fly`, `docker`, `cloudflare`, `none`           | `none`     | Cloudflare: Next via OpenNext or TanStack via native Vite plugin, with Convex/none only; all deployment targets require a regular root `bun.lock`                                                                                                   |
 | `--stack`          | `nextjs`, `tanstack-start`, `expo`, `both`                | —          | Frontend shorthand for --preset frontend: maps to --framework + --apps (expo→apps mobile)                                                                                                                                                           |
 | `--with-auth`      | flag                                                      | off        | Opt-in Better Auth (requires DB postgres or convex) — for --preset custom (saas forces on, frontend forces off)                                                                                                                                     |
 | `--with-api`       | flag                                                      | off        | Opt-in oRPC API contract-first transport — for custom preset                                                                                                                                                                                        |
@@ -48,7 +50,7 @@ Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with lett
 | `--with-messaging` | flag                                                      | off        | Opt-in DM messaging (DM-only, files/images inline, presence+typing realtime; postgres→oRPC WS + Docker volume, convex→native queries + ctx.storage; requires DB postgres/convex + auth+api) — for custom preset (opt-in for all presets, even saas) |
 | `--features`       | `eve,i18n` (deprecated)                                   | `none`     | Deprecated alias for --with-eve/--with-i18n; case-insensitive deduped, partially unknown tolerated, fully unknown throws                                                                                                                            |
 | `--cwd`            | path                                                      | `.`        | parent where `<name>` folder created                                                                                                                                                                                                                |
-| `--no-install`     | flag                                                      | installs   | skip bun install                                                                                                                                                                                                                                    |
+| `--no-install`     | flag                                                      | installs   | skip the verified dependency bootstrap; run `bun run install:bootstrap` in the fresh output before other scripts                                                                                                                                    |
 | `--dry-run`        | flag                                                      | off        | preview without writing — emits `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` (first 100) + `hasMore` in `--json`; text shows `237 files (394 kB)` + list                                                                               |
 | `--yes` / `--ci`   | flag                                                      | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                                                                                                                   |
 | `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}` — works with `--dry-run`, `status --verbose`, `add --list`                                                                                                                                       |
@@ -62,24 +64,27 @@ Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing
 
 ```bash
 cd my-app
-bun install                          # if --no-install used
-cp .env.example .env.local           # fill placeholders
-./start-database.sh                  # quick Postgres container (docker/podman auto-detected)
+bun run install:bootstrap            # first install only, when --no-install was used
+# .env.local is generated; Cloudflare projects use gitignored .dev.vars instead
+docker compose --env-file .env.local up -d  # portable Postgres path on Windows, Linux, and macOS
 bun run db:push                      # push drizzle schema
 bun run dev                          # turbo dev → web on :3000
 ```
 
-Env to fill in `.env.local`:
+Env to fill in `.env.local` (or `.dev.vars` for `--deploy cloudflare`):
 
 - `BETTER_AUTH_SECRET` 32+ chars required, never placeholder
 - `DATABASE_URL` or `POSTGRES_USER/PASSWORD/HOST/PORT/DB`
 - `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL` same origin — web
-- `EXPO_PUBLIC_APP_URL`, `EXPO_PUBLIC_API_URL` when mobile selected (Expo client reads API URL; backend single port 3000)
+- `EXPO_PUBLIC_APP_URL`, `EXPO_PUBLIC_API_URL` when mobile is paired with a monorepo web host. Single mobile is frontend-only and has no generated remote-backend contract.
 - `RESEND_API_KEY` if email used
 - Billing keys if selected: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` + `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` for mobile, `CHARGILY_API_KEY`, `CHARGILY_SECRET_KEY`, `PADDLE_API_KEY`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN` + `EXPO_PUBLIC_PADDLE_CLIENT_TOKEN`, `POLAR_ACCESS_TOKEN`, etc.
 - `POSTHOG_*` if analytics
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for production API mutation rate limiting, including API projects without the optional cache package. Placeholders fall back only in development/test.
 
-`start-database.sh`: docker vs podman detection, `nc` port check, reuses existing `*_postgres` container, random password via `openssl` if placeholder, safe env parsing allowlisted keys only, volume `*_postgres_data`.
+Optional helper: `bash ./start-database.sh` performs Docker/Podman detection, an `nc` port check, safe allowlisted env parsing, and reuses `*_postgres` plus its named volume. Windows requires Git Bash, WSL, or another Bash installation. Postgres 18 mounts the named volume at `/var/lib/postgresql` so its versioned `18/docker` data directory persists correctly.
+
+Deployment notes: every deployment target requires a verified regular root `bun.lock`; after `--no-install`, run `bun run install:bootstrap` with Bun `1.4.0`. Vercel accepts `bunVersion: "1.4.x"` and manages its patch, while its exact-Bun install/build commands run the shared lock guard first. `--deploy docker` emits `compose.production.yml` with a 30-second stop grace, an image health check, BuildKit-secret build configuration, and a stable named Eve Workflow volume when Eve is selected. `--deploy fly` emits the equivalent health/grace contract and a build-secret guide; Docker/Fly pin the exact runtime image. `--deploy cloudflare` supports Next/OpenNext and TanStack/native Vite in monorepo or single web mode with Convex or no database. It rejects PostgreSQL, Eve, and server-side PDF. Keep local values in `.dev.vars`, configure matching explicit production site/app origins and runtime secrets separately, provision the generated Next R2 cache bucket once, then use `bun run build`, `bun run cloudflare:dry-run`, `bun run preview`, and `bun run deploy`. Next also emits queue and sharded tag-cache Durable Objects. See `references/cloudflare.md`.
 
 ## Generated Structure
 
@@ -92,7 +97,7 @@ Preset determines which packages are emitted:
 ```
 my-app/
   apps/web                  # frontend: Next.js app router or TanStack Start src/routes
-  apps/mobile (optional)    # Expo SDK 54 Router file-based app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore, expo-linking (when --apps mobile|both)
+  apps/mobile (optional)    # Expo SDK 57 Router file-based app/, metro.config.js auto monorepo, babel-preset-expo, SecureStore, expo-linking (when --apps mobile|both)
   apps/eve (optional)       # Eve agent hybrid via withEve() when --with-eve selected
   packages/api              # oRPC contract + router (only when --with-api or saas)
   packages/auth             # Better Auth email/password, 2FA, admin (only when --with-auth or saas; requires DB)
@@ -112,14 +117,14 @@ my-app/
   package.json              # scripts: check, check:fix, doctor:fix, prepare=husky
 ```
 
-Single mode: flat Next.js `src/app + server/` no workspaces; Expo single `app/` + `src/server/` with `app.json`. Frontend single similarly minimal: single file tree with only ui+config.
+Single mode: one project without workspaces. Next.js web routes live in `src/app/`; TanStack Start web routes live in `src/routes/`. Selected backend capabilities live under `src/server/`. Single Expo/Electron emits a frontend-only native client with no backend host, database, provider adapters, or webhooks; only client-local analytics/i18n may be selected.
 
 App targets: `--apps` controls which apps scaffolded:
 
 - `web` default — Next/TanStack via `--framework`
-- `mobile` — Expo SDK 54 Router file-based `app/`, metro auto monorepo (SDK52+), babel-preset-expo, SecureStore, expo-linking, scheme handling, typedRoutes, Better Auth `expo()` server plugin + `expoClient` client, oRPC via `EXPO_PUBLIC_API_URL` + `getCookie`, sharing backend single port 3000
+- `mobile` — Expo SDK 57 Router file-based `app/`, metro auto monorepo, babel-preset-expo, SecureStore, expo-linking, and typedRoutes. Auth/oRPC bindings require monorepo `web,mobile`, where the web app owns the backend.
 - `both`/`all` → monorepo `apps/web + apps/mobile`
-- `single + mobile` → flat Expo app (not Next), single mode supports only one target otherwise invalid
+- `single + mobile|desktop` → flat frontend-only native app. Server-backed selections are rejected with `single-native-server-capabilities-unsupported`; use monorepo `web,mobile` or `web,desktop` for full parity.
 
 ## Commands (Post-Scaffold)
 
@@ -132,7 +137,10 @@ ghostinit doctor                         # bun, node, tsc + env checks + secret 
 ghostinit doctor --fix                   # auto-fix: mint BETTER_AUTH_SECRET/POSTGRES_PASSWORD placeholders, create .env.local, fix turbo.json globalEnv
 ghostinit check                          # architecture checker 6-layer + isolation → fails if BLOCKER/HIGH
 ghostinit check --fix                    # auto-fix turbo.json globalEnv drift (others require manual fix)
-ghostinit sync                           # rebuild registries: modules index, api contract/router, db schema index
+ghostinit upgrade --dry-run              # preview hash-gated desired-state re-render and conflicts
+ghostinit upgrade                        # transactionally apply the desired-state upgrade
+ghostinit sync --dry-run                 # preview pending desired-state reconciliation + registry changes
+ghostinit sync                           # reconcile pending desired config, then rebuild registries
 ghostinit sync --check                   # drift detect → exit 8 if out of sync
 ghostinit add module <name>
 ghostinit add use-case <module> <name> --kind command|query
@@ -166,18 +174,18 @@ Includes conditional panels, webhook raw body handling, `webhook_events` idempot
 - `--preset frontend`: minimal frontend only — `apps/web` + `packages/ui` + `packages/config` + `tooling` (~134 files) + supporting contracts/kernel etc., with `database=none` and all addons disabled unless explicitly added via --with-*. Interactive asks stack (nextjs|tanstack-start|expo|both) and mode only (3 prompts).
 - `--preset custom`: fully custom — all addons off by default (auth/api/email/analytics/cache/eve/i18n/pdf/messaging none, database none). Pick any via `--with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n --with-pdf --with-messaging` plus `--billing/--database/--framework/--apps`. Interactive shows 8+-toggle addon checklist + billing + framework + database + apps (most control).
 
-Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables Upstash Redis via `@upstash/redis` 1.35.0 HTTP (edge/serverless safe, no TCP) + in-memory fallback when `UPSTASH_REDIS_REST_URL` is `REPLACE_WITH_...` placeholder. Auth requires DB (postgres or convex) — validation fails if `--with-auth` with `--database none`.
+Cache: `--cache redis` (alias `--cache upstash`) or `--with-cache` enables the fail-closed catalog-pinned Upstash Redis provider over HTTP (edge/serverless safe, no TCP). Independently, auth+API production mutations use the same credentials for atomic shared rate limiting; placeholders fall back only in development/test when the cache package is off. Auth requires DB (postgres or convex) — validation fails if `--with-auth` with `--database none`.
 
 ## Frameworks & Features (Addons)
 
 - `nextjs` → `NEXT_PUBLIC_*`, `.next/**`
 - `tanstack-start` → `VITE_*`, Vite+Nitro `.vinxi/** .output/**`
-- Expo app target (`--apps mobile/both`) is NOT a framework — it is an app target: SDK 54, file-based `app/`, metro auto monorepo, SecureStore, `EXPO_PUBLIC_*` client prefix, Better Auth `expo()` plugin (stripped when auth off—no auth-client/trustedOrigins/expo plugin emitted), oRPC via `EXPO_PUBLIC_API_URL` + `getCookie`, no Elysia, backend single port 3000 shared
+- Expo app target (`--apps mobile/both`) is NOT a framework. SDK 57, file-based `app/`, SecureStore, and `EXPO_PUBLIC_*` are available in frontend-only single mode; Better Auth and oRPC require a selected monorepo web host.
 - `eve` → `withEve()` extra apps/eve + packages when `--with-eve` (or deprecated `--features eve`) — durable AI agent hybrid, conditional files; stripped entirely when off
 - `i18n` → next-intl routing when `--with-i18n` (or deprecated `--features i18n`) — conditional files; stripped when off
-- `messaging` → DM-only messaging when `--with-messaging` — opt-in for all presets (requires `database=postgres|convex` + auth+api); DM pair unique via sorted ids, attachments 10MB allowlist `image/*, application/pdf, text/*` inline preview, presence/typing realtime: postgres→oRPC WS (`@orpc/server/ws` + `crossws` for TanStack, `Bun.serve` ws upgrade same port `/api/ws`, `ws` 8.18.3) + `packages/realtime` (in-memory Map + Upstash Redis fan-out) + `packages/storage` (Docker volume `./data/uploads` + S3 via `@aws-sdk/client-s3`) ; convex→native `convex/react` useQuery/useMutation + `ctx.storage.generateUploadUrl` + `typingIndicators` 5s TTL; Docker primary volume required, Vercel not supported (polling fallback doc), stripped entirely when off
+- `messaging` → DM-only messaging when `--with-messaging` — opt-in for all presets (requires `database=postgres|convex` + auth+api); DM pair unique via sorted ids, attachments 10MB allowlist `image/*, application/pdf, text/*` inline preview, presence/typing realtime: postgres→oRPC WS (`@orpc/server/ws` + catalog-pinned `crossws` for TanStack, `Bun.serve` ws upgrade same port `/api/ws`, catalog-pinned `ws`) + `packages/realtime` (in-memory Map + Upstash Redis fan-out) + `packages/storage` (Docker volume `./data/uploads` + S3 via `@aws-sdk/client-s3`) ; convex→native `convex/react` useQuery/useMutation + `ctx.storage.generateUploadUrl` + `typingIndicators` 5s TTL; Docker primary volume required, Vercel not supported (polling fallback doc), stripped entirely when off
 - `pdf` → React PDF when `--with-pdf` — conditional files; stripped when off
-- All emit dual/triple env prefixes for client safety (`NEXT_PUBLIC_*`, `VITE_*`, `EXPO_PUBLIC_*`) for client-safe vars. See `references/frameworks.md`.
+- Public env values follow selected app audiences: `NEXT_PUBLIC_*` for Next, `VITE_*` for TanStack/desktop, and `EXPO_PUBLIC_*` for Expo. Each client runtime validates its own prefix; server secrets remain private. See `references/frameworks.md`.
 
 ## Shared Theming Web + Mobile (RNR + Uniwind)
 
@@ -235,6 +243,8 @@ Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17
 - `workspace:*` error → TS7 not supported generated, TS 6.x
 - `Reserved module name` → collides `api,auth,database,config,ui,...` or JS reserved or `openapi,contract,router,context,index`
 - `Invalid --preset value` / `Invalid --cache value` → allowed `saas,frontend,custom` / `redis,none` (upstash alias for redis)
+- `Cloudflare Workers does not support the generated PostgreSQL adapter` -> use `--database convex` or `--database none`, or choose Fly/Docker until a request-scoped Hyperdrive adapter exists
+- Worker build rejects `.env.local`/`.env.production` -> move local values to `.dev.vars`; pass static-generation values explicitly as build variables and configure runtime secrets separately
 
 See `references/workflows.md` for full end-to-end flows.
 
@@ -244,18 +254,18 @@ See `references/workflows.md` for full end-to-end flows.
 
 Whenever you change anything that affects HOW to use ghostinit as an abstraction, you MUST update this skill in the SAME PR — no exceptions:
 
-- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features` (alias), `--preset`, `--cache`, `--stack`, `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n/--with-pdf/--with-messaging`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--fix`, `--verbose`, `--list`, `--quiet`, `--debug`, or any new flag
+- New flag: `--mode`, `--framework`, `--apps`, `--billing`, `--features` (alias), `--preset`, `--cache`, `--deploy`, `--stack`, `--with-auth/--with-api/--with-email/--with-analytics/--with-cache/--with-eve/--with-i18n/--with-pdf/--with-messaging`, `--database`, `--runtime`, `--cwd`, `--json`, `--yes`, `--ci`, `--dry-run`, `--force`, `--no-install`, `--fix`, `--verbose`, `--list`, `--quiet`, `--debug`, or any new flag
 - New billing provider, new framework, new database, new addon/feature, new env var in `.env.example`/`.env.local` (including `UPSTASH_REDIS_REST_URL` etc.)
 - New `add` subcommand or changed artifact shape (module/use-case/procedure/action)
 - Changed workflow (create→env→DB→dev→add→sync→check), new required step, new default, new interactive prompt (preset-first wizard: saas/frontend/custom branching)
-- Changed generated structure (`apps/*`, `packages/*`, `tooling/*`, `turbo.json` globalEnv, `bunfig.toml`, `.env.example`, `start-database.sh`) — preset determines which packages emitted (frontend minimal ~134 vs saas ~216)
+- Changed generated structure (`apps/*`, `packages/*`, `tooling/*`, `turbo.json` globalEnv, `bunfig.toml`, `.env.example`, `.dev.vars`, `start-database.sh`) — preset determines which packages emitted (frontend minimal ~134 vs saas ~216)
 - Changed troubleshooting, validation rule (auth requires DB), reserved name, exit code, command behavior
 
 **Checklist (same PR, mandatory):**
 
 1. Update `SKILL.md` table/workflow/commands/billing as affected + update `references/commands.md`, `billing.md`, `frameworks.md`, `workflows.md` if their topic changed.
 2. Mirror: `rm -rf .claude/skills/ghostinit-use && cp -r skills/ghostinit-use .claude/skills/` (Windows: manual copy per file).
-3. Update `AGENTS.md` minimal delta + `docs/ARCHITECTURE.md` + `README.md` + `CONTRIBUTING.md` if affected.
+3. Update `AGENTS.md`, `README.md`, and `CONTRIBUTING.md` when the user-visible contract changes. Update `evidence/compatibility/v1-to-v2.json` and its adjacent schema when the public CLI or migration mapping changes.
 4. `bun run format && bun run build && bun run check` must pass.
 
 If you skip this, agents with zero codebase knowledge will have outdated docs → wrong scaffolding, missed env vars, broken generation. **NOT optional.**
@@ -266,3 +276,4 @@ If you skip this, agents with zero codebase knowledge will have outdated docs �
 - `references/billing.md` — billing providers chooser, env vars, dual market, webhook UI
 - `references/frameworks.md` — next vs tanstack chooser, databases, features, modes, env prefixes
 - `references/workflows.md` — create→env→DB→dev→add→sync→check end-to-end, CI, remote DB, sync/check
+- `references/cloudflare.md` - supported Worker profiles, secrets/build variables, R2/DO provisioning, and deploy commands

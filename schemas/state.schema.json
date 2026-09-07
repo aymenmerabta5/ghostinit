@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/state.schema.json",
+  "title": "GhostInit V2 internal managed state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "version",
+    "configHash",
+    "generationPlan",
+    "generatedBy",
+    "generatedAt",
+    "files",
+    "modules",
+    "procedures",
+    "pendingOperation",
+    "migrationHistory"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/state.schema.json" },
+    "schemaVersion": { "const": 2 },
+    "version": { "const": 2 },
+    "configHash": { "$ref": "#/$defs/hash" },
+    "generationPlan": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/generationPlan" }]
+    },
+    "generatedBy": { "type": "string", "minLength": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "files": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/path" },
+      "additionalProperties": { "$ref": "#/$defs/file" }
+    },
+    "modules": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "procedures": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "pendingOperation": {
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/pendingOperation" }]
+    },
+    "migrationHistory": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/history" }
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//).+$"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "renderer",
+        "source",
+        "capability",
+        "appId",
+        "target",
+        "artifacts",
+        "acceptance",
+        "contribution"
+      ],
+      "properties": {
+        "renderer": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "capability": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "enum": [
+                "transport",
+                "auth",
+                "billing",
+                "messaging",
+                "email",
+                "storage",
+                "cache",
+                "analytics",
+                "i18n",
+                "pdf",
+                "eve",
+                "notifications",
+                "featureFlags",
+                "jobs"
+              ]
+            }
+          ]
+        },
+        "appId": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" }
+          ]
+        },
+        "target": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["nextjs", "tanstack-start", "expo", "electron"] }
+          ]
+        },
+        "artifacts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["route", "adapter", "manifest", "acceptance"] }
+        },
+        "acceptance": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "contribution": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "generationPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "schemaVersion",
+        "projectConfigHash",
+        "planHash",
+        "fileCount",
+        "renderers",
+        "secretReferences"
+      ],
+      "properties": {
+        "$schema": { "const": "https://ghostinit.dev/schemas/generation-plan.schema.json" },
+        "schemaVersion": { "const": 1 },
+        "projectConfigHash": { "$ref": "#/$defs/hash" },
+        "planHash": { "$ref": "#/$defs/hash" },
+        "fileCount": { "type": "integer", "minimum": 0 },
+        "renderers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "secretReferences": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "owner", "lifecycle", "contentHash", "size", "provenance"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "owner": {
+          "enum": [
+            "root",
+            "ui",
+            "transport",
+            "application",
+            "domain",
+            "adapter",
+            "platform",
+            "tooling",
+            "documentation",
+            "ghostinit"
+          ]
+        },
+        "lifecycle": { "enum": ["generator-owned", "seed-once", "structured-merge"] },
+        "contentHash": { "$ref": "#/$defs/hash" },
+        "size": { "type": "integer", "minimum": 0 },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "path", "beforeHash", "afterHash"],
+      "properties": {
+        "action": { "enum": ["create", "rewrite", "delete", "move"] },
+        "path": { "$ref": "#/$defs/path" },
+        "fromPath": { "$ref": "#/$defs/path" },
+        "beforeHash": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash" }] },
+        "afterHash": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash" }] }
+      }
+    },
+    "pendingOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "startedAt", "configHash", "planHash", "changes"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["create", "add", "sync", "upgrade"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "configHash": { "$ref": "#/$defs/hash" },
+        "planHash": { "$ref": "#/$defs/hash" },
+        "changes": { "type": "array", "items": { "$ref": "#/$defs/change" } }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creates", "moves", "rewrites", "deletions", "conflicts"],
+      "properties": {
+        "creates": { "type": "integer", "minimum": 0 },
+        "moves": { "type": "integer", "minimum": 0 },
+        "rewrites": { "type": "integer", "minimum": 0 },
+        "deletions": { "type": "integer", "minimum": 0 },
+        "conflicts": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "fromVersion",
+        "toVersion",
+        "status",
+        "startedAt",
+        "completedAt",
+        "configHash",
+        "summary"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["create", "add", "sync", "upgrade"] },
+        "fromVersion": { "oneOf": [{ "type": "null" }, { "enum": [1, 2] }] },
+        "toVersion": { "const": 2 },
+        "status": { "enum": ["completed", "failed"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "configHash": { "$ref": "#/$defs/hash" },
+        "summary": { "$ref": "#/$defs/summary" }
+      }
+    }
+  }
+}

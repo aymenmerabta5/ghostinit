@@ -6,10 +6,17 @@
 
 import { dirname, resolve } from "node:path";
 import type { ArchitectureFinding, CapabilityInfo } from "../types.js";
-import { normalizePath } from "../utils.js";
+import { isRequestApplicationCompositionRoot, normalizePath } from "../utils.js";
 
 export function getCapabilityFromPath(p: string): CapabilityInfo | null {
   const file = p.replace(/\\/g, "/");
+
+  // Only the request-bound server and concrete composition subtree may bind
+  // multiple capabilities. The facade remains an ordinary, pure application
+  // capability and must consume sibling contracts through the stable service API.
+  if (isRequestApplicationCompositionRoot(file)) {
+    return null;
+  }
 
   if (file.includes("/billing/providers/") || file.includes("/billing/src/providers/")) {
     return null;
@@ -70,8 +77,8 @@ export function getCapabilityFromPath(p: string): CapabilityInfo | null {
 
   if (file.includes("packages/services/src/")) {
     const generic = /packages[/]services[/]src[/]([^/]+)/.exec(file);
-    if (generic) return { kind: "service", name: generic[1] };
-    return { kind: "service", name: "services" };
+    if (generic && !generic[1].includes(".")) return { kind: "service", name: generic[1] };
+    return null;
   }
 
   return null;
@@ -157,6 +164,7 @@ export function checkCapabilityIsolation(
   file: string,
   absFile: string,
   imp: string,
+  resolvedTarget?: string,
 ): void {
   const current = getCapabilityFromPath(file);
   if (!current) return;
@@ -175,15 +183,20 @@ export function checkCapabilityIsolation(
   if (
     imp === "@repo/services" ||
     imp === "@repo/services/index" ||
-    imp === "@repo/services/index.js"
+    imp === "@repo/services/index.js" ||
+    imp === "@/server/services" ||
+    imp === "@/server/services/index" ||
+    imp === "@/server/services/index.js"
   ) {
     return;
   }
 
   let target: CapabilityInfo | null = null;
-  let resolvedNormalized: string | undefined;
+  let resolvedNormalized: string | undefined = resolvedTarget?.replace(/\\/g, "/");
 
-  if (imp.startsWith(".")) {
+  if (resolvedNormalized) {
+    target = getTargetCapabilityFromImport(imp, resolvedNormalized);
+  } else if (imp.startsWith(".")) {
     try {
       const resolved = resolve(dirname(absFile), imp);
       resolvedNormalized = normalizePath(resolved);

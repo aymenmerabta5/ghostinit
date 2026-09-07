@@ -4,6 +4,7 @@ import {
   parseBillingInput,
   parseFeaturesInput,
   parseDatabaseInput,
+  parseFeatureFlagsInput,
   isValidAddonCombo,
   buildAddonInstallerMap,
   billingProviders,
@@ -11,6 +12,7 @@ import {
   availableFeatures,
   availableDatabases,
   defaultAddons,
+  optionalAddons,
 } from "../../src/lib/addons";
 
 describe("addon registry - billing parsing", () => {
@@ -62,6 +64,19 @@ describe("addon registry - billing parsing", () => {
   });
 });
 
+describe("remote feature flag parsing", () => {
+  it("accepts posthog and explicit none", () => {
+    expect(parseFeatureFlagsInput("PostHog")).toBe("posthog");
+    expect(parseFeatureFlagsInput("none")).toBe("none");
+    expect(parseFeatureFlagsInput()).toBe("none");
+  });
+
+  it("rejects unknown or static pseudo-providers", () => {
+    expect(() => parseFeatureFlagsInput("launchdarkly")).toThrow();
+    expect(() => parseFeatureFlagsInput("static")).toThrow();
+  });
+});
+
 describe("addon registry - constants", () => {
   it("has expected billing providers", () => {
     expect(billingProviders).toContain("stripe");
@@ -105,6 +120,10 @@ describe("addon registry - constants", () => {
   it("has expected features", () => {
     expect(availableFeatures).toContain("eve");
     expect(availableFeatures).toContain("i18n");
+  });
+
+  it("exposes storage as an explicit optional addon", () => {
+    expect(optionalAddons).toContain("storage");
   });
 
   it("has expected databases", () => {
@@ -172,44 +191,23 @@ describe("addon registry - isValidAddonCombo", () => {
     expect(result.valid).toBe(true);
   });
 
-  it("accepts Cloudflare with a web Convex project", () => {
-    const result = isValidAddonCombo({
-      billing: ["polar"],
-      database: "convex",
-      mode: "monorepo",
-      framework: "tanstack-start",
-      apps: ["web"],
-      hasAuth: true,
-      deploy: "cloudflare",
-    });
-    expect(result.valid).toBe(true);
-  });
-
-  it("rejects Cloudflare PostgreSQL until request-scoped Hyperdrive is generated", () => {
-    const result = isValidAddonCombo({
+  it("requires auth, typed API, persistence, and web for storage", () => {
+    const base = {
       billing: [],
-      database: "postgres",
-      mode: "monorepo",
-      framework: "tanstack-start",
-      apps: ["web"],
-      deploy: "cloudflare",
-    });
-    expect(result.valid).toBe(false);
-    expect(result.message).toContain("Hyperdrive");
-  });
+      database: "postgres" as const,
+      mode: "monorepo" as const,
+      apps: ["web" as const],
+      preset: "custom" as const,
+      hasAuth: true,
+      hasApi: true,
+      hasStorage: true,
+    };
 
-  it("rejects Cloudflare runtimes that still require Node or Bun servers", () => {
-    for (const flags of [{ hasEve: true }, { hasPdf: true }]) {
-      const result = isValidAddonCombo({
-        billing: [],
-        database: "convex",
-        mode: "monorepo",
-        apps: ["web"],
-        deploy: "cloudflare",
-        ...flags,
-      });
-      expect(result.valid).toBe(false);
-    }
+    expect(isValidAddonCombo(base).valid).toBe(true);
+    expect(isValidAddonCombo({ ...base, database: "none" }).valid).toBe(false);
+    expect(isValidAddonCombo({ ...base, hasAuth: false }).message).toContain("auth");
+    expect(isValidAddonCombo({ ...base, hasApi: false }).message).toContain("API transport");
+    expect(isValidAddonCombo({ ...base, apps: ["mobile"] }).message).toContain("web app");
   });
 });
 
@@ -318,6 +316,25 @@ describe("addon registry - buildAddonInstallerMap", () => {
     });
     expect(map["stripe"]?.inUse).toBe(true);
     expect(map["chargily"]?.inUse).toBe(true);
+  });
+
+  it("marks explicit storage and messaging-implied storage as inUse", () => {
+    const explicit = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "postgres",
+      mode: "monorepo",
+      storage: true,
+    });
+    const implied = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "postgres",
+      mode: "monorepo",
+      messaging: true,
+    });
+    expect(explicit["storage"]?.inUse).toBe(true);
+    expect(implied["storage"]?.inUse).toBe(true);
   });
 });
 

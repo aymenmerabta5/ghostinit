@@ -1,4 +1,4 @@
-// @allow-long 430: addon registry consolidated billing+apps+features parsing with forward-compat unknown-token handling, single source for host+generated
+// @allow-long 869: addon registry consolidates all capability axes and compatibility parsing as the host/generated SSOT
 /**
  * Addon registry — single source of truth for flexible options.
  *
@@ -65,6 +65,9 @@ export type AppName = (typeof availableApps)[number];
 export const availableFeatures = ["eve", "i18n"] as const;
 export type FeatureName = (typeof availableFeatures)[number];
 
+export const availableFeatureFlagProviders = ["posthog", "none"] as const;
+export type FeatureFlagProvider = (typeof availableFeatureFlagProviders)[number];
+
 export const availableDatabases = ["postgres", "convex", "none"] as const;
 export type DatabaseProvider = (typeof availableDatabases)[number];
 
@@ -93,11 +96,17 @@ export const optionalAddons = [
   "eve",
   "pdf",
   "messaging",
+  "storage",
+  "notifications",
+  "featureFlags",
+  "jobs",
+  "posthog",
 ] as const;
 export type OptionalAddon = (typeof optionalAddons)[number];
 
 export const defaultAddons = [...coreAddons, ...saasAddons] as const;
 export type DefaultAddon = (typeof defaultAddons)[number];
+export type DatabaseAddonKey = `database:${DatabaseProvider}`;
 
 // Preset defaults — what each preset implies when no explicit overrides
 export const presetDefaults: Record<
@@ -113,6 +122,10 @@ export const presetDefaults: Record<
     i18n: boolean;
     pdf: boolean;
     messaging: boolean;
+    storage: boolean;
+    notifications: boolean;
+    featureFlags: FeatureFlagProvider;
+    jobs: boolean;
   }
 > = {
   saas: {
@@ -126,11 +139,15 @@ export const presetDefaults: Record<
     i18n: false,
     pdf: false,
     messaging: false,
+    storage: false,
+    notifications: false,
+    featureFlags: "none",
+    jobs: false,
   },
   frontend: {
     auth: false,
     api: false,
-    email: true,
+    email: false,
     analytics: false,
     cache: "none",
     database: "none",
@@ -138,11 +155,15 @@ export const presetDefaults: Record<
     i18n: false,
     pdf: false,
     messaging: false,
+    storage: false,
+    notifications: false,
+    featureFlags: "none",
+    jobs: false,
   },
   custom: {
     auth: false,
     api: false,
-    email: true,
+    email: false,
     analytics: false,
     cache: "none",
     database: "none",
@@ -150,6 +171,10 @@ export const presetDefaults: Record<
     i18n: false,
     pdf: false,
     messaging: false,
+    storage: false,
+    notifications: false,
+    featureFlags: "none",
+    jobs: false,
   },
 };
 
@@ -157,7 +182,9 @@ export type AddonKey =
   | DefaultAddon
   | BillingProviderName
   | FeatureName
+  | FeatureFlagProvider
   | DatabaseProvider
+  | DatabaseAddonKey
   | ProjectMode
   | FrameworkName
   | AppName
@@ -471,6 +498,16 @@ export function parseCacheInput(input?: string): CacheProvider {
   );
 }
 
+export function parseFeatureFlagsInput(input?: string): FeatureFlagProvider {
+  if (!input || input.trim() === "") return "none";
+  const normalized = input.trim().toLowerCase();
+  if (normalized === "none" || normalized === "false" || normalized === "off") return "none";
+  if (normalized === "posthog") return "posthog";
+  throw new ValidationError(
+    `Invalid --feature-flags value: ${input}. Allowed: ${availableFeatureFlagProviders.join(", ")}`,
+  );
+}
+
 /**
  * Parse deploy input:
  * - undefined / "" / whitespace -> "none" default
@@ -530,10 +567,12 @@ export function isValidAddonCombo(options: {
   preset?: PresetName;
   cache?: CacheProvider;
   hasAuth?: boolean;
+  hasApi?: boolean;
   hasMessaging?: boolean;
-  hasEve?: boolean;
-  hasPdf?: boolean;
-  deploy?: DeployTarget;
+  hasStorage?: boolean;
+  hasNotifications?: boolean;
+  featureFlags?: FeatureFlagProvider;
+  hasJobs?: boolean;
 }): { valid: boolean; message?: string } {
   const apps = options.apps ?? ["web" as AppName];
   if (options.billing.length > 0 && options.database === "none") {
@@ -560,16 +599,31 @@ export function isValidAddonCombo(options: {
       message: "Auth requires a database (postgres or convex) but database is none",
     };
   }
+  const effectiveHasApi =
+    options.hasApi ??
+    (options.preset === "saas" ? true : options.preset === "frontend" ? false : undefined);
+  const billingHasAuth = effectiveHasAuth ?? options.preset === undefined;
+  const billingHasApi = effectiveHasApi ?? options.preset === undefined;
+  if (options.billing.length > 0 && !billingHasAuth) {
+    return {
+      valid: false,
+      message: "Billing requires auth so provider customers can be bound to an owner",
+    };
+  }
+  if (options.billing.length > 0 && !billingHasApi) {
+    return {
+      valid: false,
+      message: "Billing requires the typed API transport (--with-api)",
+    };
+  }
   if (apps.length === 0) {
     return {
       valid: false,
       message: "At least one app target required --apps web, mobile, desktop, or combos",
     };
   }
-  // Single mode flat layout: single+web, single+mobile, single+desktop each produce a flat 21-28 file
-  // scaffold (desktop single flat reuses desktop-core at root with src/renderer). All single+single-app
-  // combos are valid; only multi-app single is invalid (single expects flat, multi expects apps/*).
-  // The earlier audit's "single+desktop should block" is intentionally not enforced — single+desktop flat works.
+  // Single mode always has one flat app target. Native targets are further constrained by
+  // resolveCreateConfig to frontend-local capabilities because they cannot own a backend host.
   if (
     options.mode === "single" &&
     (apps as string[]).filter((a) => ["web", "mobile", "desktop"].includes(a)).length > 1
@@ -597,46 +651,68 @@ export function isValidAddonCombo(options: {
       message: "Messaging requires a database (postgres or convex) but database is none",
     };
   }
-  if (hasMessaging && options.database !== "none" && options.hasAuth === false) {
+  if (hasMessaging && options.database !== "none" && effectiveHasAuth !== true) {
     return {
       valid: false,
       message: "Messaging requires auth (--with-auth) when enabled",
     };
   }
-  if (options.deploy === "cloudflare") {
-    if (!apps.includes("web" as AppName)) {
-      return {
-        valid: false,
-        message: "Cloudflare Workers deployment requires the web app target",
-      };
-    }
-    if (options.database === "postgres") {
-      return {
-        valid: false,
-        message:
-          "Cloudflare Workers currently supports database=convex or database=none; PostgreSQL requires a request-scoped Hyperdrive adapter",
-      };
-    }
-    if (options.hasEve) {
-      return {
-        valid: false,
-        message: "Cloudflare Workers does not yet support the Eve Node.js sidecar",
-      };
-    }
-    if (options.hasPdf) {
-      return {
-        valid: false,
-        message:
-          "Cloudflare Workers does not yet support server-side @react-pdf/renderer generation",
-      };
-    }
-    if (hasMessaging && options.database !== "convex") {
-      return {
-        valid: false,
-        message:
-          "Cloudflare Workers messaging currently requires Convex; the PostgreSQL path uses Bun WebSockets and local filesystem storage",
-      };
-    }
+  if (hasMessaging && effectiveHasApi !== true) {
+    return {
+      valid: false,
+      message: "Messaging requires the typed API transport (--with-api) when enabled",
+    };
+  }
+  const hasStorage = options.hasStorage === true || hasMessaging;
+  if (hasStorage && options.database === "none") {
+    return {
+      valid: false,
+      message: "Storage requires a database (postgres or convex) but database is none",
+    };
+  }
+  if (hasStorage && effectiveHasAuth !== true) {
+    return {
+      valid: false,
+      message: "Storage requires auth (--with-auth) when enabled",
+    };
+  }
+  if (hasStorage && effectiveHasApi !== true) {
+    return {
+      valid: false,
+      message: "Storage requires the typed API transport (--with-api) when enabled",
+    };
+  }
+  const hasNotifications = options.hasNotifications ?? false;
+  if (hasNotifications && options.database === "none") {
+    return { valid: false, message: "Notifications require persistent storage" };
+  }
+  if (hasNotifications && (effectiveHasAuth !== true || effectiveHasApi !== true)) {
+    return { valid: false, message: "Notifications require auth and typed API transport" };
+  }
+  const hasRemoteFeatureFlags = options.featureFlags === "posthog";
+  if (hasRemoteFeatureFlags && effectiveHasApi !== true) {
+    return { valid: false, message: "Remote feature flags require typed API transport" };
+  }
+  const hasJobs = options.hasJobs ?? false;
+  if (hasJobs && options.database === "none") {
+    return { valid: false, message: "Jobs require persistent storage" };
+  }
+  const needsServerHost =
+    effectiveHasAuth === true ||
+    effectiveHasApi === true ||
+    options.billing.length > 0 ||
+    hasMessaging ||
+    hasStorage ||
+    hasNotifications ||
+    hasRemoteFeatureFlags ||
+    hasJobs ||
+    options.cache === "redis";
+  if (needsServerHost && !apps.includes("web" as AppName)) {
+    return {
+      valid: false,
+      message:
+        "Selected server capabilities require a server-capable web app. Add --apps web or disable the server capabilities",
+    };
   }
   return { valid: true };
 }
@@ -663,6 +739,10 @@ export interface BuildAddonMapInput {
   i18n?: boolean;
   pdf?: boolean;
   messaging?: boolean;
+  storage?: boolean;
+  notifications?: boolean;
+  featureFlags?: FeatureFlagProvider;
+  jobs?: boolean;
 }
 
 /**
@@ -688,7 +768,9 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     ...saasAddons,
     ...BILLING_PROVIDERS,
     ...availableFeatures,
+    ...availableFeatureFlagProviders,
     ...availableDatabases,
+    ...availableDatabases.map((database) => `database:${database}`),
     ...availableModes,
     ...availableFrameworks,
     ...availableApps,
@@ -710,7 +792,8 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // Determine each saas addon
   const authInUse = input.auth !== undefined ? input.auth : isSaasPreset || noPreset ? true : false;
   const apiInUse = input.api !== undefined ? input.api : isSaasPreset || noPreset ? true : false;
-  const emailInUse = input.email !== undefined ? input.email : true;
+  const emailInUse =
+    input.email !== undefined ? input.email : isSaasPreset || noPreset ? true : false;
   const analyticsInUse =
     input.analytics !== undefined ? input.analytics : isSaasPreset || noPreset ? true : false;
   // cache is separate provider
@@ -738,6 +821,11 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
     if (input.i18n !== undefined) map["i18n"] = { inUse: input.i18n };
     if (input.pdf !== undefined) map["pdf"] = { inUse: input.pdf };
     if (input.messaging !== undefined) map["messaging"] = { inUse: input.messaging };
+    if (input.storage !== undefined) map["storage"] = { inUse: input.storage };
+    if (input.notifications !== undefined) map["notifications"] = { inUse: input.notifications };
+    if (input.featureFlags !== undefined)
+      map["featureFlags"] = { inUse: input.featureFlags === "posthog" };
+    if (input.jobs !== undefined) map["jobs"] = { inUse: input.jobs };
   }
   // isFrontend preset already handled via noPreset false logic above
   void isFrontendPreset;
@@ -757,6 +845,11 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // messaging is opt-in toggle (default false) for all presets
   const messagingInUse = input.messaging === true;
   map["messaging"] = { inUse: messagingInUse };
+  map["storage"] = { inUse: input.storage === true || messagingInUse };
+  map["notifications"] = { inUse: input.notifications === true };
+  map["featureFlags"] = { inUse: input.featureFlags === "posthog" };
+  map["posthog"] = { inUse: input.featureFlags === "posthog" };
+  map["jobs"] = { inUse: input.jobs === true };
   for (const b of BILLING_PROVIDERS)
     map[b] = { inUse: input.billing.includes(b as BillingProviderName) };
   const effectiveFramework = input.framework ?? "nextjs";
@@ -769,15 +862,12 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   for (const c of CACHE_PROVIDERS) map[c] = { inUse: c === (input.cache ?? "none") };
   // deploy targets
   const effectiveDeploy = input.deploy ?? "none";
-  // "none" is also a database provider key. Never let deploy=none overwrite
-  // database=none in the shared installer map.
-  for (const d of availableDeployTargets) {
-    if (d !== "none") map[d] = { inUse: d === effectiveDeploy };
+  for (const d of availableDeployTargets) map[d] = { inUse: d === effectiveDeploy };
+  // Axis-qualified database keys remain unambiguous when cache/deploy also use
+  // the public legacy key "none".
+  for (const database of availableDatabases) {
+    map[`database:${database}`] = { inUse: database === input.database };
   }
-  // Reassert the database dimension after cache/deploy aliases; both registries
-  // also contain the literal "none" for their own CLI value.
-  for (const database of availableDatabases) map[database] = { inUse: false };
-  map[input.database] = { inUse: true };
   return map as AddonInstallerMap;
 }
 

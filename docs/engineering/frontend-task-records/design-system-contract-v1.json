@@ -1,0 +1,51 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 1,
+  "taskId": "design-system-contract-v1",
+  "role": "implementer",
+  "recordedOn": "2026-08-27",
+  "changedGlobs": [
+    "src/templates/ui/**/*.ts",
+    "src/templates/apps/fragments/css.ts",
+    "schemas/*design-system*.json",
+    "schemas/*policy*.json",
+    "schemas/component-registry.schema.json",
+    "schemas/frontend-task-record.schema.json",
+    "policy/*.json",
+    "tests/unit/design-system-contract.test.ts"
+  ],
+  "impeccable": {
+    "loaderSource": "impeccable/scripts/load-context.mjs",
+    "loaderSha256": "e1287acb2ac852b39ffd17067b5ab97e58cc39e78de3790ea0b560caa448c3e8",
+    "resultSha256": "432a182c8973f613da2f77dc5c862d4d551da35803c36c98cac07ba146a8653c",
+    "resultBytes": 16974,
+    "productSha256": "6a7caa75bc8a4e130b1aaff89e67ee30f117f921acdd5a2517243c7b84aecd4b",
+    "designSha256": "c7e34b05b89fe253770764a01ada96ffbffc65600a370b17e6690cfa622a9f4d"
+  },
+  "register": "product",
+  "appliedRules": [
+    "color.oklch",
+    "components.earned-familiarity",
+    "components.semantic-colors",
+    "motion.state-only",
+    "theme.scene-driven"
+  ],
+  "shadcnDiscovery": [
+    {
+      "runner": "bunx --bun shadcn@latest",
+      "registry": "@shadcn",
+      "query": "button",
+      "itemType": "ui",
+      "results": ["@shadcn/button", "@shadcn/button-group"],
+      "selected": ["@shadcn/button"]
+    }
+  ],
+  "selectedComponentIds": [
+    "action.button",
+    "feedback.alert",
+    "form.input",
+    "overlay.dialog",
+    "surface.card"
+  ],
+  "exceptionIds": []
+}

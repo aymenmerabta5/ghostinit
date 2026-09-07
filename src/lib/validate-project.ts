@@ -28,6 +28,7 @@ export interface ProjectValidationFailure {
 
 export async function validateProjectForMutation(
   cwd: string,
+  options: { allowDesiredDrift?: boolean; allowPendingOperation?: boolean } = {},
 ): Promise<ValidatedProject | ProjectValidationFailure> {
   const packageJsonPath = join(cwd, "package.json");
   if (existsSync(packageJsonPath)) {
@@ -50,6 +51,25 @@ export async function validateProjectForMutation(
       valid: false,
       exitCodeSuggestion: ExitCode.GENERAL_ERROR,
       message: "No GhostInit project found in the current directory",
+    };
+  }
+  if (state.pendingOperation && !options.allowPendingOperation) {
+    return {
+      valid: false,
+      exitCodeSuggestion: ExitCode.INVALID_STATE,
+      message: `Pending ${state.pendingOperation.kind} operation requires recovery via ghostinit sync or upgrade`,
+      details: { pendingOperation: state.pendingOperation.id },
+    };
+  }
+  if (state.configChanged && !options.allowDesiredDrift) {
+    return {
+      valid: false,
+      exitCodeSuggestion: ExitCode.INVALID_STATE,
+      message: "ghostinit.config.json changed; run ghostinit sync before generating artifacts",
+      details: {
+        storedConfigHash: state.configHash,
+        normalizedConfigHash: state.normalizedConfigHash,
+      },
     };
   }
 

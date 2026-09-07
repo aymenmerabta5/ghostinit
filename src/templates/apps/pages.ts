@@ -8,14 +8,30 @@ import {
   unauthorizedFileContent,
   forbiddenFileContent,
 } from "./fragments/layout.js";
-import { buildMarketingPageContent } from "./fragments/marketing.js";
-import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
-import { dashboardPageContent } from "./fragments/dashboard.js";
+import {
+  buildMarketingPageContent,
+  marketingFeaturesComponentContent,
+  marketingFooterComponentContent,
+  marketingHeroComponentContent,
+  marketingQuickStartComponentContent,
+} from "./fragments/marketing.js";
+import {
+  authOAuthButtonsContent,
+  signInFormContent,
+  signInMethodsContent,
+  signInPageContent,
+  signUpFormContent,
+  signUpPageContent,
+  twoFactorPageContent,
+} from "./fragments/auth.js";
+import { nextDashboardFeatureFiles, nextDashboardPageContent } from "./fragments/dashboard-next.js";
 import { settingsFiles } from "./fragments/settings/index.js";
+import { webIdentityWorkspaceFiles } from "./fragments/identity-workspace/index.js";
 import { adminFiles } from "./fragments/admin/index.js";
 import { recoveryFiles } from "./fragments/recovery/index.js";
 import { agentFiles } from "./fragments/agent/index.js";
 import { resolveHasEve, type FeatureInput } from "./fragments/features.js";
+import { hasAddon, type AddonInstallerMap } from "../../lib/addons.js";
 import {
   manifestFileContent,
   opengraphImageContent,
@@ -30,30 +46,78 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
   // build-breaking import into every monorepo project that did not enable the
   // eve feature (single mode already gated this correctly).
   const hasEve = resolveHasEve(addonsOrHasEve);
+  const hasEmail =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "email")
+      : true;
+  const isConvex =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "convex")
+      : false;
+  const isPostgres =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "postgres")
+      : true;
+  const hasAuth =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "auth")
+      : true;
+  const hasApi =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "api")
+      : true;
+  const hasI18n =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "i18n")
+      : false;
+  const hasBilling =
+    typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
+      ? hasAddon(addonsOrHasEve as AddonInstallerMap, "billing") ||
+        (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
+          hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
+        )
+      : true;
+  const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
-    layout(),
+    layout(hasI18n),
     globalErrorPage(),
     unauthorizedPage(),
     forbiddenPage(),
     notFoundPage(),
     errorPage(),
     loadingPage(),
-    sitemap(),
+    sitemap(hasBilling),
     robots(),
     manifest(),
     viewport(),
     opengraphImage(),
-    dashboardLoading(),
     instrumentation(),
-    marketingPage(),
-    signInPage(),
-    signUpPage(),
-    twoFactorPage(),
-    dashboardPage(),
+    ...marketingFiles(hasBilling),
+    ...(hasAuth
+      ? [
+          dashboardLoading(),
+          signInPage(hasEmail),
+          signUpPage(),
+          ...authFormComponents(hasEmail, isPostgres),
+          ...(hasEmail ? [twoFactorPage()] : []),
+          dashboardPage(isConvex),
+          ...nextDashboardFeatureFiles(hasBilling),
+          ...settingsFiles(
+            "next",
+            isConvex,
+            hasApi && (isPostgres || isConvex),
+            hasBilling,
+            hasEmail,
+            isPostgres,
+          ),
+          ...(hasApi && (isPostgres || isConvex)
+            ? webIdentityWorkspaceFiles("next", "monorepo", hasI18n)
+            : []),
+          ...recoveryFiles("next", hasEmail),
+        ]
+      : []),
     ...(hasEve ? agentFiles() : []),
-    ...settingsFiles(),
-    ...recoveryFiles(),
-    ...adminFiles(),
+    ...(hasAdminUi ? adminFiles(isConvex, hasI18n) : []),
   ];
 }
 
@@ -75,26 +139,55 @@ function forbiddenPage(): TemplateFile {
 function loadingPage(): TemplateFile {
   return file("apps/web/src/app/loading.tsx", loadingFileContent());
 }
-function layout(): TemplateFile {
-  return file("apps/web/src/app/layout.tsx", nextRootLayoutContent());
+function layout(hasI18n = false): TemplateFile {
+  return file("apps/web/src/app/layout.tsx", nextRootLayoutContent(hasI18n));
 }
-function marketingPage(): TemplateFile {
-  return file("apps/web/src/app/page.tsx", buildMarketingPageContent("next"));
+function marketingFiles(hasBilling = true): TemplateFile[] {
+  return [
+    file("apps/web/src/app/page.tsx", buildMarketingPageContent("next")),
+    file("apps/web/src/components/marketing/hero.tsx", marketingHeroComponentContent("next")),
+    file(
+      "apps/web/src/components/marketing/features.tsx",
+      marketingFeaturesComponentContent("next"),
+    ),
+    file(
+      "apps/web/src/components/marketing/quick-start.tsx",
+      marketingQuickStartComponentContent("next"),
+    ),
+    file(
+      "apps/web/src/components/marketing/footer.tsx",
+      marketingFooterComponentContent("next", hasBilling),
+    ),
+  ];
 }
-function signInPage(): TemplateFile {
-  return file("apps/web/src/app/sign-in/page.tsx", signInPageContent("next"));
+function signInPage(hasEmail = true): TemplateFile {
+  return file("apps/web/src/app/sign-in/page.tsx", signInPageContent("next", hasEmail));
 }
 function signUpPage(): TemplateFile {
   return file("apps/web/src/app/sign-up/page.tsx", signUpPageContent("next"));
 }
+function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] {
+  return [
+    file("apps/web/src/components/auth/oauth-buttons.tsx", authOAuthButtonsContent()),
+    file(
+      "apps/web/src/components/auth/sign-in-methods.tsx",
+      signInMethodsContent("next", hasPasskey),
+    ),
+    file(
+      "apps/web/src/components/auth/sign-in-form.tsx",
+      signInFormContent("next", hasEmail, hasPasskey),
+    ),
+    file("apps/web/src/components/auth/sign-up-form.tsx", signUpFormContent("next", hasEmail)),
+  ];
+}
 function twoFactorPage(): TemplateFile {
   return file("apps/web/src/app/2fa/page.tsx", twoFactorPageContent("next"));
 }
-function dashboardPage(): TemplateFile {
-  return file("apps/web/src/app/dashboard/page.tsx", dashboardPageContent("next"));
+function dashboardPage(isConvex = false): TemplateFile {
+  return file("apps/web/src/app/dashboard/page.tsx", nextDashboardPageContent(isConvex));
 }
-function sitemap(): TemplateFile {
-  return file("apps/web/src/app/sitemap.ts", sitemapFileContent("next"));
+function sitemap(hasBilling = true): TemplateFile {
+  return file("apps/web/src/app/sitemap.ts", sitemapFileContent("next", hasBilling));
 }
 function robots(): TemplateFile {
   return file("apps/web/src/app/robots.ts", robotsFileContent("next"));

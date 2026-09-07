@@ -1,43 +1,168 @@
 /**
  * Expo fragments: React Native layout content - RNR + Uniwind className
  */
+import { nativeI18nTemplate } from "../native-i18n.js";
 
-export function expoRootLayoutContent(): string {
-  return `import '../global.css';
-import { Stack } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+export interface ExpoRootLayoutOptions {
+  hasAuth?: boolean;
+  hasApi?: boolean;
+  hasMessaging?: boolean;
+  hasBilling?: boolean;
+  hasAnalytics?: boolean;
+  hasEmail?: boolean;
+  hasEve?: boolean;
+  hasFeatureFlags?: boolean;
+  hasI18n?: boolean;
+  hasJobs?: boolean;
+  hasNotifications?: boolean;
+  hasPdf?: boolean;
+  hasStorage?: boolean;
+  isConvex?: boolean;
+}
 
-export default function RootLayout() {
-  const [queryClient] = useState(() => new QueryClient());
+export function expoRootLayoutContent(options: ExpoRootLayoutOptions = {}): string {
+  const hasAuth = options.hasAuth ?? true;
+  const hasApi = options.hasApi ?? true;
+  const hasMessaging = options.hasMessaging ?? false;
+  const hasBilling = options.hasBilling ?? true;
+  const hasAnalytics = options.hasAnalytics ?? false;
+  const hasEmail = options.hasEmail ?? true;
+  const hasEve = options.hasEve ?? false;
+  const hasFeatureFlags = options.hasFeatureFlags ?? false;
+  const hasI18n = options.hasI18n ?? false;
+  const hasJobs = options.hasJobs ?? false;
+  const hasNotifications = options.hasNotifications ?? false;
+  const hasPdf = options.hasPdf ?? false;
+  const hasStorage = options.hasStorage ?? false;
+  const isConvex = options.isConvex ?? false;
+  const i18n = nativeI18nTemplate(hasI18n, "navigation");
+  const authScreens = hasAuth
+    ? `        <Stack.Protected guard={!isAuthenticated}>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        </Stack.Protected>\n`
+    : "";
+  const accountScreens = hasAuth
+    ? `        <Stack.Screen name="dashboard" options={{ title: ${i18n.value("dashboard", "Dashboard")} }} />
+        <Stack.Screen name="settings" options={{ title: ${i18n.value("settings", "Settings")} }} />
+${hasApi ? `        <Stack.Screen name="workspace" options={{ title: ${i18n.value("workspace", "Organizations & teams")} }} />\n        <Stack.Screen name="admin" options={{ title: ${i18n.value("admin", "Admin")} }} />\n` : ""}
+${hasMessaging ? `        <Stack.Screen name="(app)/messages" options={{ title: ${i18n.value("messages", "Messages")} }} />\n` : ""}`
+    : "";
+  const billingScreen = hasBilling
+    ? `        <Stack.Screen name="billing" options={{ title: ${i18n.value("billing", "Billing")} }} />\n`
+    : "";
+  const eveScreen = hasEve
+    ? `        <Stack.Screen name="agent" options={{ title: ${i18n.value("agent", "Eve agent")} }} />\n`
+    : "";
+  const pdfScreen = hasPdf
+    ? `        <Stack.Screen name="pdf" options={{ title: ${i18n.value("pdf", "PDF")} }} />\n`
+    : "";
+  const notificationScreen = hasNotifications
+    ? `        <Stack.Screen name="notifications" options={{ title: ${i18n.value("notifications", "Notifications")} }} />\n`
+    : "";
+  const storageScreen = hasStorage
+    ? `        <Stack.Screen name="storage" options={{ title: ${i18n.value("storage", "Storage")} }} />\n`
+    : "";
+  const jobsScreen = hasJobs
+    ? `        <Stack.Screen name="jobs" options={{ title: ${i18n.value("jobs", "Jobs")} }} />\n`
+    : "";
+  const featureFlagScreen = hasFeatureFlags
+    ? `        <Stack.Screen name="feature-flags" options={{ title: ${i18n.value("featureFlags", "Feature flags")} }} />\n`
+    : "";
+  const twoFactorScreen =
+    hasAuth && hasEmail
+      ? `        <Stack.Screen name="2fa" options={{ title: ${i18n.value("twoFactor", "Two-factor authentication")} }} />\n`
+      : "";
+  const authenticatedScreens = `${accountScreens}${billingScreen}${eveScreen}${pdfScreen}${notificationScreen}${storageScreen}${jobsScreen}`;
+  const protectedScreens =
+    hasAuth && authenticatedScreens
+      ? `        <Stack.Protected guard={isAuthenticated}>\n${authenticatedScreens}        </Stack.Protected>\n`
+      : "";
+  const providerImport = isConvex
+    ? 'import { ConvexClientProvider } from "@/components/convex-client-provider";'
+    : "";
+  const analyticsImport = hasAnalytics
+    ? 'import { ExpoAnalyticsProvider } from "@/lib/analytics";'
+    : "";
+  const pushObserverImport = hasNotifications
+    ? 'import { PushNotificationObserver } from "@/hooks/use-push";'
+    : "";
+  const i18nImport = hasI18n
+    ? 'import { PlatformI18nProvider, useTranslations } from "@/lib/i18n";'
+    : "";
+  const authImport = hasAuth ? 'import { authClient } from "@/lib/auth-client";' : "";
+  const headerImport = hasAuth ? 'import { Header } from "@/components/header";' : "";
+  const nativeImport = hasAuth ? 'import { ActivityIndicator, View } from "react-native";' : "";
+  const analyticsAssignment = hasAnalytics
+    ? `  const analyticsApp = (
+    <ExpoAnalyticsProvider>
+      {app}
+    </ExpoAnalyticsProvider>
+  );`
+    : "  const analyticsApp = app;";
+  const i18nAssignment = hasI18n
+    ? `  const instrumentedApp = (
+    <PlatformI18nProvider>
+      {analyticsApp}
+    </PlatformI18nProvider>
+  );`
+    : "  const instrumentedApp = analyticsApp;";
+  const providerReturn = isConvex
+    ? `  return (
+    <ConvexClientProvider>
+      {instrumentedApp}
+    </ConvexClientProvider>
+  );`
+    : "  return instrumentedApp;";
+  const commonHook = hasI18n && hasAuth ? '  const commonT = useTranslations("common");\n' : "";
+  const navigationState = hasAuth
+    ? [
+        "  const { data: session, isPending: sessionPending } = authClient.useSession();",
+        "  const isAuthenticated = Boolean(session?.user);",
+        '  useOfflineSync(queryClient, sessionPending ? null : session?.user?.id ? `user:${session.user.id}` : "anonymous");',
+        `  if (sessionPending) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator accessibilityLabel={${hasI18n ? 'commonT("loading")' : '"Loading account"'}} /></View>;`,
+      ].join("\n") + "\n"
+    : '  useOfflineSync(queryClient, "public");\n';
+
+  const navigation = `function AppNavigation({ queryClient }: { queryClient: ReturnType<typeof makeNativeQueryClient> }) {
+${i18n.hookLine}${commonHook}${navigationState}
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack>
+      <Stack${hasAuth ? " screenOptions={{ header: () => <Header /> }}" : ""}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        <Stack.Screen name="billing" options={{ title: 'Billing' }} />
-      </Stack>
+${featureFlagScreen}${twoFactorScreen}${authScreens}${protectedScreens}      </Stack>
+      ${hasNotifications ? "<PushNotificationObserver />" : ""}
       <StatusBar style="auto" />
     </QueryClientProvider>
   );
 }
 `;
-}
 
-export function expoTabsLayoutContent(): string {
-  return `import { Tabs } from 'expo-router';
+  const app = `  const app = <AppNavigation queryClient={queryClient} />;`;
 
-export default function TabsLayout() {
-  return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-    </Tabs>
-  );
+  return `import "../global.css";
+import { Stack } from "expo-router";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { StatusBar } from "expo-status-bar";
+import { useState } from "react";
+import { makeNativeQueryClient } from "@/lib/query-client";
+import { useOfflineSync } from "@/hooks/use-offline";
+${providerImport}
+${analyticsImport}
+${pushObserverImport}
+${i18nImport}
+${authImport}
+${headerImport}
+${nativeImport}
+
+${navigation}
+
+export default function RootLayout() {
+  const [queryClient] = useState(makeNativeQueryClient);
+${app}
+${analyticsAssignment}
+${i18nAssignment}
+
+${providerReturn}
 }
 `;
 }

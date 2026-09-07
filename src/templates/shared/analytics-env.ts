@@ -1,18 +1,20 @@
 /**
  * Shared analytics env helpers — PostHog product analytics.
  *
- * The public prefix is framework-specific: @repo/config declares exactly ONE
- * client family (NEXT_PUBLIC_ for Next.js via @t3-oss/env-nextjs, VITE_ for
- * TanStack Start via @t3-oss/env-core with clientPrefix), plus EXPO_PUBLIC_ only
- * when a mobile app exists. Emitting all three unconditionally put variables in
- * .env.example that the schema validating it never declares.
+ * @repo/config exposes isolated Next, Vite, and Expo validation entrypoints.
+ * Generated env files remain audience-filtered so users see only variables
+ * consumed by the selected web, mobile, and desktop applications.
  *
  * No timestamps, deterministic output.
  */
 
 import { publicVarLines, type EnvAudience } from "./env/core.js";
 
-const DEFAULT_AUDIENCE: EnvAudience = { framework: "nextjs", hasMobile: false };
+const DEFAULT_AUDIENCE: EnvAudience = {
+  framework: "nextjs",
+  hasWeb: true,
+  hasMobile: false,
+};
 
 export function analyticsEnvLines(audience: EnvAudience = DEFAULT_AUDIENCE): string[] {
   return [
@@ -21,10 +23,13 @@ export function analyticsEnvLines(audience: EnvAudience = DEFAULT_AUDIENCE): str
     ...publicVarLines(audience, "POSTHOG_KEY", "phc_REPLACE_WITH_POSTHOG_KEY"),
     ...publicVarLines(audience, "POSTHOG_HOST", "/ingest"),
     "POSTHOG_HOST=https://us.i.posthog.com",
-    "POSTHOG_API_KEY=phc_REPLACE_WITH_POSTHOG_KEY # optional if same as public, server-side",
+    "# Set POSTHOG_API_KEY to enable server analytics, even when it matches the public project key",
+    "POSTHOG_API_KEY=phc_REPLACE_WITH_POSTHOG_KEY",
+    "FEATURE_FLAG_TIMEOUT_MS=2500",
     ...publicVarLines(audience, "POSTHOG_SESSION_RECORDING", "false"),
     ...publicVarLines(audience, "POSTHOG_AUTOCAPTURE", "true"),
     ...publicVarLines(audience, "ANALYTICS_DISABLED", "false"),
+    "ANALYTICS_DISABLED=false",
   ];
 }
 

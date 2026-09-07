@@ -1,39 +1,94 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function useAdminUsersHook(): TemplateFile {
-  return file(
-    "apps/web/src/app/admin/users/hooks/use-admin-users.ts",
-    `"use client";
-import { useEffect, useState, useCallback } from "react";
-import { authClient } from "../../../../lib/auth-client.js";
-import type { AdminUser, UseAdminUsersReturn } from "@repo/kernel";
-export function useAdminUsers(): UseAdminUsersReturn {
-  const [data, setData] = useState<{ users: AdminUser[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const limit = 20;
-  const refresh = useCallback(async () => {
-    setError(null); setLoading(true);
-    try {
-      const offset = (page - 1) * limit;
-      const result = await authClient.admin.listUsers({ query: { limit, offset, search: search || undefined } as unknown as { limit:number; offset:number; search?:string } });
-      if (result.error) { setError(result.error.message ?? "Failed to load users"); return; }
-      if (result.data) setData({ users: result.data.users.map((u: { id: string; name: string | null; email: string; role?: string | null; banned?: boolean | null }) => ({ id: u.id, name: u.name, email: u.email, role: u.role ?? "user", banned: u.banned ?? false })), total: result.data.total });
-    } finally { setLoading(false); }
-  }, [page, search]);
-  useEffect(() => { void refresh(); }, [refresh]);
-  const toggleBan = useCallback(async (userId: string, banned: boolean) => {
-    if (banned) await authClient.admin.unbanUser({ userId }); else await authClient.admin.banUser({ userId });
-    await refresh();
-  }, [refresh]);
-  const setRole = useCallback(async (userId: string, currentRole: string) => {
-    const role = currentRole === "admin" ? "user" : "admin";
-    await authClient.admin.setRole({ userId, role: role as "admin" | "user" });
-    await refresh();
-  }, [refresh]);
-  return { data, error, loading, refresh, toggleBan, setRole, search, setSearch, page, setPage, limit };
-}
-`,
+import { adminFeatureRoot, type AdminTemplateOptions } from "./model.js";
+
+function hookContent(): string {
+  return `"use client";
+
+import * as React from "react";
+import { useAdminUserMutations } from "../mutations";
+import { useAdminUsersData } from "../queries";
+import {
+  translateAdminUsersError,
+  useAdminUsersTranslations,
+} from "../translations";
+import { DEFAULT_ADMIN_USERS_FILTERS } from "../types";
+import type {
+  AdminUsersFilterInput,
+  AdminUsersFilters,
+  AdminUsersInitialData,
+  AdminUserRole,
+  CreateAdminUserInput,
+} from "../types";
+
+export function useAdminUsers(initialData?: AdminUsersInitialData) {
+  const translate = useAdminUsersTranslations();
+  const [filters, setFilters] = React.useState<AdminUsersFilters>(DEFAULT_ADMIN_USERS_FILTERS);
+  const isDefaultRequest = filters.search.length === 0 && filters.page === 1;
+  const query = useAdminUsersData(filters, isDefaultRequest ? initialData : undefined);
+  const mutations = useAdminUserMutations();
+  const totalPages = Math.max(
+    1,
+    Math.ceil((query.data?.total ?? 0) / filters.limit),
+    query.hasMore ? filters.page + 1 : filters.page,
   );
+
+  const applyFilters = React.useCallback((input: AdminUsersFilterInput): void => {
+    setFilters((current) => ({ ...current, search: input.search.trim(), page: 1 }));
+  }, []);
+
+  const goToPage = React.useCallback(
+    (page: number): void => {
+      const nextPage = Math.max(1, page);
+      query.requestPage?.(nextPage);
+      setFilters((current) => ({ ...current, page: nextPage }));
+    },
+    [query],
+  );
+
+  return {
+    users: query.data?.users ?? [],
+    total: query.data?.total ?? 0,
+    filters,
+    totalPages,
+    isPending: query.isPending,
+    isFetching: query.isFetching,
+    queryError: translateAdminUsersError(query.error, translate),
+    mutationError: translateAdminUsersError(mutations.error, translate),
+    hasMore: query.hasMore,
+    totalIsExact: query.totalIsExact,
+    applyFilters,
+    clearFilters: () => applyFilters({ search: "" }),
+    previousPage: () => goToPage(filters.page - 1),
+    nextPage: () => goToPage(filters.page + 1),
+    retry: query.retry,
+    resetMutationError: mutations.resetErrors,
+    async createUser(input: CreateAdminUserInput): Promise<boolean> {
+      return await mutations.createUser(input);
+    },
+    async toggleRole(identityId: string, currentRole: AdminUserRole): Promise<boolean> {
+      return await mutations.updateRole(identityId, currentRole === "admin" ? "user" : "admin");
+    },
+    async toggleBanned(identityId: string, currentlyBanned: boolean): Promise<boolean> {
+      return await mutations.updateBanned(identityId, !currentlyBanned);
+    },
+    createPending: mutations.createPending,
+    rolePendingId: mutations.rolePendingId,
+    banPendingId: mutations.banPendingId,
+  };
+}
+`;
+}
+
+export function adminUsersHook(options: AdminTemplateOptions): TemplateFile {
+  return file(`${adminFeatureRoot(options)}/hooks/use-admin-users.ts`, hookContent());
+}
+
+/** @deprecated Use adminUsersHook with explicit template options. */
+export function useAdminUsersHook(): TemplateFile {
+  return adminUsersHook({
+    database: "postgres",
+    framework: "next",
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  });
 }

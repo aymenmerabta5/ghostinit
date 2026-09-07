@@ -4,13 +4,13 @@
 
 New env var → MUST update same PR in 5 places else broken generation or Turbo cache poisoned.
 
-1. `src/lib/constants.ts` `ENV_PLACEHOLDERS` — `"PLACEHOLDER = \"REPLACE_WITH_...\""` string.
-2. `src/templates/shared/env/` builders — `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe.
-3. `src/templates/root.ts` `turbo()` + `root/index.ts` + split — `globalEnv` exhaustive 50+ vars list.
+1. `src/lib/env-manifest.ts` `ENV_PLACEHOLDERS` and environment key catalog; `constants.ts` re-exports them.
+2. `src/templates/shared/env/` builders — `billing.ts`, `core.ts`, `builders.ts` — emit example + local values for selected capabilities/app audiences; keep the corresponding config runtime schemas in sync.
+3. `src/templates/root/turbo.ts` `turbo()` — manifest-derived `globalEnv`, filtered to selected capabilities/apps.
 4. Root `turbo.json` `globalEnv` host CI host-level.
-5. Docs: `docs/ARCHITECTURE.md` tooling quirks paragraph exhaustive list + `AGENTS.md` 5-place note + `skills/ghostinit-use/references/workflows.md` or `billing.md` or `frameworks.md` if user-visible + `CONTRIBUTING.md` if how-to affected.
+5. Docs: `AGENTS.md` environment contract + `skills/ghostinit-use/references/workflows.md` or `billing.md` or `frameworks.md` if user-visible + `CONTRIBUTING.md` if how-to affected.
 
-## 1. `src/lib/constants.ts` `ENV_PLACEHOLDERS`
+## 1. `src/lib/env-manifest.ts` `ENV_PLACEHOLDERS`
 
 ```ts
 export const ENV_PLACEHOLDERS = {
@@ -46,13 +46,13 @@ Split from 449 LOC god file into:
 
 - `billing.ts`: `billingEnvLines(selected)`, `billingEnvLocalLines(secrets, selected)`, `billingEnvLocalLinesFiltered(secrets, selected)`
   - `billingEnvLines` when `selected.length===0` → commented placeholders example + note add via ghostinit add billing. When selected → selected-only with placeholder values from ENV_PLACEHOLDERS + blank line separators.
-  - `billingEnvLocalLines` emits real secrets via `secret()` or provided RootSecrets for all when empty else selected.
+  - `billingEnvLocalLines` uses explicitly supplied `RootSecrets` vendor values or the same credential placeholders as `.env.example`. It never mints provider keys or webhook secrets. This compatibility helper emits all providers when the selection is empty; production composition uses the filtered helper.
   - `billingEnvLocalLinesFiltered` filtered only selected + message when none.
 
 - `core.ts`: `coreEnvExampleLines`, `coreEnvLocalLines`, `resendExampleLines`, `resendLocalLines`
-  - Core: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, `NEXT_PUBLIC_APP_URL` + VITE duplicate, `TRUSTED_PROXY`, `MAINTENANCE_MODE` + `MAINTENANCE_BYPASS_TOKEN` (proxy maintenance gate), `POSTGRES_*`, `DATABASE_SSL`, etc.
+  - Core: database configuration, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `APP_NAME`, audience-selected `APP_URL`/`API_URL` public values, `TRUSTED_PROXY`, `MAINTENANCE_MODE` + `MAINTENANCE_BYPASS_TOKEN` (proxy maintenance gate), `POSTGRES_*`, `DATABASE_SSL`, etc. Only self-issued secrets are generated; vendor credentials stay placeholders until supplied.
   - Resend: `RESEND_API_KEY`, `EMAIL_FROM`.
-  - Cache (Upstash): `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts` — always emitted (placeholder when cache off) + turbo globalEnv exhaustive.
+  - Upstash: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` via `cacheEnvExampleLines()`/`cacheEnvLocalLines()` in `builders.ts` — required by the optional cache package and by production API mutation rate limiting for auth+transport; placeholders are normalized away by cache-off config schemas and allow only the bounded development/test limiter fallback. Capability sanitization removes the pair when neither owner is selected.
 
 - `builders.ts`: `envExampleContent(projectName,secrets,selectedBilling,hasEve,hasI18n,runtime)`, `envLocalContent(...)`, `envPlaceholderContent()`, `filteredEnvExample(projectName,secrets,selectedBilling,...)` which `root-composer.ts` uses to replace raw .env.example file, `filteredEnvLocal`.
 
@@ -77,108 +77,66 @@ out.push(`MYCORE_URL=http://localhost:3001`); // or placeholder if secret
 out.push(`MYCORE_URL=${secrets.myCoreUrl ?? "http://localhost:3001"}`);
 ```
 
-Dual client prefix for client-safe tokens:
+Select public prefixes from the project's app audiences:
 
 ```ts
-// always emit both NEXT_PUBLIC_* and VITE_* for client tokens
-out.push(`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
-out.push(`VITE_STRIPE_PUBLISHABLE_KEY=${ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE}`);
+// import publicVarLines and the EnvAudience type from shared/env/core.ts
+out.push(
+  ...publicVarLines(audience, "STRIPE_PUBLISHABLE_KEY", ENV_PLACEHOLDERS.STRIPE_PUBLISHABLE),
+);
 ```
 
-Server-only secrets never client: `*_SECRET_KEY`, `*_API_KEY`, `*_WEBHOOK_SECRET`, `*_ACCESS_TOKEN`, `DATABASE_URL`, `BETTER_AUTH_SECRET`.
+`EnvAudience` chooses `NEXT_PUBLIC_*` for Next web, `VITE_*` for TanStack web or desktop renderers, and `EXPO_PUBLIC_*` for Expo. Next+Expo emits two families; Next+Expo+desktop emits all three. Unselected audiences emit no variables. The `@repo/config/next`, `/vite`, and `/expo` runtimes each validate only their own prefix; `/server` owns secrets, and the root barrel exports no env values. Single mode mirrors those entries under `src/lib/env/`.
 
-## 3. `src/templates/root.ts` `turbo()` + Root Folder Split
+Server-only secrets never enter public prefixes: `*_SECRET_KEY`, `*_API_KEY`, `*_WEBHOOK_SECRET`, `*_ACCESS_TOKEN`, `DATABASE_URL`, `BETTER_AUTH_SECRET`.
 
-`root.ts` shim → `root/index.ts` + `root/secrets.ts` etc split 483 LOC god file.
+### Cloudflare Worker environment boundary
 
-- `secrets.ts` `RootSecrets` interface + `billingEnvPlaceholders` + `secret()` helper.
-- `index.ts` `rootFiles()` emits root files: `package.json` (workspaces apps/* packages/* tooling/*, scripts dev/typecheck/lint/check/test/db:generate/db:migrate/db:push, dependencies maybe), `turbo.json`, `bunfig.toml`, `.oxlintrc.json`, `.oxfmtrc.json`, `.gitignore`, `.env.example` (via filtered), `README.md` minimal, etc.
+The manifest still owns the selected keys, but `--deploy cloudflare` replaces
+runtime `.env.local` output with gitignored `.dev.vars` at the root and web-app
+locations. Local `dev`/`preview` commands may load `.dev.vars`; production
+`build:worker`, dry-run, upload, and deploy must receive build-time values
+explicitly and must not load that file implicitly.
 
-`turbo()` function / `turbo.json` template:
+The generated wrapper fails before building if a runtime `.env*` file (other
+than `.env.example`) exists at the workspace or app root. This is intentionally
+stricter than ordinary framework behavior because build adapters can serialize
+environment values. After OpenNext/Vite builds, it scans the bounded artifact
+for non-public secret-like process values and reports only the key/path on a
+match. Runtime Worker secrets belong in Cloudflare bindings via the dashboard or
+`wrangler secret put`; values required during static generation belong in
+Workers Builds variables/secrets. They are separate stores and must be
+configured separately. `wrangler.jsonc` must never contain a secret value, and
+deploy must keep `--keep-vars` so dashboard state is not erased.
 
-```ts
-export function turbo() {
-  return JSON.stringify(
-    {
-      globalDependencies: [".env.*local"],
-      globalEnv: [
-        "DATABASE_URL",
-        "BETTER_AUTH_URL",
-        "BETTER_AUTH_SECRET",
-        "STRIPE_SECRET_KEY",
-        "STRIPE_WEBHOOK_SECRET",
-        "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
-        "VITE_STRIPE_PUBLISHABLE_KEY",
-        "CHARGILY_API_KEY",
-        "CHARGILY_SECRET_KEY",
-        "CHARGILY_MODE",
-        "PADDLE_API_KEY",
-        "PADDLE_WEBHOOK_SECRET",
-        "PADDLE_ENVIRONMENT",
-        "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
-        "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
-        "VITE_PADDLE_CLIENT_TOKEN",
-        "VITE_PADDLE_ENVIRONMENT",
-        "POLAR_ACCESS_TOKEN",
-        "POLAR_WEBHOOK_SECRET",
-        "POLAR_ORG_ID",
-        "POLAR_ENVIRONMENT",
-        "RESEND_API_KEY",
-        "EMAIL_FROM",
-        "POSTHOG_KEY",
-        "POSTHOG_HOST",
-        "NEXT_PUBLIC_POSTHOG_KEY",
-        "NEXT_PUBLIC_POSTHOG_HOST",
-        "VITE_POSTHOG_KEY",
-        "NEXT_PUBLIC_APP_URL",
-        "VITE_APP_URL",
-        "TRUSTED_PROXY",
-        "POSTGRES_USER",
-        "POSTGRES_PASSWORD",
-        "POSTGRES_DB",
-        "POSTGRES_HOST",
-        "POSTGRES_PORT",
-        "DATABASE_SSL",
-        "DATABASE_SSL_CA",
-        "DATABASE_POOL_SIZE",
-        "UPSTASH_REDIS_REST_URL",
-        "UPSTASH_REDIS_REST_TOKEN",
-        // add new here:
-        "MYNEW_API_KEY",
-        "NEXT_PUBLIC_MYNEW_KEY",
-        "VITE_MYNEW_KEY",
-        "NEXT_PUBLIC_*", // wildcard safe fallback but explicit preferred
-        "VITE_*",
-      ],
-      tasks: {
-        build: {
-          dependsOn: ["^build"],
-          inputs: ["$TURBO_DEFAULT$", ".env* !.env.*local"],
-          outputs: ["dist/**", ".next/**", ".output/**", ".vinxi/**", ".vercel/**"],
-        },
-        // ...
-      },
-    },
-    null,
-    2,
-  );
-}
-```
+## 3. Generated `turbo.json`
 
-Exhaustive list is critical — missing var → cache poisoned, change to key not invalidating.
+`src/templates/root/turbo.ts` calls `getGlobalEnvKeys(runtime, audience)` from
+`src/lib/env-manifest.ts`. The resolved compiler then filters those keys through
+`src/generation/capability-environment-sanitizer.ts`, using the selected
+capabilities and app targets. Extend the manifest and ownership rules instead
+of copying a hardcoded `globalEnv` array into a template.
 
-Also `inputs: ["$TURBO_DEFAULT$", ".env* !.env.*local"]` includes .env.example but excludes .env.*local for safety.
+The base template includes local env files in `globalDependencies` and keeps
+build outputs separate from persistent, uncached dev/start tasks. Cloudflare
+normalization adds its own Worker artifact and `.dev.vars` handling. Inspect
+the generated profile when changing these inputs; an unused public family or
+disabled capability must not reappear through a manual key list.
+
+For a new public key, keep its audience runtime schema, runtime env mapping,
+shared env emitter, and manifest entry aligned. For server credentials, keep
+explicit keys rather than public-prefix wildcards. After updating the manifest,
+run `bun run scripts/sync-turbo-env.ts` to synchronize the host config.
 
 ## 4. Root `turbo.json` Host
 
-Host repo's own `turbo.json` globalEnv similar exhaustive? Actually host uses oxlint/oxfmt+tsc not turbo for build, but root turbo.json file should still list globalEnv for CI if turbo used. Compare generated vs host: generated must have 50+ vars exhaustive; host may subset but best keep sync.
+The host repository keeps its own exhaustive environment manifest because its checks are capability-independent. Generated projects derive an exact subset for the resolved capability and app audiences; do not compare them by raw key count.
 
 Location `turbo.json` root.
 
 ## 5. Docs Sync
 
-- `docs/ARCHITECTURE.md` tooling quirks paragraph lists example exhaustive `DATABASE_URL, BETTER_AUTH_*, STRIPE_*, CHARGILY_*, PADDLE_*, POLAR_*, RESEND_*, POSTHOG_*, NEXT_PUBLIC_*, VITE_*` + 5-place note.
-- `AGENTS.md` tooling quirks same + 5-place note.
+- `AGENTS.md` environment table documents the exhaustive manifest contract and five synchronized locations.
 - `skills/ghostinit-use/references/workflows.md` troubleshooting billing vars + turbo cache poisoned note.
 - `skills/ghostinit-use/references/billing.md` env vars needed list.
 - `CONTRIBUTING.md` if how-to add package section.
@@ -198,22 +156,22 @@ cat /tmp/gi-test/demo/.env.local | grep MYNEW || echo "check local builder"
 # host root turbo.json
 cat turbo.json | grep globalEnv -A 70 | grep MYNEW
 # check constants
-grep MYNEW src/lib/constants.ts
+rg MYNEW src/lib/env-manifest.ts
 grep MYNEW src/templates/shared/env -r
 ```
 
 ## Secrets vs Env Classification
 
-- Server-only secrets: never `NEXT_PUBLIC_*` / `VITE_*`. Must be only server. Examples: `*_SECRET_KEY`, `*_API_KEY` (except client token), `*_WEBHOOK_SECRET`, `*_ACCESS_TOKEN`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `POSTGRES_PASSWORD`.
-- Client-safe: `NEXT_PUBLIC_*`, `VITE_*` — publishable keys, client tokens, app URLs, posthog keys public. Emit both prefixes for cross-framework compat.
+- Server-only secrets: never `NEXT_PUBLIC_*`, `VITE_*`, or `EXPO_PUBLIC_*`. Must be only server. Examples: `*_SECRET_KEY`, `*_API_KEY` (except client token), `*_WEBHOOK_SECRET`, `*_ACCESS_TOKEN`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `POSTGRES_PASSWORD`.
+- Client-safe: publishable keys, client tokens, app URLs, and public PostHog project keys. Emit `NEXT_PUBLIC_*`, `VITE_*`, or `EXPO_PUBLIC_*` only for the selected audiences through `publicVarLines()`.
 - Flags: `CHARGILY_MODE`, `PADDLE_ENVIRONMENT`, `POLAR_ENVIRONMENT`, `TRUSTED_PROXY`, `DATABASE_SSL` non-secret config.
 - Email: `RESEND_API_KEY` server-only, `EMAIL_FROM` config.
-- Analytics: `POSTHOG_KEY` sometimes client but also server node package posthog-node vs posthog-js.
+- Analytics: `POSTHOG_API_KEY` configures server analytics. Browser/native analytics uses `NEXT_PUBLIC_POSTHOG_KEY`, `VITE_POSTHOG_KEY`, or `EXPO_PUBLIC_POSTHOG_KEY` for the selected audience. Configure the server variable explicitly even when it uses the same PostHog project key.
 
 ## Why 5 Places — Root Cause
 
-- `constants.ts` source of placeholder strings SSOT.
+- `env-manifest.ts` owns the key and placeholder catalog; `constants.ts` re-exports it.
 - `shared/env` builders emit actual files `.env.example` + `.env.local` single source — if miss, file missing var placeholder.
-- `root.ts` `turbo()` emits generated `turbo.json` globalEnv — if miss, turbo cache not invalidated when env changes, stale secrets reused → security + bug.
+- `root/turbo.ts` derives generated cache inputs from the manifest, and the resolved compiler filters them to selected capability/app ownership. Missing inputs can reuse stale output after a configuration change.
 - Root `turbo.json` host: if CI uses turbo there, similar.
 - Docs: drift causes agents/contributors missing var documentation, future changes miss it again.

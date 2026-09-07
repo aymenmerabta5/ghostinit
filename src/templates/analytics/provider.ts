@@ -1,30 +1,14 @@
 import type { ProjectMode } from "../../lib/addons.js";
 
-export function clientProviderContent(mode: ProjectMode): string {
-  const configImport = mode === "monorepo" ? "../config.js" : "./config.js";
-  const clientImport = mode === "monorepo" ? "./posthog-client.js" : "../lib/analytics.js";
+/** Shared client context, emitted beside each mode-specific provider. */
+export function postHogContextContent(): string {
   return `"use client";
 
-/**
- * PostHogProvider — client component that bootstraps posthog-js.
- * Bootstrap via RootLayout server: getBootstrapFeatureFlags(distinctId).
- */
-
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { PostHog } from "posthog-js";
-import { getAnalyticsConfig, isAnalyticsEnabled } from "${configImport}";
-import { getPostHogClient, initPostHogClient } from "${clientImport}";
+import { createContext, useContext } from "react";
+import type { PostHogInterface } from "posthog-js";
 
 export interface PostHogContextValue {
-  client: PostHog | null;
+  client: PostHogInterface | null;
   isLoaded: boolean;
   isEnabled: boolean;
   isIdentified: boolean;
@@ -40,6 +24,29 @@ export const PostHogContext = createContext<PostHogContextValue>({
 export function usePostHogContext(): PostHogContextValue {
   return useContext(PostHogContext);
 }
+`;
+}
+
+export function clientProviderContent(mode: ProjectMode): string {
+  const configImport = "./config.js";
+  const clientImport = mode === "monorepo" ? "./posthog-client.js" : "../lib/analytics.js";
+  return `"use client";
+
+/**
+ * PostHogProvider — client component that bootstraps posthog-js.
+ * Bootstrap via RootLayout server: getBootstrapFeatureFlags(distinctId).
+ */
+
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PostHogInterface } from "posthog-js";
+import { getAnalyticsConfig, isAnalyticsEnabled } from "${configImport}";
+import { getPostHogClient, initPostHogClient } from "${clientImport}";
+import { PostHogContext } from "./context.js";
+import type { PostHogContextValue } from "./context.js";
+
+export { PostHogContext, usePostHogContext } from "./context.js";
+export type { PostHogContextValue } from "./context.js";
 
 export interface PostHogProviderProps {
   children: React.ReactNode;
@@ -58,7 +65,7 @@ export function PostHogProvider({
   distinctId,
   initialOptedOut,
 }: PostHogProviderProps) {
-  const [client, setClient] = useState<PostHog | null>(() => getPostHogClient());
+  const [client, setClient] = useState<PostHogInterface | null>(() => getPostHogClient());
   const [isLoaded, setIsLoaded] = useState<boolean>(() => Boolean(getPostHogClient()));
   const [isIdentified, setIsIdentified] = useState<boolean>(false);
   const didInitRef = useRef(false);
@@ -82,8 +89,7 @@ export function PostHogProvider({
   const initialize = useCallback(async () => {
     if (didInitRef.current) return;
     didInitRef.current = true;
-    if (!isEnabled) return;
-    if (initialOptedOut) return;
+    if (!isEnabled || initialOptedOut) return;
     try {
       const ph = await initPostHogClient({
         bootstrapFlags,
@@ -116,12 +122,7 @@ export function PostHogProvider({
   }, [client, distinctId, personProperties]);
 
   const value = useMemo<PostHogContextValue>(
-    () => ({
-      client,
-      isLoaded,
-      isEnabled: isEnabled && Boolean(cfg?.key),
-      isIdentified,
-    }),
+    () => ({ client, isLoaded, isEnabled: isEnabled && Boolean(cfg?.key), isIdentified }),
     [client, isLoaded, isEnabled, cfg?.key, isIdentified],
   );
 
@@ -132,30 +133,28 @@ export default PostHogProvider;
 `;
 }
 
+/** Single-mode provider entry point. Feature-flag hooks live in a focused sibling module. */
 export function singleComponentsProviderContent(): string {
   return `"use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { PostHog } from "posthog-js";
-import { getAnalyticsConfig, isAnalyticsEnabled, initPostHogClient, getPostHogClient } from "../../lib/analytics.js";
-import type { FeatureFlagKey, ExperimentKey } from "../../server/analytics/types.js";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PostHogInterface } from "posthog-js";
+import { getPostHogClient, initPostHogClient, isAnalyticsEnabled } from "../../lib/analytics.js";
+import { PostHogContext } from "./posthog-context.js";
+import type { PostHogContextValue } from "./posthog-context.js";
 
-export interface PostHogContextValue {
-  client: PostHog | null;
-  isLoaded: boolean;
-  isEnabled: boolean;
-  isIdentified: boolean;
-}
-
-export const PostHogContext = createContext<PostHogContextValue>({
-  client: null,
-  isLoaded: false,
-  isEnabled: false,
-  isIdentified: false,
-});
-export function usePostHogContext(): PostHogContextValue {
-  return useContext(PostHogContext);
-}
+export { PostHogContext, usePostHogContext } from "./posthog-context.js";
+export type { PostHogContextValue } from "./posthog-context.js";
+export {
+  PostHogPageView,
+  useActiveFeatureFlags,
+  useExperiment,
+  useFeatureFlag,
+  useFeatureFlagEnabled,
+  useFeatureFlagPayload,
+} from "./posthog-hooks.js";
+export type { UseExperimentResult } from "./posthog-hooks.js";
 
 export interface PostHogProviderProps {
   children: React.ReactNode;
@@ -164,8 +163,13 @@ export interface PostHogProviderProps {
   distinctId?: string;
 }
 
-export function PostHogProvider({ children, bootstrapFlags, bootstrapPayloads, distinctId }: PostHogProviderProps) {
-  const [client, setClient] = useState<PostHog | null>(() => getPostHogClient());
+export function PostHogProvider({
+  children,
+  bootstrapFlags,
+  bootstrapPayloads,
+  distinctId,
+}: PostHogProviderProps) {
+  const [client, setClient] = useState<PostHogInterface | null>(() => getPostHogClient());
   const [isLoaded, setIsLoaded] = useState(() => Boolean(getPostHogClient()));
   const didInitRef = useRef(false);
   const isEnabled = useMemo(() => {
@@ -194,13 +198,8 @@ export function PostHogProvider({ children, bootstrapFlags, bootstrapPayloads, d
     void init();
   }, [init]);
 
-  const value = useMemo(
-    () => ({
-      client,
-      isLoaded,
-      isEnabled,
-      isIdentified: Boolean(distinctId && isLoaded),
-    }),
+  const value = useMemo<PostHogContextValue>(
+    () => ({ client, isLoaded, isEnabled, isIdentified: Boolean(distinctId && isLoaded) }),
     [client, isLoaded, isEnabled, distinctId],
   );
 
@@ -208,6 +207,17 @@ export function PostHogProvider({ children, bootstrapFlags, bootstrapPayloads, d
 }
 
 export default PostHogProvider;
+`;
+}
+
+/** Single-mode flag and experiment hooks, kept separate so the provider stays bounded. */
+export function singleComponentsHooksContent(): string {
+  return `"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type { JsonType } from "posthog-js";
+import type { FeatureFlagKey, ExperimentKey } from "../../server/analytics/types.js";
+import { usePostHogContext } from "./posthog-context.js";
 
 export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefined {
   const ctx = usePostHogContext();
@@ -215,12 +225,11 @@ export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefine
   useEffect(() => {
     if (!ctx.client) return;
     try {
-      const v = (ctx.client as unknown as { getFeatureFlag?: (k: string) => string | boolean | undefined }).getFeatureFlag?.(key);
-      setValue(v);
-      const unsub = (ctx.client as unknown as { onFeatureFlags?: (cb: (flags: Record<string, string | boolean>) => void) => () => void }).onFeatureFlags?.((flags: Record<string, string | boolean>) => setValue(flags[key]));
+      setValue(ctx.client.getFeatureFlag(key));
+      const unsubscribe = ctx.client.onFeatureFlags((_flagKeys, variants) => setValue(variants[key]));
       return () => {
         try {
-          unsub?.();
+          unsubscribe?.();
         } catch {}
       };
     } catch {}
@@ -229,59 +238,52 @@ export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefine
 }
 
 export function useFeatureFlagEnabled(key: FeatureFlagKey): boolean {
-  const v = useFeatureFlag(key);
-  if (typeof v === "boolean") return v;
-  return v !== undefined;
+  const value = useFeatureFlag(key);
+  return typeof value === "boolean" ? value : value !== undefined;
 }
 
-export function useFeatureFlagPayload<T = unknown>(key: FeatureFlagKey): T | undefined {
+export function useFeatureFlagPayload(key: FeatureFlagKey): JsonType | undefined {
   const ctx = usePostHogContext();
-  const [payload, setPayload] = useState<T | undefined>(undefined);
+  const [payload, setPayload] = useState<JsonType | undefined>(undefined);
   useEffect(() => {
     if (!ctx.client) return;
     try {
-      const p = (ctx.client as unknown as { getFeatureFlagPayload?: (k: string) => T | undefined }).getFeatureFlagPayload?.(key) as T | undefined;
-      setPayload(p);
+      setPayload(ctx.client.getFeatureFlagPayload(key));
     } catch {}
   }, [ctx.client, key]);
   return payload;
 }
 
-function subscribe(cb: () => void) {
-  if (typeof window === "undefined") return () => {};
-  try {
-    const ph = (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog;
-    if (!ph?.onFeatureFlags) return () => {};
-    const unsub = ph.onFeatureFlags(cb);
-    return () => {
-      try {
-        unsub?.();
-      } catch {}
-    };
-  } catch {
-    return () => {};
-  }
-}
-function getSnap(): Record<string, string | boolean> {
-  try {
-    return (window as unknown as { posthog?: { onFeatureFlags?: (cb: () => void) => () => void; getFeatureFlags?: () => Record<string, string | boolean> } }).posthog?.getFeatureFlags?.() ?? {};
-  } catch {
-    return {};
-  }
-}
-
 export function useActiveFeatureFlags(): Record<string, string | boolean> {
-  return useSyncExternalStore(subscribe, getSnap, () => ({}));
+  const ctx = usePostHogContext();
+  const [flags, setFlags] = useState<Record<string, string | boolean>>({});
+  useEffect(() => {
+    if (!ctx.client) return;
+    try {
+      const unsubscribe = ctx.client.onFeatureFlags((_flagKeys, variants) => setFlags(variants));
+      return () => {
+        try {
+          unsubscribe();
+        } catch {}
+      };
+    } catch {
+      return;
+    }
+  }, [ctx.client]);
+  return flags;
 }
 
 export interface UseExperimentResult {
   variant: string | undefined;
-  payload: unknown;
+  payload: JsonType | undefined;
   isEnrolled: boolean;
   isLoading: boolean;
 }
 
-export function useExperiment(key: ExperimentKey, options?: { fallback?: string }): UseExperimentResult {
+export function useExperiment(
+  key: ExperimentKey,
+  options?: { fallback?: string },
+): UseExperimentResult {
   const flag = useFeatureFlag(key);
   const payload = useFeatureFlagPayload(key);
   const isLoading = flag === undefined;
@@ -291,8 +293,6 @@ export function useExperiment(key: ExperimentKey, options?: { fallback?: string 
   }, [flag, payload, options?.fallback, isLoading]);
 }
 
-export function PostHogPageView() {
-  return null;
-}
+export { PostHogPageView } from "./posthog-pageview.js";
 `;
 }

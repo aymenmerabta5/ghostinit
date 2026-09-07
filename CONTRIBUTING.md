@@ -37,7 +37,7 @@ templates/ + generators/ (Vendors = generation composers):
 
 ### GhostInit Layered Architecture (pragmatic UI->Supporting, inspired by DDD)
 
-Pragmatic linear chain, NOT canonical DDD where Domain is center. UI(1) top depends on everything downwards, Supporting(6) bottom depends on nothing. Allowed downward only (source.level <= target.level), forbidden upward (source.level > target.level). Domain at 3 CAN import Capabilities at 4 (3→4 allowed) — inverted vs canonical DDD where Application → Domain. Intentionally inverted: cross-package Capabilities→Domain (4→3) is FORBIDDEN by checker to enforce isolation via @repo/contracts and Supporting. Intra-module same bounded context skip (e.g., application/ports → ../domain/types within same module) is allowed. See `docs/ARCHITECTURE.md` for full rationale.
+Pragmatic linear chain, NOT canonical DDD where Domain is center. UI(1) top depends on everything downwards, Supporting(6) bottom depends on nothing. Allowed downward only (source.level <= target.level), forbidden upward (source.level > target.level). Domain at 3 CAN import Capabilities at 4 (3→4 allowed) — inverted vs canonical DDD where Application → Domain. Intentionally inverted: cross-package Capabilities→Domain (4→3) is FORBIDDEN by checker to enforce isolation via @repo/contracts and Supporting. Intra-module same bounded context skip (e.g., application/ports → ../domain/types within same module) is allowed. See the [contributor architecture guide](./AGENTS.md#architecture) for the full rationale.
 
 ```
 1. UI          apps/web/src/*, src/routes/* (tanstack) — React components
@@ -99,11 +99,11 @@ src/templates/
     index.ts                     monorepoFiles() assembler → dedup + sort + __PROJECT_NAME__ replace
     {root,packages,database,auth,api,ui,modules,apps,billing,services,agents,core-services,eve}-composer.ts
     utils.ts                     buildSecrets(), selectedBillingFromAddons()
-  modes/single.ts                Flat Next.js no workspaces
+  modes/single/                   Next/TanStack web or frontend-only Expo/Electron; no workspaces
   shared/
     env.ts                       Single source for .env (.example + .local) — billingEnvLines, filteredEnv*
     billing-env.ts (legacy shim), analytics-env.ts
-  default.ts                     generateProjectFiles() router — mode switch → monorepoFiles vs singleFiles
+  default.ts                     buildProjectGenerationPlan() typed plan; legacy mode dispatcher for emitters
 packages/versions/src/index.ts   Real @repo/versions package, SSOT for ALL dependency versions + ghostinitVersion
 tooling/
   typescript-config/base.json    Strict ES2024, bundler, composite, paths @/* + @repo/*
@@ -207,7 +207,7 @@ Architecture goal: each file <300 LOC guideline (<5 imports for composers), DRY 
    }
    ```
 
-6. **Env vars** Add placeholders to `src/lib/constants.ts` `ENV_PLACEHOLDERS`, and to `src/templates/shared/env.ts` `billingEnvLines()` and `billingEnvLocalLinesFiltered()`. Update `turbo.json` `globalEnv` and `src/templates/root.ts` `turbo()` — both exhaustive list of 50+ vars.
+6. **Env vars** Add keys and placeholders to the `src/lib/env-manifest.ts` SSOT, wire the relevant `src/templates/shared/env.ts` builders, and run `bun run scripts/sync-turbo-env.ts`. Generated `turbo.json` cache inputs are derived from that manifest and filtered to the selected capabilities and app audiences.
 
 7. **UI** Update `src/templates/billing/ui/billing-page.tsx` provider panel — conditional rendering via `selectedBilling`.
 
@@ -241,9 +241,53 @@ Example: we already have `monorepo` vs `single` + `nextjs` vs `tanstack-start` (
    if (effectiveFramework === "myframework") return [...myFrameworkFiles()];
    ```
 
-5. **Env branching** If framework uses `VITE_*` vs `NEXT_PUBLIC_*`, ensure `shared/env.ts` already emits both — it does (dual). Add outputs to turbo: `.output`, `.vinxi`, etc are already covered.
+5. **Env branching** Keep runtime entrypoints isolated: `@repo/config/next` uses `NEXT_PUBLIC_*`, `/vite` uses `VITE_*` for TanStack and desktop renderers, `/expo` uses `EXPO_PUBLIC_*`, and `/server` alone owns secrets plus main-process `DESKTOP_*`. Single mode mirrors these under `src/lib/env/`. Update the env manifest, shared emitters, exact tsconfig aliases, generated Turbo filtering, host `turbo.json` via `bun run scripts/sync-turbo-env.ts`, and contributor docs together.
+
+   Electron is the one generated client with a privileged main-process deployment value. `electron.vite.config.ts` reads only `DESKTOP_API_URL`, validates an HTTPS origin with no userinfo/query/fragment, and embeds that non-secret origin in `dist/main.js` before electron-builder runs. The generated runtime resolver uses runtime `DESKTOP_API_URL` first (for managed deployment overrides), then the embedded value; it permits the localhost default only when `app.isPackaged` is false and otherwise fails closed. Do not expose `DESKTOP_*` through Vite or place server credentials in the main bundle. Keep this behavior identical in monorepo/single and Next/TanStack generation paths, and cover a packaged launch with `DESKTOP_API_URL` removed from the launch environment.
 
 6. **Docs** Update README framework list, and this CONTRIBUTING.
+
+## Cloudflare Workers Deployment Target
+
+Cloudflare is a resolved deployment binding, not a post-generation rewrite. Keep
+`DesiredProjectConfig` -> `ResolvedProjectConfig` -> `GenerationPlan` as the
+authoritative path so support validation, file ownership, provenance, checksums,
+and dry-run output all describe the same project.
+
+- Next.js uses `@opennextjs/cloudflare`; TanStack Start uses the native
+  `@cloudflare/vite-plugin` plus `vite-tsconfig-paths`.
+- Both frameworks support monorepo and single web modes with Convex or no
+  database. PostgreSQL requires a request-scoped Hyperdrive adapter, Eve needs a
+  Workers-native runtime, and server-side PDF needs shared admission control;
+  the resolver rejects those combinations rather than emitting a partial app.
+- The target emits `wrangler.jsonc`, `scripts/cloudflare.mjs`,
+  `docs/CLOUDFLARE_DEPLOYMENT.md`, framework-specific Worker configuration, and
+  root/package scripts for type generation, build, preview, dry-run, and deploy.
+- Local runtime values belong only in the gitignored `.dev.vars`. The build
+  wrapper rejects runtime `.env*` files before OpenNext/Vite runs, requires the
+  regular root `bun.lock`, and scans the bounded Worker artifact for non-public
+  server values without logging them. Production build variables and runtime
+  Worker secrets are separate Cloudflare settings; deploy preserves
+  dashboard-managed variables with `--keep-vars`.
+- OpenNext's production cache uses the `NEXT_INC_CACHE_R2_BUCKET` R2 binding,
+  `NEXT_CACHE_DO_QUEUE` Durable Object queue, and
+  `NEXT_TAG_CACHE_DO_SHARDED` tag cache. The immutable `v1` migration owns
+  `DOQueueHandler`; additive `v2` owns `DOShardedTagCache`. The named R2 bucket
+  must be created once before the first deploy.
+
+Any Cloudflare template change must run the four release-blocking Worker corners
+with `bun run test:workers`. They cover Next/TanStack x monorepo/single across
+Convex and database-free profiles. Both Convex monorepos select the full reviewed
+all four billing providers, i18n, messaging/storage, notifications, feature-flags, jobs, and
+Redis-cache surface; the monorepos select Bun and the single projects select Node.
+Each corner must install, audit, format, pass architecture, typecheck, lint and
+test; then build/secret-scan, run `wrangler deploy --dry-run`, and return HTTP
+200 for `/`, `/api/health`, and `/api/rpc/health` under a bounded local Wrangler
+preview. Convex monorepos avoid external-service calls; the database-free single
+projects explicitly add the framework-neutral API capability. The
+canonical release gate remains `bun run test:generated -- --all`.
+
+See [the operational and evidence contract](./docs/engineering/CLOUDFLARE_WORKERS.md).
 
 ## How to Add New Feature (eve, i18n)
 
@@ -271,17 +315,18 @@ Same pattern as billing but simpler — feature flags.
   1. `Bun.build({ entrypoints: ["./src/cli.ts"], outdir: "dist", target: "node", external: ["oxc-parser"] })` → `dist/cli.js` keeps shebang, external sourcemap.
   2. `bunx tsc -p src/tsconfig.json` emits real `.d.ts` + `.d.ts.map` + `.tsbuildinfo`. **Not fake `export {}`**. Verifies `dist/cli.d.ts` size >10 bytes.
 
-- **`turbo.json`** (host) — used for GH CI locally? Actually host uses oxlint/oxfmt + tsc. Generated turbo.json has comprehensive `globalEnv` 50+ vars (DATABASE_URL, BETTER_AUTH_SECRET, STRIPE__, CHARGILY__, PADDLE__, POLAR__, RESEND__, POSTHOG__, NEXT_PUBLIC__, VITE__), `inputs: [$TURBO_DEFAULT$, .env*]`, `outputs: [dist/**, .next/**, .vinxi/**, .output/**]`.
+- **`turbo.json`** (host) — used for GH CI locally? Actually host uses oxlint/oxfmt + tsc. Generated turbo.json derives comprehensive cache inputs from the environment manifest, then filters them to selected capabilities and app audiences (for example DATABASE_URL, BETTER_AUTH_SECRET, provider keys, Eve's `AI_GATEWAY_API_KEY`/`EVE_*`, and the applicable public prefix), with `inputs: [$TURBO_DEFAULT$, .env*]` and `outputs: [dist/**, .next/**, .vinxi/**, .output/**]`.
 
 - **`bunfig.toml`**
-  - Host: `linker = "isolated", hoist = false, frozenLockfile = false` — hermetic reproducibility.
-  - Generated: `hoist = true` (default, explicit comment) — because Next.js 16.2.10 TS resolution breaks with isolated linker (`"It looks like you're trying to use TypeScript but do not have the required package(s) installed"` + workspace:* npm fallback). See `src/templates/root.ts` `bunfig()`.
+  - Host: `linker = "isolated", hoist = false, frozenLockfile = true` — hermetic reproducibility.
+  - Generated: `hoist = true` (default, explicit comment) — because the supported Next.js 16 TS resolution path breaks with the isolated linker (`"It looks like you're trying to use TypeScript but do not have the required package(s) installed"` + workspace:* npm fallback). See `src/templates/root/package.ts` `bunfig()`.
+  - Host, generated, deployment, temporary-test, and compatibility-fixture installs use the typed `supplyChain.minimumReleaseAgeSeconds` policy: seven days (`604800` seconds), with `minimumReleaseAgeExcludes = []` so there is no default bypass.
 
 - **tsconfig hierarchy** `src/tsconfig.json` extends `../tsconfig.base.json` with `composite:true`, `emitDeclarationOnly:true`, `outDir:../dist`, `rootDir:.` Plus `tooling/typescript-config/base.json` has `target ES2024, module ESNext, moduleResolution bundler, strict:true, paths: {"@/*": ["src/*"], "@repo/*": ["packages/*/src"]}`. Host uses project references. Generated uses same base.
 
 ## Code Style (Enforced)
 
-- **<300 LOC guideline** — use `// @allow-long <LOC>: <reason>` as escape hatch for legitimately complex files (e.g., core fragment 391 LOC combines security headers + postcss + orpc client). Guideline, not hard rule. Prefer splitting but allow escape with justification. Composers <5 imports guideline, same escape hatch. Enforced culturally via PR review, not hard checker — see `docs/ARCHITECTURE.md`.
+- **<300 LOC guideline** — use `// @allow-long <LOC>: <reason>` as escape hatch for legitimately complex files (e.g., core fragment 391 LOC combines security headers + postcss + orpc client). Guideline, not hard rule. Prefer splitting but allow escape with justification. Composers <5 imports guideline, same escape hatch. Enforced culturally via PR review; see [AGENTS.md](./AGENTS.md#conventions-enforced).
 - **No `export *` barrels** — use explicit named re-exports to avoid namespace leakage and tree-shaking issues. Example `src/templates/billing/webhooks/index.ts`.
 - **No god files / composers <5 imports guideline** — `monorepo/index.ts` assembles via dedup+sort+`__PROJECT_NAME__` replace; intentional delegation may exceed <15 imports but each composer stays <5. Obscures graph acknowledged — keep composers tiny, use escape hatch if needed with comment.
 - **DRY: fragments + factory** — `apps/tanstack-*` shares via fragments, `billing/providers/` shares via `webhooks/factory.ts`. Don't duplicate Next vs TanStack logic.
@@ -304,15 +349,38 @@ bun test tests/unit --timeout 100000
 bun test tests/integration --timeout 100000
 bun test --timeout 100000 tests/integration tests/unit   # official script
 
-# Fixtures
-bun run pretest:fixtures   # installs fixture projects
+# Fixtures (frozen install + high-severity lock audit + fixture-specific checks)
 bun run test:fixtures
 
+# Real generated projects: verified bootstrap + installed dependency audit + format/check + architecture + typecheck + lint:all + root tests
+bun run test:generated -- --all # all 24 configured representative corners
+bun run test:workers            # four Cloudflare Worker build/dry-run/runtime corners
+
 # Full CI
-bun run test:ci
+bun run test:ci # static + host/fixtures + generated --all + oRPC WS runtime + six audited production builds
 ```
 
-**Fixtures:** `tests/fixtures/compatibility/` — real compatibility matrices (e.g., drizzle+better-auth+oRPC, next+tailwind).
+GitHub CI runs `bun run check` plus the Bun-version, installer, generated
+supervisor, process-tree, and filesystem portability suites on `ubuntu-latest`,
+`windows-latest`, and `macos-latest`. Expensive fixture, generated-project,
+packed-artifact, runtime, and production-build acceptance remains single-run on
+Linux rather than being triplicated across operating systems.
+The dedicated Cloudflare portability job additionally builds and runs both the
+OpenNext and native Vite single-Worker profiles on Windows and macOS.
+
+**Fixtures:** `tests/fixtures/compatibility/` — frozen-install compatibility matrices for
+Drizzle + Better Auth + oRPC runtime contracts, a Next production build, and Expo
+type/tooling probes.
+
+`test:generated` defaults to `next-monorepo` and `single-next`; `--all` runs 24
+configured representative corners rather than an exhaustive Cartesian product.
+Every generated corner and every frozen fixture lock runs a blocking
+`bun audit --audit-level=high`. The separate heavy `test:e2e-build` lifecycle
+also audits each installed dependency graph, then verifies
+format, an explicit typecheck, fail-closed `lint:all`, production build/start,
+health, and the exact local CLI architecture check across default, billing-all,
+TanStack messaging, TanStack Convex, custom capability-heavy, and web/Expo/Electron projects.
+`test:ci` also runs the real typed oRPC WebSocket runtime probe.
 
 **Generation smoke test (manual QA):**
 
@@ -323,8 +391,17 @@ cd /tmp/gi-test/demo
 cat turbo.json | grep globalEnv
 cat bunfig.toml
 ls packages/ packages/billing/src/providers/
-bun install && bun run typecheck && bun run lint
+bun run install:bootstrap && bun run typecheck && bun run lint:all && bun run test
 ```
+
+For `--deploy vercel`, `--deploy docker`, `--deploy fly`, or
+`--deploy cloudflare`, a `--no-install` project is not yet deployable: run
+`bun run install:bootstrap` with Bun 1.4.0 to create and attest the regular root
+`bun.lock` before lifecycle scripts run. Vercel runs
+the shared guard before both dependency installation and application build; the
+generated Dockerfile and Cloudflare build wrapper verify the same lock before
+their build paths. Missing and non-regular locks fail with corrective guidance
+before project dependency resolution.
 
 Checks: `turbo.json` globalEnv includes billing vars, `bunfig.toml` hoist=true, `packages/versions` catalog used, no `export *` in billing barrels.
 
@@ -340,17 +417,33 @@ Checks: `turbo.json` globalEnv includes billing vars, `bunfig.toml` hoist=true, 
   ```bash
   # edit packages/versions/src/index.ts ghostinitVersion = "0.x.y"
   # edit package.json version = same
-  bun run build          # produces dist/cli.js + dist/**/*.d.ts real
-  npm pack               # via bun run release script
-  # verify tarball contains dist/cli.js, src/**, schemas/, README, LICENSE
-  npm publish --access public --provenance   # CI does this
+  bun run release
+  # Output: .ghostinit-release/ghostinit-<version>.tgz and its .sha256 sidecar
+  ```
+
+  `release:artifact` requires Bun 1.4.0, builds into a verified replacement
+  `dist/`, packs once, and reruns `tests/integration/packed-cli.test.ts` with
+  `GHOSTINIT_PACKED_TARBALL` bound to that exact tarball. The packed test rejects
+  paths outside the source allowlist and rejects any `dist/` file not derived
+  from a currently packed source. The sidecar is a SHA-256 integrity record, not
+  registry provenance. Bun 1.4.0 does not provide a provenance-attestation flag,
+  so `publishConfig` deliberately makes no provenance claim and the release
+  command deliberately does not publish.
+
+  After independent approval, publish the already-tested path rather than
+  repacking the working tree:
+
+  ```bash
+  bun publish --access public .ghostinit-release/ghostinit-0.x.y.tgz
   ```
 
 - `CHANGELOG.md` — keep updated per release.
 
 ## Links
 
-- README: project usage
-- `docs/ARCHITECTURE.md`: deep GhostInit Layered Architecture (6-layer pragmatic inspired by DDD) + dependency graph + oRPC contract-first + billing flexibility
-- `docs/RESEARCH.md`: dependency version research from official registries + Context7
-- LICENSE: MIT
+- [README.md](./README.md): project usage
+- [AGENTS.md — Architecture](./AGENTS.md#architecture): dependency graph, oRPC, security, version, and generated-project invariants
+- [V1-to-V2 compatibility ledger](./evidence/compatibility/v1-to-v2.json) and [schema](./evidence/compatibility/v1-to-v2.schema.json): machine-readable compatibility and migration decisions
+- [DESIGN.md — Evidence and policy gates](./DESIGN.md#evidence-and-policy-gates) and [frontend engineering records](./docs/engineering/frontend-task-records/): design-system evidence and review provenance
+- [`packages/versions/src/index.ts`](./packages/versions/src/index.ts): dependency single source of truth, verified by `bun run check:versions`
+- [LICENSE](./LICENSE): MIT

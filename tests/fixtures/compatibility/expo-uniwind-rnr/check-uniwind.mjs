@@ -1,22 +1,20 @@
-import { readFileSync } from "fs";
-const pkgPath = "./node_modules/uniwind/package.json";
-try {
-  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-  console.log("uniwind package.json name:", pkg.name, "version:", pkg.version);
-  console.log("description:", pkg.description);
-  console.log("peerDeps:", JSON.stringify(pkg.peerDependencies));
-  // Check if RN binding (look for react-native export condition)
-  const hasRN = JSON.stringify(pkg.exports).includes("react-native");
-  console.log("has react-native export condition (RN binding):", hasRN);
-  if (pkg.description && pkg.description.includes("React Native")) {
-    console.log("PASS: uniwind is RN binding (founded-labs/Unistack), not Vue 2.0.3");
-  } else {
-    console.log("WARN: description doesn't mention React Native");
-  }
-  // Check if Vue? Vue package would have vue peer
-  const isVue = pkg.peerDependencies && pkg.peerDependencies.vue;
-  console.log("isVue (has vue peer):", !!isVue);
-} catch (e) {
-  console.error("FAIL uniwind check", e);
-  process.exit(1);
+import { readFileSync } from "node:fs";
+
+const pkg = JSON.parse(readFileSync("./node_modules/uniwind/package.json", "utf8"));
+const peerDependencies = pkg.peerDependencies ?? {};
+const exportsText = JSON.stringify(pkg.exports ?? {});
+
+if (pkg.name !== "uniwind") throw new Error(`Unexpected package name: ${String(pkg.name)}`);
+if (pkg.version !== "1.11.0") throw new Error(`Unexpected uniwind version: ${String(pkg.version)}`);
+if (typeof pkg.description !== "string" || !pkg.description.includes("React Native")) {
+  throw new Error("uniwind does not identify itself as a React Native binding");
 }
+if (!("react-native" in peerDependencies)) {
+  throw new Error("uniwind does not declare its react-native peer dependency");
+}
+if ("vue" in peerDependencies) throw new Error("Resolved uniwind package unexpectedly targets Vue");
+if (!exportsText.includes("react-native")) {
+  throw new Error("uniwind package exports do not contain a react-native condition");
+}
+
+console.log(`PASS: uniwind ${pkg.version} exposes the React Native package contract`);

@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import { selectFiles } from "./select.js";
 
 // Generic missing primitives needed by form-fields/dialogs — minimal, framework-agnostic
 // These were absent, causing generation-matrix alias resolution failure for
@@ -18,19 +19,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ 
 Textarea.displayName = "Textarea";
 `,
     ),
-    file(
-      "apps/web/src/components/ui/select.tsx",
-      `"use client";
-import * as React from "react";
-import { cn } from "../../lib/utils.js";
-export const Select = ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void; disabled?: boolean }) => <div data-slot="select" data-value={value} data-controlled={Boolean(onValueChange)}>{children}</div>;
-export const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ className, children, ...props }, ref) => <button ref={ref} data-slot="select-trigger" className={cn("flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", className)} {...props}>{children}</button>);
-SelectTrigger.displayName = "SelectTrigger";
-export const SelectValue = ({ placeholder, children }: { placeholder?: string; children?: React.ReactNode }) => <span data-slot="select-value">{children ?? placeholder}</span>;
-export const SelectContent = ({ children }: { children: React.ReactNode }) => <div data-slot="select-content" className="z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">{children}</div>;
-export const SelectItem = ({ children, value, disabled }: { children: React.ReactNode; value: string; disabled?: boolean }) => <div data-slot="select-item" data-value={value} className={cn("relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50", disabled && "opacity-50")}>{children}</div>;
-`,
-    ),
+    ...selectFiles(),
     file(
       "apps/web/src/components/ui/checkbox.tsx",
       `"use client";
@@ -40,7 +29,7 @@ import { Check } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 export const Checkbox = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<typeof BaseCheckbox.Root>>(({ className, ...props }, ref) => (
   <BaseCheckbox.Root ref={ref} data-slot="checkbox" className={cn("peer size-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:bg-primary data-[checked]:text-primary-foreground", className)} {...props}>
-    <BaseCheckbox.Indicator className="flex items-center justify-center text-current"><Check className="size-3" /></BaseCheckbox.Indicator>
+    <BaseCheckbox.Indicator className="flex items-center justify-center text-current"><Check aria-hidden /></BaseCheckbox.Indicator>
   </BaseCheckbox.Root>
 ));
 Checkbox.displayName = "Checkbox";
@@ -57,12 +46,12 @@ import { buttonVariants } from "./button.js";
 export const AlertDialog = BaseAlertDialog.Root;
 export const AlertDialogTrigger = BaseAlertDialog.Trigger;
 export const AlertDialogPortal = BaseAlertDialog.Portal;
-export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 z-50 bg-black/20 backdrop-blur-sm", className)} {...props} />);
+export const AlertDialogOverlay = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Backdrop>>(({ className, ...props }, ref) => <BaseAlertDialog.Backdrop ref={ref} data-slot="alert-dialog-overlay" className={cn("fixed inset-0 bg-foreground/40", className)} {...props} />);
 AlertDialogOverlay.displayName = "AlertDialogOverlay";
 export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseAlertDialog.Popup>>(({ className, ...props }, ref) => (
   <BaseAlertDialog.Portal>
-    <BaseAlertDialog.Backdrop className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm" />
-    <BaseAlertDialog.Popup ref={ref} data-slot="alert-dialog-content" className={cn("fixed start-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200", className)} {...props} />
+    <BaseAlertDialog.Backdrop className="fixed inset-0 bg-foreground/40" />
+    <BaseAlertDialog.Popup ref={ref} data-slot="alert-dialog-content" className={cn("fixed start-1/2 top-1/2 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 rtl:translate-x-1/2", className)} {...props} />
   </BaseAlertDialog.Portal>
 ));
 AlertDialogContent.displayName = "AlertDialogContent";

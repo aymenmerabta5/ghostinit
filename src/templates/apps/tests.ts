@@ -1,28 +1,79 @@
 import { file, type TemplateFile } from "../shared.js";
 
-export function testFiles(_runtime: "node" | "bun" = "bun"): TemplateFile[] {
-  return [playwrightConfig(), e2eSmokeTest(), webSmokeTest(_runtime)];
+export function testFiles(
+  runtime: "node" | "bun" = "bun",
+  framework: "nextjs" | "tanstack-start" = "nextjs",
+): TemplateFile[] {
+  return [playwrightConfig(framework), e2eSmokeTest(), webSmokeTest(runtime)];
 }
 
-function playwrightConfig(): TemplateFile {
+/** Single mode has no apps/web workspace, so its root test needs one real assertion. */
+export function singleWebSmokeTest(): TemplateFile {
+  return file(
+    "tests/smoke.test.ts",
+    `import { describe, expect, it } from "bun:test";
+import { cn } from "../src/lib/utils.js";
+
+describe("single web smoke", () => {
+  it("loads the generated UI utility", () => {
+    expect(cn("ready")).toBe("ready");
+  });
+});
+`,
+  );
+}
+
+function playwrightConfig(framework: "nextjs" | "tanstack-start"): TemplateFile {
+  const appUrl =
+    framework === "tanstack-start"
+      ? 'process.env.VITE_APP_URL ?? "http://localhost:3000"'
+      : 'process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"';
   return file(
     "apps/web/playwright.config.ts",
-    `import { defineConfig, devices } from "@playwright/test";\n\nexport default defineConfig({\n  testDir: "./e2e",\n  fullyParallel: true,\n  forbidOnly: !!process.env.CI,\n  retries: process.env.CI ? 2 : 0,\n  workers: process.env.CI ? 1 : undefined,\n  reporter: "list",\n  use: {\n    baseURL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",\n    trace: "on-first-retry",\n  },\n  projects: [\n    { name: "chromium", use: { ...devices["Desktop Chrome"] } },\n  ],\n});\n`,
+    `import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: "list",
+  use: {
+    baseURL: ${appUrl},
+    trace: "on-first-retry",
+  },
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+  ],
+});
+`,
   );
 }
 
 function e2eSmokeTest(): TemplateFile {
   return file(
     "apps/web/e2e/smoke.spec.ts",
-    `import { test, expect } from "@playwright/test";\n\ntest("homepage has correct title", async ({ page }) => {\n  await page.goto("/");\n  await expect(page).toHaveTitle(/GhostInit/);\n});\n`,
+    `import { test, expect } from "@playwright/test";
+
+test("homepage has correct title", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/GhostInit/);
+});
+`,
   );
 }
 
-function webSmokeTest(runtime: "node" | "bun"): TemplateFile {
+function webSmokeTest(_runtime: "node" | "bun"): TemplateFile {
   return file(
     "apps/web/tests/smoke.test.ts",
-    runtime === "bun"
-      ? `import { describe, it, expect } from "bun:test";\n\ndescribe("web smoke", () => {\n  it("has a landing page export", () => {\n    expect(typeof fetch).toBe("function");\n  });\n});\n`
-      : `import { describe, it, expect } from "vitest";\n\ndescribe("web smoke", () => {\n  it("has a landing page export", () => {\n    expect(typeof fetch).toBe("function");\n  });\n});\n`,
+    `import { describe, it, expect } from "bun:test";
+
+describe("web smoke", () => {
+  it("has a landing page export", () => {
+    expect(typeof fetch).toBe("function");
+  });
+});
+`,
   );
 }

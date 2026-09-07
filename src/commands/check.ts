@@ -2,7 +2,7 @@
  * ghostinit check implementation.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { ExitCode, ProjectStateError } from "../lib/errors.js";
@@ -11,30 +11,48 @@ import { envelope, printJson } from "../lib/json.js";
 import { loadState } from "../lib/state.js";
 import type { GlobalOptions } from "./types.js";
 import { getGlobalEnvKeys } from "../lib/env-manifest.js";
+import { FsTransaction } from "../lib/fs.js";
+import { acquireLock } from "../lib/lock.js";
 
 export async function fixTurboEnv(
   cwd: string,
   logger: GlobalOptions["logger"],
-): Promise<{ fixed: boolean; message: string }> {
+  options: { dryRun?: boolean } = {},
+): Promise<{ fixed: boolean; wouldFix: boolean; message: string }> {
   const turboPath = join(cwd, "turbo.json");
-  if (!existsSync(turboPath)) return { fixed: false, message: "turbo.json not found" };
+  if (!existsSync(turboPath))
+    return { fixed: false, wouldFix: false, message: "turbo.json not found" };
   try {
     const raw = await readFile(turboPath, "utf-8");
     const parsed = JSON.parse(raw) as { globalEnv?: string[]; [k: string]: unknown };
     const expected = getGlobalEnvKeys("bun");
     const actual = parsed.globalEnv ?? [];
     if (JSON.stringify(actual) === JSON.stringify(expected)) {
-      return { fixed: false, message: "turbo.json globalEnv already in sync" };
+      return { fixed: false, wouldFix: false, message: "turbo.json globalEnv already in sync" };
     }
     const missing = expected.filter((k) => !actual.includes(k));
     const extra = actual.filter((k) => !expected.includes(k as never));
     parsed.globalEnv = expected;
-    await writeFile(turboPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8");
+    if (options.dryRun) {
+      return {
+        fixed: false,
+        wouldFix: true,
+        message: `Would fix turbo.json globalEnv (${missing.length} added, ${extra.length} removed)`,
+      };
+    }
+    const tx = new FsTransaction(cwd);
+    await tx.write("turbo.json", `${JSON.stringify(parsed, null, 2)}\n`);
+    await tx.commit();
     logger.info(`Fixed turbo.json globalEnv: ${missing.length} added, ${extra.length} removed`);
-    return { fixed: true, message: `turbo.json globalEnv fixed (${missing.length} added)` };
+    return {
+      fixed: true,
+      wouldFix: true,
+      message: `turbo.json globalEnv fixed (${missing.length} added)`,
+    };
   } catch (err) {
     return {
       fixed: false,
+      wouldFix: false,
       message: `Failed to fix turbo.json: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
@@ -52,18 +70,31 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
 
   const wantsFix = Boolean(options.fix);
   const fixed: string[] = [];
+  const wouldFix: string[] = [];
   const fixMessages: string[] = [];
 
   if (wantsFix) {
-    const turboFix = await fixTurboEnv(options.cwd, options.logger);
-    if (turboFix.fixed) {
-      fixed.push("turbo.json");
-      fixMessages.push(turboFix.message);
-    } else if (
-      turboFix.message !== "turbo.json globalEnv already in sync" &&
-      turboFix.message !== "turbo.json not found"
-    ) {
-      fixMessages.push(turboFix.message);
+    const lock = options.dryRun
+      ? undefined
+      : await acquireLock(options.cwd, options.logger, { force: options.force });
+    try {
+      const turboFix = await fixTurboEnv(options.cwd, options.logger, {
+        dryRun: options.dryRun,
+      });
+      if (turboFix.fixed) {
+        fixed.push("turbo.json");
+        fixMessages.push(turboFix.message);
+      } else if (turboFix.wouldFix) {
+        wouldFix.push("turbo.json");
+        fixMessages.push(turboFix.message);
+      } else if (
+        turboFix.message !== "turbo.json globalEnv already in sync" &&
+        turboFix.message !== "turbo.json not found"
+      ) {
+        fixMessages.push(turboFix.message);
+      }
+    } finally {
+      await lock?.release();
     }
   }
 
@@ -84,8 +115,16 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
           findings,
           summary: { blockers, highs, mediums },
           fixed: wantsFix ? fixed : undefined,
+          wouldFix: wantsFix && options.dryRun ? wouldFix : undefined,
           fixMessages: wantsFix ? fixMessages : undefined,
         },
+        error: passed
+          ? undefined
+          : {
+              message: `Architecture check failed with ${blockers} blocker(s) and ${highs} high-severity finding(s)`,
+              code: "GENERAL_ERROR",
+              details: { blockers, highs, mediums },
+            },
         command: "check",
         durationMs,
       }),
@@ -93,7 +132,10 @@ export async function checkCommand(_args: string[], options: GlobalOptions): Pro
     return passed ? ExitCode.OK : ExitCode.GENERAL_ERROR;
   }
 
-  if (wantsFix && fixed.length > 0) {
+  if (wantsFix && options.dryRun && wouldFix.length > 0) {
+    options.logger.info(`[dry-run] Would auto-fix: ${wouldFix.join(", ")}`);
+    for (const m of fixMessages) options.logger.info(m);
+  } else if (wantsFix && fixed.length > 0) {
     options.logger.info(`Auto-fixed ${fixed.length} issue(s): ${fixed.join(", ")}`);
     for (const m of fixMessages) options.logger.info(m);
   } else if (wantsFix) {

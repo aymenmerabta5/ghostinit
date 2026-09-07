@@ -34,6 +34,8 @@ describe("billing provider — stripe", () => {
     };
     const files = billingFiles({ mode: "monorepo", addons: addonMap as never });
     const content = aggProvider(files, "stripe");
+    const portal =
+      files.find((entry) => entry.path.endsWith("providers/stripe/portal.ts"))?.content ?? "";
     expect(content).toContain("checkout.sessions.create");
     expect(content).toContain("line_items");
     expect(content).toContain("mode");
@@ -41,19 +43,19 @@ describe("billing provider — stripe", () => {
     expect(content).toContain("automatic_tax");
     expect(content).toContain("success_url");
     expect(content).toContain("cancel_url");
-    expect(content).toContain("clover");
-    expect(content).toContain("2025-09-30.clover");
+    expect(content).toContain("dahlia");
+    expect(content).toContain("2026-07-29.dahlia");
     expect(content).toContain("expand");
     expect(content).toContain("subscription");
     expect(content).toContain("billingPortal.sessions.create");
     expect(content).toContain("customer");
     expect(content).toContain("return_url");
-    expect(content).toContain("flow_data");
-    expect(content).toContain("subscription_update");
-    expect(content).toContain("webhooks.constructEvent");
+    expect(portal).not.toContain("flow_data");
+    expect(portal).not.toContain("subscription_update");
+    expect(content).toContain("webhooks.constructEventAsync");
     expect(content).toContain("rawBody");
     expect(content).toContain("Buffer");
-    expect(content).toContain("constructEvent");
+    expect(content).toContain("constructEventAsync");
     expect(content).toContain("checkout.session.completed");
     expect(content).toContain("invoice.paid");
     expect(content).toContain("subscription");
@@ -109,7 +111,7 @@ describe("billing provider — stripe", () => {
     const content = aggProvider(files, "stripe");
     expect(content.length).toBeGreaterThan(200);
     expect(content).toContain("createCheckout");
-    expect(content).toContain("constructEvent");
+    expect(content).toContain("constructEventAsync");
   });
 
   it("webhook verification must use raw Body Buffer — check file contains Buffer.from arrayBuffer pattern comment", () => {
@@ -134,9 +136,9 @@ describe("billing provider — stripe", () => {
     expect(stripe.includes("STRIPE_WEBHOOK_SECRET") || stripe.includes("webhookSecret")).toBe(true);
   });
 
-  it("version pinned in packages/versions.ts exists and is 19.x", async () => {
+  it("version pinned in packages/versions.ts is Stripe 22.5.0", async () => {
     const { billing } = await import("../../packages/versions");
     expect(billing.stripe).toBeDefined();
-    expect(billing.stripe.startsWith("19")).toBe(true);
+    expect(billing.stripe).toBe("22.5.0");
   });
 });

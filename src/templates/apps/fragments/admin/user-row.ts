@@ -1,41 +1,210 @@
 import { file, type TemplateFile } from "../../../shared.js";
-export function adminUserRow(): TemplateFile {
-  return file(
-    "apps/web/src/app/admin/users/components/user-row.tsx",
-    `"use client";
+import { adminFeatureRoot, type AdminTemplateOptions } from "./model.js";
+
+function userRowContent(): string {
+  return `"use client";
+
 import * as React from "react";
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import type { AdminUser } from "@repo/kernel";
-interface UserRowProps { user: AdminUser; onToggleBan: (id: string, banned: boolean) => void; onSetRole: (id: string, role: string) => void; }
-export function UserRow({ user, onToggleBan, onSetRole }: UserRowProps): React.JSX.Element {
-  const [banOpen, setBanOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
+import { TableCell, TableRow } from "@/components/ui/table";
+import {
+  UserRowConfirmationDialog,
+  type UserRowConfirmation,
+} from "./user-row-confirmation";
+import { useAdminUsersTranslations } from "../translations";
+import type { AdminUser, AdminUserRole } from "../types";
+
+export interface UserRowProps {
+  user: AdminUser;
+  rolePending: boolean;
+  banPending: boolean;
+  onToggleRole(identityId: string, currentRole: AdminUserRole): Promise<boolean>;
+  onToggleBanned(identityId: string, currentlyBanned: boolean): Promise<boolean>;
+}
+
+export function UserRow({
+  user,
+  rolePending,
+  banPending,
+  onToggleRole,
+  onToggleBanned,
+}: UserRowProps): React.JSX.Element {
+  const translate = useAdminUsersTranslations();
+  const [confirmation, setConfirmation] = React.useState<UserRowConfirmation>(null);
+  const canManage = user.identityId !== null;
+  const pending = confirmation === "role" ? rolePending : banPending;
+  const changingRole = confirmation === "role";
+
+  async function confirmAction(): Promise<void> {
+    if (!user.identityId || !confirmation) return;
+    const succeeded = changingRole
+      ? await onToggleRole(user.identityId, user.role)
+      : await onToggleBanned(user.identityId, user.banned);
+    if (succeeded) setConfirmation(null);
+  }
+
   return (
-    <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
-      <div className="flex flex-col gap-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="font-medium truncate">{user.name ?? user.email}</p>
-          <Badge variant="secondary" className="capitalize"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> {user.role}</span></Badge>
-          {user.banned ? <Badge variant="destructive">banned</Badge> : null}
-        </div>
-        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
-          <DialogTrigger asChild><Button size="sm" variant="outline">{user.role === "admin" ? "Demote" : "Make admin"}</Button></DialogTrigger>
-          <DialogContent><DialogHeader><DialogTitle>{user.role === "admin" ? "Demote user?" : "Make admin?"}</DialogTitle><DialogDescription>Change role for {user.email} to {user.role === "admin" ? "user" : "admin"}.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setRoleOpen(false)}>Cancel</Button><Button onClick={() => { onSetRole(user.id, user.role); setRoleOpen(false); }}>Confirm</Button></DialogFooter></DialogContent>
-        </Dialog>
-        <Dialog open={banOpen} onOpenChange={setBanOpen}>
-          <DialogTrigger asChild><Button size="sm" variant={user.banned ? "default" : "destructive"}>{user.banned ? "Unban" : "Ban"}</Button></DialogTrigger>
-          <DialogContent><DialogHeader><DialogTitle>{user.banned ? "Unban user?" : "Ban user?"}</DialogTitle><DialogDescription>{user.banned ? "Restore access for" : "Revoke access for"} {user.email}.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setBanOpen(false)}>Cancel</Button><Button variant={user.banned ? "default" : "destructive"} onClick={() => { onToggleBan(user.id, user.banned); setBanOpen(false); }}>{user.banned ? "Unban" : "Ban"}</Button></DialogFooter></DialogContent>
-        </Dialog>
-      </div>
-    </div>
+    <>
+      <TableRow>
+        <TableCell>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="truncate font-medium">{user.name ?? user.email}</span>
+            <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+          </div>
+        </TableCell>
+        <TableCell>
+          <Badge variant="secondary">
+            {translate(user.role === "admin" ? "roles.admin" : "roles.user")}
+          </Badge>
+        </TableCell>
+        <TableCell>
+          <Badge variant={user.banned ? "destructive" : "outline"}>
+            {translate(user.banned ? "status.suspended" : "status.active")}
+          </Badge>
+        </TableCell>
+        <TableCell>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!canManage || rolePending || banPending}
+              onClick={() => setConfirmation("role")}
+            >
+              {rolePending
+                ? translate("actions.updating")
+                : translate(user.role === "admin" ? "actions.demote" : "actions.promote")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!canManage || rolePending || banPending}
+              onClick={() => setConfirmation("ban")}
+            >
+              {banPending
+                ? translate("actions.updating")
+                : translate(user.banned ? "actions.restore" : "actions.suspend")}
+            </Button>
+          </div>
+        </TableCell>
+      </TableRow>
+
+      <UserRowConfirmationDialog
+        confirmation={confirmation}
+        user={user}
+        pending={pending}
+        canManage={canManage}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => void confirmAction()}
+      />
+    </>
   );
 }
-`,
+`;
+}
+
+function userRowConfirmationContent(): string {
+  return `"use client";
+
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { useAdminUsersTranslations } from "../translations";
+import type { AdminUser } from "../types";
+
+export type UserRowConfirmation = "role" | "ban" | null;
+
+export interface UserRowConfirmationDialogProps {
+  confirmation: UserRowConfirmation;
+  user: AdminUser;
+  pending: boolean;
+  canManage: boolean;
+  onCancel(): void;
+  onConfirm(): void;
+}
+
+export function UserRowConfirmationDialog({
+  confirmation,
+  user,
+  pending,
+  canManage,
+  onCancel,
+  onConfirm,
+}: UserRowConfirmationDialogProps): React.JSX.Element {
+  const translate = useAdminUsersTranslations();
+  const changingRole = confirmation === "role";
+  const nextRole = user.role === "admin" ? "user" : "admin";
+  return (
+    <AlertDialog open={confirmation !== null} onOpenChange={(open) => { if (!open && !pending) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {changingRole
+              ? translate(nextRole === "admin" ? "dialogs.grantTitle" : "dialogs.removeTitle")
+              : translate(user.banned ? "dialogs.restoreTitle" : "dialogs.suspendTitle")}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {changingRole
+              ? translate("dialogs.roleDescription", {
+                  email: user.email,
+                  role: translate(nextRole === "admin" ? "roles.admin" : "roles.user"),
+                })
+              : translate(user.banned ? "dialogs.restoreDescription" : "dialogs.suspendDescription", {
+                  email: user.email,
+                  role: translate(user.role === "admin" ? "roles.admin" : "roles.user"),
+                })}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+            {translate("dialogs.cancel")}
+          </Button>
+          <Button
+            type="button"
+            variant={!changingRole && !user.banned ? "destructive" : "default"}
+            disabled={!canManage || pending}
+            aria-busy={pending}
+            onClick={onConfirm}
+          >
+            {pending
+              ? translate("dialogs.saving")
+              : changingRole
+                ? translate("dialogs.confirmRole")
+                : translate(user.banned ? "dialogs.restoreAccount" : "dialogs.suspendAccount")}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
+}
+`;
+}
+
+export function adminUserRowFile(options: AdminTemplateOptions): TemplateFile {
+  return file(`${adminFeatureRoot(options)}/components/user-row.tsx`, userRowContent());
+}
+
+export function adminUserRowConfirmationFile(options: AdminTemplateOptions): TemplateFile {
+  return file(
+    `${adminFeatureRoot(options)}/components/user-row-confirmation.tsx`,
+    userRowConfirmationContent(),
+  );
+}
+
+/** @deprecated Use adminUserRowFile with explicit template options. */
+export function adminUserRow(): TemplateFile {
+  return adminUserRowFile({
+    database: "postgres",
+    framework: "next",
+    mode: "monorepo",
+    sourceRoot: "apps/web/src",
+  });
 }

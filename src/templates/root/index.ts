@@ -15,7 +15,12 @@ import {
 } from "./config.js";
 import { envExample, envLocal, webEnvLocal } from "./env.js";
 import { huskyFiles } from "./husky.js";
-import { deployFiles, type DeployTemplateContext } from "./deploy.js";
+import { deployFiles, type DeploymentProfile } from "./deploy.js";
+import { cloudflareWorkspaceFiles } from "./cloudflare-workspace.js";
+import {
+  dependencyAuditFiles,
+  integrateDependencyAuditManifest,
+} from "../tooling/dependency-audit.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import type { DeployTarget } from "../../lib/addons.js";
 export type { RootSecrets } from "./secrets.js";
@@ -28,12 +33,28 @@ export function rootFiles(
   runtime: "node" | "bun" = "bun",
   addonMap?: AddonInstallerMap | Record<string, { inUse: boolean }>,
   deploy: DeployTarget = "none",
-  deployContext: DeployTemplateContext = { mode: "monorepo", framework: "nextjs" },
+  profile?: Partial<DeploymentProfile>,
 ): TemplateFile[] {
-  const files = [
-    rootPackageJson(projectName, runtime, addonMap),
-    ...(runtime === "bun" ? [bunfig()] : []),
-    turbo(runtime),
+  const envAudience = profile
+    ? {
+        framework: profile.framework,
+        hasWeb: profile.apps?.includes("web") ?? true,
+        hasMobile: profile.apps?.includes("mobile") ?? false,
+        hasDesktop: profile.apps?.includes("desktop") ?? false,
+        hasEve: profile.eve === true,
+      }
+    : undefined;
+  const hasImageSizePatch = profile?.apps?.includes("mobile") ?? false;
+  const hasOpenNextPatch = deploy === "cloudflare" && profile?.framework === "nextjs";
+  const packageFile = integrateDependencyAuditManifest(
+    rootPackageJson(projectName, runtime, addonMap, profile),
+    hasImageSizePatch,
+    hasOpenNextPatch,
+  );
+  return [
+    packageFile,
+    bunfig(),
+    turbo(runtime, envAudience),
     rootTsConfig(),
     oxlintConfig(),
     oxlintIgnore(),
@@ -44,9 +65,11 @@ export function rootFiles(
     webEnvLocal(projectName, secrets, ctx),
     gitignore(),
     readme(projectName, runtime),
-    githubWorkflow(runtime),
+    githubWorkflow(runtime, deploy, profile),
     ...huskyFiles(),
-    ...deployFiles(projectName, deploy, deployContext),
+    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
+    ...cloudflareWorkspaceFiles(deploy, profile),
+    ...deployFiles(projectName, deploy, runtime, profile),
   ];
   if (deploy !== "cloudflare") return files;
   return files.map((entry) => ({

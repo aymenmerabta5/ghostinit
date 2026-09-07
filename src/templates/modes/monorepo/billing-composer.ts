@@ -11,18 +11,5 @@ export function billingComposerFiles(
   if (effectiveBilling.length > 0) {
     return billingFiles({ mode, runtime, addons }, runtime) as TemplateFile[];
   }
-  return billingFiles(
-    {
-      mode,
-      runtime,
-      addons: {
-        stripe: { inUse: false },
-        chargily: { inUse: false },
-        paddle: { inUse: false },
-        polar: { inUse: false },
-        billing: { inUse: false },
-      } as unknown as AddonInstallerMap,
-    },
-    runtime,
-  ) as TemplateFile[];
+  return [];
 }

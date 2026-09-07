@@ -12,6 +12,40 @@ export async function createChargilyCustomer(
   if (!input.email && !input.name)
     throw new Error("Chargily createCustomer: email or name required");
   const c = getChargilyClient(config);
+  const actorId = input.userId?.trim();
+  if (input.userId !== undefined && !actorId) {
+    throw new Error("CHARGILY_CUSTOMER_OWNER_INVALID: userId must not be empty");
+  }
+
+  const listed = await c.listCustomers(100);
+  const providerOwner = (customer: (typeof listed.data)[number]): string | null => {
+    const value = customer.metadata?.userId;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  };
+  const owned = actorId
+    ? listed.data.find((customer) => providerOwner(customer) === actorId)
+    : undefined;
+  if (owned) return { id: owned.id, providerCustomerId: owned.id };
+
+  const emailMatch = input.email
+    ? listed.data.find((customer) => customer.email === input.email)
+    : undefined;
+  if (actorId && emailMatch) {
+    const conflictingOwner = providerOwner(emailMatch);
+    if (conflictingOwner) {
+      throw new Error(
+        "CHARGILY_CUSTOMER_OWNER_CONFLICT: matching email belongs to another application actor",
+      );
+    }
+    // Never infer durable billing ownership from a recyclable email address.
+    // Operators must tag a legacy customer with the canonical application userId
+    // before GhostInit will adopt it into an actor-owned billing mapping.
+    throw new Error(
+      "CHARGILY_CUSTOMER_OWNER_UNVERIFIED: migrate the legacy provider customer with canonical userId metadata",
+    );
+  }
+  const existing = actorId ? undefined : emailMatch;
+  if (existing) return { id: existing.id, providerCustomerId: existing.id };
 
   const address = (() => {
     if (!input.address) return undefined;
@@ -31,7 +65,7 @@ export async function createChargilyCustomer(
     address,
     metadata: {
       ...(input.metadata as Record<string, unknown>),
-      userId: input.userId,
+      userId: actorId,
       provider: "chargily",
     } as Record<string, unknown>,
   });

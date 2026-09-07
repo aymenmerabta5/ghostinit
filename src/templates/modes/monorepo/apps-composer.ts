@@ -1,4 +1,4 @@
-// @allow-long 386: assembles app files plus the tsconfig path-alias matrix for every framework; the alias tables are data, and separating them from their consumer invites drift
+// @allow-long 430: assembles app files plus the tsconfig path-alias matrix for every framework; the alias tables are data, and separating them from their consumer invites drift
 import type { TemplateFile } from "../../shared.js";
 import { file, packageJson } from "../../shared.js";
 import {
@@ -6,49 +6,19 @@ import {
   tanstackStartFiles as genTanstackFiles,
   expoFiles as genExpoFiles,
 } from "../../apps/index.js";
-import { desktopCoreFiles } from "../../apps/desktop-core.js";
-import type { AddonInstallerMap, FrameworkName } from "../../../lib/addons.js";
+import { desktopCoreFiles } from "../../apps/desktop/index.js";
+import type { AddonInstallerMap, AppName, FrameworkName } from "../../../lib/addons.js";
 import { hasAddon } from "../../../lib/addons.js";
+import { integrateDesignSystemApplications, resolveDesignSystemApps } from "../../ui/index.js";
 
-function appsFilesWithConditionalEve(
+function appFilesForFramework(
   runtime: "node" | "bun",
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
+  _hasEmail = true,
 ): TemplateFile[] {
-  const hasEve = hasAddon(addons, "eve");
   const isTanstack = framework === "tanstack-start" || hasAddon(addons, "tanstack-start");
-  const base = isTanstack ? genTanstackFiles(runtime, addons) : genAppsFiles(runtime, addons);
-  if (hasEve || isTanstack) return base;
-  const nonEveConfig = file(
-    "apps/web/next.config.ts",
-    [
-      "import type { NextConfig } from 'next';",
-      "",
-      "const config: NextConfig = {",
-      "  reactStrictMode: true,",
-      "  poweredByHeader: false,",
-      "  async headers() {",
-      "    return [{ source: '/:path*', headers: [",
-      "      { key: 'X-Content-Type-Options', value: 'nosniff' },",
-      "      { key: 'X-Frame-Options', value: 'DENY' },",
-      "      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },",
-      "      { key: 'X-XSS-Protection', value: '0' },",
-      "      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },",
-      "      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },",
-      "      { key: 'Content-Security-Policy', value: \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com https://*.convex.cloud https://*.convex.site wss://*.convex.cloud; frame-ancestors 'none'; base-uri 'self'; form-action 'self';\", },",
-      "    ] }]; },",
-      "  async rewrites() { return [",
-      '    { source: "/ingest/static/:path*", destination: "https://us.i.posthog.com/static/:path*" },',
-      '    { source: "/ingest/:path*", destination: "https://us.i.posthog.com/:path*" },',
-      '    { source: "/ingest/decide", destination: "https://us.i.posthog.com/decide" },',
-      "  ]; },",
-      "  transpilePackages: ['@repo/analytics','@repo/api','@repo/auth','@repo/billing','@repo/config','@repo/contracts','@repo/database','@repo/email','@repo/kernel','@repo/modules','@repo/observability','@repo/services','@repo/ui'],",
-      "};",
-      "export default config;",
-      "",
-    ].join("\n"),
-  );
-  return [...base.filter((f: TemplateFile) => f.path !== "apps/web/next.config.ts"), nonEveConfig];
+  return isTanstack ? genTanstackFiles(runtime, addons) : genAppsFiles(runtime, addons);
 }
 
 function typescriptConfigWithAliases(
@@ -56,6 +26,23 @@ function typescriptConfigWithAliases(
   apps?: string[],
 ): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
+  const fromConfigPackage = (paths: Record<string, string[]>): Record<string, string[]> =>
+    Object.fromEntries(
+      Object.entries(paths).map(([alias, targets]) => [
+        alias,
+        targets.map((target) =>
+          target.startsWith("./") || target.startsWith("../") ? target : `../../${target}`,
+        ),
+      ]),
+    );
+  const configSourcePaths: Record<string, string[]> = {
+    "@repo/config": ["packages/config/src/index.ts"],
+    "@repo/config/server": ["packages/config/src/server.ts"],
+    "@repo/config/desktop-main": ["packages/config/src/desktop-main.ts"],
+    "@repo/config/next": ["packages/config/src/next.ts"],
+    "@repo/config/vite": ["packages/config/src/vite.ts"],
+    "@repo/config/expo": ["packages/config/src/expo.ts"],
+  };
   const explicitBasePaths: Record<string, string[]> = {
     "@/*": ["./src/*"],
     "@repo/*": ["packages/*/src", "tooling/*/src"],
@@ -67,8 +54,7 @@ function typescriptConfigWithAliases(
     "@repo/auth/*": ["packages/auth/src/*"],
     "@repo/billing": ["packages/billing/src/index.ts"],
     "@repo/billing/*": ["packages/billing/src/*"],
-    "@repo/config": ["packages/config/src/index.ts"],
-    "@repo/config/*": ["packages/config/src/*"],
+    ...configSourcePaths,
     "@repo/contracts": ["packages/contracts/src/index.ts"],
     "@repo/contracts/*": ["packages/contracts/src/*"],
     "@repo/database": ["packages/database/src/index.ts"],
@@ -103,7 +89,7 @@ function typescriptConfigWithAliases(
     "@repo/auth/*": ["packages/auth/src/*"],
     "@repo/billing": ["packages/billing/src/index.ts"],
     "@repo/billing/*": ["packages/billing/src/*"],
-    "@repo/config": ["packages/config/src/index.ts"],
+    ...configSourcePaths,
     "@repo/contracts": ["packages/contracts/src/index.ts"],
     "@repo/database": ["packages/database/src/index.ts"],
     "@repo/database/*": ["packages/database/src/*"],
@@ -132,7 +118,7 @@ function typescriptConfigWithAliases(
     "@repo/analytics": ["packages/analytics/src/index.ts"],
     "@repo/auth": ["packages/auth/src/index.ts"],
     "@repo/billing": ["packages/billing/src/index.ts"],
-    "@repo/config": ["packages/config/src/index.ts"],
+    ...configSourcePaths,
     "@repo/contracts": ["packages/contracts/src/index.ts"],
     "@repo/database": ["packages/database/src/index.ts"],
     "@repo/email": ["packages/email/src/index.ts"],
@@ -143,6 +129,7 @@ function typescriptConfigWithAliases(
     "@repo/services": ["packages/services/src/index.ts"],
     "@repo/storage": ["packages/storage/src/index.ts"],
     "@repo/ui": ["packages/ui/src/index.ts"],
+    "@repo/ui/*": ["packages/ui/src/*"],
     "@repo/testing": ["packages/testing/src/index.ts"],
     "@repo/workflows": ["packages/workflows/src/index.ts"],
   };
@@ -150,6 +137,9 @@ function typescriptConfigWithAliases(
   const explicitExpoPaths: Record<string, string[]> = {
     "@/*": ["./src/*"],
     "@repo/*": ["packages/*/src", "tooling/*/src"],
+    ...configSourcePaths,
+    "@repo/ui": ["packages/ui/src/index.ts"],
+    "@repo/ui/*": ["packages/ui/src/*"],
   };
 
   const baseFiles: TemplateFile[] = [
@@ -176,7 +166,7 @@ function typescriptConfigWithAliases(
             sourceMap: true,
             incremental: true,
             composite: false,
-            paths: explicitBasePaths,
+            paths: fromConfigPackage(explicitBasePaths),
           },
         },
         null,
@@ -195,7 +185,7 @@ function typescriptConfigWithAliases(
             composite: false,
             noEmit: true,
             types: ["bun-types", "node"],
-            paths: explicitNextPaths,
+            paths: fromConfigPackage(explicitNextPaths),
           },
         },
         null,
@@ -219,7 +209,7 @@ function typescriptConfigWithAliases(
             composite: false,
             verbatimModuleSyntax: false,
             erasableSyntaxOnly: false,
-            paths: explicitTanPaths,
+            paths: fromConfigPackage(explicitTanPaths),
           },
         },
         null,
@@ -237,10 +227,13 @@ function typescriptConfigWithAliases(
             noEmit: true,
             incremental: true,
             composite: false,
-            paths: {
+            paths: fromConfigPackage({
               "@/*": ["./src/*"],
               "@repo/*": ["packages/*/src"],
-            },
+              ...configSourcePaths,
+              "@repo/ui": ["packages/ui/src/index.ts"],
+              "@repo/ui/*": ["packages/ui/src/*"],
+            }),
           },
         },
         null,
@@ -254,11 +247,11 @@ function typescriptConfigWithAliases(
           extends: "./base.json",
           compilerOptions: {
             jsx: "react-jsx",
-            lib: ["ES2024"],
+            lib: ["ES2024", "DOM", "DOM.Iterable"],
             noEmit: true,
             incremental: true,
             composite: false,
-            paths: explicitExpoPaths,
+            paths: fromConfigPackage(explicitExpoPaths),
             types: ["bun-types", "node", "expo/types"],
           },
         },
@@ -284,6 +277,7 @@ function typescriptConfigWithAliases(
                 "~/*": ["./src/*"],
                 "@/*": ["./src/*"],
                 "@repo/*": ["../../packages/*/src"],
+                ...fromConfigPackage(configSourcePaths),
                 "@repo/api": ["../../packages/api/src/index.ts"],
                 "@repo/auth": ["../../packages/auth/src/index.ts"],
                 "@repo/auth/*": ["../../packages/auth/src/*"],
@@ -298,13 +292,20 @@ function typescriptConfigWithAliases(
                 "@repo/services": ["../../packages/services/src/index.ts"],
                 "@repo/storage": ["../../packages/storage/src/index.ts"],
                 "@repo/ui": ["../../packages/ui/src/index.ts"],
+                "@repo/ui/*": ["../../packages/ui/src/*"],
               },
               noEmit: true,
               incremental: true,
               composite: false,
               types: ["bun-types", "node", "vite/client"],
             },
-            include: ["src/**/*", "vite.config.ts", "../..//packages/typescript-config/*.json"],
+            include: [
+              "src/**/*",
+              "server/**/*",
+              "vite.config.ts",
+              "nitro.config.ts",
+              "../..//packages/typescript-config/*.json",
+            ],
             exclude: ["node_modules", ".output", "dist", ".tanstack", ".vinxi"],
           },
           null,
@@ -320,6 +321,7 @@ function typescriptConfigWithAliases(
               paths: {
                 "@/*": ["./src/*"],
                 "@repo/*": ["../../packages/*/src"],
+                ...fromConfigPackage(configSourcePaths),
                 "@repo/api": ["../../packages/api/src/index.ts"],
                 "@repo/analytics": ["../../packages/analytics/src/index.ts"],
                 "@repo/auth": ["../../packages/auth/src/index.ts"],
@@ -364,6 +366,7 @@ export function appsComposerFiles(
   addons: AddonInstallerMap,
   framework: FrameworkName = "nextjs",
   appsOrFrameworkMaybe?: string[] | FrameworkName,
+  hasEmail = true,
 ): TemplateFile[] {
   let effectiveFramework: FrameworkName = framework;
   let effectiveApps: string[] = ["web"];
@@ -394,14 +397,20 @@ export function appsComposerFiles(
   const hasMobile = effectiveApps.includes("mobile");
   const hasDesktop = effectiveApps.includes("desktop");
 
-  const webFiles = hasWeb ? appsFilesWithConditionalEve(runtime, addons, effectiveFramework) : [];
+  const webFiles = hasWeb
+    ? appFilesForFramework(runtime, addons, effectiveFramework, hasEmail)
+    : [];
   const mobileFiles = hasMobile ? genExpoFiles(runtime, addons) : [];
   const desktopFiles = hasDesktop ? desktopCoreFiles(runtime, addons) : [];
 
-  return [
-    ...webFiles,
-    ...mobileFiles,
-    ...desktopFiles,
-    ...typescriptConfigWithAliases(effectiveFramework, effectiveApps),
-  ];
+  return integrateDesignSystemApplications(
+    [
+      ...webFiles,
+      ...mobileFiles,
+      ...desktopFiles,
+      ...typescriptConfigWithAliases(effectiveFramework, effectiveApps),
+    ],
+    "monorepo",
+    resolveDesignSystemApps(effectiveApps as AppName[], effectiveFramework),
+  );
 }

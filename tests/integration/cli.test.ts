@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { cwd } from "node:process";
+import { eve as eveVersions, runtime } from "../../packages/versions/src/index.js";
 
 const CLI = join(cwd(), "dist", "cli.js");
 
@@ -22,6 +24,25 @@ describe("ghostinit CLI", () => {
     const result = spawnSync("node", [CLI, "--version"], { encoding: "utf-8" });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("ghostinit");
+  });
+
+  it("is side-effect-free when imported and still runs directly under Bun", () => {
+    const probe = join(tmp, "import-cli.mjs");
+    writeFileSync(
+      probe,
+      `import { main } from ${JSON.stringify(pathToFileURL(CLI).href)};\nprocess.stdout.write(\`import-safe:\${typeof main}\\n\`);\n`,
+    );
+
+    for (const executable of [process.execPath, "node"]) {
+      const imported = spawnSync(executable, [probe], { encoding: "utf-8" });
+      expect(imported.status, `${executable}: ${imported.stderr}`).toBe(0);
+      expect(imported.stdout).toBe("import-safe:function\n");
+      expect(imported.stderr).toBe("");
+    }
+
+    const direct = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf-8" });
+    expect(direct.status, direct.stderr).toBe(0);
+    expect(direct.stdout.trim()).toMatch(/^ghostinit \d+\.\d+\.\d+$/);
   });
 
   it("prints version as JSON envelope", () => {
@@ -56,6 +77,28 @@ describe("ghostinit CLI", () => {
     );
     expect(result.status).not.toBe(0);
     expect(result.stdout).toContain("success");
+  });
+
+  it("rejects platform workspace names for create and init before generation", () => {
+    for (const command of ["create", "init"] as const) {
+      for (const name of ["mobile", "desktop"] as const) {
+        const caseRoot = join(tmp, `${command}-${name}`);
+        mkdirSync(caseRoot, { recursive: true });
+        const result = spawnSync(
+          "node",
+          [CLI, command, name, "--cwd", caseRoot, "--no-install", "--json"],
+          { encoding: "utf-8" },
+        );
+
+        expect(result.status, `${command} ${name}: ${result.stderr}`).toBe(17);
+        const parsed = JSON.parse(result.stdout);
+        expect(parsed.success, `${command} ${name}`).toBe(false);
+        expect(parsed.error?.code, `${command} ${name}`).toBe("VALIDATION_ERROR");
+        expect(parsed.error?.message, `${command} ${name}`).toContain("reserved name");
+        const generatedRoot = command === "create" ? join(caseRoot, name) : caseRoot;
+        expect(existsSync(join(generatedRoot, "package.json")), `${command} ${name}`).toBe(false);
+      }
+    }
   });
 
   it("rejects reserved module names with INVALID_ARGUMENTS", () => {
@@ -246,12 +289,13 @@ describe("ghostinit CLI", () => {
     const projectRoot = join(tmp, "nodeapp");
     const fs = require("node:fs");
     const rootPackage = JSON.parse(fs.readFileSync(join(projectRoot, "package.json"), "utf-8"));
-    expect(rootPackage.packageManager).toContain("npm@10");
+    expect(rootPackage.packageManager).toBe(`bun@${runtime.bun}`);
     expect(rootPackage.scripts.dev).toContain("turbo run dev");
     const webPackage = JSON.parse(
       fs.readFileSync(join(projectRoot, "apps", "web", "package.json"), "utf-8"),
     );
-    expect(webPackage.scripts.test).toContain("npm run");
+    expect(webPackage.packageManager).toBe(`bun@${runtime.bun}`);
+    expect(webPackage.scripts.test).toContain("bun test");
   });
 
   it("creates agentic files and eve app", () => {
@@ -323,7 +367,7 @@ describe("ghostinit CLI", () => {
     const evePkg = JSON.parse(
       fs.readFileSync(join(projectRoot, "apps", "eve", "package.json"), "utf-8"),
     );
-    expect(evePkg.dependencies.eve).toContain("0.24.6");
+    expect(evePkg.dependencies.eve).toBe(eveVersions.eve);
 
     const agentTs = fs.readFileSync(join(projectRoot, "apps", "eve", "agent", "agent.ts"), "utf-8");
     expect(agentTs).toContain("defineAgent");

@@ -1,0 +1,7 @@
+[install]
+registry = "https://registry.npmjs.org/"
+minimumReleaseAge = 604800
+minimumReleaseAgeExcludes = []
+
+[install.lockfile]
+path = "bun.lock"

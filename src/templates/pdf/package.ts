@@ -10,10 +10,12 @@ export function pdfPackageJson(): string {
     dependencies: {
       "@react-pdf/renderer": \`^\${v.pdf["@react-pdf/renderer"]}\`,
       "dejavu-fonts-ttf": \`^\${v.pdf["dejavu-fonts-ttf"]}\`,
+      pdfkit: \`^\${v.pdf.pdfkit}\`,
       qrcode: \`^\${v.pdf.qrcode}\`,
-      "@repo/kernel": "workspace:*",
+      react: \`^\${v.nextStack.react}\`,
     },
     devDependencies: {
+      "bun-types": \`^\${v.runtime.bun}\`,
       "@types/node": \`^\${v.runtime["@types/node"]}\`,
       "@types/qrcode": \`^\${v.pdf["@types/qrcode"]}\`,
       "@types/react": \`^\${v.nextStack["@types/react"]}\`,
@@ -28,8 +30,8 @@ export function pdfPackageTsconfigContent(): string {
   return `import { tsconfig } from "../shared.js";
 export function pdfTsconfig(): string {
   return tsconfig({
-    include: ["src/**/*"],
-    compilerOptions: { types: ["node", "react"], jsx: "react-jsx", composite: true, declaration: true, outDir: "./dist", rootDir: "./src" },
+    include: ["src/**/*", "tests/**/*"],
+    compilerOptions: { types: ["bun-types/test", "node", "react"], jsx: "react-jsx", composite: true, declaration: true, outDir: "./dist", rootDir: "." },
   });
 }
 `;

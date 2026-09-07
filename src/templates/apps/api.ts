@@ -9,26 +9,47 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon, type AddonInstallerMap, type BillingProviderName } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
   healthFileContent,
+  nextOpenApiOperationsRouteContent,
   openapiFileContent,
 } from "./fragments/api.js";
 
 export function apiFiles(
-  _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
+  addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
-  return [authApiRoute(), orpcApiRoute(), healthApiRoute(), openapiApiRoute()];
+  const trustedCloudflareRuntime =
+    addons !== undefined &&
+    !Array.isArray(addons) &&
+    hasAddon(addons as AddonInstallerMap, "cloudflare");
+  return [
+    authApiRoute(trustedCloudflareRuntime),
+    orpcApiRoute(),
+    openapiOperationsRoute(),
+    healthApiRoute(),
+    openapiApiRoute(),
+  ];
 }
 
-function authApiRoute(): TemplateFile {
-  return file("apps/web/src/app/api/auth/[...all]/route.ts", authFileContent("next"));
+function authApiRoute(trustedCloudflareRuntime: boolean): TemplateFile {
+  return file(
+    "apps/web/src/app/api/auth/[...all]/route.ts",
+    authFileContent("next", trustedCloudflareRuntime),
+  );
 }
 
 function orpcApiRoute(): TemplateFile {
-  return file("apps/web/src/app/api/[...path]/route.ts", orpcFileContent("next"));
+  return file("apps/web/src/app/api/rpc/[...path]/route.ts", orpcFileContent("next"));
+}
+
+function openapiOperationsRoute(): TemplateFile {
+  return file(
+    "apps/web/src/app/api/[...path]/route.ts",
+    nextOpenApiOperationsRouteContent("@repo/api"),
+  );
 }
 
 function healthApiRoute(): TemplateFile {

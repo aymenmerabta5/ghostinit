@@ -30,7 +30,7 @@ function aggProvider(files: any[], name: string) {
     .join("\n");
 }
 
-describe("paddle billing provider — full E2E Context7 verified", () => {
+describe("Paddle provider generation contract", () => {
   it("paddle.ts provider file exists in generated monorepo billing", () => {
     const files = billingFiles({ mode: "monorepo", runtime: "bun" } as any, "bun");
     const paddle = files.find((f) => f.path === "packages/billing/src/providers/paddle.ts");
@@ -121,13 +121,13 @@ describe("paddle billing provider — full E2E Context7 verified", () => {
     expect(content).toContain("@paddle/paddle-node-sdk");
   });
 
-  it("versions pinned in packages/versions.ts — stripe 19.x chargily 2.1.0 paddle 3.8.0 paddle-js 1.6.4 polar 0.48.1 polar nextjs 0.9.6", async () => {
+  it("uses the audited age-eligible billing provider versions", async () => {
     const { billing } = await import("../../packages/versions");
-    expect(billing.stripe).toMatch(/^19\./);
+    expect(billing.stripe).toBe("22.5.0");
     expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
-    expect(billing["@paddle/paddle-node-sdk"]).toBe("3.8.0");
-    expect(billing["@paddle/paddle-js"]).toBe("1.6.4");
-    expect(billing["@polar-sh/sdk"]).toBe("0.48.1");
+    expect(billing["@paddle/paddle-node-sdk"]).toBe("3.10.0");
+    expect(billing["@paddle/paddle-js"]).toBe("1.6.5");
+    expect(billing["@polar-sh/sdk"]).toBe("0.49.0");
     expect(billing["@polar-sh/nextjs"]).toBe("0.9.6");
   });
 
@@ -144,7 +144,7 @@ describe("paddle billing provider — full E2E Context7 verified", () => {
     expect(example).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
   });
 
-  it(".env.local contains real generated secrets via secret() for billing — gitignored", () => {
+  it("gitignored local env preserves explicitly supplied billing fixture values", () => {
     const files = rootFiles("demo", secrets, { dryRun: false });
     const local = files.find((f) => f.path === ".env.local")?.content ?? "";
     expect(local).toContain("PADDLE_API_KEY=");
@@ -157,35 +157,33 @@ describe("paddle billing provider — full E2E Context7 verified", () => {
     expect(local).not.toContain("REPLACE_WITH_PADDLE_API_KEY");
   });
 
-  it("gitignore blocks .env.local and .env", () => {
+  it("gitignore blocks .env.local via the recursive env policy while retaining examples", () => {
     const files = rootFiles("demo", secrets, { dryRun: false });
     const gi = files.find((f) => f.path === ".gitignore")?.content ?? "";
     expect(gi).toContain(".env\n");
-    expect(gi).toContain(".env.local");
+    expect(gi).toContain(".env.*\n");
+    expect(gi).toContain("!.env.example\n");
+    expect(gi).toContain("!.env.*.example\n");
   });
 
   it("t3env validation server-only for chargily/paddle/polar/stripe secrets NEVER client except NEXT_PUBLIC_ publishable", () => {
     const files = packageFiles("bun");
-    const env = files.find((f) => f.path === "packages/config/src/env.ts")?.content ?? "";
-    expect(env).toContain("PADDLE_API_KEY");
-    expect(env).toContain("PADDLE_WEBHOOK_SECRET");
-    expect(env).toContain("PADDLE_ENVIRONMENT");
-    expect(env).toContain("CHARGILY_API_KEY");
-    expect(env).toContain("CHARGILY_SECRET_KEY");
-    expect(env).toContain("POLAR_ACCESS_TOKEN");
-    expect(env).toContain("STRIPE_SECRET_KEY");
-    expect(env).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
-    expect(env).toContain("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-    expect(env).toContain("NEXT_PUBLIC_PADDLE_ENVIRONMENT");
-    const clientBlockMatch = env.match(/client:\s*\{[^}]+\}/s);
-    if (clientBlockMatch) {
-      const clientBlock = clientBlockMatch[0];
-      expect(clientBlock).not.toContain("PADDLE_API_KEY:");
-      expect(clientBlock).not.toContain("CHARGILY_API_KEY:");
-      expect(clientBlock).not.toContain("POLAR_ACCESS_TOKEN:");
-      expect(clientBlock).not.toContain("CHARGILY_SECRET_KEY:");
-      expect(clientBlock).not.toContain("PADDLE_WEBHOOK_SECRET:");
-    }
+    const server =
+      files.find((f) => f.path === "packages/config/src/server-schema.ts")?.content ?? "";
+    const next = files.find((f) => f.path === "packages/config/src/next.ts")?.content ?? "";
+    expect(server).toContain("PADDLE_API_KEY");
+    expect(server).toContain("PADDLE_WEBHOOK_SECRET");
+    expect(server).toContain("PADDLE_ENVIRONMENT");
+    expect(server).toContain("CHARGILY_API_KEY");
+    expect(server).toContain("CHARGILY_SECRET_KEY");
+    expect(server).toContain("POLAR_ACCESS_TOKEN");
+    expect(server).toContain("STRIPE_SECRET_KEY");
+    expect(next).toContain("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
+    expect(next).toContain("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+    expect(next).toContain("NEXT_PUBLIC_PADDLE_ENVIRONMENT");
+    expect(next).not.toMatch(
+      /\b(?:PADDLE_API_KEY|CHARGILY_API_KEY|POLAR_ACCESS_TOKEN|STRIPE_SECRET_KEY)\b/,
+    );
   });
 
   it("billing package.json contains paddle + chargily + stripe + polar deps when selected", () => {

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/component-registry.schema.json",
+  "title": "GhostInit semantic component registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "registryVersion",
+    "componentBase",
+    "iconLibraries",
+    "components"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/component-registry.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "registryVersion": { "const": "1.0.0" },
+    "componentBase": { "const": "base-ui" },
+    "iconLibraries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["web", "electron", "native"],
+      "properties": {
+        "web": { "const": "lucide-react" },
+        "electron": { "const": "lucide-react" },
+        "native": { "const": "lucide-react-native" }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/component" }
+    }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*$" },
+    "state": {
+      "enum": ["default", "hover", "focus", "active", "disabled", "selected", "loading", "error"]
+    },
+    "applicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "implementation", "importPattern", "primitive", "exports"],
+      "properties": {
+        "status": { "const": "applicable" },
+        "implementation": { "enum": ["shadcn-base-ui", "react-native-reusables"] },
+        "importPattern": { "type": "string", "pattern": "^@/components/ui/[a-z0-9-]+$" },
+        "primitive": { "type": "string", "minLength": 1 },
+        "exports": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" }
+        }
+      }
+    },
+    "inapplicable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "rationale"],
+      "properties": {
+        "status": { "const": "inapplicable" },
+        "rationale": { "type": "string", "minLength": 20 }
+      }
+    },
+    "mapping": {
+      "oneOf": [{ "$ref": "#/$defs/applicable" }, { "$ref": "#/$defs/inapplicable" }]
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "semanticImport", "targets", "requiredStates", "fixtures"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "category": { "$ref": "#/$defs/identifier" },
+        "semanticImport": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "targets": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["web", "electron", "native"],
+          "properties": {
+            "web": { "$ref": "#/$defs/mapping" },
+            "electron": { "$ref": "#/$defs/mapping" },
+            "native": { "$ref": "#/$defs/mapping" }
+          }
+        },
+        "requiredStates": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/state" }
+        },
+        "fixtures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^component\\.[a-z0-9.-]+\\.v[0-9]+$" }
+        }
+      }
+    }
+  }
+}

@@ -44,17 +44,17 @@ Pretest auto-builds. `--timeout 100000` required (generation heavy).
 4. wire `modes/monorepo/packages-composer.ts` + `root-composer.ts`
 5. verify `build && test && check`
 
-### New Billing Provider (7 files)
+### New Billing Provider (capability modules)
 
 See `references/billing-provider.md` full steps with stripe reference.
 
 1. versions billing group SDK dep
 2. `BILLING_PROVIDERS` in `constants.ts`
-3. `billing/providers/<name>/` 7 files `<300 LOC`: `client.ts` (server-only throws placeholder), `checkout.ts`, `customer.ts`, `portal.ts` (throw checkout-only if unsupported), `webhook.ts` (`Buffer.from(await request.arrayBuffer())`), `subscriptions.ts`, `mappers.ts` + explicit barrel `index.ts`
+3. `billing/providers/<name>/` small capability modules `<300 LOC`: start from the Stripe reference (`api-version.ts`, `client.ts`, `checkout.ts`, `customer.ts`, `portal.ts`, `webhook.ts`, `subscriptions.ts`, `mappers.ts`) and add only provider-specific modules that its capabilities require. Webhook routes must preserve a bounded raw `Buffer`; Stripe verification must `await stripe.webhooks.constructEventAsync(...)`. Keep provider barrels explicit and do not emit host-only declaration shims.
 4. barrels explicit + `billing/index.ts` switch + `BILLING_PROVIDER_NAMES`
 5. webhook factory `billing/webhooks/factory.ts` + `webhooks/providers/<name>.ts`
 6. `shared/env/billing.ts` `billingEnvLines()` + `ENV_PLACEHOLDERS` `constants.ts`
-7. turbo `globalEnv` in `root.ts` + root `turbo.json` 50+ exhaustive
+7. environment-manifest ownership + exact capability-scoped generated `globalEnv`
 8. UI `billing/ui/billing-page.tsx` conditional panel
 
 ### New Framework
@@ -63,7 +63,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 2. `apps/myframework-*.ts` templates: `core`, `api`, `pages`, `components` — see `tanstack-*`
 3. fragments DRY `apps/fragments/` with `RouterType` param — extract if >300 LOC or >30% duplication
 4. router `default.ts` `generateProjectFiles()` + `monorepo/index.ts`
-5. env already dual `NEXT_PUBLIC_*` + `VITE_*`
+5. env audiences: Next uses `NEXT_PUBLIC_*`, TanStack/desktop use `VITE_*`, and Expo uses `EXPO_PUBLIC_*`; emit only the selected audiences and keep their runtime schemas isolated
 6. turbo outputs `.next/** .vinxi/** .output/** dist/** .vercel/**`
 
 ### Expo RNR + Uniwind (Host Template)
@@ -102,11 +102,11 @@ Unified as addons via `--with-eve/--with-i18n` (preferred) + deprecated `--featu
 
 New var → MUST update same PR 5 places + skills:
 
-1. `src/lib/constants.ts` `ENV_PLACEHOLDERS` `"REPLACE_WITH_..."`
-2. `src/templates/shared/env/` builder: `billing.ts`, `core.ts`, `builders.ts` — emit example + local + dual client prefixes where client-safe
-3. `src/templates/root.ts` `turbo()` `globalEnv` exhaustive 50+
+1. `src/lib/env-manifest.ts` `ENV_PLACEHOLDERS` and environment key catalog (`constants.ts` re-exports it)
+2. `src/templates/shared/env/` builders: `billing.ts`, `core.ts`, `builders.ts` — emit example + local values for selected capabilities and app audiences; keep the matching config runtime schemas in sync
+3. `src/templates/root/turbo.ts` `turbo()` manifest-derived, capability-scoped `globalEnv`
 4. root `turbo.json` `globalEnv`
-5. docs `docs/ARCHITECTURE.md` + `AGENTS.md` tooling quirk + **MUST also update** `skills/ghostinit-use/` (`references/billing.md` or `workflows.md` or `frameworks.md` if user-visible) + `references/env-vars.md` this skill
+5. docs `AGENTS.md` + `CONTRIBUTING.md` tooling quirk + **MUST also update** `skills/ghostinit-use/` (`references/billing.md` or `workflows.md` or `frameworks.md` if user-visible) + `references/env-vars.md` this skill
 
 Miss one → env missing in generated or Turbo cache poisoned. Verify: grep globalEnv includes var + smoke `create demo` + cat `.env.example` includes var + cat generated `turbo.json` includes var.
 
@@ -123,14 +123,14 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - `src/generators/` — module, use-case, procedure, action, shared.ts AST
 - `src/templates/root/` — `package.ts` (husky 9.1.7 + prepare + check scripts), `husky.ts` (`.husky/pre-commit` + `lefthook.yml`), `turbo.ts`/`config.ts` (turbo.json, lint configs, workflow), `secrets.ts` + `env.ts` + `shared/env/` builders
 - `src/templates/` — see AGENTS.md + `references/templates.md`
-- `packages/versions/` — SSOT, `tooling/` (oxlint 1.73.0, oxfmt 0.58.0, turbo 2.10.4, husky 9.1.7, oxc-parser 0.139.0), `tests/`, `scripts/build.ts`, `scripts/sync-turbo-env.ts`, `scripts/check-versions.ts`
+- `packages/versions/` — dependency SSOT for host/generated tooling, `tests/`, `scripts/build.ts`, `scripts/sync-turbo-env.ts`, `scripts/check-versions.ts`
 
 ## Tooling Quirks
 
 - host `bunfig.toml` isolated hoist=false hermetic, generated hoist=true Next compat (TS7 quirk)
-- TS 6.0.3 stable not 7 — Next detection + Bun runner
-- Email default-on: `packages/email` uses React Email + Resend (`@react-email/components 1.0.12`, `@react-email/render 2.1.0`, `@react-email/tailwind 2.0.7`, `resend 6.18.1`) + `EmailLayout` Tailwind `pixelBasedPreset` hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, `MagicLink` template included; `frontend`/`custom` presets now `email:true` (was false) and `buildAddonInstallerMap` defaults `emailInUse = input.email ?? true`
-- React latest: `react 19.2.8`, `react-dom 19.2.8`, `@types/react 19.2.18`, `@types/react-dom 19.2.4` (SSOT `packages/versions/src/index.ts` `nextStack`)
+- TypeScript is runtime-scoped: Next.js uses the catalog's TS 7 CLI pin; TanStack/Vite and Expo remain on TS 6 while their tooling loads the JavaScript compiler API.
+- Email default-on: `packages/email` uses the supported unified React Email 6 package (`react-email`; components, Tailwind, and `render` share one import) + Resend, with versions from the central catalog. It includes an `EmailLayout` using Tailwind `pixelBasedPreset` and a hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, and a `MagicLink` template; `frontend`/`custom` presets use `email:true` and `buildAddonInstallerMap` defaults `emailInUse = input.email ?? true`.
+- React web stack uses the npm-latest compatible pins in `packages/versions/src/index.ts` `nextStack`; Expo keeps its official React line in `expoReact`.
 - Auth P2: `better-auth` plugins `magicLink`, `passkey`, `organization` added to `src/templates/auth.ts` (server `magicLink({sendMagicLink})` + `passkey()` + `organization()` and client `magicLinkClient`, `passkeyClient`, `organizationClient`), plus OAuth `GOOGLE_CLIENT_ID/SECRET` + `GITHUB_*` (`env-manifest` + `shared/env/core.ts` + `GLOBAL_ENV_KEYS` + `turbo` + `auth.ts` `socialProviders` spread) and `accountLinking` + `changeEmail` + `emailVerification`
 - Hooks: generated `husky 9.1.7` + `.husky/pre-commit` (oxlint + oxfmt --check + ghostinit check, set -e) + `lefthook.yml` alternative (`parallel: false`, oxlint/oxfmt/arch), `package.json` scripts `check`/`check:fix`/`doctor:fix`/`prepare: husky`, CI `.github/workflows/ci.yml` now `on: [push, pull_request]` with lint+typecheck+build+ghostinit check
 - Create dry-run: `create --dry-run --json` uses `FsTransaction.getStagedFiles()` → `DryRunFile[]:{path,size,bytes}` + `totalBytes`, text `237 files (394 kB)` + first 100 list, `previewFiles` cloned to avoid `[Circular]` via WeakSet redact
@@ -138,19 +138,21 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - Status verbose: `status --verbose` / `--list` exposes `mode, framework, database, billing, apps, preset, cache, deploy, procedures, checksumCount, generatedBy`
 - CI freshness: host `check-and-test` now runs `scripts/sync-turbo-env.ts --check` + `check:versions` (needs network) before test; `scripts/sync-turbo-env.ts` is SSOT for `turbo.json` vs `GLOBAL_ENV_KEYS`
 - build verifies real d.ts >10 bytes not fake `export {}` stub
-- Cache via Upstash Redis `@upstash/redis` 1.35.0 HTTP + memory fallback; env `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` placeholder `REPLACE_WITH_...` when cache off, real URL when enabled; turbo globalEnv includes both; `packages/cache` only emitted when `cache===redis` (or `--with-cache`), otherwise stripped with workspace deps removal
+- Deployment templates: `root/deploy.ts` + `deploy-guides.ts` emit exact Bun images, an ephemeral BuildKit env secret (never `COPY .env*`), runtime `COPY --chown=1000:1000`, `/api/health` image/Fly probes, 30-second Compose/Fly shutdown grace, and explicit named Eve Workflow volumes. `root/cloudflare.ts` emits the resolved Worker profile: OpenNext for Next.js or native Cloudflare Vite for TanStack, gitignored `.dev.vars`, separate production build/runtime variables, lock enforcement, artifact secret scanning, Wrangler type/dry-run commands, and Next R2 plus queue/sharded-tag Durable Object cache bindings. Cloudflare supports Convex/none and rejects PostgreSQL/Eve/PDF. Vercel validly uses provider-managed `bunVersion: "1.4.x"` while install/build invoke exact catalog Bun. Postgres 18 volumes mount `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
+- Cache via catalog-pinned Upstash Redis over HTTP is fail-closed; `packages/cache` is emitted only for `cache===redis` (or `--with-cache`). The same `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair owns atomic production API rate limiting when auth+transport are selected even if the cache package is off; placeholders permit only the bounded development/test limiter fallback. Turbo `globalEnv` and capability sanitization follow that ownership.
 - Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; `email` is now always emitted (React Email default-on) — not stripped; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
-- API RBAC: `packages/api/src/context.ts` exposes `role` + `sessionId` + `requireUser`/`requireAdmin`; `packages/api/src/middleware/auth.ts` provides `protectedProcedure(ctx)`/`adminProcedure(ctx)` (throw `ORPCError` `UNAUTHORIZED`/`FORBIDDEN`) + `rateLimit(key,limit,windowMs)` memory stub (integrate Upstash Redis when `cache=redis`). `health` + `me` still exist, `billing/*` procedures use `listSubscriptionsUseCase`.
+- API RBAC: `packages/api/src/context.ts` exposes `role` + `sessionId` + `requireUser`/`requireAdmin`; `packages/api/src/middleware/auth.ts` provides `protectedProcedure(ctx)`/`adminProcedure(ctx)` (throw `ORPCError` `UNAUTHORIZED`/`FORBIDDEN`). Mutation procedures use one atomic Upstash Redis `EVAL` through the REST pipeline; only development/test may use the bounded process-local fallback, and production fails closed even when the optional cache package is off. `health` + `me` still exist, `billing/*` procedures use `listSubscriptionsUseCase`.
 - Settings: `apps/web/src/app/settings/components/sessions-card.tsx` (`useState` + `authClient.listSessions`/`revokeSession`/`revokeSessions`, `Badge current`, `Revoke`) added to `settingsFiles()` (Next) and TanStack `settings/tanstack-page.ts` `Security` now links to `Sessions` + `Passkey & Magic Link` note + `Organization` enabled.
 - Admin: `admin/hooks/use-admin-users.ts` now `search`/`page`/`limit:20`/`offset` + `query:{limit,offset,search}`; `admin/users-page.tsx` search input + `Prev/Next` + `Page X/Y` + audit-log footnote.
 - Billing: `apps/web/src/app/billing/page.tsx` (and `routes/billing.tsx`) now real UI via `hooks/use-billing.ts` (`subscriptions`/`invoices`/`isCheckoutLoading`/`pastDue` + `handleCheckout(provider)` + `handlePortal`) emitted by `billing/index.ts` for both routers; `billingFiles()` emits hook for Next (`app/billing/hooks/use-billing.ts`) and TanStack (`routes/billing/hooks/use-billing.ts`).
-- Env prefix is framework-specific: `@repo/config` uses `@t3-oss/env-nextjs` (NEXT_PUBLIC_) for Next.js and `@t3-oss/env-core` with `clientPrefix: "VITE_"` for TanStack, emitting only that framework's public vars; listing both families together fails t3-env typecheck. Expo adds `EXPO_PUBLIC_` via separate config.
+- Env runtimes are audience-specific: `@repo/config/next` uses `NEXT_PUBLIC_`, `/vite` uses `VITE_` for TanStack and desktop renderers, and `/expo` uses `EXPO_PUBLIC_`. `/server` alone exposes server secrets; the root barrel exposes no env values. Single mode mirrors these under `src/lib/env/`. Shared env files contain only prefixes consumed by selected apps, and each client entry validates only its own prefix.
 
 ## Testing
 
 - `--timeout 100000` required
 - fixtures per-fixture `bun install` slow — skip unless compat
 - `bun run build && node dist/cli.js check` after template changes
+- `bun run test:workers` after Cloudflare/support-catalog changes; four installed profiles must build/scan, dry-run, and serve `/` plus `/api/health`
 - QA: turbo globalEnv 96 keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
 - `check --fix` / `doctor --fix` tested via drift injection (turbo.json truncated + placeholder `.env.local`) → mint+rewrite
 - See `references/testing.md`
@@ -162,6 +164,7 @@ Whenever you change host contributor workflow, you MUST update this skill in SAM
 - New package catalog group pattern
 - New billing provider 7-file pattern or factory pattern changed, or `ENV_PLACEHOLDERS` pattern
 - New framework `RouterType` pattern or fragments extraction trigger changed
+- New deploy target, support-catalog binding, Worker adapter, or provider lifecycle changed
 - New env 5-place location or verification command, new turbo globalEnv pattern
 - New convention: <400 LOC escape, composers <5 imports, no `export *`, FsTransaction, secret-safe, typed errors, versions SSOT
 - New testing quirk: timeout, fixtures, checker, QA
@@ -172,8 +175,8 @@ Whenever you change host contributor workflow, you MUST update this skill in SAM
 
 1. Update this `SKILL.md` adding-things/env decision tree + tooling quirks + conventions as affected + update `references/billing-provider.md`, `framework.md`, `env-vars.md`, `templates.md`, `testing.md` if topic specific.
 2. If usage also affected (new flag, new billing provider, new framework, new env var user fills, new add subcommand, new workflow), ALSO update `skills/ghostinit-use/` SKILL.md + refs per its checklist — sometimes both skills.
-3. Mirror: `rm -rf .claude/skills/ghostinit-dev .claude/skills/ghostinit-use && cp -r skills/ghostinit-dev .claude/skills/ && cp -r skills/ghostinit-use .claude/skills/` (Windows manual per file).
-4. Update `AGENTS.md` minimal delta + `docs/ARCHITECTURE.md` + `README.md` + `CONTRIBUTING.md` if affected.
+3. Mirror each file from `skills/ghostinit-dev` and `skills/ghostinit-use` to its corresponding `.claude/skills/` path with safe per-file writes. Do not recursively delete either tree. Verify identical relative-path sets and SHA-256 hashes afterward.
+4. Update `AGENTS.md`, `README.md`, and `CONTRIBUTING.md` if affected. When the public CLI or migration contract changes, update `evidence/compatibility/v1-to-v2.json` and its adjacent schema. When a frontend/design-system contract changes, update `DESIGN.md` and add or revise the applicable `docs/engineering/frontend-task-records/` record.
 5. `bun run format && bun run build && bun run check` must pass.
 
 Keep this skill lean with progressive `references/`. No slop. No duplicating usage content already in `ghostinit-use` — cross-reference instead.
@@ -183,7 +186,9 @@ Keep this skill lean with progressive `references/`. No slop. No duplicating usa
 When arch, billing, env vars, framework list, version, tooling quirks, file layout, conventions, or usage changes → same PR:
 
 - `AGENTS.md` minimal
-- `docs/ARCHITECTURE.md` deep DAG
+- `AGENTS.md#architecture` generated DAG and boundary invariants
+- `evidence/compatibility/v1-to-v2.json` + its adjacent schema when the V1/V2 CLI or migration mapping changes
+- `DESIGN.md#evidence-and-policy-gates` + `docs/engineering/frontend-task-records/` when frontend contract or review evidence changes
 - `README.md` user-facing + skills section
 - `CONTRIBUTING.md` how-to + skills abstraction rule + sync rule
 - `skills/ghostinit-use/` usage abstraction (zero-knowledge) + `skills/ghostinit-dev/` this skill + `references/` + `.claude/skills/` mirror
@@ -197,3 +202,4 @@ No drift. Verify `build && check`.
 - `references/env-vars.md` — 5-place + skills rule, patterns, verification
 - `references/templates.md` — composition pipeline monorepoFiles, dedup, fragments triggers, DRY
 - `references/testing.md` — test org, fixtures, smoke, version sync
+- `../ghostinit-use/references/cloudflare.md` - Worker support matrix, environment boundary, cache provisioning, and user commands

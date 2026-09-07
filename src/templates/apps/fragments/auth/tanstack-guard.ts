@@ -5,9 +5,23 @@
  */
 
 export function tanstackGetSessionFnContent(): string {
-  return `const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
-  const headers = getRequestHeaders() as unknown as Headers
-  const session = await (auth as unknown as { api: { getSession: (opts: { headers: Headers }) => Promise<{ user?: { id: string; email: string; name?: string | null; role?: string } } | null> } }).api.getSession({ headers })
+  return `type SessionResult = { user?: { id: string; email: string; name?: string | null; role?: string } } | null
+type SessionAuth = { api: { getSession: (opts: { headers: Headers }) => Promise<SessionResult> } }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function hasSessionApi(value: unknown): value is SessionAuth {
+  return isRecord(value) && isRecord(value.api) && typeof value.api.getSession === 'function'
+}
+
+const getSessionFn = createServerFn({ method: 'GET' }).handler(async () => {
+  const headers = new Headers()
+  getRequestHeaders().forEach((value, key) => headers.set(key, value))
+  const authCandidate: unknown = auth
+  if (!hasSessionApi(authCandidate)) throw new Error('Configured auth adapter does not expose a session API')
+  const session = await authCandidate.api.getSession({ headers })
   return session ?? null
 })`;
 }

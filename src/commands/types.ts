@@ -40,6 +40,10 @@ export interface GlobalOptions {
   withI18n?: boolean;
   withPdf?: boolean;
   withMessaging?: boolean;
+  withStorage?: boolean;
+  withNotifications?: boolean;
+  featureFlags?: import("../lib/addons.js").FeatureFlagProvider;
+  withJobs?: boolean;
   fix?: boolean;
   verbose?: boolean;
   list?: boolean;
@@ -52,6 +56,7 @@ export interface GlobalOptions {
   rawPreset?: string | string[];
   rawCache?: string | string[];
   rawDeploy?: string | string[];
+  rawFeatureFlags?: string | string[];
   logger: Logger;
 }
 

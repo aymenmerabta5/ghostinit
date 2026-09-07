@@ -3,6 +3,14 @@ import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./s
 import * as v from "./versions.js";
 import type { AddonInstallerMap } from "../lib/addons.js";
 import { hasAddon } from "../lib/addons.js";
+import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "./auth-security.js";
+import {
+  identityCapabilityFor,
+  identityPasskeyClientCapabilityFor,
+  identityDataModelBlueprint,
+  renderBetterAuthSchemaBindings,
+  type DataModelTarget,
+} from "../domain/data-model/index.js";
 
 export interface AuthSecrets {
   authSecret: string;
@@ -10,6 +18,23 @@ export interface AuthSecrets {
 }
 
 export type AuthFramework = "nextjs" | "tanstack-start";
+
+function identityCapabilityContent(target: DataModelTarget): string {
+  const capability = identityCapabilityFor(target);
+  const passkeyClientBindings = Object.fromEntries(
+    (["nextjs", "tanstack-start", "expo", "electron"] as const).map((clientTarget) => [
+      clientTarget,
+      identityPasskeyClientCapabilityFor(target, clientTarget),
+    ]),
+  );
+  return `// Generated from GhostInit's versioned identity data-model blueprint.
+export const identityTarget = ${JSON.stringify(target)} as const;
+export const selectedIdentityPlugins = ${JSON.stringify(capability.selectedPlugins)} as const;
+export const rejectedIdentityPlugins = ${JSON.stringify(capability.rejectedPlugins, null, 2)} as const;
+export const identitySchemaLimitations = ${JSON.stringify(capability.limitations, null, 2)} as const;
+export const identityPasskeyClientBindings = ${JSON.stringify(passkeyClientBindings, null, 2)} as const;
+`;
+}
 
 type AuthFrameworkInput =
   | AuthFramework
@@ -99,7 +124,11 @@ function resolveFrameworkAndConvex(
   return { framework, isConvex };
 }
 
-function postgresPackageFiles(framework: AuthFramework, hasMobile = false): TemplateFile[] {
+function postgresPackageFiles(
+  framework: AuthFramework,
+  hasMobile = false,
+  hasEmail = true,
+): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
   const cookieImport = isTanstack
     ? `import { tanstackStartCookies } from "better-auth/tanstack-start";`
@@ -118,6 +147,50 @@ import { expo } from "@better-auth/expo";`
     ? `
   trustedOrigins: [env.BETTER_AUTH_URL, "__APP_SCHEME__://"],`
     : "";
+  const emailImports = hasEmail
+    ? `
+import {
+  resolveEmailLocale,
+  sendEmail,
+  transactionalEmailSubject,
+  ResetPasswordEmail,
+  VerifyEmail,
+  MagicLinkEmail,
+} from "@repo/email/server";`
+    : "";
+  const resetPasswordHook = hasEmail
+    ? `
+    sendResetPassword: async ({ user, url }, request) => {
+      const appName = env.APP_NAME;
+      const locale = resolveEmailLocale(request?.headers);
+      const subject = transactionalEmailSubject("password-reset", locale, appName);
+      await sendEmail(user.email, subject, ResetPasswordEmail, { link: url, appName, locale });
+    },`
+    : "";
+  const verificationConfig = hasEmail
+    ? `
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }, request) => {
+      const locale = resolveEmailLocale(request?.headers);
+      await sendEmail(user.email, transactionalEmailSubject("verification", locale, env.APP_NAME), VerifyEmail, { link: url, appName: env.APP_NAME, locale });
+    },
+  },`
+    : "";
+  const magicLinkPlugin = hasEmail
+    ? `
+    magicLink({
+      storeToken: "hashed",
+      sendMagicLink: async ({ email, url }, context) => {
+        const locale = resolveEmailLocale(context?.request?.headers);
+        await sendEmail(email, transactionalEmailSubject("magic-link", locale, env.APP_NAME), MagicLinkEmail, { link: url, appName: env.APP_NAME, locale });
+      },
+    }),`
+    : "";
+  const emailPluginImport = hasEmail
+    ? 'import { magicLink } from "better-auth/plugins/magic-link";'
+    : "";
 
   return [
     file(
@@ -128,15 +201,18 @@ import { expo } from "@better-auth/expo";`
         exports: {
           ".": "./src/index.ts",
           "./client": "./src/client.ts",
+          "./server": "./src/server.ts",
           "./access": "./src/access.ts",
+          "./identity-capabilities": "./src/identity-capabilities.ts",
         },
         dependencies: {
+          "@better-auth/passkey": `^${v.auth["@better-auth/passkey"]}`,
           "better-auth": `^${v.auth["better-auth"]}`,
           "@better-auth/passkey": `^${v.auth["@better-auth/passkey"]}`,
           ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
           "@repo/database": "workspace:*",
-          "@repo/email": "workspace:*",
+          ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
         },
         devDependencies: {
           "@types/node": `^${v.runtime["@types/node"]}`,
@@ -148,13 +224,16 @@ import { expo } from "@better-auth/expo";`
     file(
       "packages/auth/tsconfig.json",
       tsconfig({
-        compilerOptions: { types: ["node", "react"], jsx: "react-jsx" },
+        compilerOptions: {
+          types: ["node"],
+          ...(hasEmail ? { jsx: "react-jsx" } : {}),
+        },
         include: ["src/**/*"],
       }),
     ),
     file(
-      "packages/auth/src/index.ts",
-      `import { betterAuth } from "better-auth";
+      "packages/auth/src/server.ts",
+      `import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from "better-auth";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -163,16 +242,29 @@ declare global {
 
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 ${cookieImport}${expoImport}
-import { admin, twoFactor, magicLink, organization } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
-import { env } from "@repo/config";
+import { admin } from "better-auth/plugins/admin";
+import { organization } from "better-auth/plugins/organization";
+import { twoFactor } from "better-auth/plugins/two-factor";
+${emailPluginImport}
+import { ac, roles } from "./access.js";
+import { env } from "@repo/config/server";
+${emailImports}
 import {
   db,
   accounts,
+  invitations,
+  members,
+  organizationRoles,
+  organizations,
+  passkeys,
+  rateLimits,
   sessions,
+  teamMembers,
+  teams,
   users,
   verifications,
-  twoFactor as twoFactorTable,
+  twoFactors,
 } from "@repo/database";
 
 if (env.BETTER_AUTH_URL.includes("localhost")) {
@@ -191,45 +283,57 @@ if (
 
 const isHttps = env.BETTER_AUTH_URL.startsWith("https://");
 
-export const auth = betterAuth({
+type AppAdminOptions = {
+  ac: typeof ac;
+  roles: typeof roles;
+  adminRoles: ("admin" | "superAdmin")[];
+};
+type AdminPlugin = ReturnType<typeof admin<AppAdminOptions>>;
+type PortableAuthOptions = BetterAuthOptions & { plugins: [AdminPlugin] };
+interface AdminCreationAuthContext {
+  generateId(options: { model: "user" | "account"; size?: number }): string | false;
+  password: {
+    hash(password: string): Promise<string>;
+    config: { minPasswordLength: number; maxPasswordLength: number };
+  };
+}
+export type Auth = Pick<BetterAuthServer<PortableAuthOptions>, "handler" | "api"> & {
+  readonly $context: Promise<AdminCreationAuthContext>;
+};
+
+${authNetworkSecurityHelpers}
+
+const authNetworkSecurity = resolveAuthNetworkSecurity(
+  env.BETTER_AUTH_URL,
+  env.TRUSTED_PROXY,
+);
+
+const configuredAuth = betterAuth({
   appName: env.APP_NAME,
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
-      user: users,
-      session: sessions,
-      account: accounts,
-      verification: verifications,
-      twoFactor: twoFactorTable,
+${renderBetterAuthSchemaBindings(identityDataModelBlueprint)}
     },
   }),
   emailAndPassword: {
-    enabled: true,
+    enabled: ${hasEmail ? "true" : "false"},
     autoSignInAfterRegistration: false,
-    requireEmailVerification: false,
-    sendResetPassword: async ({ user, url }) => {
-      const { sendEmail, ResetPasswordEmail } = await import("@repo/email");
-      await sendEmail(user.email, \`Reset your password - \${env.APP_NAME}\`, ResetPasswordEmail, { link: url, appName: env.APP_NAME });
-    },
-  },
-  emailVerification: {
-    sendOnSignUp: true,
-    autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      const { sendEmail, VerifyEmail } = await import("@repo/email");
-      await sendEmail(user.email, \`Verify your email - \${env.APP_NAME}\`, VerifyEmail, { link: url, appName: env.APP_NAME });
-    },
-  },
+    revokeSessionsOnPasswordReset: true,
+${hasEmail ? "    requireEmailVerification: true," : ""}${resetPasswordHook}
+  },${verificationConfig}
   socialProviders: {
     ...(env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_ID.startsWith("REPLACE_WITH") && env.GOOGLE_CLIENT_SECRET && !env.GOOGLE_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
     ...(env.GITHUB_CLIENT_ID && !env.GITHUB_CLIENT_ID.startsWith("REPLACE_WITH") && env.GITHUB_CLIENT_SECRET && !env.GITHUB_CLIENT_SECRET.startsWith("REPLACE_WITH") ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),
   },
   account: {
+    encryptOAuthTokens: true,
     accountLinking: {
-      enabled: true,
-      trustedProviders: ["google", "github"],
+      enabled: ${hasEmail ? "true" : "false"},
+      requireLocalEmailVerified: true,
+      ${hasEmail ? 'trustedProviders: ["google", "github"],' : "disableImplicitLinking: true,"}
     },
   },
   user: {
@@ -241,10 +345,12 @@ export const auth = betterAuth({
     },
   },
   session: {
+    // Passkey enrollment and OAuth-only deletion are sensitive operations.
+    // Keep the freshness window explicit and force their middleware to read the
+    // authoritative persisted session instead of a five-minute cookie snapshot.
+    freshAge: 60 * 5,
     cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5,
-      strategy: "compact",
+      enabled: false,
     },
   },
   cookie: {
@@ -252,31 +358,10 @@ export const auth = betterAuth({
     secure: isHttps,
     sameSite: "lax",
   },
-  rateLimit: {
-    enabled: true,
-    storage: "memory",
-    window: 60,
-    max: 100,
-  },
+${durableAuthRateLimitConfig}
   advanced: {
-    // Assigned directly rather than spread into an empty object — the ternary
-    // already yields the object (unicorn/no-useless-spread).
-    // IP tracking must stay ON: better-auth keys its rate limiter on the client
-    // IP, and disableIpTracking:true makes the limiter return before consuming a
-    // bucket — rateLimit.enabled:true above was completely inert (measured 0 of
-    // 300 sign-in attempts blocked).
-    //
-    // Behind a proxy (TRUSTED_PROXY=true) we read the forwarded headers. Without
-    // one we deliberately do NOT trust them: an attacker could otherwise rotate
-    // X-Forwarded-For to get a fresh bucket per request and bypass the limiter
-    // entirely. Leaving the list empty falls back to the socket address.
-    ipAddress:
-      env.TRUSTED_PROXY === "true"
-        ? {
-            ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
-            disableIpTracking: false,
-          }
-        : { ipAddressHeaders: [], disableIpTracking: false },
+    trustedProxyHeaders: authNetworkSecurity.trustedProxyHeaders,
+    ipAddress: authNetworkSecurity.ipAddress,
     backgroundTasks: {
       handler: (promise) => {
         if (typeof globalThis.waitUntil === "function") {
@@ -286,28 +371,39 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    ${expoPlugin}admin(),
-    twoFactor({ issuer: env.BETTER_AUTH_URL }),
-    magicLink({
-      sendMagicLink: async ({ email, url }) => {
-        const { sendEmail, MagicLinkEmail } = await import("@repo/email");
-        if (MagicLinkEmail) await (sendEmail as unknown as (a:string,b:string,c:unknown,d:unknown)=>Promise<void>)(email, \`Sign in to \${env.APP_NAME}\`, MagicLinkEmail as unknown as React.ComponentType<{link:string}>, { link: url });
-      },
+    ${expoPlugin}admin({ ac, roles, adminRoles: ["admin", "superAdmin"] }),
+    twoFactor({
+      issuer: env.BETTER_AUTH_URL,
+      twoFactorCookieMaxAge: 600,
+      accountLockout: { enabled: true, maxFailedAttempts: 5, durationSeconds: 900 },
     }),
+${magicLinkPlugin}
     passkey(),
-    organization(),
+    organization({
+      allowUserToCreateOrganization: false,
+      disableOrganizationDeletion: true,
+      teams: { enabled: true },
+      dynamicAccessControl: { enabled: true },
+    }),
     ${cookiePlugin},
   ],${trustedOrigins}
 });
 
-export type Auth = typeof auth;
+export const auth: Auth = configuredAuth;
+
+export async function getRequestUser(headers: Headers) {
+  const session = await auth.api.getSession({ headers });
+  return session?.user ?? null;
+}
+
 `,
     ),
     file(
       "packages/auth/src/client.ts",
       `import { createAuthClient } from "better-auth/react";
-import { adminClient, twoFactorClient, magicLinkClient, organizationClient } from "better-auth/client/plugins";
 import { passkeyClient } from "@better-auth/passkey/client";
+import { adminClient, twoFactorClient${hasEmail ? ", magicLinkClient" : ""}, organizationClient } from "better-auth/client/plugins";
+import { ac, roles } from "./access.js";
 
 export const authClient = createAuthClient({
   plugins: [
@@ -318,42 +414,52 @@ export const authClient = createAuthClient({
         }
       },
     }),
-    adminClient(),
-    magicLinkClient(),
-    passkeyClient(),
+    adminClient({ ac, roles }),
+${hasEmail ? "    magicLinkClient(),\n" : ""}    passkeyClient(),
     organizationClient(),
   ],
 });
 `,
     ),
+    file(
+      "packages/auth/src/index.ts",
+      `export { auth, getRequestUser, type Auth } from "./server.js";
+export {
+  ac,
+  roles,
+  ADMIN_ROLE_NAMES,
+  isAdminRole,
+  type AccessRole,
+  type AdminRole,
+} from "./access.js";
+export {
+  identitySchemaLimitations,
+  identityPasskeyClientBindings,
+  identityTarget,
+  rejectedIdentityPlugins,
+  selectedIdentityPlugins,
+} from "./identity-capabilities.js";
+`,
+    ),
+    file("packages/auth/src/identity-capabilities.ts", identityCapabilityContent("postgres")),
   ];
 }
 
-function convexClientContent(): string {
+function convexClientContent(framework: AuthFramework, hasEmail = true): string {
+  const publicEntry = framework === "tanstack-start" ? "vite" : "next";
+  const publicKey = framework === "tanstack-start" ? "VITE_APP_URL" : "NEXT_PUBLIC_APP_URL";
   return [
     `import { createAuthClient } from "better-auth/react";`,
     `import { convexClient } from "@convex-dev/better-auth/client/plugins";`,
-    `import { adminClient, twoFactorClient, magicLinkClient, organizationClient } from "better-auth/client/plugins";`,
-    `import { passkeyClient } from "@better-auth/passkey/client";`,
+    `import { twoFactorClient${hasEmail ? ", magicLinkClient" : ""} } from "better-auth/client/plugins";`,
+    `import { env } from "@repo/config/${publicEntry}";`,
     ``,
     `// Convex mode – client includes convexClient() plugin for ConvexBetterAuthProvider`,
-    `// baseURL uses CONVEX_SITE_URL / SITE_URL for crossDomain cookie flow`,
-    `function resolveBaseURL(): string | undefined {`,
-    `  if (typeof window !== "undefined") return undefined;`,
-    `  if (typeof process !== "undefined" && process.env) {`,
-    `    return (`,
-    `      process.env.CONVEX_SITE_URL ??`,
-    `      process.env.NEXT_PUBLIC_CONVEX_SITE_URL ??`,
-    `      process.env.VITE_CONVEX_SITE_URL ??`,
-    `      process.env.SITE_URL ??`,
-    `      undefined`,
-    `    );`,
-    `  }`,
-    `  return undefined;`,
-    `}`,
+    `// Only the framework's statically public app URL may cross this client boundary.`,
+    `const publicAuthBaseURL = env.${publicKey};`,
     ``,
     `export const authClient = createAuthClient({`,
-    `  baseURL: resolveBaseURL(),`,
+    `  baseURL: publicAuthBaseURL,`,
     `  plugins: [`,
     `    convexClient(),`,
     `    twoFactorClient({`,
@@ -363,44 +469,41 @@ function convexClientContent(): string {
     `        }`,
     `      },`,
     `    }),`,
-    `    adminClient(),`,
+    ...(hasEmail ? [`    magicLinkClient(),`] : []),
     `  ],`,
     `});`,
     ``,
   ].join("\n");
 }
 
-function convexServerNextContent(hasMobile = false): string {
-  const expoNote = hasMobile
-    ? `\n// Mobile enabled: ensure @better-auth/expo is installed and trustedOrigins includes scheme\nimport { expo } from "@better-auth/expo";`
-    : "";
+function convexServerNextContent(): string {
   return [
-    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";${expoNote}`,
+    `import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";`,
+    `import type { Preloaded } from "convex/react";`,
+    `import type { FunctionReference, FunctionReturnType, OptionalRestArgs } from "convex/server";`,
+    `import { api } from "../../../convex/_generated/api";`,
+    `import { env } from "@repo/config/server";`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
     `  if (!found) {`,
-    `    throw new Error(name + " must be set for Convex Better Auth. Expected one of: NEXT_PUBLIC_CONVEX_URL / CONVEX_URL / CONVEX_SITE_URL / SITE_URL. Run npx convex dev");`,
+    `    throw new Error(name + " must be set for Convex Better Auth. Run bunx convex dev");`,
     `  }`,
     `  return found;`,
     `}`,
     ``,
     `const convexUrl = requireEnv(`,
     `  "CONVEX_URL",`,
-    `  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CONVEX_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.VITE_CONVEX_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.CONVEX_URL : undefined,`,
+    `  env.CONVEX_URL,`,
     `);`,
     ``,
     `const convexSiteUrl = requireEnv(`,
     `  "CONVEX_SITE_URL / SITE_URL",`,
-    `  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.VITE_CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.SITE_URL : undefined,`,
+    `  env.CONVEX_SITE_URL,`,
+    `  env.SITE_URL,`,
     `);`,
     ``,
-    `const _secret = typeof process !== "undefined" ? process.env.BETTER_AUTH_SECRET : undefined;`,
+    `const _secret = env.BETTER_AUTH_SECRET;`,
     `if (!_secret || _secret.length < 32 || _secret.startsWith("REPLACE_WITH") || _secret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {`,
     `  throw new Error("BETTER_AUTH_SECRET must be set to a strong random value, at least 32 characters for convex mode");`,
     `}`,
@@ -428,15 +531,60 @@ function convexServerNextContent(hasMobile = false): string {
     `  return (await response.json()) as SessionPayload;`,
     `}`,
     ``,
+    `type AuthHandler = {`,
+    `  GET: (request: Request) => Promise<Response>;`,
+    `  POST: (request: Request) => Promise<Response>;`,
+    `};`,
+    `type PreloadAuthQuery = <Query extends FunctionReference<"query">>(`,
+    `  query: Query,`,
+    `  ...args: OptionalRestArgs<Query>`,
+    `) => Promise<Preloaded<Query>>;`,
+    `type FetchAuthQuery = <Query extends FunctionReference<"query">>(`,
+    `  query: Query,`,
+    `  ...args: OptionalRestArgs<Query>`,
+    `) => Promise<FunctionReturnType<Query>>;`,
+    `type FetchAuthMutation = <Mutation extends FunctionReference<"mutation">>(`,
+    `  mutation: Mutation,`,
+    `  ...args: OptionalRestArgs<Mutation>`,
+    `) => Promise<FunctionReturnType<Mutation>>;`,
+    `type FetchAuthAction = <Action extends FunctionReference<"action">>(`,
+    `  action: Action,`,
+    `  ...args: OptionalRestArgs<Action>`,
+    `) => Promise<FunctionReturnType<Action>>;`,
+    ``,
+    `// Explicit public signatures prevent @convex-dev/better-auth's private`,
+    `// convex-helpers EmptyObject alias from leaking into this package's declarations.`,
+    `export const handler: AuthHandler = convexAuth.handler;`,
+    `export const preloadAuthQuery: PreloadAuthQuery = convexAuth.preloadAuthQuery;`,
+    `export const isAuthenticated: () => Promise<boolean> = convexAuth.isAuthenticated;`,
+    `export const getToken: () => Promise<string | undefined> = convexAuth.getToken;`,
+    `export const fetchAuthQuery: FetchAuthQuery = convexAuth.fetchAuthQuery;`,
+    `export const fetchAuthMutation: FetchAuthMutation = convexAuth.fetchAuthMutation;`,
+    `export const fetchAuthAction: FetchAuthAction = convexAuth.fetchAuthAction;`,
+    ``,
+    `export async function getRequestUser() {`,
+    `  return await fetchAuthQuery(api.users.me, {});`,
+    `}`,
+    ``,
+    `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
+    `function isRequestHandler(value: unknown): value is RequestHandler {`,
+    `  return typeof value === "function";`,
+    `}`,
+    `function isHandlerMap(value: unknown): value is Record<string, unknown> {`,
+    `  return typeof value === "object" && value !== null;`,
+    `}`,
+    `async function dispatchAuthHandler(candidate: unknown, request: Request): Promise<Response> {`,
+    `  if (isRequestHandler(candidate)) return candidate(request);`,
+    `  if (isHandlerMap(candidate)) {`,
+    `    const methodHandler = candidate[request.method.toUpperCase()];`,
+    `    if (isRequestHandler(methodHandler)) return methodHandler(request);`,
+    `  }`,
+    `  return new Response("Method not allowed", { status: 405 });`,
+    `}`,
+    ``,
     `// Backwards compatible shim for code that does import { auth } from "@repo/auth" expecting auth.handler(req)`,
     `export const auth = {`,
-    `  handler: async (req: Request): Promise<Response> => {`,
-    `    const method = req.method.toUpperCase();`,
-    `    if (method === "GET") return handler.GET(req);`,
-    `    if (method === "POST") return handler.POST(req);`,
-    `    return new Response("Method not allowed", { status: 405 });`,
-    `  },`,
-    `  api: { getSession },`,
+    `  handler: (request: Request): Promise<Response> => dispatchAuthHandler(handler, request),`,
     `};`,
     ``,
     `export type Auth = typeof auth;`,
@@ -444,37 +592,32 @@ function convexServerNextContent(hasMobile = false): string {
   ].join("\n");
 }
 
-function convexServerTanstackContent(hasMobile = false): string {
-  const expoNote = hasMobile
-    ? `\n// Mobile enabled: ensure @better-auth/expo is installed\nimport { expo } from "@better-auth/expo";`
-    : "";
+function convexServerTanstackContent(): string {
   return [
-    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";${expoNote}`,
+    `import { convexBetterAuthReactStart } from "@convex-dev/better-auth/react-start";`,
+    `import { api } from "../../../convex/_generated/api";`,
+    `import { env } from "@repo/config/server";`,
     ``,
     `function requireEnv(name: string, ...candidates: (string | undefined)[]): string {`,
     `  const found = candidates.find((v) => !!v && v.trim() !== "");`,
     `  if (!found) {`,
-    `    throw new Error(name + " must be set for Convex Better Auth. Expected VITE_CONVEX_URL / CONVEX_SITE_URL / SITE_URL");`,
+    `    throw new Error(name + " must be set for Convex Better Auth. Run bunx convex dev");`,
     `  }`,
     `  return found;`,
     `}`,
     ``,
     `const convexUrl = requireEnv(`,
     `  "CONVEX_URL",`,
-    `  typeof process !== "undefined" ? process.env.VITE_CONVEX_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CONVEX_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.CONVEX_URL : undefined,`,
+    `  env.CONVEX_URL,`,
     `);`,
     ``,
     `const convexSiteUrl = requireEnv(`,
     `  "CONVEX_SITE_URL / SITE_URL",`,
-    `  typeof process !== "undefined" ? process.env.VITE_CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.CONVEX_SITE_URL : undefined,`,
-    `  typeof process !== "undefined" ? process.env.SITE_URL : undefined,`,
+    `  env.CONVEX_SITE_URL,`,
+    `  env.SITE_URL,`,
     `);`,
     ``,
-    `const _secret = typeof process !== "undefined" ? process.env.BETTER_AUTH_SECRET : undefined;`,
+    `const _secret = env.BETTER_AUTH_SECRET;`,
     `if (!_secret || _secret.length < 32 || _secret.startsWith("REPLACE_WITH") || _secret === "REPLACE_WITH_A_STRONG_SECRET_AT_LEAST_32_CHARS") {`,
     `  throw new Error("BETTER_AUTH_SECRET must be at least 32 chars for convex mode");`,
     `}`,
@@ -494,9 +637,28 @@ function convexServerTanstackContent(hasMobile = false): string {
     `  return (await response.json()) as SessionPayload;`,
     `}`,
     ``,
+    `export async function getRequestUser() {`,
+    `  return await fetchAuthQuery(api.users.me, {});`,
+    `}`,
+    ``,
+    `type RequestHandler = (request: Request) => Response | Promise<Response>;`,
+    `function isRequestHandler(value: unknown): value is RequestHandler {`,
+    `  return typeof value === "function";`,
+    `}`,
+    `function isHandlerMap(value: unknown): value is Record<string, unknown> {`,
+    `  return typeof value === "object" && value !== null;`,
+    `}`,
+    `async function dispatchAuthHandler(candidate: unknown, request: Request): Promise<Response> {`,
+    `  if (isRequestHandler(candidate)) return candidate(request);`,
+    `  if (isHandlerMap(candidate)) {`,
+    `    const methodHandler = candidate[request.method.toUpperCase()];`,
+    `    if (isRequestHandler(methodHandler)) return methodHandler(request);`,
+    `  }`,
+    `  return new Response("Method not allowed", { status: 405 });`,
+    `}`,
+    ``,
     `export const auth = {`,
-    `  handler,`,
-    `  api: { getSession },`,
+    `  handler: (request: Request): Promise<Response> => dispatchAuthHandler(handler, request),`,
     `};`,
     ``,
     `export type Auth = typeof auth;`,
@@ -504,11 +666,9 @@ function convexServerTanstackContent(hasMobile = false): string {
   ].join("\n");
 }
 
-function convexPackageFiles(framework: AuthFramework, hasMobile = false): TemplateFile[] {
+function convexPackageFiles(framework: AuthFramework, hasEmail = true): TemplateFile[] {
   const isTanstack = framework === "tanstack-start";
-  const serverContent = isTanstack
-    ? convexServerTanstackContent(hasMobile)
-    : convexServerNextContent(hasMobile);
+  const serverContent = isTanstack ? convexServerTanstackContent() : convexServerNextContent();
 
   return [
     file(
@@ -521,13 +681,12 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
           "./client": "./src/client.ts",
           "./server": "./src/server.ts",
           "./access": "./src/access.ts",
+          "./identity-capabilities": "./src/identity-capabilities.ts",
         },
         dependencies: {
           "better-auth": `^${v.auth["better-auth"]}`,
-          "@better-auth/passkey": `^${v.auth["@better-auth/passkey"]}`,
-          ...(hasMobile ? { "@better-auth/expo": `^${v.auth["@better-auth/expo"]}` } : {}),
           "@repo/config": "workspace:*",
-          "@repo/email": "workspace:*",
+          ...(hasEmail ? { "@repo/email": "workspace:*" } : {}),
           convex: `^${v.convex.convex}`,
           "@convex-dev/better-auth": `^${v.convex["@convex-dev/better-auth"]}`,
         },
@@ -547,8 +706,28 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
         include: ["src/**/*"],
       }),
     ),
-    file("packages/auth/src/index.ts", `export * from "./server.js";\n`),
-    file("packages/auth/src/client.ts", convexClientContent()),
+    file(
+      "packages/auth/src/index.ts",
+      `export { auth, getRequestUser, type Auth } from "./server.js";
+export {
+  ac,
+  roles,
+  ADMIN_ROLE_NAMES,
+  isAdminRole,
+  type AccessRole,
+  type AdminRole,
+} from "./access.js";
+export {
+  identitySchemaLimitations,
+  identityPasskeyClientBindings,
+  identityTarget,
+  rejectedIdentityPlugins,
+  selectedIdentityPlugins,
+} from "./identity-capabilities.js";
+`,
+    ),
+    file("packages/auth/src/identity-capabilities.ts", identityCapabilityContent("convex")),
+    file("packages/auth/src/client.ts", convexClientContent(framework, hasEmail)),
     file("packages/auth/src/server.ts", serverContent),
   ];
 }
@@ -556,11 +735,12 @@ function convexPackageFiles(framework: AuthFramework, hasMobile = false): Templa
 export function authPackage(
   frameworkOrAddons?: AuthFrameworkInput,
   maybeAddons?: Record<string, { inUse: boolean } | boolean> | AddonInstallerMap,
+  options: { hasEmail?: boolean } = {},
 ): TemplateFile[] {
   // Parameter types already line up with resolveFrameworkAndConvex — no cast needed.
   const { framework, isConvex } = resolveFrameworkAndConvex(frameworkOrAddons, maybeAddons);
-  // The expo() server plugin is only emitted when the project actually has a
-  // mobile app; @better-auth/expo is a mobile-only dependency.
+  // PostgreSQL auth owns its server options in this package. Convex auth owns
+  // them in convex/auth.ts, where the database renderer registers expo().
   const hasMobile = [frameworkOrAddons, maybeAddons].some((c) => {
     if (!c || typeof c !== "object") return false;
     try {
@@ -569,8 +749,9 @@ export function authPackage(
       return false;
     }
   });
+  const hasEmail = options.hasEmail ?? true;
   if (isConvex) {
-    return convexPackageFiles(framework, hasMobile);
+    return convexPackageFiles(framework, hasEmail);
   }
-  return postgresPackageFiles(framework, hasMobile);
+  return postgresPackageFiles(framework, hasMobile, hasEmail);
 }

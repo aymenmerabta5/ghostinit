@@ -30,33 +30,37 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
     billing: { inUse: true },
   } as never;
 
-  describe("monorepo paths: apps/web/src/app/api/webhooks/<provider>/route.ts all must use Buffer.from(await req.arrayBuffer())", () => {
+  describe("monorepo paths preserve raw request bytes and bound payload size before verification", () => {
     const files = billingFiles({ mode: "monorepo", addons: allProviders } as never, "bun");
     const providers = ["stripe", "chargily", "paddle", "polar"] as const;
 
     for (const provider of providers) {
-      it(`monorepo ${provider} webhook contains arrayBuffer — not req.json() critical 403 fix`, () => {
+      it(`monorepo ${provider} webhook streams one bounded raw body before verification`, () => {
         const path = `apps/web/src/app/api/webhooks/${provider}/route.ts`;
         const f = files.find((x: any) => x.path === path);
         expect(f, `missing ${path}`).toBeDefined();
-        expect(f!.content).toContain("arrayBuffer");
-        expect(f!.content).toContain("Buffer.from");
-        // Should NOT use req.json() as primary body parsing (comment explaining not to is okay, but must have arrayBuffer)
-        expect(f!.content.includes("arrayBuffer")).toBe(true);
+        expect(f!.content).toContain("body.getReader()");
+        expect(f!.content).toContain("readBoundedWebhookBody(declaredBodyRejection)");
+        expect(f!.content).toContain("await reader.cancel(");
+        expect(f!.content).not.toContain(".arrayBuffer(");
+        expect(f!.content).not.toContain("req.json()");
       });
     }
 
-    it("stripe monorepo: header stripe-signature missing 400, constructEvent raw Buffer sig secret try catch 400 Webhook Error", () => {
+    it("stripe monorepo: header stripe-signature missing 400, constructEventAsync raw Buffer sig secret try catch 400 Webhook Error", () => {
       const f = files.find((x: any) => x.path === "apps/web/src/app/api/webhooks/stripe/route.ts");
       expect(f).toBeDefined();
       const c = f!.content;
       expect(c).toContain("stripe-signature");
       expect(c).toContain("400");
-      expect(c).toContain("constructEvent");
+      expect(c).toContain("await stripe.webhooks.constructEventAsync");
+      expect(c).not.toContain("stripe.webhooks.constructEvent(");
       expect(c).toContain("Webhook Error");
-      expect(c).toContain("Buffer.from(await req.arrayBuffer())");
+      expect(c).toContain("readBoundedWebhookBody(declaredBodyRejection)");
+      expect(c).toContain("body.getReader()");
+      expect(c).not.toContain(".arrayBuffer(");
       expect(c).toContain("STRIPE_WEBHOOK_SECRET");
-      expect(c).toContain("2025-09-30.clover");
+      expect(c).toContain("2026-07-29.dahlia");
     });
 
     it("stripe monorepo idempotent via webhook_events unique provider+providerEventId check processed return 200 already processed, switch checkout.session.completed -> update checkout status completed create subscription, invoice.paid lifecycle broader vs payment_succeeded narrower, customer.subscription.updated/deleted, insert webhook_events processed true onConflictDoNothing return ok 200", () => {
@@ -85,7 +89,9 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       const c = f!.content;
       expect(c).toContain("signature");
       expect(c).toContain("verifySignature");
-      expect(c).toContain("Buffer.from(await req.arrayBuffer())");
+      expect(c).toContain("readBoundedWebhookBody(declaredBodyRejection)");
+      expect(c).toContain("body.getReader()");
+      expect(c).not.toContain(".arrayBuffer(");
       expect(c).toContain("CHARGILY_SECRET_KEY");
       expect(c).toContain("server-only");
       expect(c).toContain("400");
@@ -113,9 +119,10 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       expect(c).toContain("paddle-signature");
       expect(c).toContain("unmarshal");
       expect(c).toContain("toString");
-      expect(c).toContain("arrayBuffer");
+      expect(c).toContain("body.getReader()");
       expect(c).toContain("PADDLE_WEBHOOK_SECRET");
-      expect(c).toContain("Buffer.from(await req.arrayBuffer())");
+      expect(c).not.toContain(".arrayBuffer(");
+      expect(c.indexOf("readBoundedWebhookBody")).toBeLessThan(c.indexOf("webhooks.unmarshal"));
     });
 
     it("paddle monorepo: EventName TransactionCompleted SubscriptionCreated etc + idempotent dedup", () => {
@@ -134,12 +141,10 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       const f = files.find((x: any) => x.path === "apps/web/src/app/api/webhooks/polar/route.ts");
       expect(f).toBeDefined();
       const c = f!.content;
-      expect(c).toContain("arrayBuffer");
+      expect(c).toContain("body.getReader()");
+      expect(c).not.toContain(".arrayBuffer(");
       expect(c).toContain("POLAR_WEBHOOK_SECRET");
-      // Should mention validateEvent or @polar-sh/nextjs Webhooks helper
-      expect(
-        c.includes("validateEvent") || c.includes("Webhooks") || c.includes("@polar-sh/nextjs"),
-      ).toBe(true);
+      expect(c).toContain("validateEvent");
     });
 
     it("polar monorepo: idempotent dedup webhook_events + license + metering mentions", () => {
@@ -152,7 +157,7 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
     });
   });
 
-  describe("single paths: src/app/api/webhooks/<provider>/route.ts all must use Buffer.from(await req.arrayBuffer())", () => {
+  describe("single paths: src/app/api/webhooks/<provider>/route.ts use one bounded raw-body stream", () => {
     const files = billingFiles(
       {
         mode: "single",
@@ -169,12 +174,13 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
     const providers = ["stripe", "chargily", "paddle", "polar"] as const;
 
     for (const provider of providers) {
-      it(`single ${provider} webhook contains arrayBuffer`, () => {
+      it(`single ${provider} webhook bounds the stream without arrayBuffer`, () => {
         const path = `src/app/api/webhooks/${provider}/route.ts`;
         const f = files.find((x: any) => x.path === path);
         expect(f, `missing single ${path}`).toBeDefined();
-        expect(f!.content).toContain("arrayBuffer");
-        expect(f!.content).toContain("Buffer.from");
+        expect(f!.content).toContain("body.getReader()");
+        expect(f!.content).toContain("readBoundedWebhookBody(declaredBodyRejection)");
+        expect(f!.content).not.toContain(".arrayBuffer(");
       });
     }
   });
@@ -204,14 +210,14 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       });
     }
 
-    it("elysia stripe: header stripe-signature missing 400, constructEvent raw Buffer sig secret try catch 400 Webhook Error, idempotent dedup", () => {
+    it("elysia stripe: header stripe-signature missing 400, constructEventAsync raw Buffer sig secret try catch 400 Webhook Error, idempotent dedup", () => {
       if (isLegacyEmpty) return;
       const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks/stripe.ts");
       expect(f).toBeDefined();
       const c = f!.content;
       expect(c).toContain("stripe-signature");
       expect(c).toContain("400");
-      expect(c).toContain("constructEvent");
+      expect(c).toContain("constructEventAsync");
       expect(c).toContain("Webhook Error");
       expect(c).toContain("webhook_events");
       expect(c.includes("already processed") || c.includes("alreadyProcessed")).toBe(true);
@@ -298,7 +304,10 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       expect(local).toContain("CHARGILY_API_KEY=");
       expect(local).toContain("POLAR_ACCESS_TOKEN=");
       expect(local).not.toContain("REPLACE_WITH_PADDLE_WEBHOOK_SECRET");
-      expect(gitignore).toContain(".env.local");
+      expect(gitignore).toContain(".env\n");
+      expect(gitignore).toContain(".env.*\n");
+      expect(gitignore).toContain("!.env.example\n");
+      expect(gitignore).toContain("!.env.*.example\n");
     });
 
     it("api .env.example also contains placeholders", () => {

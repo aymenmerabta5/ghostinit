@@ -1,8 +1,10 @@
 # Host (ghostinit CLI itself) uses isolated installs for hermetic reproducibility
-# Generated projects use hoist=true (default) because Next.js 16.2.10 TS resolution breaks with isolated linker
+# Generated projects use hoist=true (default) because the supported Next.js 16 line's TS resolution breaks with isolated linker
 # See src/templates/root.ts bunfig() comment
 
 [install]
+# Lock and integrity evidence are reviewed against this exact public registry.
+registry = "https://registry.npmjs.org/"
 # Explicit linker strategy per Bun best practices (Context7: /oven-sh/bun docs/pm/isolated-installs.mdx)
 # isolated = each package gets its own node_modules, hermetic workspace behavior
 linker = "isolated"
@@ -10,10 +12,11 @@ linker = "isolated"
 # Generated projects omit this (default hoist=true) for Next.js compatibility
 hoist = false
 # Keep lockfile stable and deterministic - allow updates during development
-frozenLockfile = false
-
-[install.lockfile]
-path = "bun.lock"
+frozenLockfile = true
+# Reject newly published dependency versions for seven days by default. The
+# empty exclusion list is intentional: no package bypasses the age gate.
+minimumReleaseAge = 604800
+minimumReleaseAgeExcludes = []
 
 [install.scopes]
 # Default public registry

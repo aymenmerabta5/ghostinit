@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/runtime-node-compatibility-evidence.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "recordKind", "subject", "nodeVersion", "entries"],
+  "properties": {
+    "$schema": { "const": "./runtime-node.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "recordKind": { "const": "verification-contract" },
+    "subject": { "const": "execution-runtime:node" },
+    "nodeVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidenceEntry" }
+    }
+  },
+  "$defs": {
+    "nonEmptyUniqueStrings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "proofLevel", "tests", "scope", "limitations", "releaseGateClaim"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]*\\.v[1-9][0-9]*$"
+        },
+        "proofLevel": {
+          "enum": ["generated-install-typecheck-lint-contract", "packed-cli-no-install-contract"]
+        },
+        "tests": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidenceTest" }
+        },
+        "scope": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "limitations": { "$ref": "#/$defs/nonEmptyUniqueStrings" },
+        "releaseGateClaim": { "const": false }
+      }
+    },
+    "evidenceTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "id"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

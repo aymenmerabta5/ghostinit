@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/resolved-project-config.schema.json",
+  "title": "GhostInit V2 resolved project configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "catalogVersion",
+    "configHash",
+    "name",
+    "mode",
+    "runtime",
+    "packageManager",
+    "apps",
+    "backend",
+    "capabilities",
+    "enabledCapabilities"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "type": "object",
+            "required": ["messaging"],
+            "properties": { "messaging": { "const": true } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "enabledCapabilities": {
+            "type": "array",
+            "contains": { "const": "storage" }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/resolved-project-config.schema.json" },
+    "schemaVersion": { "const": 2 },
+    "catalogVersion": { "const": 2 },
+    "configHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "name": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
+    "mode": { "enum": ["monorepo", "single"] },
+    "runtime": { "enum": ["bun", "node"] },
+    "packageManager": { "$ref": "#/$defs/packageManager" },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/app" }
+    },
+    "backend": {
+      "oneOf": [{ "const": false }, { "$ref": "#/$defs/backend" }]
+    },
+    "capabilities": { "$ref": "#/$defs/capabilities" },
+    "enabledCapabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/capabilityId" }
+    }
+  },
+  "$defs": {
+    "capabilityId": {
+      "enum": [
+        "transport",
+        "auth",
+        "billing",
+        "messaging",
+        "email",
+        "storage",
+        "cache",
+        "analytics",
+        "i18n",
+        "pdf",
+        "eve",
+        "notifications",
+        "featureFlags",
+        "jobs"
+      ]
+    },
+    "packageManager": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "bun" },
+        "version": { "const": "1.4.0" }
+      }
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "deploy"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
+        "target": { "enum": ["nextjs", "tanstack-start", "expo", "electron"] },
+        "deploy": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostApp", "executionRuntime", "database"],
+      "properties": {
+        "hostApp": {
+          "type": "string",
+          "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$"
+        },
+        "executionRuntime": { "enum": ["bun", "node"] },
+        "database": { "enum": ["postgres", "convex", "none"] }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "auth",
+        "billing",
+        "messaging",
+        "email",
+        "storage",
+        "cache",
+        "analytics",
+        "i18n",
+        "pdf",
+        "eve",
+        "notifications",
+        "featureFlags",
+        "jobs"
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "messaging": { "const": true } } },
+          "then": { "properties": { "storage": { "const": true } } }
+        }
+      ],
+      "properties": {
+        "transport": { "type": "boolean" },
+        "auth": { "type": "boolean" },
+        "billing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "providers"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "providers": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["stripe", "chargily", "paddle", "polar"] }
+            }
+          }
+        },
+        "messaging": { "type": "boolean" },
+        "email": { "type": "boolean" },
+        "storage": { "type": "boolean" },
+        "cache": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "provider"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "enum": ["redis", "none"] }
+          }
+        },
+        "analytics": { "type": "boolean" },
+        "i18n": { "type": "boolean" },
+        "pdf": { "type": "boolean" },
+        "eve": { "type": "boolean" },
+        "notifications": { "type": "boolean" },
+        "featureFlags": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "provider"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": {
+              "oneOf": [{ "type": "null" }, { "const": "posthog" }]
+            }
+          }
+        },
+        "jobs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "userFacingApi"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "userFacingApi": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

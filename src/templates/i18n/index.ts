@@ -13,8 +13,10 @@ import { nextLocaleSwitcherComponent } from "./next/switcher.js";
 import { nextIntlPluginReadme } from "./next/readme.js";
 import { tanstackConfigFile } from "./tanstack/config.js";
 import { tanstackLibFile } from "./tanstack/lib.js";
+import { tanstackServerFile } from "./tanstack/server.js";
 import { tanstackLocaleSwitcherFile } from "./tanstack/switcher.js";
 import { tanstackReadmeFile } from "./tanstack/readme.js";
+export { surfaceTranslationFiles, type SurfaceFramework } from "./surface.js";
 
 export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): TemplateFile[] {
   const { mode, framework } = resolveI18nParams(a, b, c, d);
@@ -29,6 +31,7 @@ export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): T
         makeMessagesFile("apps/web/src/i18n/messages/fr.json", FR_MESSAGES),
         makeMessagesFile("apps/web/src/i18n/messages/ar.json", AR_MESSAGES),
         tanstackLibFile("apps/web/src/lib/i18n.ts"),
+        tanstackServerFile("apps/web/src/lib/i18n.server.ts"),
         tanstackLocaleSwitcherFile("apps/web/src/components/locale-switcher.tsx"),
         tanstackReadmeFile("apps/web/src/i18n/README.md"),
       ];
@@ -39,6 +42,7 @@ export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): T
       makeMessagesFile("src/i18n/messages/fr.json", FR_MESSAGES),
       makeMessagesFile("src/i18n/messages/ar.json", AR_MESSAGES),
       tanstackLibFile("src/lib/i18n.ts"),
+      tanstackServerFile("src/lib/i18n.server.ts"),
       tanstackLocaleSwitcherFile("src/components/locale-switcher.tsx"),
       tanstackReadmeFile("src/i18n/README.md"),
     ];
@@ -74,3 +78,4 @@ export function i18nFiles(a?: unknown, b?: unknown, c?: unknown, d?: unknown): T
 
 export { resolveI18nParams } from "./resolver.js";
 export { EN_MESSAGES, FR_MESSAGES, AR_MESSAGES } from "./messages/index.js";
+export { tanstackI18nServerContent, tanstackServerFile } from "./tanstack/server.js";

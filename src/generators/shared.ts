@@ -1,9 +1,12 @@
+// @allow-long 325: AST export discovery and shared transactional generator orchestration stay centralized
 import { readFileSync } from "node:fs";
 import { FsTransaction } from "../lib/fs.js";
-import { loadState, saveState } from "../lib/state.js";
+import { createManagedFileState, loadState, stageState } from "../lib/state.js";
 import { relativeChecksum } from "../lib/checksum.js";
 import type { GlobalOptions } from "../commands/types.js";
 import { parseSync as oxcParseSync } from "oxc-parser";
+import { ProjectStateError } from "../lib/errors.js";
+import type { State } from "../lib/config.js";
 
 export type ExportList = { values: string[]; types: string[] };
 
@@ -86,8 +89,9 @@ export function extractExportsAst(content: string): ExportList {
 export function parseUseCaseFile(
   cwd: string,
   moduleName: string,
+  moduleRoot = "packages/modules/src",
 ): { content: string; exports: ExportList; filePath: string } {
-  const filePath = `${cwd}/packages/modules/src/${moduleName}/application/index.ts`;
+  const filePath = `${cwd}/${moduleRoot}/${moduleName}/application/index.ts`;
   let content = "";
   try {
     content = readFileSync(filePath, "utf-8");
@@ -99,6 +103,7 @@ export function resolveUseCaseExport(
   exports: { values: string[] | Set<string>; types: string[] | Set<string> },
   moduleName: string,
   name: string,
+  moduleRoot = "packages/modules/src",
 ): { exportName: string; filePath: string; functionName: string; inputName: string } {
   const pascal = pascalCase(name);
   const values = exports.values instanceof Set ? exports.values : new Set(exports.values);
@@ -109,7 +114,7 @@ export function resolveUseCaseExport(
     if (values.has(fn) && types.has(input)) {
       return {
         exportName: fn,
-        filePath: `packages/modules/src/${moduleName}/application/${name}.${kind.toLowerCase()}.ts`,
+        filePath: `${moduleRoot}/${moduleName}/application/${name}.${kind.toLowerCase()}.ts`,
         functionName: fn,
         inputName: input,
       };
@@ -119,7 +124,7 @@ export function resolveUseCaseExport(
     if (v.toLowerCase().includes(pascal.toLowerCase())) {
       return {
         exportName: v,
-        filePath: `packages/modules/src/${moduleName}/application/${name}.ts`,
+        filePath: `${moduleRoot}/${moduleName}/application/${name}.ts`,
         functionName: v,
         inputName: `${pascal}Input`,
       };
@@ -135,6 +140,7 @@ export function resolveUseCaseFromCwd(
   cwd: string,
   moduleName: string,
   name: string,
+  moduleRoot = "packages/modules/src",
 ): {
   functionName: string;
   inputName: string;
@@ -142,9 +148,9 @@ export function resolveUseCaseFromCwd(
   filePath: string;
   exportName: string;
 } {
-  const { content, exports, filePath: indexPath } = parseUseCaseFile(cwd, moduleName);
+  const { content, exports, filePath: indexPath } = parseUseCaseFile(cwd, moduleName, moduleRoot);
   try {
-    const r = resolveUseCaseExport(exports, moduleName, name);
+    const r = resolveUseCaseExport(exports, moduleName, name, moduleRoot);
     return { ...r, content, filePath: indexPath };
   } catch {
     // regex fallback directly on content for edge cases
@@ -169,6 +175,76 @@ export interface GenerationContext {
   cwd: string;
   tx: FsTransaction;
   options: GlobalOptions;
+  state: State;
+  layout: GenerationLayout;
+  deferCommit: boolean;
+}
+
+export interface GenerationExecution {
+  /** Caller-owned transaction used to compose an artifact with its registries. */
+  transaction?: FsTransaction;
+  /** State already validated while the caller holds the project lock. */
+  state?: State;
+  deferCommit?: boolean;
+}
+
+export function createAddManagedFileState(state: State, path: string, content: string) {
+  const prior = state.files[path];
+  return createManagedFileState(
+    path,
+    content,
+    prior
+      ? {
+          owner: prior.owner,
+          lifecycle: prior.lifecycle,
+          provenance: prior.provenance,
+        }
+      : {
+          provenance: {
+            renderer: "ghostinit-add.v2",
+            source: "src/generators",
+            capability: null,
+            appId: null,
+            target: null,
+            artifacts: [],
+            acceptance: ["project.add.v2"],
+            contribution: ["add.artifact.v2"],
+          },
+        },
+  );
+}
+
+export interface GenerationLayout {
+  mode: "monorepo" | "single";
+  moduleRoot: string;
+  moduleTestsRoot: string;
+  apiRoot: string;
+  schemaRoot?: string;
+  actionRoot: string;
+  moduleImportPrefix: string;
+  apiEnabled: boolean;
+  framework: "nextjs" | "tanstack-start";
+}
+
+export function generationLayoutForState(state: State): GenerationLayout {
+  const single = state.project.mode === "single";
+  const apiEnabled = state.project.api ?? (state.project.preset === "frontend" ? false : true);
+  return {
+    mode: single ? "single" : "monorepo",
+    moduleRoot: single ? "src/server/modules" : "packages/modules/src",
+    moduleTestsRoot: single ? "tests/server/modules" : "packages/modules/tests",
+    apiRoot: single ? "src/server/api" : "packages/api/src",
+    schemaRoot:
+      state.project.database === "postgres"
+        ? single
+          ? "src/server/db/schema"
+          : "packages/database/src/schema"
+        : undefined,
+    actionRoot: single ? "src/app/actions" : "apps/web/src/actions",
+    moduleImportPrefix: single ? "@/server/modules" : "@repo/modules",
+    apiEnabled,
+    framework: state.project.framework,
+  };
 }
 
 export function nameFromKebab(name: string): string {
@@ -212,25 +288,41 @@ export function toSafeIdentifier(name: string): string {
 export async function prepareGeneration(
   cwd: string,
   options: GlobalOptions,
+  execution: GenerationExecution = {},
 ): Promise<GenerationContext> {
-  const tx = new FsTransaction(cwd);
-  return { cwd, tx, options };
+  const state = execution.state ?? (await loadState(cwd));
+  if (!state) {
+    throw new ProjectStateError("No GhostInit project state found", { cwd });
+  }
+  const tx = execution.transaction ?? new FsTransaction(cwd);
+  return {
+    cwd,
+    tx,
+    options,
+    state,
+    layout: generationLayoutForState(state),
+    deferCommit: execution.deferCommit ?? false,
+  };
 }
 
 export async function commitGeneration(ctx: GenerationContext): Promise<void> {
-  const state = await loadState(ctx.cwd);
-  if (!state) throw new Error("No GhostInit project state found");
   const staged = ctx.tx.getStagedFiles();
   if (staged.length === 0) return;
+  if (ctx.options.dryRun || ctx.deferCommit) return;
   const checksums = staged.map(({ path, content }) => relativeChecksum(ctx.cwd, path, content));
-  const { written } = await ctx.tx.commit();
-  if (written.length === 0) return;
-  try {
-    await saveState(ctx.cwd, state.project, checksums, state.modules, state.procedures);
-  } catch (err) {
-    try {
-      await ctx.tx.rollback();
-    } catch {}
-    throw err;
-  }
+  await stageState(
+    ctx.tx,
+    ctx.cwd,
+    ctx.state.project,
+    checksums,
+    ctx.state.modules,
+    ctx.state.procedures,
+    {
+      managedFiles: staged.map(({ path, content }) =>
+        createAddManagedFileState(ctx.state, path, content),
+      ),
+      existingState: ctx.state,
+    },
+  );
+  await ctx.tx.commit();
 }

@@ -1,76 +1,109 @@
-# Compatibility Audit Report: Drizzle + Better Auth + oRPC
+# Compatibility Fixture Report: Drizzle + Better Auth + oRPC
 
 Fixture: `tests/fixtures/compatibility/drizzle-betterauth-orpc/`
-Date: 2026-07-12
-Runtime: Bun 1.4.0
-Platform: Windows 11 Pro 10.0.26200
+
+- Current toolchain target: repository `runtime.bun`
+- Original audit date: 2026-07-12
+- Current verification refreshed: 2026-08-30 on Windows with the repository-pinned Bun version
 
 ## Goal
 
-Verify that the exact pinned versions below can be installed and typechecked together under Bun with TypeScript 6.0.3:
+Keep a reproducible compatibility fixture for the exact pinned Drizzle, Better
+Auth, oRPC, Zod, and TypeScript versions used by GhostInit. The committed
+fixture is exercised through frozen dependency installation, fixture-local
+TypeScript checking, targeted Bun tests, and explicit runtime probes.
 
-- `drizzle-orm` 0.45.2
-- `drizzle-kit` 0.31.10
-- `pg` 8.22.0
-- `better-auth` 1.6.23
-- `@orpc/server/contract/client/openapi` 1.14.7
-- `zod` 4.4.3
-- `typescript` 6.0.3
+## Current Pinned Versions
 
-## Files Created
+| Package          | Version |
+| ---------------- | ------- |
+| Bun              | `runtime.bun` |
+| `bun-types`      | `runtime.bun` |
+| `drizzle-orm`    | 0.45.2  |
+| `drizzle-kit`    | 0.31.10 |
+| `pg`             | 8.23.0  |
+| `better-auth`    | 1.6.30  |
+| `@orpc/server`   | 1.15.0  |
+| `@orpc/contract` | 1.15.0  |
+| `@orpc/client`   | 1.15.0  |
+| `@orpc/openapi`  | 1.15.0  |
+| `@orpc/zod`      | 1.15.0  |
+| `zod`            | 4.4.3   |
+| `@types/pg`      | 8.23.1  |
+| TypeScript       | 7.0.2   |
 
-- `package.json` — exact pinned versions, `type: "module"`, npm scripts.
-- `tsconfig.json` — `module: ESNext`, `moduleResolution: bundler`, Bun types included.
-- `src/db/schema.ts` — `users` table with uuid primary key and unique email; helper tables for Better Auth.
-- `src/db/index.ts` — no-op `pg.Pool` subclass and `drizzle(pool, { schema })` instance.
-- `src/auth.ts` — `betterAuth({ database: drizzleAdapter(db, { provider: "pg", schema: { ... } }) })`.
-- `src/orpc.ts` — contract via `@orpc/contract`, implementation via `implement().router()`, typed client via `@orpc/client` + `RPCLink`, OpenAPI JSON generation via `@orpc/openapi` and `@orpc/zod`.
-- `src/index.ts` — barrel exports.
-- `tests/fixture.test.ts` — no-op tests that import every module.
+## Current Root Fixture Runner
 
-## Commands, Exit Codes, and Output
+From the repository root, run:
 
-### 1. `bun install`
+```bash
+bun run test:fixtures
+```
 
-- Exit code: `0`
-- Installed 89 packages total. Top-level resolved pinned versions:
+The command runs `scripts/test-fixtures.ts`. The bounded runner requires Bun
+the repository-pinned Bun version and gives every stage a bounded timeout. For this fixture it performs, in
+order, `bun install --frozen-lockfile`, `bun run typecheck`, the fixture's Bun
+test suite, and `bun run check:runtime`. The same runner also fully exercises
+the committed Next/Oxlint/Oxfmt and Expo/Uniwind fixtures; do not prepend a
+separate install.
 
-| Package          | Resolved version |
-| ---------------- | ---------------- |
-| `drizzle-orm`    | 0.45.2           |
-| `drizzle-kit`    | 0.31.10          |
-| `pg`             | 8.22.0           |
-| `better-auth`    | 1.6.23           |
-| `@orpc/server`   | 1.14.7           |
-| `@orpc/contract` | 1.14.7           |
-| `@orpc/client`   | 1.14.7           |
-| `@orpc/openapi`  | 1.14.7           |
-| `@orpc/zod`      | 1.14.7           |
-| `zod`            | 4.4.3            |
-| `@types/pg`      | 8.11.14          |
-| `bun-types`      | 1.4.0            |
-| `typescript`     | 6.0.3            |
+The Bun test stage discovers two test files in this fixture:
 
-### 2. `bunx tsc --noEmit`
+- `tests/fixture.test.ts` defines five module, oRPC/OpenAPI, and Better Auth
+  access-plugin checks.
+- `tests/orpc-error-contract.test.ts` defines two structured-error checks.
 
-- Exit code: `0`
-- TypeScript 6.0.3 reports no errors across all source files with strict mode enabled.
+The current fixture suite therefore defines seven Bun tests.
 
-### 3. `bun test`
+The `check:runtime` package script owns the standalone runtime probes: direct
+fetch/OpenAPI/error checks plus a typed oRPC client-to-handler round trip. Keep
+those probes wired through that package script so the root runner remains the
+single compatibility entry point.
 
-- Exit code: `0`
-- Output: `3 pass`, `0 fail`, `6 expect() calls`.
-- Note: `better-auth` emits a `Base URL is not set` warning at runtime, which is expected because this fixture does not configure a `baseURL`.
+## Current Files and Coverage
 
-## Dependency Notes and Conflicts
+- `package.json` and `bun.lock` pin the isolated dependency graph.
+- `tsconfig.json` includes `src/**/*` and `tests/**/*` for the separate
+  `bun run typecheck` command.
+- `src/db/schema.ts` defines the Better Auth-compatible PostgreSQL tables.
+- `src/db/index.ts` creates a no-op pool and Drizzle instance without requiring
+  a live PostgreSQL server.
+- `src/auth.ts` constructs Better Auth with the built-in Drizzle adapter.
+- `src/orpc.ts` constructs the contract, router, typed client, and OpenAPI
+  generator.
+- `src/orpc-error-contract.ts` exercises structured oRPC error data.
+- The two files under `tests/` provide the seven tests run by the root
+  fixture command.
 
-- `@better-auth/drizzle-adapter` is a separate package, but Better Auth 1.6.23 still ships the built-in `better-auth/adapters/drizzle` entry point. This fixture uses the built-in adapter per the package documentation to avoid an extra dependency.
-- `@orpc/zod` is required for `ZodToJsonSchemaConverter` used by `@orpc/openapi`. It is not a dependency of `@orpc/openapi` itself, so it was explicitly installed at the same pinned 1.14.7 version.
-- `bun-types` is required so `bun:test` and the Bun globals typecheck under `tsc --noEmit`.
-- No peer dependency overrides or `--legacy-peer-deps` were needed.
-- `@orpc/next` was intentionally omitted per the task rules.
-- No runtime peer/dependency conflicts were reported by `bun install` or TypeScript.
+## Last Pre-Modernization Verification Record
 
-## Test-Only Runtime Note
+The 2026-08-30 root-runner verification completed with exit code 0 before the
+catalog modernization above. Regenerate the lock with Bun 1.4.0 and rerun the
+fixture gate before treating the new pins as verified:
 
-The Better Auth Drizzle adapter is configured with a no-op `pg.Pool`. During tests no real Postgres server is reached, so all schemas and connection types are verified statically. Better Auth's warning about a missing `baseURL` is benign for this fixture.
+- Frozen install: 90 installs checked across 182 packages, no changes.
+- TypeScript check: exit 0.
+- Bun tests: seven passed, zero failed, 19 assertions.
+- Standalone oRPC/OpenAPI and typed-client runtime probes: exit 0.
+- The complete runner also passed the Next production-build and Expo
+  compatibility stages.
+
+## Earlier Historical Record
+
+The original 2026-07-12 snapshot used Bun 1.3.14 and reported:
+
+- `bun install`: exit 0, 89 packages installed.
+- `bunx tsc --noEmit`: exit 0.
+- `bun test`: exit 0, three tests passed.
+
+Those results are retained only as historical context. The fixture has since
+moved to Bun and repository-matched `bun-types` and expanded to seven tests plus explicit
+runtime probes, so the old output does not verify the current tree.
+
+## Dependency and Runtime Notes
+
+- Better Auth 1.6.30 exposes the built-in
+  `better-auth/adapters/drizzle` entry point used here.
+- `@orpc/zod` is pinned explicitly for `ZodToJsonSchemaConverter`.
+- No peer-dependency override or legacy install mode is part of the fixture.
+- Tests construct a no-op PostgreSQL pool; they do not contact a real database.

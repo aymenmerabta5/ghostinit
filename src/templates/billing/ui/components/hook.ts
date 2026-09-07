@@ -2,104 +2,105 @@ export function billingHookContent(): string {
   return `"use client";
 import * as React from "react";
 import { toast } from "sonner";
+import { createBillingCheckoutAction, createBillingPortalAction, createBillingPaymentLinkAction } from "../actions";
+import { safeBillingProviderUrl } from "@/features/billing/provider-url";
+
 export type ProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export type SubStatus = "active" | "trialing" | "past_due" | "canceled" | "unpaid" | "incomplete" | "paused" | string;
 export interface Sub { id: string; provider: ProviderName; providerSubscriptionId: string; status: SubStatus; currentPeriodEnd?: string | Date | null; customerId?: string | null; metadata?: Record<string, unknown> | null; }
 export interface Inv { id: string; provider: ProviderName; amount: number; currency?: string; status: string; paid: boolean; hostedUrl?: string | null; }
 export interface LicenseKey { id: string; key: string; status: string; provider: ProviderName; }
 export interface UsageEvent { id: string; name: string; credits?: number; externalId?: string; provider: ProviderName; createdAt?: string | Date; }
+export interface BillingInitialData { subscriptions: unknown[]; invoices: unknown[]; licenseKeys: unknown[]; usageEvents: unknown[]; canCreatePaymentLinks?: boolean; }
 export interface UseBillingPageReturn {
   subscriptions: Sub[]; invoices: Inv[]; licenseKey: LicenseKey | null; usageEvents: UsageEvent[];
-  subsLoading: boolean; isCheckoutLoading: boolean; licenseLoading: boolean; usageLoading: boolean;
-  paymentLinkUrl: string | null; shareAfterMessage: string | null; pastDue: boolean; hasCustomerId: boolean;
+  subsLoading: boolean; isCheckoutLoading: boolean;
+  pastDue: boolean;
+  canCreatePaymentLinks: boolean; isPaymentLinkLoading: boolean;
+  handlePaymentLink: (provider: ProviderName, name: string, price: string) => Promise<string>;
   copyText: (v: string) => Promise<void>; handleCheckout: (provider: ProviderName) => Promise<void>; handlePortal: (provider: ProviderName) => Promise<void>;
-  createPaymentLink: () => Promise<void>; createLicenseKey: () => Promise<void>; ingestUsage: () => Promise<void>;
 }
+
+const BillingInitialDataContext = React.createContext<BillingInitialData | null>(null);
+export function BillingDataProvider({ children, initialData }: { children: React.ReactNode; initialData: BillingInitialData }): React.JSX.Element {
+  return React.createElement(BillingInitialDataContext.Provider, { value: initialData }, children);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function recordId(value: Record<string, unknown>): string | null {
+  return typeof value.id === "string" ? value.id : typeof value._id === "string" ? value._id : null;
+}
+function providerName(value: unknown): ProviderName | null {
+  return value === "stripe" || value === "chargily" || value === "paddle" || value === "polar" ? value : null;
+}
+function nullableString(value: unknown): string | null | undefined {
+  return value === null || typeof value === "string" ? value : undefined;
+}
+function nullableDate(value: unknown): string | Date | null | undefined {
+  return value === null || typeof value === "string" || value instanceof Date ? value : undefined;
+}
+function toSubscription(value: unknown): Sub | null {
+  if (!isRecord(value)) return null;
+  const id = recordId(value); const provider = providerName(value.provider);
+  if (!id || !provider || typeof value.providerSubscriptionId !== "string" || typeof value.status !== "string") return null;
+  return { id, provider, providerSubscriptionId: value.providerSubscriptionId, status: value.status, currentPeriodEnd: nullableDate(value.currentPeriodEnd), customerId: nullableString(value.customerId), metadata: value.metadata === null || isRecord(value.metadata) ? value.metadata : undefined };
+}
+function toInvoice(value: unknown): Inv | null {
+  if (!isRecord(value)) return null;
+  const id = recordId(value); const provider = providerName(value.provider);
+  if (!id || !provider || typeof value.amount !== "number" || typeof value.status !== "string") return null;
+  return { id, provider, amount: value.amount, currency: typeof value.currency === "string" ? value.currency : undefined, status: value.status, paid: value.paid === true, hostedUrl: nullableString(value.hostedUrl ?? value.url) };
+}
+function toLicenseKey(value: unknown): LicenseKey | null {
+  if (!isRecord(value)) return null;
+  const id = recordId(value); const provider = providerName(value.provider);
+  return id && provider && typeof value.key === "string" && typeof value.status === "string" ? { id, provider, key: value.key, status: value.status } : null;
+}
+function toUsageEvent(value: unknown): UsageEvent | null {
+  if (!isRecord(value)) return null;
+  const id = recordId(value); const provider = providerName(value.provider);
+  if (!id || !provider || typeof value.name !== "string") return null;
+  return { id, provider, name: value.name, credits: typeof value.credits === "number" ? value.credits : undefined, externalId: typeof value.externalId === "string" ? value.externalId : undefined, createdAt: typeof value.createdAt === "string" || value.createdAt instanceof Date ? value.createdAt : undefined };
+}
+
 export function useBillingPage(): UseBillingPageReturn {
-  const [subscriptions, setSubscriptions] = React.useState<Sub[]>([]);
-  const [invoices, setInvoices] = React.useState<Inv[]>([]);
-  const [licenseKey, setLicenseKey] = React.useState<LicenseKey | null>(null);
-  const [usageEvents, setUsageEvents] = React.useState<UsageEvent[]>([]);
-  const [subsLoading, setSubsLoading] = React.useState(false);
+  const initialData = React.useContext(BillingInitialDataContext);
+  const subscriptions = (initialData?.subscriptions ?? []).flatMap((value) => { const item = toSubscription(value); return item ? [item] : []; });
+  const invoices = (initialData?.invoices ?? []).flatMap((value) => { const item = toInvoice(value); return item ? [item] : []; });
+  const usageEvents = (initialData?.usageEvents ?? []).flatMap((value) => { const item = toUsageEvent(value); return item ? [item] : []; });
+  const licenseKey = (initialData?.licenseKeys ?? []).map(toLicenseKey).find((value): value is LicenseKey => value !== null) ?? null;
+  const subsLoading = initialData === null;
   const [isCheckoutLoading, setIsCheckoutLoading] = React.useState(false);
-  const [licenseLoading, setLicenseLoading] = React.useState(false);
-  const [usageLoading, setUsageLoading] = React.useState(false);
-  const [paymentLinkUrl, setPaymentLinkUrl] = React.useState<string | null>(null);
-  const [shareAfterMessage, setShareAfterMessage] = React.useState<string | null>(null);
+  const [isPaymentLinkLoading, setIsPaymentLinkLoading] = React.useState(false);
+  const canCreatePaymentLinks = initialData?.canCreatePaymentLinks === true;
   const pastDue = subscriptions.some((s) => s.status === "past_due");
-  const hasCustomerId = subscriptions.length > 0 && Boolean(subscriptions[0]?.customerId);
   async function copyText(v: string) { try { await navigator.clipboard.writeText(v); toast.success("Copied to clipboard"); } catch { toast.error("Copy failed"); } }
   async function handleCheckout(provider: ProviderName) {
     setIsCheckoutLoading(true);
     try {
-      type OrpcClient = { billing: { createCheckout: (args: { provider: ProviderName; priceId: string; successUrl: string; failureUrl: string }) => Promise<{ url: string }>; checkout?: (args: unknown) => Promise<{ url: string }> } };
-      const mod = await import("@/lib/orpc").catch(() => null as unknown as { orpc?: OrpcClient; client?: OrpcClient } | null);
-      const orpcClient = (mod as unknown as { orpc?: OrpcClient; client?: OrpcClient } | null)?.orpc ?? (mod as unknown as { client?: OrpcClient } | null)?.client;
-      if (orpcClient?.billing) {
-        try {
-          const res = await orpcClient.billing.createCheckout({ provider, priceId: "price_demo", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", });
-          if (res?.url) { window.location.href = res.url; return; }
-        } catch {}
-      }
-      const r = await fetch("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, priceId: "price_demo", successUrl: window.location.origin + "/billing/success", failureUrl: window.location.origin + "/billing/cancel", }), });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { url?: string; checkout_url?: string };
-      const url = data.url ?? data.checkout_url;
-      if (!url) throw new Error("No checkout url returned");
-      window.location.href = url;
+      const requestKey = crypto.randomUUID();
+      const result = await createBillingCheckoutAction({ provider, origin: window.location.origin, requestKey });
+      if (!result.url) throw new Error("No checkout url returned");
+      window.location.href = safeBillingProviderUrl(result.url);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Checkout failed"); } finally { setIsCheckoutLoading(false); }
   }
   async function handlePortal(provider: ProviderName) {
     try {
-      const sub = subscriptions.find((s) => s.provider === provider) ?? subscriptions[0];
-      if (!sub?.customerId) { toast.error("Customer not found yet"); return; }
-      const r = await fetch("/api/billing/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, customerId: sub.customerId, returnUrl: window.location.origin + "/billing" }), });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { url?: string };
-      if (!data.url) throw new Error("No portal url");
-      window.location.href = data.url;
+      const result = await createBillingPortalAction({ provider, origin: window.location.origin });
+      if (!result.url) throw new Error("No portal url");
+      window.location.href = safeBillingProviderUrl(result.url);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Portal failed"); }
   }
-  async function createPaymentLink() {
+  async function handlePaymentLink(provider: ProviderName, name: string, price: string): Promise<string> {
+    setIsPaymentLinkLoading(true);
     try {
-      const r = await fetch("/api/billing/payment-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "chargily", name: "Pro plan Algeria", items: [{ price: "price_demo", quantity: 1 }], after_completion_message: "Thank you, your payment was completed.", }), });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { url?: string; paymentLink?: { url?: string }; after_completion_message?: string };
-      setPaymentLinkUrl(data.url ?? data.paymentLink?.url ?? null);
-      setShareAfterMessage(data.after_completion_message ?? "Thank you, your payment was completed.");
-      toast.success("Payment link created");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Create payment link failed"); }
+      const result = await createBillingPaymentLinkAction({ provider, name, price });
+      return safeBillingProviderUrl(result.url);
+    } finally { setIsPaymentLinkLoading(false); }
   }
-  async function createLicenseKey() {
-    setLicenseLoading(true);
-    try {
-      const r = await fetch("/api/billing/license-key", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "polar", subscriptionId: subscriptions.find((s) => s.provider === "polar")?.id ?? "sub_demo" }), });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as LicenseKey;
-      setLicenseKey(data); toast.success("License key generated");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "License key failed"); } finally { setLicenseLoading(false); }
-  }
-  async function ingestUsage() {
-    setUsageLoading(true);
-    try {
-      const externalId = "evt_" + Date.now().toString(36);
-      const r = await fetch("/api/billing/usage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "polar", name: "tokens_used", organizationId: "org_demo", externalCustomerId: "cus_demo", externalId, credits: Math.floor(Math.random() * 200) + 10, metadata: { model: "gpt-4o-mini" }, }), });
-      if (!r.ok) throw new Error(await r.text());
-      const data = (await r.json()) as { id: string };
-      setUsageEvents((prev) => [...prev, { id: data.id || externalId, name: "tokens_used", credits: 50, provider: "polar" }]);
-      toast.success("Usage event ingested");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Ingest failed"); } finally { setUsageLoading(false); }
-  }
-  React.useEffect(() => {
-    setSubsLoading(true);
-    (async () => {
-      try {
-        const r = await fetch("/api/billing/subscriptions");
-        if (r.ok) { const data = (await r.json()) as { subscriptions?: Sub[]; invoices?: Inv[]; usageEvents?: UsageEvent[]; licenseKeys?: LicenseKey[] }; if (data.subscriptions) setSubscriptions(data.subscriptions); if (data.invoices) setInvoices(data.invoices); if (data.usageEvents) setUsageEvents(data.usageEvents); if (data.licenseKeys?.[0]) setLicenseKey(data.licenseKeys[0]); }
-      } catch {} setSubsLoading(false);
-    })();
-  }, []);
-  return { subscriptions, invoices, licenseKey, usageEvents, subsLoading, isCheckoutLoading, licenseLoading, usageLoading, paymentLinkUrl, shareAfterMessage, pastDue, hasCustomerId, copyText, handleCheckout, handlePortal, createPaymentLink, createLicenseKey, ingestUsage };
+  return { subscriptions, invoices, licenseKey, usageEvents, subsLoading, isCheckoutLoading, pastDue, copyText, handleCheckout, handlePortal, canCreatePaymentLinks, isPaymentLinkLoading, handlePaymentLink };
 }
 `;
 }

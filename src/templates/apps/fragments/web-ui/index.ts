@@ -9,6 +9,7 @@ import { chartFiles } from "./data.js";
 import { formFieldsFiles } from "./form-fields.js";
 import { dialogsFiles } from "./dialogs.js";
 import { missingUiFiles } from "./missing.js";
+import { chatFiles } from "./chat.js";
 
 /**
  * The same shadcn-style component set, emitted for a single-mode (flat) project.
@@ -48,5 +49,6 @@ export function cn(...inputs: ClassValue[]): string {
     ...formFieldsFiles(),
     ...dialogsFiles(),
     ...missingUiFiles(),
+    ...chatFiles(),
   ];
 }

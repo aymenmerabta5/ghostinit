@@ -6,7 +6,7 @@
  * 2) src/templates/shared/env/* builders
  * 3) src/templates/root/turbo.ts globalEnv
  * 4) root turbo.json globalEnv
- * 5) docs/ARCHITECTURE.md + AGENTS.md
+ * 5) CONTRIBUTING.md + AGENTS.md
  *
  * Now: edit this file only. All consumers derive from it.
  * - ENV_PLACEHOLDERS: placeholder values for .env.example / .env.local
@@ -29,17 +29,41 @@ export const ENV_PLACEHOLDERS = {
   STRIPE_SECRET_KEY: "REPLACE_WITH_STRIPE_SECRET_KEY",
   STRIPE_WEBHOOK_SECRET: "REPLACE_WITH_STRIPE_WEBHOOK_SECRET",
   STRIPE_PUBLISHABLE: "pk_test_REPLACE",
+  BILLING_STRIPE_PRO_PRICE_ID: "REPLACE_WITH_STRIPE_PRO_PRICE_ID",
   CHARGILY_API_KEY: "REPLACE_WITH_CHARGILY_API_KEY",
   CHARGILY_SECRET: "REPLACE_WITH_CHARGILY_SECRET_KEY",
+  BILLING_CHARGILY_PRO_PRICE_ID: "REPLACE_WITH_CHARGILY_PRO_PRICE_ID",
   PADDLE_API_KEY: "REPLACE_WITH_PADDLE_API_KEY",
   PADDLE_WEBHOOK_SECRET: "REPLACE_WITH_PADDLE_WEBHOOK_SECRET",
   PADDLE_CLIENT_TOKEN: "pdl_ntf_REPLACE",
+  BILLING_PADDLE_PRO_PRICE_ID: "REPLACE_WITH_PADDLE_PRO_PRICE_ID",
   POLAR_ACCESS_TOKEN: "REPLACE_WITH_POLAR_ACCESS_TOKEN",
   POLAR_WEBHOOK_SECRET: "REPLACE_WITH_POLAR_WEBHOOK_SECRET",
   POLAR_ORG_ID: "REPLACE_WITH_POLAR_ORG_ID",
+  BILLING_POLAR_PRO_PRODUCT_ID: "REPLACE_WITH_POLAR_PRO_PRODUCT_ID",
   POSTHOG_KEY: "phc_REPLACE_WITH_POSTHOG_KEY",
+  FEATURE_FLAG_TIMEOUT_MS: "2500",
+  NOTIFICATION_TOKEN_ENCRYPTION_KEY: "REPLACE_WITH_32_BYTE_BASE64URL_KEY",
+  AI_GATEWAY_API_KEY: "REPLACE_WITH_AI_GATEWAY_API_KEY",
+  EVE_INTERNAL_AUTH_SECRET: "REPLACE_WITH_A_STRONG_RANDOM_SECRET_AT_LEAST_32_CHARS",
+  EVE_NEXT_PRODUCTION_ORIGIN: "",
+  EVE_NEXT_PRODUCTION_PORT: "4274",
+  JOB_WORKER_ID: "",
+  JOB_WORKER_POLL_MS: "1000",
+  JOB_HEARTBEAT_MS: "10000",
+  JOB_LEASE_MS: "30000",
+  JOB_SCHEDULER_TICK_MS: "30000",
   UPSTASH_REDIS_REST_URL: "REPLACE_WITH_UPSTASH_REDIS_REST_URL",
   UPSTASH_REDIS_REST_TOKEN: "REPLACE_WITH_UPSTASH_REDIS_REST_TOKEN",
+  STORAGE_DRIVER: "local",
+  STORAGE_BUCKET: "REPLACE_WITH_STORAGE_BUCKET",
+  S3_BUCKET: "REPLACE_WITH_STORAGE_BUCKET",
+  S3_REGION: "us-east-1",
+  S3_ACCESS_KEY_ID: "REPLACE_WITH_S3_ACCESS_KEY_ID",
+  S3_SECRET_ACCESS_KEY: "REPLACE_WITH_S3_SECRET_ACCESS_KEY",
+  S3_ENDPOINT: "",
+  S3_PUBLIC_URL: "",
+  UPLOADS_DIR: "./data/uploads",
   CONVEX_DEPLOYMENT: "REPLACE_WITH_CONVEX_DEPLOYMENT_dev:example-123",
   CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
   NEXT_PUBLIC_CONVEX_URL: "REPLACE_WITH_CONVEX_URL_https://example-123.convex.cloud",
@@ -60,7 +84,7 @@ export const CONVEX_ENV_KEYS = [
 /**
  * Exhaustive globalEnv for turbo — host + generated.
  * Ordered: core, auth, billing per provider, analytics, convex, deploy, wildcards.
- * Wildcards last (NEXT_PUBLIC_*, VITE_*, EXPO_PUBLIC_*).
+ * Wildcards last (NEXT_PUBLIC_*, VITE_*, EXPO_PUBLIC_*, DESKTOP_*).
  */
 export const GLOBAL_ENV_KEYS: readonly string[] = [
   "NODE_ENV",
@@ -94,6 +118,7 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PUBLISHABLE_KEY",
+  "BILLING_STRIPE_PRO_PRICE_ID",
   "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
   "VITE_STRIPE_PUBLISHABLE_KEY",
   // Chargily
@@ -101,6 +126,7 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "CHARGILY_SECRET_KEY",
   "CHARGILY_MODE",
   "CHARGILY_WEBHOOK_SECRET",
+  "BILLING_CHARGILY_PRO_PRICE_ID",
   // Paddle
   "PADDLE_API_KEY",
   "PADDLE_WEBHOOK_SECRET",
@@ -110,15 +136,18 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
   "VITE_PADDLE_CLIENT_TOKEN",
   "VITE_PADDLE_ENVIRONMENT",
+  "BILLING_PADDLE_PRO_PRICE_ID",
   // Polar
   "POLAR_ACCESS_TOKEN",
   "POLAR_WEBHOOK_SECRET",
   "POLAR_ORG_ID",
   "POLAR_ENVIRONMENT",
   "POLAR_CLIENT_ID",
+  "BILLING_POLAR_PRO_PRODUCT_ID",
   // PostHog / analytics
   "POSTHOG_HOST",
   "POSTHOG_API_KEY",
+  "FEATURE_FLAG_TIMEOUT_MS",
   "NEXT_PUBLIC_POSTHOG_KEY",
   "NEXT_PUBLIC_POSTHOG_HOST",
   "NEXT_PUBLIC_POSTHOG_SESSION_RECORDING",
@@ -130,6 +159,19 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "ANALYTICS_DISABLED",
   "NEXT_PUBLIC_ANALYTICS_DISABLED",
   "VITE_ANALYTICS_DISABLED",
+  // Notification inbox/device security
+  "NOTIFICATION_TOKEN_ENCRYPTION_KEY",
+  // Eve durable-agent integration
+  "AI_GATEWAY_API_KEY",
+  "EVE_INTERNAL_AUTH_SECRET",
+  "EVE_NEXT_PRODUCTION_ORIGIN",
+  "EVE_NEXT_PRODUCTION_PORT",
+  // Durable jobs
+  "JOB_WORKER_ID",
+  "JOB_WORKER_POLL_MS",
+  "JOB_HEARTBEAT_MS",
+  "JOB_LEASE_MS",
+  "JOB_SCHEDULER_TICK_MS",
   // Convex (expanded via CONVEX_ENV_KEYS for single source, keep explicit for readability)
   "VITE_CONVEX_URL",
   "NEXT_PUBLIC_CONVEX_URL",
@@ -142,6 +184,7 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "NEXT_PUBLIC_*",
   "VITE_*",
   "EXPO_PUBLIC_*",
+  "DESKTOP_*",
   // Explicit EXPO_PUBLIC_ keys (also covered by wildcard but explicit for cache precision)
   "EXPO_PUBLIC_APP_URL",
   "EXPO_PUBLIC_API_URL",
@@ -169,14 +212,63 @@ export const GLOBAL_ENV_KEYS: readonly string[] = [
   "S3_ACCESS_KEY_ID",
   "S3_SECRET_ACCESS_KEY",
   "S3_ENDPOINT",
+  "S3_PUBLIC_URL",
   "UPLOADS_DIR",
   // Convex — re-include via spread to ensure single source stays authoritative
   ...CONVEX_ENV_KEYS,
 ] as const;
 
+export interface GlobalEnvAudience {
+  readonly framework?: "nextjs" | "tanstack-start" | string;
+  readonly hasWeb?: boolean;
+  readonly hasMobile?: boolean;
+  readonly hasDesktop?: boolean;
+  readonly hasEve?: boolean;
+}
+
+const EVE_ENV_KEYS = new Set([
+  "AI_GATEWAY_API_KEY",
+  "EVE_INTERNAL_AUTH_SECRET",
+  "EVE_NEXT_PRODUCTION_ORIGIN",
+  "EVE_NEXT_PRODUCTION_PORT",
+]);
+
+function publicEnvironmentFamily(key: string): "next" | "vite" | "expo" | "desktop" | null {
+  if (key.startsWith("NEXT_PUBLIC_")) return "next";
+  if (key.startsWith("VITE_")) return "vite";
+  if (key.startsWith("EXPO_PUBLIC_")) return "expo";
+  if (key.startsWith("DESKTOP_")) return "desktop";
+  return null;
+}
+
 /** Deduplicated globalEnv preserving order — use for turbo.json generation. */
-export function getGlobalEnvKeys(runtime: "node" | "bun" = "bun"): string[] {
+export function getGlobalEnvKeys(
+  runtime: "node" | "bun" = "bun",
+  audience?: GlobalEnvAudience,
+): string[] {
+  // Execution runtime selection must not change package-manager cache keys.
+  // The canonical Bun version is the only supported package manager for every runtime.
+  void runtime;
   const deduped = [...new Set(GLOBAL_ENV_KEYS)];
-  if (runtime === "node") deduped.push("npm_config_user_agent");
-  return deduped;
+  if (!audience) return deduped;
+
+  const hasWeb = audience.hasWeb ?? true;
+  const hasDesktop = audience.hasDesktop === true;
+  const enabledFamilies = new Set<"next" | "vite" | "expo" | "desktop">();
+  if (hasWeb) {
+    enabledFamilies.add(audience.framework === "tanstack-start" ? "vite" : "next");
+  }
+  if (audience.hasMobile) enabledFamilies.add("expo");
+  if (hasDesktop) {
+    enabledFamilies.add("vite");
+    enabledFamilies.add("desktop");
+  }
+
+  return deduped.filter((key) => {
+    if (audience.hasEve !== true && EVE_ENV_KEYS.has(key)) return false;
+    const family = publicEnvironmentFamily(key);
+    if (family && !enabledFamilies.has(family)) return false;
+    if (!hasDesktop && (key === "ELECTRON_IS_DEV" || key === "ELECTRON_*")) return false;
+    return true;
+  });
 }

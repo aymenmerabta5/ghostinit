@@ -70,4 +70,30 @@ export const RESERVED_NAMES = new Set([
 ]);
 
 export const MAX_VISITED_FILES = 50_000;
+export const MAX_VISITED_ENTRIES = 100_000;
 export const MAX_WALK_DEPTH = 64;
+
+export const SOURCE_FILE_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mts",
+  ".cts",
+  ".mjs",
+  ".cjs",
+]);
+
+export const SOURCE_COLLECTION_EXCLUDED_DIRECTORIES = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".turbo",
+  ".output",
+  "out",
+  "coverage",
+  ".expo",
+  ".vite",
+]);

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/component-size-policy.schema.json",
+  "schemaVersion": 1,
+  "counting": {
+    "unit": "physical-line",
+    "excludeBlank": true,
+    "excludeCommentOnly": true
+  },
+  "defaultMaximum": 300,
+  "sourceGlobs": [
+    "src/templates/apps/fragments/**/*.ts",
+    "src/templates/ui/**/*.ts",
+    "apps/*/src/components/**/*.tsx",
+    "src/components/**/*.tsx"
+  ],
+  "exceptions": []
+}

@@ -31,19 +31,19 @@ describe("web+mobile generation RNR+Uniwind - shared theme single source", () =>
     expect(paths).toContain("apps/mobile/src/components/ui/badge.tsx");
     expect(paths).toContain("apps/web/src/components/ui/button.tsx");
 
-    const theme = files.find((f) => f.path === "packages/ui/src/theme.css")?.content ?? "";
+    const theme = files.find((f) => f.path === "packages/ui/src/styles/theme.css")?.content ?? "";
     expect(theme).toContain("oklch");
     expect(theme).toContain("--background");
     expect(theme).toContain("@theme inline");
 
     const webGlobal = files.find((f) => f.path === "apps/web/src/app/globals.css")?.content ?? "";
-    expect(webGlobal).toContain('@import "@repo/ui/theme.css"');
-    expect(webGlobal).toContain('@import "tailwindcss"');
+    expect(webGlobal.trim()).toBe('@import "@repo/ui/styles/adapters/next/v1.css";');
 
     const mobileGlobal = files.find((f) => f.path === "apps/mobile/global.css")?.content ?? "";
-    expect(mobileGlobal).toContain('@import "@repo/ui/theme.css"');
-    expect(mobileGlobal).toContain('@import "tailwindcss"');
-    expect(mobileGlobal).toContain('@import "uniwind"');
+    expect(mobileGlobal).toStartWith(
+      '@import "uniwind";\n@import "@repo/ui/styles/adapters/expo/v1.css";\n',
+    );
+    expect(mobileGlobal.match(/@import/g)).toHaveLength(2);
     expect(mobileGlobal).toContain("@source");
 
     const babel = files.find((f) => f.path === "apps/mobile/babel.config.js")?.content ?? "";

@@ -9,26 +9,58 @@
  */
 
 import { file, type TemplateFile } from "../shared.js";
-import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
+import { hasAddon, type AddonInstallerMap, type BillingProviderName } from "../../lib/addons.js";
 import {
   authFileContent,
   orpcFileContent,
   healthFileContent,
   openapiFileContent,
+  tanstackAuthServerHandlerContent,
+  tanstackOpenApiOperationsRouteContent,
+  tanstackOpenApiOperationsServerContent,
+  tanstackOpenApiServerHandlerContent,
+  tanstackRpcServerHandlerContent,
 } from "./fragments/api.js";
 
 export function tanstackApiFiles(
-  _addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
+  addons?: AddonInstallerMap | BillingProviderName[] | Record<string, { inUse: boolean }>,
 ): TemplateFile[] {
-  return [authApiRoute(), orpcApiRoute(), healthApiRoute(), openapiApiRoute()];
+  const trustedCloudflareRuntime =
+    addons !== undefined &&
+    !Array.isArray(addons) &&
+    hasAddon(addons as AddonInstallerMap, "cloudflare");
+  return [
+    authApiRoute(),
+    file(
+      "apps/web/src/server/http/auth.server.ts",
+      tanstackAuthServerHandlerContent("@repo/auth", trustedCloudflareRuntime),
+    ),
+    orpcApiRoute(),
+    file("apps/web/src/server/http/rpc.server.ts", tanstackRpcServerHandlerContent("@repo/api")),
+    openapiOperationsRoute(),
+    file(
+      "apps/web/src/server/http/openapi-operations.server.ts",
+      tanstackOpenApiOperationsServerContent("@repo/api"),
+    ),
+    healthApiRoute(),
+    openapiApiRoute(),
+    file(
+      "apps/web/src/server/http/openapi.server.ts",
+      tanstackOpenApiServerHandlerContent("@repo/api/openapi"),
+    ),
+  ];
 }
 
 function authApiRoute(): TemplateFile {
-  return file("apps/web/src/routes/api/auth/$splat.ts", authFileContent("tanstack"));
+  return file("apps/web/src/routes/api/auth/$.ts", authFileContent("tanstack"));
 }
 
 function orpcApiRoute(): TemplateFile {
-  return file("apps/web/src/routes/api/rpc/$splat.ts", orpcFileContent("tanstack"));
+  return file("apps/web/src/routes/api/rpc/$.ts", orpcFileContent("tanstack"));
+}
+
+function openapiOperationsRoute(): TemplateFile {
+  return file("apps/web/src/routes/api/$.ts", tanstackOpenApiOperationsRouteContent());
 }
 
 function healthApiRoute(): TemplateFile {

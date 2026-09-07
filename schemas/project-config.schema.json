@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/project-config.schema.json",
+  "title": "GhostInit V2 desired project state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schemaVersion",
+    "name",
+    "mode",
+    "packageManager",
+    "apps",
+    "backend",
+    "capabilities"
+  ],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/project-config.schema.json" },
+    "schemaVersion": { "const": 2 },
+    "name": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
+    "mode": { "enum": ["monorepo", "single"] },
+    "runtime": { "enum": ["bun", "node"] },
+    "packageManager": { "$ref": "#/$defs/packageManager" },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/app" }
+    },
+    "backend": {
+      "oneOf": [{ "const": false }, { "$ref": "#/$defs/backend" }]
+    },
+    "capabilities": { "$ref": "#/$defs/capabilities" }
+  },
+  "$defs": {
+    "packageManager": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "bun" },
+        "version": { "const": "1.4.0" }
+      }
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target", "deploy"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$" },
+        "target": { "enum": ["nextjs", "tanstack-start", "expo", "electron"] },
+        "deploy": { "enum": ["vercel", "fly", "docker", "cloudflare", "none"] }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hostApp", "executionRuntime", "database"],
+      "properties": {
+        "hostApp": {
+          "type": "string",
+          "pattern": "^[a-z](?:[a-z0-9]|-[a-z0-9])*$"
+        },
+        "executionRuntime": { "enum": ["bun", "node"] },
+        "database": { "enum": ["postgres", "convex", "none"] }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["messaging"],
+            "properties": { "messaging": { "const": true } }
+          },
+          "then": {
+            "properties": { "storage": { "not": { "const": false } } }
+          }
+        }
+      ],
+      "properties": {
+        "transport": { "type": "boolean" },
+        "auth": { "type": "boolean" },
+        "billing": {
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["providers"],
+              "properties": {
+                "providers": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "enum": ["stripe", "chargily", "paddle", "polar"] }
+                }
+              }
+            }
+          ]
+        },
+        "messaging": { "type": "boolean" },
+        "email": { "type": "boolean" },
+        "storage": { "type": "boolean" },
+        "cache": { "enum": ["redis", "none"] },
+        "analytics": { "type": "boolean" },
+        "i18n": { "type": "boolean" },
+        "pdf": { "type": "boolean" },
+        "eve": { "type": "boolean" },
+        "notifications": { "type": "boolean" },
+        "featureFlags": {
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["provider"],
+              "properties": {
+                "provider": { "const": "posthog" }
+              }
+            }
+          ]
+        },
+        "jobs": {
+          "oneOf": [
+            { "const": false },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["userFacingApi"],
+              "properties": {
+                "userFacingApi": { "type": "boolean" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

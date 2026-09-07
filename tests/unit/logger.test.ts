@@ -91,6 +91,39 @@ describe("logger redaction", () => {
     expect(output).toContain("***");
   });
 
+  it("redacts opaque credentials inside URL prose and loose assignments", () => {
+    const message =
+      "upstream failed: https://alice:inline-password-value@example.test/callback?token=inline-query-value&status=ok; client_secret=loose-secret-value";
+    const result = String(redact(message, "message"));
+
+    for (const secret of [
+      "alice",
+      "inline-password-value",
+      "inline-query-value",
+      "loose-secret-value",
+    ]) {
+      expect(result).not.toContain(secret);
+    }
+    expect(result).toContain("status=ok");
+  });
+
+  it("redacts embedded opaque URL credentials from logger messages", () => {
+    const lines: string[] = [];
+    const logger = new Logger({
+      out: (chunk: string) => {
+        lines.push(chunk);
+        return true;
+      },
+    });
+    logger.warn(
+      "request https://example.test/callback?access_token=opaque-value&attempt=2 failed; password=loose-value",
+    );
+    const output = lines.join("");
+    expect(output).not.toContain("opaque-value");
+    expect(output).not.toContain("loose-value");
+    expect(output).toContain("attempt=2");
+  });
+
   it("does not infinitely recurse on circular structures", () => {
     const circular: Record<string, unknown> = { name: "root" };
     circular.self = circular;

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/maintained-source-globs.schema.json",
+  "title": "GhostInit maintained TypeScript source policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "scopes", "rules"],
+  "properties": {
+    "$schema": { "const": "https://ghostinit.dev/schemas/maintained-source-globs.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "scopes": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/scope" }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["forbiddenAstNodes", "forbiddenSyntax", "suppressions"],
+      "properties": {
+        "forbiddenAstNodes": {
+          "type": "array",
+          "contains": { "const": "TSAnyKeyword" },
+          "uniqueItems": true,
+          "items": { "enum": ["TSAnyKeyword"] }
+        },
+        "forbiddenSyntax": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "nested-type-assertion",
+              "mixed-type-assertion-chain",
+              "ts-ignore",
+              "malformed-suppression"
+            ]
+          }
+        },
+        "suppressions": { "$ref": "#/$defs/suppressions" }
+      }
+    }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "executionRoot", "globs"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "executionRoot": { "enum": ["host", "generated"] },
+        "globs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/glob" }
+        }
+      }
+    },
+    "suppressions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tsIgnore", "tsExpectError"],
+      "properties": {
+        "tsIgnore": { "const": "forbidden" },
+        "tsExpectError": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowedScope", "pattern", "requiresAdjacentDiagnosticFixture"],
+          "properties": {
+            "allowedScope": { "const": "type-negative-test" },
+            "pattern": { "const": "@ts-expect-error TS####: <reason>" },
+            "requiresAdjacentDiagnosticFixture": { "const": true }
+          }
+        }
+      }
+    }
+  }
+}

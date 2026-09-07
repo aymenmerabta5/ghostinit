@@ -8,32 +8,13 @@ export function dropdownFiles(): TemplateFile[] {
 
 import * as React from "react";
 import { Menu as BaseMenu } from "@base-ui/react/menu";
+import { ChevronRight } from "lucide-react";
 import { cn } from "../../lib/utils.js";
 
 export const DropdownMenu = BaseMenu.Root;
 export const DropdownMenuPortal = BaseMenu.Portal;
 export const DropdownMenuGroup = BaseMenu.Group;
-
-export interface DropdownMenuTriggerProps
-  extends React.ComponentPropsWithoutRef<typeof BaseMenu.Trigger> {
-  /** Render the single child element as the trigger (maps to Base UI's \`render\`). */
-  asChild?: boolean;
-}
-
-// Base UI composes via \`render\`; \`asChild\` is the Radix spelling the call sites use.
-export const DropdownMenuTrigger = React.forwardRef<HTMLButtonElement, DropdownMenuTriggerProps>(
-  ({ asChild, children, ...props }, ref) => {
-    if (asChild && React.isValidElement(children)) {
-      return <BaseMenu.Trigger ref={ref} render={children as React.ReactElement} nativeButton={false} {...props} />;
-    }
-    return (
-      <BaseMenu.Trigger ref={ref} {...props}>
-        {children}
-      </BaseMenu.Trigger>
-    );
-  },
-);
-DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
+export const DropdownMenuTrigger = BaseMenu.Trigger;
 
 export interface DropdownMenuContentProps
   extends React.ComponentPropsWithoutRef<typeof BaseMenu.Popup> {
@@ -45,12 +26,12 @@ export interface DropdownMenuContentProps
 export const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContentProps>(
   ({ className, align = "center", sideOffset = 4, ...props }, ref) => (
   <BaseMenu.Portal>
-    <BaseMenu.Positioner className="z-50" align={align} sideOffset={sideOffset}>
+    <BaseMenu.Positioner align={align} sideOffset={sideOffset}>
       <BaseMenu.Popup
         ref={ref}
         data-slot="dropdown-menu-content"
         className={cn(
-          "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+          "min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
           "data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
           className,
         )}
@@ -71,7 +52,7 @@ export const DropdownMenuItem = React.forwardRef<
     data-inset={inset}
     data-variant={variant}
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:ps-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
@@ -87,7 +68,7 @@ export const DropdownMenuLabel = React.forwardRef<
     ref={ref}
     data-slot="dropdown-menu-label"
     data-inset={inset}
-    className={cn("px-2 py-1.5 text-sm font-semibold data-[inset]:pl-8", className)}
+    className={cn("px-2 py-1.5 text-sm font-semibold data-[inset]:ps-8", className)}
     {...props}
   />
 ));
@@ -112,15 +93,13 @@ export const DropdownMenuSubTrigger = React.forwardRef<
     data-slot="dropdown-menu-sub-trigger"
     data-inset={inset}
     className={cn(
-      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent data-[inset]:ps-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
   >
     {children}
-    <svg width="12" height="12" viewBox="0 0 12 12" className="ml-auto" aria-hidden>
-      <path d="M4 2L8 6L4 10" stroke="currentColor" fill="none" strokeWidth="1.2" />
-    </svg>
+    <ChevronRight className="ms-auto rtl:rotate-180" aria-hidden />
   </BaseMenu.SubmenuTrigger>
 ));
 DropdownMenuSubTrigger.displayName = "DropdownMenuSubTrigger";
@@ -130,12 +109,12 @@ export const DropdownMenuSubContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof BaseMenu.Popup>
 >(({ className, ...props }, ref) => (
   <BaseMenu.Portal>
-    <BaseMenu.Positioner className="z-50" sideOffset={4}>
+    <BaseMenu.Positioner sideOffset={4}>
       <BaseMenu.Popup
         ref={ref}
         data-slot="dropdown-menu-sub-content"
         className={cn(
-          "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+          "min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
           className,
         )}
         {...props}

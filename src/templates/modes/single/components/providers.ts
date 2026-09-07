@@ -1,128 +1,147 @@
-export function providersSingleContent(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import { useState, Suspense } from 'react';",
-    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query';",
-    "import { ThemeProvider } from '@/components/theme-provider';",
-    "import { PostHogProvider } from '@/components/analytics/posthog-provider';",
-    "import { PostHogPageView } from '@/components/analytics/posthog-pageview';",
-    "import { Toaster } from '@/components/ui/sonner';",
-    "",
-    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
-    "  const [queryClient] = useState(() => new QueryClient());",
-    "  return (",
-    "    <QueryClientProvider client={queryClient}>",
-    "      <PostHogProvider>",
-    '        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>',
-    "          <Suspense fallback={null}>",
-    "            <PostHogPageView />",
-    "          </Suspense>",
-    "          {children}",
-    '          <Toaster richColors position="bottom-right" />',
-    "        </ThemeProvider>",
-    "      </PostHogProvider>",
-    "    </QueryClientProvider>",
-    "  );",
-    "}",
-    "",
-  ].join("\n");
+import { convexAuthBridgeContent } from "../../../apps/fragments/convex-providers.js";
+
+interface ProviderOptions {
+  framework: "next" | "tanstack";
+  hasAnalytics: boolean;
+  isConvex: boolean;
+  hasAuth: boolean;
+  hasI18n: boolean;
 }
 
-export function providersSingleContentConvex(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import { useState, Suspense } from 'react';",
-    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query';",
-    "import { ConvexReactClient } from 'convex/react';",
-    "import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { ThemeProvider } from '@/components/theme-provider';",
-    "import { PostHogProvider } from '@/components/analytics/posthog-provider';",
-    "import { PostHogPageView } from '@/components/analytics/posthog-pageview';",
-    "import { Toaster } from '@/components/ui/sonner';",
-    "",
-    "const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;",
-    "if (!convexUrl) {",
-    "  console.warn('[ghostinit] NEXT_PUBLIC_CONVEX_URL not set â€“ Convex client will fail. Run npx convex dev');",
-    "}",
-    "const convex = new ConvexReactClient(convexUrl ?? '');",
-    "",
-    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
-    "  const [queryClient] = useState(() => new QueryClient());",
-    "  return (",
-    "    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import('@convex-dev/better-auth/react').AuthClient}>",
-    "      <QueryClientProvider client={queryClient}>",
-    "        <PostHogProvider>",
-    '          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>',
-    "            <Suspense fallback={null}>",
-    "              <PostHogPageView />",
-    "            </Suspense>",
-    "            {children}",
-    '            <Toaster richColors position="bottom-right" />',
-    "          </ThemeProvider>",
-    "        </PostHogProvider>",
-    "      </QueryClientProvider>",
-    "    </ConvexBetterAuthProvider>",
-    "  );",
-    "}",
-    "",
-  ].join("\n");
+function providerContent(options: ProviderOptions): string {
+  const { framework, hasAnalytics, isConvex, hasAuth, hasI18n } = options;
+  const analyticsImports = hasAnalytics
+    ? `import { PostHogProvider } from "@/components/analytics/posthog-provider";
+import { PostHogPageView } from "@/components/analytics/posthog-pageview";`
+    : "";
+  const convexImports = isConvex
+    ? `import { ConvexReactClient${hasAuth ? ", ConvexProviderWithAuth" : ", ConvexProvider"} } from "convex/react";
+${hasAuth ? 'import { authClient } from "@/lib/auth-client";' : ""}
+import { env } from "@/lib/env/${framework === "tanstack" ? "vite" : "next"}";`
+    : "";
+  const i18nImport =
+    framework === "tanstack" && hasI18n
+      ? `import { I18nProvider, type Locale } from "@/lib/i18n";`
+      : "";
+  const queryAuthBoundaryImport =
+    framework === "tanstack" && hasAuth
+      ? `import { QueryAuthCacheBoundary } from "@/components/query-auth-boundary";`
+      : "";
+  const convexSetup = isConvex
+    ? `const convexUrl = env.${
+        framework === "tanstack" ? "VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL"
+      };
+if (!convexUrl) {
+  throw new Error("${
+    framework === "tanstack" ? "VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL"
+  } is not set. Run bunx convex dev and update the app environment.");
+}
+const convexClient = new ConvexReactClient(convexUrl);
+${hasAuth ? convexAuthBridgeContent() : ""}`
+    : "";
+  const convexOpen = !isConvex
+    ? ""
+    : hasAuth
+      ? `<ConvexProviderWithAuth client={convexClient} useAuth={useConvexBetterAuth}>`
+      : `<ConvexProvider client={convexClient}>`;
+  const convexClose = !isConvex ? "" : hasAuth ? `</ConvexProviderWithAuth>` : `</ConvexProvider>`;
+  const analyticsOpen = hasAnalytics ? `<PostHogProvider>` : "";
+  const analyticsClose = hasAnalytics ? `</PostHogProvider>` : "";
+  const i18nOpen =
+    framework === "tanstack" && hasI18n ? `<I18nProvider initialLocale={initialLocale}>` : "";
+  const i18nClose = framework === "tanstack" && hasI18n ? `</I18nProvider>` : "";
+  const initialLocaleProperty =
+    framework === "tanstack" && hasI18n ? "  initialLocale: Locale;\n" : "";
+  const initialLocaleParameter = framework === "tanstack" && hasI18n ? ", initialLocale" : "";
+  const queryAuthOpen =
+    framework === "tanstack" && hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
+  const queryAuthClose = framework === "tanstack" && hasAuth ? `</QueryAuthCacheBoundary>` : "";
+  const pageView = hasAnalytics
+    ? `<React.Suspense fallback={null}>
+              <PostHogPageView />
+            </React.Suspense>`
+    : "";
+
+  return `"use client";
+
+import * as React from "react";
+import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query-client";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+${analyticsImports}
+${convexImports}
+${i18nImport}
+${queryAuthBoundaryImport}
+
+${convexSetup}
+
+export interface AppProvidersProps {
+  children: React.ReactNode;
+  queryClient?: QueryClient;
+${initialLocaleProperty}}
+
+export function AppProviders({ children, queryClient${initialLocaleParameter} }: AppProvidersProps): React.JSX.Element {
+  const client = queryClient ?? getQueryClient();
+  return (
+    <QueryClientProvider client={client}>
+      ${queryAuthOpen}
+        ${i18nOpen}
+          ${convexOpen}
+            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+              ${analyticsOpen}
+                ${pageView}
+                {children}
+                <Toaster richColors position="bottom-right" />
+              ${analyticsClose}
+            </ThemeProvider>
+          ${convexClose}
+        ${i18nClose}
+      ${queryAuthClose}
+    </QueryClientProvider>
+  );
 }
 
-export function singleProvidersTanstackContent(): string {
-  return [
-    '"use client"',
-    "import * as React from 'react'",
-    "import { useState } from 'react'",
-    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query'",
-    "import { ThemeProvider } from '@/components/theme-provider'",
-    "import { Toaster } from '@/components/ui/sonner'",
-    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
-    "  const [queryClient] = useState(() => new QueryClient())",
-    "  return (",
-    "    <QueryClientProvider client={queryClient}>",
-    "      <ThemeProvider attribute='class' defaultTheme='light' enableSystem={false} disableTransitionOnChange>",
-    "        {children}",
-    "        <Toaster richColors position='bottom-right' />",
-    "      </ThemeProvider>",
-    "    </QueryClientProvider>",
-    "  )",
-    "}",
-    "",
-  ].join("\n");
+export const Providers = AppProviders;
+`;
 }
 
-export function singleProvidersTanstackContentConvex(): string {
-  return [
-    '"use client"',
-    "import * as React from 'react'",
-    "import { useState } from 'react'",
-    "import { QueryClient, QueryClientProvider } from '@tanstack/react-query'",
-    "import { ConvexReactClient } from 'convex/react'",
-    "import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'",
-    "import { authClient } from '@/lib/auth-client'",
-    "import { ThemeProvider } from '@/components/theme-provider'",
-    "import { Toaster } from '@/components/ui/sonner'",
-    "const convexUrl = import.meta.env.VITE_CONVEX_URL",
-    "if (!convexUrl) { console.warn('[ghostinit] VITE_CONVEX_URL not set â€“ Convex client will fail. Run bunx convex dev') }",
-    "const convex = new ConvexReactClient(convexUrl ?? '')",
-    "export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {",
-    "  const [queryClient] = useState(() => new QueryClient())",
-    "  return (",
-    "    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import('@convex-dev/better-auth/react').AuthClient}>",
-    "      <QueryClientProvider client={queryClient}>",
-    "        <ThemeProvider attribute='class' defaultTheme='light' enableSystem={false} disableTransitionOnChange>",
-    "          {children}",
-    "          <Toaster richColors position='bottom-right' />",
-    "        </ThemeProvider>",
-    "      </QueryClientProvider>",
-    "    </ConvexBetterAuthProvider>",
-    "  )",
-    "}",
-    "",
-  ].join("\n");
+export function providersSingleContent(hasAnalytics = true, hasI18n = false): string {
+  return providerContent({
+    framework: "next",
+    hasAnalytics,
+    isConvex: false,
+    hasAuth: false,
+    hasI18n,
+  });
+}
+
+export function providersSingleContentConvex(
+  hasAnalytics = true,
+  hasAuth = true,
+  hasI18n = false,
+): string {
+  return providerContent({ framework: "next", hasAnalytics, isConvex: true, hasAuth, hasI18n });
+}
+
+export function singleProvidersTanstackContent(
+  hasAnalytics = true,
+  hasI18n = false,
+  hasAuth = true,
+): string {
+  return providerContent({
+    framework: "tanstack",
+    hasAnalytics,
+    isConvex: false,
+    hasAuth,
+    hasI18n,
+  });
+}
+
+export function singleProvidersTanstackContentConvex(
+  hasAuth = true,
+  hasAnalytics = true,
+  hasI18n = false,
+): string {
+  return providerContent({ framework: "tanstack", hasAnalytics, isConvex: true, hasAuth, hasI18n });
 }

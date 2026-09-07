@@ -6,13 +6,32 @@ Audit-driven fixes across host CLI and generated output.
 
 Fixed:
 
+- TanStack auth, RPC, and OpenAPI routes use the framework's catch-all syntax
+  in both packaging modes, so nested requests reach their handlers instead of
+  falling through to a generic 404. Production E2E now checks nested dispatch.
+- RPC and OpenAPI handlers preserve HTTP methods and streaming bodies when
+  Next.js wraps Request objects. This fixes body-validation failures under Bun
+  and Request brand errors under Node while retaining the streaming body limit.
+- Generated PostgreSQL authentication now emits the `rate_limits.id` primary
+  key required by Better Auth while keeping each rate-limit bucket key unique.
+  Existing projects with populated rate-limit tables need a reviewed database
+  migration that backfills unique IDs and preserves bucket keys, counters, and
+  timestamps before changing the primary key; the CLI does not migrate database
+  rows automatically.
+- Cloudflare synchronization preserves registries created by `ghostinit add`,
+  including when a later add fails and its transaction rolls back.
+- Billing invoice views use provider-aware currency precision across web,
+  Expo, and Electron, with the generated native locale contract and shared
+  per-app formatting helpers.
 - `ghostinit init` now runs the full create pipeline (state.json, checksums,
   install, format). Previously it wrote files without state, leaving
   `add`/`sync`/`check` unable to manage the project. It also refuses non-empty
   directories without `--force`.
-- `ghostinit upgrade` is now honest and useful: rebuilds registries, repairs
-  turbo.json globalEnv from the env manifest, stamps the CLI version into
-  state, and states explicitly that templates are not re-rendered.
+- `ghostinit upgrade` now compiles the current desired state and applies a
+  hash-gated transactional re-render before updating state. User-owned seed
+  edits are preserved and managed-file conflicts stop the operation; use
+  `ghostinit upgrade --dry-run` to inspect creates, moves, rewrites, retirements,
+  environment migrations, and secret materialization first.
 - Generated root `lint` script ran `biome lint .` but biome was never a
   dependency — `bun run lint` failed in every generated project. Now `oxlint .`
   (matching devDeps and the husky pre-commit hook).
@@ -26,9 +45,16 @@ Added:
   (`COPY --parents` for workspace manifests, plain runtime image); vercel emits
   `vercel.json`. Single mode emits the same files. Previously the deploy field
   existed but was unreachable from the CLI.
-- Cloudflare Workers deployment through the native TanStack Start
-  `@cloudflare/vite-plugin` and Next.js OpenNext adapter, with Wrangler scripts/config, security-header preservation, typed
-  compatibility rejection, and generated Worker build/dry-run coverage.
+- `--deploy cloudflare` for monorepo and single web projects. Next.js is
+  packaged by OpenNext with Edge `middleware.ts`, R2 incremental cache, a
+  Durable Object revalidation queue, and a sharded Durable Object tag cache;
+  TanStack Start uses Cloudflare's native
+  Vite plugin. Generated Worker commands enforce the Bun/lock contract, use
+  gitignored `.dev.vars` only for local execution, reject runtime `.env*` files,
+  keep build variables separate from runtime secrets, scan artifacts for
+  server-only values, and run a Wrangler dry-run in generated CI. The typed
+  support catalog accepts Convex/database-free profiles and rejects PostgreSQL,
+  Eve, and server-side PDF until their Workers-native adapters exist.
 - Maintenance mode: `MAINTENANCE_MODE` env gate in the generated proxy with
   `?maintenance_bypass=<token>` cookie bypass, plus the previously missing
   `/maintenance` page (locale-scoped when i18n is on).
@@ -38,6 +64,13 @@ Added:
 
 Changed:
 
+- Generated installs now resolve a fresh lock with lifecycle scripts disabled,
+  verify every public-registry tuple against npm's canonical SHA-512 integrity
+  and seven-day publication cutoff, persist `dependency-lock-evidence.json`,
+  then install frozen and run the blocking vulnerability/patch audit. Fresh
+  `--no-install` output must run `bun run install:bootstrap`; committed clones
+  use `bun run install:verified`. Existing generated projects should sync or
+  upgrade, run the bootstrap once, and commit the refreshed lock evidence.
 - Frontend pass aligned generated UI with DESIGN.md: shared Button/Input/
   SelectTrigger defaults h-10 → h-9 (sm h-8), admin selects and desktop inputs
   follow; mobile inputs/buttons h-10 → h-11 (44px touch targets); desktop cards

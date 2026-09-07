@@ -163,13 +163,10 @@ describe("parseCreateArgs database", () => {
   });
 });
 
-describe("parseCreateArgs deploy", () => {
-  it("parses Cloudflare Workers", () => {
-    expect(parseCreateArgs({ deploy: "cloudflare" }).deploy).toBe("cloudflare");
-  });
-
-  it("rejects unknown deployment targets", () => {
-    expect(() => parseCreateArgs({ deploy: "workers" })).toThrow("Invalid --deploy value");
+describe("parseCreateArgs capability switches", () => {
+  it("preserves an explicit storage selection", () => {
+    expect(parseCreateArgs({ "with-storage": true }).withStorage).toBe(true);
+    expect(parseCreateArgs({}).withStorage).toBeUndefined();
   });
 });
 
@@ -224,8 +221,16 @@ describe("validateProjectName", () => {
     expect(result.valid).toBe(false);
   });
 
+  it("rejects names reserved for generated application workspaces", () => {
+    for (const name of ["mobile", "desktop"]) {
+      const result = validateProjectName(name);
+      expect(result.valid, name).toBe(false);
+      if (!result.valid) expect(result.reason).toContain("reserved name");
+    }
+  });
+
   it("PROJECT_NAME_RE matches spec regex", () => {
-    expect(PROJECT_NAME_RE.source).toBe("^[a-z][a-z0-9-]*$");
+    expect(PROJECT_NAME_RE.source).toBe("^[a-z](?:[a-z0-9]|-[a-z0-9])*$");
     expect(PROJECT_NAME_RE.test("my-app")).toBe(true);
     expect(PROJECT_NAME_RE.test("My-App")).toBe(false);
     expect(PROJECT_NAME_RE.test("1bad")).toBe(false);

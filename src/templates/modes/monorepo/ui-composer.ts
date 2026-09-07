@@ -1,6 +1,10 @@
 import type { TemplateFile } from "../../shared.js";
-import { uiPackage } from "../../ui.js";
+import type { AppName, FrameworkName } from "../../../lib/addons.js";
+import { designSystemFiles, resolveDesignSystemApps } from "../../ui.js";
 
-export function uiComposerFiles(): TemplateFile[] {
-  return uiPackage();
+export function uiComposerFiles(
+  apps: readonly AppName[],
+  framework: FrameworkName,
+): TemplateFile[] {
+  return designSystemFiles("monorepo", resolveDesignSystemApps(apps, framework));
 }

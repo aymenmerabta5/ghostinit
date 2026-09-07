@@ -1,70 +1,12 @@
+import {
+  forgotPasswordPageContent,
+  resetPasswordPageContent,
+} from "../../../apps/fragments/recovery/index.js";
+
 export function forgotPasswordPageSingle(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import Link from 'next/link';",
-    "import { useState } from 'react';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "import { Form, Field as TanStackField, SubmitButton, useForm } from '@/components/ui/form';",
-    "",
-    "interface ForgotPasswordForm { email: string; }",
-    "",
-    "export default function ForgotPasswordPage(): React.JSX.Element {",
-    "  const [status, setStatus] = useState<string | null>(null);",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const form = useForm({",
-    "    defaultValues: { email: '' } as ForgotPasswordForm,",
-    "    onSubmit: async ({ value }) => {",
-    "      setError(null); setStatus(null);",
-    "      if (!value.email.includes('@')) { setError('Enter a valid email that contains @'); return; }",
-    "      const result = await authClient.requestPasswordReset({ email: value.email, redirectTo: '/reset-password' });",
-    "      if (result.error) { setError(result.error.message ?? 'Failed to send reset link'); return; }",
-    "      setStatus('If this email exists, check your inbox for the reset link.');",
-    "    },",
-    "  });",
-    "  return (<main className='min-h-screen flex items-center justify-center p-6 bg-background'><div className='w-full max-w-[420px] flex flex-col gap-8'><Card><CardHeader><CardTitle>Forgot password</CardTitle><CardDescription>Enter your email and we will send you a link to reset your password. The link expires in 1 hour and can only be used once.</CardDescription></CardHeader><CardContent className='flex flex-col gap-6'>{error ? (<Alert variant='destructive'><AlertTitle>Unable to send link</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>) : null}{status ? (<Alert><AlertTitle>Check your email</AlertTitle><AlertDescription>{status}</AlertDescription></Alert>) : null}<Form form={form} className='flex flex-col gap-6'><FieldGroup><TanStackField form={form} name='email' validators={{ onSubmit: ({ value }) => (value.includes('@') ? undefined : 'Enter a valid email') }}>{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor='forgot-email'>Email</FieldLabel><Input id='forgot-email' name={field.name} type='email' placeholder='you@example.com' autoComplete='email' required value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? (<FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription>) : (<FieldDescription>We send a reset link to this address if it exists.</FieldDescription>)}</Field>)}</TanStackField></FieldGroup><SubmitButton className='w-full'>Send reset link</SubmitButton></Form></CardContent><CardFooter><Link href='/sign-in' className='text-sm text-muted-foreground underline'>Back to sign in</Link></CardFooter></Card></div></main>);",
-    "}",
-    "",
-  ].join("\n");
+  return forgotPasswordPageContent("next");
 }
 
 export function resetPasswordPageSingle(): string {
-  return [
-    '"use client";',
-    "",
-    "import * as React from 'react';",
-    "import { useRouter, useSearchParams } from 'next/navigation';",
-    "import { Suspense, useEffect, useState } from 'react';",
-    "import Link from 'next/link';",
-    "import { authClient } from '@/lib/auth-client';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';",
-    "import { Input } from '@/components/ui/input';",
-    "import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';",
-    "import { FieldGroup, Field, FieldLabel, FieldDescription } from '@/components/ui/field';",
-    "import { Form, Field as TanStackField, SubmitButton, useForm } from '@/components/ui/form';",
-    "",
-    "interface ResetPasswordForm { newPassword: string; confirmPassword: string; }",
-    "",
-    "function ResetPasswordInner(): React.JSX.Element {",
-    "  const router = useRouter();",
-    "  const searchParams = useSearchParams();",
-    "  const [error, setError] = useState<string | null>(null);",
-    "  const token = searchParams.get('token') ?? '';",
-    "  useEffect(() => { const urlError = searchParams.get('error'); if (urlError) { setError(urlError === 'INVALID_TOKEN' ? 'Invalid or expired reset link.' : urlError); } else if (!token) { setError('Missing reset token. Use the link from your email.'); } }, [searchParams, token]);",
-    "  const form = useForm({ defaultValues: { newPassword: '', confirmPassword: '' } as ResetPasswordForm, onSubmit: async ({ value }) => { setError(null); if (value.newPassword !== value.confirmPassword) { setError('Passwords do not match'); return; } if (value.newPassword.length < 8) { setError('Password must be at least 8 characters'); return; } const result = await authClient.resetPassword({ newPassword: value.newPassword, token, }); if (result.error) { setError(result.error.message ?? 'Failed to reset password'); return; } router.push('/sign-in?reset=success'); }, });",
-    "  return (<div className='w-full max-w-[420px] flex flex-col gap-6'><Card><CardHeader><CardTitle>Reset password</CardTitle><CardDescription>Choose a new password. Link expires in 1 hour and can only be used once.</CardDescription></CardHeader><CardContent className='flex flex-col gap-6'>{error ? <Alert variant='destructive'><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}{!token ? (<div className='flex flex-col gap-4'><p className='text-sm text-muted-foreground'>No valid token found.</p><Link href='/forgot-password'><Button>Request new link</Button></Link></div>) : (<Form form={form} className='flex flex-col gap-6'><FieldGroup><TanStackField form={form} name='newPassword' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }} >{(field) => (<Field data-invalid={field.state.meta.errors.length > 0}><FieldLabel htmlFor='new-password'>New password</FieldLabel><Input id='new-password' name={field.name} type='password' autoComplete='new-password' required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} />{field.state.meta.errors.length > 0 ? <FieldDescription className='text-destructive'>{field.state.meta.errors.join(', ')}</FieldDescription> : <FieldDescription>Must be at least 8 characters.</FieldDescription>}</Field>)}</TanStackField><TanStackField form={form} name='confirmPassword' validators={{ onSubmit: ({ value }) => (value.length >= 8 ? undefined : 'Password must be at least 8 characters') }} >{(field) => (<Field><FieldLabel htmlFor='confirm-password'>Confirm password</FieldLabel><Input id='confirm-password' name={field.name} type='password' required minLength={8} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} /><FieldDescription>Must match the new password above.</FieldDescription></Field>)}</TanStackField></FieldGroup><SubmitButton className='w-full'>Reset password</SubmitButton></Form>)}</CardContent><CardFooter><Link href='/sign-in' className='text-sm underline'>Back to sign in</Link></CardFooter></Card></div>);",
-    "}",
-    "",
-    "export default function ResetPasswordPage(): React.JSX.Element {",
-    "  return (<main className='min-h-screen flex items-center justify-center p-6 bg-background'><Suspense fallback={<div>Loading...</div>}><ResetPasswordInner /></Suspense></main>);",
-    "}",
-    "",
-  ].join("\n");
+  return resetPasswordPageContent("next");
 }

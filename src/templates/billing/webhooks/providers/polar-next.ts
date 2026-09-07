@@ -1,59 +1,121 @@
-import { convexApiFor, type DbImports, type ConvexImports } from "./shared.js";
+import {
+  convexApiFor,
+  convexBillingServerHelpers,
+  postgresWebhookClaimHelpers,
+  webhookBodyLimitHelpers,
+  webhookBodyReadLines,
+  webhookEventOrderHelpers,
+  type DbImports,
+  type ConvexImports,
+} from "./shared.js";
+import { convexWebhookPayloadHelpers } from "./convex-payload.js";
 
 type ConvexImp = ConvexImports;
 
-function baseNext(imp: DbImports): string {
+function eventHelpers(): string[] {
   return [
-    'import { eq } from "drizzle-orm";',
+    'function nonEmptyString(value: unknown): string | null { return typeof value === "string" && value.trim() ? value : null; }',
+    'function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }',
+    "function polarDeliveryId(headers: Record<string, string>, rawBody: Buffer): string {",
+    '  return nonEmptyString(headers["webhook-id"]) ?? `body_sha256:${createHash("sha256").update(rawBody).digest("hex")}`;',
+    "}",
+    'type PolarEventKind = "subscription" | "checkout" | "order";',
+    "function polarEventKind(eventType: string): PolarEventKind | null {",
+    "  switch (eventType) {",
+    '    case "subscription.created": case "subscription.updated": case "subscription.active": case "subscription.canceled": case "subscription.uncanceled": case "subscription.revoked": case "subscription.past_due": return "subscription";',
+    '    case "checkout.created": case "checkout.updated": case "checkout.expired": return "checkout";',
+    '    case "order.created": case "order.paid": return "order";',
+    "    default: return null;",
+    "  }",
+    "}",
+    'function scalarMetadata(value: unknown): Record<string, string | number | boolean | null> | undefined { if (!isRecord(value)) return undefined; const output: Record<string, string | number | boolean | null> = {}; for (const [key, item] of Object.entries(value)) if (item === null || typeof item === "string" || typeof item === "number" || typeof item === "boolean") output[key] = item; return output; }',
+  ];
+}
+
+function postgresBase(imp: DbImports): string {
+  return [
+    'import { createHash, randomUUID } from "node:crypto";',
+    'import { and, eq, isNull, sql } from "drizzle-orm";',
     `import { db } from "${imp.db}";`,
-    `import { webhook_events, checkouts, subscriptions, invoices, license_keys, usage_events } from "${imp.billingSchema}";`,
+    `import { webhook_events, checkouts, subscriptions, invoices, customers } from "${imp.billingSchema}";`,
     `import { logger } from "${imp.observability}";`,
     "",
+    ...webhookBodyLimitHelpers(),
+    "",
+    ...eventHelpers(),
+    ...webhookEventOrderHelpers(),
+    'function mapPolarSubscriptionStatus(value: unknown): typeof subscriptions.$inferSelect.status { const status = nonEmptyString(value); if (status === "active" || status === "trialing" || status === "past_due" || status === "canceled" || status === "unpaid" || status === "incomplete" || status === "incomplete_expired" || status === "paused" || status === "expired" || status === "on_trial" || status === "trial_ended") return status; return "incomplete"; }',
+    "",
+    ...postgresWebhookClaimHelpers("polar"),
+    "",
     "export async function POST(req: Request): Promise<Response> {",
-    '  const secret = process.env.POLAR_WEBHOOK_SECRET ?? "";',
-    '  if (!secret || secret.startsWith("REPLACE_WITH")) { logger.error("[polar webhook] POLAR_WEBHOOK_SECRET not configured"); return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 }); }',
-    "  const buf = Buffer.from(await req.arrayBuffer());",
-    "  const headers: Record<string, string> = {}; req.headers.forEach((v, k) => { headers[k] = v; headers[k.toLowerCase()] = v; });",
-    '  const webhookId = headers["webhook-id"]; const webhookTimestamp = headers["webhook-timestamp"]; const webhookSignature = headers["webhook-signature"] ?? headers["polar-signature"];',
-    '  if (!webhookId || !webhookTimestamp || !webhookSignature) { return new Response("Missing required webhook headers: webhook-id, webhook-timestamp, webhook-signature", { status: 400 }); }',
-    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>;",
-    '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers as unknown as Record<string, string>, secret) as unknown as string; eventType = validated.type ?? "unknown"; eventPayload = validated.data ?? validated; eventId = (validated.data as unknown as Record<string, unknown>)?.id ?? validated.id ?? `evt_${Date.now()}`; }',
-    '  catch (err: unknown) { const name = err?.name ?? ""; const msg = err?.message ?? String(err); const isInvalid = name === "WebhookVerificationError" || msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("verification") || msg.toLowerCase().includes("whsec"); logger.error(`[polar webhook] ${isInvalid ? "signature verification failed 403" : "webhook error 400"}: ${msg}`); return new Response(isInvalid ? "Invalid polar signature" : "Webhook Error", { status: isInvalid ? 403 : 400 }); }',
-    '  try { if (!db.query.webhook_events.findFirst) throw new Error("webhook_events query not available — ensure billing schema is migrated"); const existing = await db.query.webhook_events.findFirst({ where: eq(webhook_events.providerEventId, eventId), }); if (existing?.processed) { logger.info(`[polar webhook] already processed ${eventId}`); return new Response("already processed", { status: 200 }); } }',
-    '  catch (error) { const message = error instanceof Error ? error.message : String(error); if (message.includes("webhook_events query not available")) { logger.error(`[polar webhook] ${message}`); throw error; } logger.error(`[polar webhook] idempotency check failed: ${message}`); return new Response(`Idempotency store unavailable: ${message}`, { status: 500, headers: { "Retry-After": "60" } }); }',
-    '  try { const data = eventPayload as unknown as string; const custom = (data as unknown as Record<string, unknown>).metadata as Record<string, unknown> | undefined; const customerId = (data as unknown as Record<string, unknown>).customerId ?? (data as unknown as Record<string, unknown>).customer_id; switch (eventType) { case "checkout.created": { try { const checkoutId = (data as unknown as Record<string, unknown>).id ?? eventId; const url = (data as unknown as Record<string, unknown>).url; const userId = (custom?.userId as string | undefined) ?? (data as unknown as Record<string, unknown>).externalCustomerId ?? (data as unknown as Record<string, unknown>).external_customer_id; if (userId) { await db.insert(checkouts).values({ provider: "polar", providerCheckoutId: checkoutId, url: url as string | undefined, status: "pending", metadata: custom as unknown as Record<string, unknown>, }).onConflictDoNothing(); } } catch (error) { logger.error(`[polar webhook] checkout.created failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "checkout.updated": { try { const checkoutId = (data as unknown as Record<string, unknown>).id ?? eventId; const status = (data as unknown as Record<string, unknown>).status; if (checkoutId && status) { const mapped = status === "confirmed" || status === "succeeded" ? "completed" : status === "expired" ? "expired" : "pending"; await db.update(checkouts).set({ status: mapped as unknown as string }).where(eq(checkouts.providerCheckoutId, checkoutId)); } } catch (error) { logger.error(`[polar webhook] checkout.updated failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "order.created": case "order.paid": { try { const orderId = (data as unknown as Record<string, unknown>).id ?? eventId; const subId = (data as unknown as Record<string, unknown>).subscriptionId ?? (data as unknown as Record<string, unknown>).subscription_id; await db.insert(invoices).values({ provider: "polar", providerInvoiceId: orderId, subscriptionId: subId as unknown as string, paid: eventType === "order.paid" || (data as unknown as Record<string, unknown>).status === "paid", amount: (data as unknown as Record<string, unknown>).totalAmount ?? (data as unknown as Record<string, unknown>).amount ?? 0, status: eventType === "order.paid" ? "paid" : "open", }).onConflictDoNothing(); if (eventType === "order.paid" && subId) { await db.update(subscriptions).set({ status: "active" as unknown as string }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] order handling failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription.created": case "subscription.active": case "subscription.updated": case "subscription.uncanceled": { try { const subId = (data as unknown as Record<string, unknown>).id ?? eventId; const userId = (custom?.userId as string | undefined) ?? (data as unknown as Record<string, unknown>).customerId ?? (data as unknown as Record<string, unknown>).externalCustomerId ?? ""; const statusRaw = (data as unknown as Record<string, unknown>).status ?? (eventType.includes("active") ? "active" : eventType.includes("canceled") ? "canceled" : eventType.includes("revoked") ? "canceled" : eventType.includes("uncanceled") ? "active" : "active"); if (userId || subId) { await db.insert(subscriptions).values({ userId: userId || subId, provider: "polar", providerSubscriptionId: subId, status: statusRaw as unknown as string, customerId: customerId as unknown as string, metadata: custom as unknown as Record<string, unknown>, }).onConflictDoNothing(); await db.update(subscriptions).set({ status: statusRaw as unknown as string }).where(eq(subscriptions.providerSubscriptionId, subId)); } } catch (error) { logger.error(`[polar webhook] subscription upsert failed: ${error instanceof Error ? error.message : String(error)}`); } break; } case "subscription.canceled": case "subscription.revoked": { try { const subId = (data as unknown as Record<string, unknown>).id ?? eventId; await db.update(subscriptions).set({ status: "canceled" as unknown as string }).where(eq(subscriptions.providerSubscriptionId, subId)); try { await db.update(license_keys).set({ status: "revoked" as unknown as string }).where(eq(license_keys.subscriptionId, subId as unknown as string)); } catch (errInner) { logger.error(`[polar webhook] revoke license_keys failed: ${errInner instanceof Error ? errInner.message : String(errInner)}`); } } catch (error) { logger.error(`[polar webhook] subscription canceled/revoked failed: ${error instanceof Error ? error.message : String(error)}`); } break; } default: break; } } catch (error) { logger.error(`[polar webhook] handler error: ${error instanceof Error ? error.message : String(error)}`); }',
-    '  try { await db.insert(webhook_events).values({ provider: "polar", providerEventId: eventId, type: eventType, payload: eventPayload as unknown as string, processed: true, }).onConflictDoNothing(); } catch (error) { logger.error(`[polar webhook] failed to record event: ${error instanceof Error ? error.message : String(error)}`); }',
-    '  logger.info(`[polar webhook] processed ${eventType} ${eventId}`); return new Response("ok", { status: 200 });',
-    "}",
-  ].join("\n");
-}
-
-function convexNext(imp: DbImports): string {
-  const convexImport = `import { convexClient } from "${imp.db}";`;
-  const apiImport = `import { api } from "${convexApiFor(imp, "polar", "next")}";`;
-  return [
-    convexImport,
-    apiImport,
-    `import { logger } from "${imp.observability}";`,
-    "export async function POST(req: Request): Promise<Response> {",
+    ...webhookBodyReadLines("req"),
     '  const secret = process.env.POLAR_WEBHOOK_SECRET ?? "";',
     '  if (!secret || secret.startsWith("REPLACE_WITH")) return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 });',
-    "  const buf = Buffer.from(await req.arrayBuffer());",
-    "  const headers: Record<string, string> = {}; req.headers.forEach((v, k) => { headers[k] = v; });",
-    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>;",
-    '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers as unknown as Record<string, string>, secret) as unknown as string; eventType = validated.type ?? "unknown"; eventPayload = validated.data ?? validated; eventId = (validated.data as unknown as Record<string, unknown>)?.id ?? validated.id ?? `evt_${Date.now()}`; } catch (err: unknown) { const msg = err?.message ?? String(err); const isInvalid = msg.toLowerCase().includes("signature") || msg.toLowerCase().includes("verification"); logger.error(`[polar] ${msg}`); return new Response("Webhook Error", { status: isInvalid ? 403 : 400 }); }',
-    '  try { const existing = await convexClient.query(api.billing.checkWebhookEvent, { provider: "polar", providerEventId: eventId }); if ((existing as unknown as { processed?: boolean })?.processed) { logger.info(`[polar] already processed ${eventId}`); return new Response("already processed", { status: 200 }); } } catch (e) { logger.error(`[polar] idempotency fail`); }',
-    '  try { const data = eventPayload as unknown as string; const custom = data.metadata; if (eventType.includes("checkout.created")) { const checkoutId = data.id ?? eventId; await convexClient.mutation(api.billing.upsertCheckout, { provider: "polar", providerCheckoutId: checkoutId, status: "pending" as unknown as string, url: data.url, metadata: custom }); } else if (eventType.includes("subscription")) { const subId = data.id ?? eventId; const userId = (custom as unknown as string)?.userId ?? data.customerId ?? data.externalCustomerId ?? subId; const statusRaw = data.status ?? (eventType.includes("canceled") ? "canceled" : "active"); await convexClient.mutation(api.billing.upsertSubscription, { userId, provider: "polar", providerSubscriptionId: subId, status: statusRaw as unknown as string, customerId: data.customerId, metadata: custom }); } } catch (e) { logger.error(`[polar] handler error ${e instanceof Error ? e.message : String(e)}`); }',
-    '  try { await convexClient.mutation(api.billing.upsertWebhookEvent, { provider: "polar", providerEventId: eventId, type: eventType, payload: eventPayload as unknown as string, processed: true }); } catch (e) { logger.error(`[polar] record fail`); }',
-    '  logger.info(`[polar] processed ${eventType} ${eventId}`); return new Response("ok", { status: 200 });',
+    "  const headers: Record<string, string> = {}; req.headers.forEach((value, key) => { headers[key.toLowerCase()] = value; });",
+    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>; let data: Record<string, unknown>; let eventOccurredAtMs: number | null;",
+    '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers, secret); eventPayload = isRecord(validated) ? validated : {}; data = isRecord(eventPayload.data) ? eventPayload.data : eventPayload; eventType = nonEmptyString(eventPayload.type) ?? "unknown"; eventId = polarDeliveryId(headers, buf); eventOccurredAtMs = providerEventMillis(eventPayload.timestamp, eventPayload.occurredAt, data.modifiedAt, data.updatedAt, data.createdAt); }',
+    '  catch (error) { const message = error instanceof Error ? error.message : String(error); logger.error(`[polar webhook] verification failed: ${message}`); return new Response("Invalid polar signature", { status: 403 }); }',
+    "  let claim: ClaimResult; try { claim = await claimWebhookDelivery(eventId, eventType, eventPayload); }",
+    '  catch { return new Response("Idempotency store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  if (claim.status === "completed") return new Response("already processed", { status: 200 });',
+    '  if (claim.status === "in_flight") return new Response("delivery in progress", { status: 503, headers: { "Retry-After": "5" } });',
+    "  try {",
+    "    const resourceId = nonEmptyString(data.id); const metadata = scalarMetadata(data.metadata); const userId = nonEmptyString(metadata?.userId) ?? nonEmptyString(data.externalCustomerId); const requestKey = nonEmptyString(metadata?.requestKey); const customerId = nonEmptyString(data.customerId); const eventKind = polarEventKind(eventType);",
+    "    if (eventKind && !resourceId) throw new Error(`Polar ${eventType} event did not include data.id`);",
+    '    if (eventKind === "subscription" && resourceId) { const status = eventType === "subscription.canceled" || eventType === "subscription.revoked" ? "canceled" : mapPolarSubscriptionStatus(data.status); const providerEventAt = new Date(requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs)); if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); const [storedSubscription] = await db.insert(subscriptions).values({ userId, provider: "polar", providerSubscriptionId: resourceId, status, metadata, providerEventAt }).onConflictDoUpdate({ target: [subscriptions.provider, subscriptions.providerSubscriptionId], set: { status, metadata, providerEventAt, updatedAt: new Date() }, setWhere: and(eq(subscriptions.userId, userId), sql`${subscriptions.providerEventAt} IS NULL OR ${subscriptions.providerEventAt} < ${providerEventAt} OR (${subscriptions.providerEventAt} = ${providerEventAt} AND (${status} = \'canceled\' OR ${subscriptions.status} NOT IN (\'canceled\', \'expired\')))` ) }).returning({ id: subscriptions.id }); if (!storedSubscription) { const existingSubscription = await db.query.subscriptions.findFirst({ where: and(eq(subscriptions.provider, "polar"), eq(subscriptions.providerSubscriptionId, resourceId)) }); if (!existingSubscription || existingSubscription.userId !== userId) throw new Error(`Polar subscription ${resourceId} belongs to another actor`); } if (customerId) await db.insert(customers).values({ userId, provider: "polar", providerCustomerId: customerId, metadata }).onConflictDoUpdate({ target: [customers.userId, customers.provider], set: { metadata, updatedAt: new Date() } }); }',
+    '    else if (eventKind === "checkout" && resourceId) { if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); const status = data.status === "confirmed" || data.status === "succeeded" ? "completed" : data.status === "expired" ? "expired" : "pending"; const providerEventAt = new Date(requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs)); const ordering = sql`${checkouts.providerEventAt} IS NULL OR ${checkouts.providerEventAt} < ${providerEventAt} OR (${checkouts.providerEventAt} = ${providerEventAt} AND (${status} = \'completed\' OR (${status} = \'expired\' AND ${checkouts.status} NOT IN (\'completed\', \'paid\')) OR ${checkouts.status} IN (\'pending\', \'open\')))`; if (requestKey) await db.update(checkouts).set({ providerCheckoutId: resourceId, url: nonEmptyString(data.url), status, metadata, providerEventAt, creationState: "ready", creationStartedAt: null, creationLeaseToken: null, updatedAt: new Date() }).where(and(eq(checkouts.userId, userId), eq(checkouts.provider, "polar"), eq(checkouts.requestKey, requestKey), eq(checkouts.creationState, "creating"))); const [stored] = await db.insert(checkouts).values({ userId, provider: "polar", providerCheckoutId: resourceId, requestKey, url: nonEmptyString(data.url), status, metadata, providerEventAt }).onConflictDoUpdate({ target: [checkouts.provider, checkouts.providerCheckoutId], set: { requestKey, status, metadata, providerEventAt, creationState: "ready", creationStartedAt: null, creationLeaseToken: null, updatedAt: new Date() }, setWhere: and(eq(checkouts.userId, userId), ordering) }).returning({ id: checkouts.id }); if (!stored) { const existing = await db.query.checkouts.findFirst({ where: and(eq(checkouts.provider, "polar"), eq(checkouts.providerCheckoutId, resourceId)) }); if (!existing || existing.userId !== userId) throw new Error(`Polar checkout ${resourceId} belongs to another actor`); } }',
+    '    else if (eventKind === "order" && resourceId) { if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); const providerEventAt = new Date(requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs)); const amount = typeof data.totalAmount === "number" ? data.totalAmount : typeof data.amount === "number" ? data.amount : 0; const paid = eventType === "order.paid" || data.paid === true || data.status === "paid"; const status = paid ? "paid" as const : "open" as const; const currency = nonEmptyString(data.currency) ?? undefined; const providerSubscriptionId = nonEmptyString(data.subscriptionId) ?? nonEmptyString(data.subscription_id); const localSubscription = providerSubscriptionId ? await db.query.subscriptions.findFirst({ where: and(eq(subscriptions.provider, "polar"), eq(subscriptions.providerSubscriptionId, providerSubscriptionId)) }) : null; const localCustomer = customerId ? await db.query.customers.findFirst({ where: and(eq(customers.provider, "polar"), eq(customers.providerCustomerId, customerId)) }) : null; if (localSubscription && localSubscription.userId !== userId) throw new Error(`Polar subscription ${providerSubscriptionId} belongs to another actor`); if (localCustomer && localCustomer.userId !== userId) throw new Error(`Polar customer ${customerId} belongs to another actor`); const [storedInvoice] = await db.insert(invoices).values({ userId, provider: "polar", providerInvoiceId: resourceId, subscriptionId: localSubscription?.id, customerId: localCustomer?.id, paid, amount, currency, status, metadata, providerEventAt }).onConflictDoUpdate({ target: [invoices.provider, invoices.providerInvoiceId], set: { subscriptionId: localSubscription?.id, customerId: localCustomer?.id, paid, amount, currency, status, metadata, providerEventAt, updatedAt: new Date() }, setWhere: and(eq(invoices.userId, userId), sql`(${invoices.paid} = false OR ${paid}) AND (${invoices.providerEventAt} IS NULL OR ${invoices.providerEventAt} <= ${providerEventAt})`) }).returning({ id: invoices.id }); if (!storedInvoice) { const existingInvoice = await db.query.invoices.findFirst({ where: and(eq(invoices.provider, "polar"), eq(invoices.providerInvoiceId, resourceId)) }); if (!existingInvoice || existingInvoice.userId !== userId) throw new Error(`Polar invoice ${resourceId} belongs to another actor`); } }',
+    '  } catch (error) { const message = error instanceof Error ? error.message : String(error); try { await failWebhookDelivery(eventId, claim.leaseToken, message); } catch (releaseError) { logger.error(`[polar webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook handler failed", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  try { await completeWebhookDelivery(eventId, claim.leaseToken); } catch (error) { const message = error instanceof Error ? error.message : String(error); try { await failWebhookDelivery(eventId, claim.leaseToken, message); } catch (releaseError) { logger.error(`[polar webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook event store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  return new Response("ok", { status: 200 });',
     "}",
   ].join("\n");
 }
 
+function convexBase(imp: DbImports): string {
+  const apiSpecifier = convexApiFor(imp, "polar", "next");
+  const dataModelSpecifier = apiSpecifier.replace(/\/api$/, "/dataModel");
+  return [
+    'import { createHash } from "node:crypto";',
+    `import { convexClient } from "${imp.db}";`,
+    `import { api } from "${apiSpecifier}";`,
+    `import type { Id } from "${dataModelSpecifier}";`,
+    `import { logger } from "${imp.observability}";`,
+    "",
+    ...convexBillingServerHelpers(),
+    "",
+    ...convexWebhookPayloadHelpers(),
+    "",
+    ...webhookBodyLimitHelpers(),
+    "",
+    ...eventHelpers(),
+    ...webhookEventOrderHelpers(),
+    'function mapPolarSubscriptionStatus(value: unknown) { const status = nonEmptyString(value); if (status === "active" || status === "trialing" || status === "past_due" || status === "canceled" || status === "unpaid" || status === "incomplete" || status === "incomplete_expired" || status === "paused" || status === "expired" || status === "on_trial" || status === "trial_ended") return status; return "incomplete" as const; }',
+    "",
+    "export async function POST(req: Request): Promise<Response> {",
+    ...webhookBodyReadLines("req"),
+    '  const secret = process.env.POLAR_WEBHOOK_SECRET ?? ""; if (!secret || secret.startsWith("REPLACE_WITH")) return new Response("POLAR_WEBHOOK_SECRET not configured", { status: 400 });',
+    "  const headers: Record<string, string> = {}; req.headers.forEach((value, key) => { headers[key.toLowerCase()] = value; });",
+    "  let eventType: string; let eventId: string; let eventPayload: Record<string, unknown>; let data: Record<string, unknown>; let eventOccurredAtMs: number | null;",
+    '  try { const { validateEvent } = await import("@polar-sh/sdk/webhooks"); const validated = validateEvent(buf, headers, secret); eventPayload = isRecord(validated) ? validated : {}; data = isRecord(eventPayload.data) ? eventPayload.data : eventPayload; eventType = nonEmptyString(eventPayload.type) ?? "unknown"; eventId = polarDeliveryId(headers, buf); eventOccurredAtMs = providerEventMillis(eventPayload.timestamp, eventPayload.occurredAt, data.modifiedAt, data.updatedAt, data.createdAt); }',
+    '  catch { return new Response("Invalid polar signature", { status: 403 }); }',
+    '  let claim: { status: "claimed"; leaseToken: string } | { status: "completed" } | { status: "in_flight" }; try { claim = await runBillingMutation("claimWebhookEvent", { provider: "polar", providerEventId: eventId, type: eventType, payload: normalizeConvexWebhookPayload(eventPayload) }); } catch { return new Response("Idempotency store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  if (claim.status === "completed") return new Response("already processed", { status: 200 }); if (claim.status === "in_flight") return new Response("delivery in progress", { status: 503, headers: { "Retry-After": "5" } });',
+    '  try { const resourceId = nonEmptyString(data.id); const metadata = scalarMetadata(data.metadata); const userId = nonEmptyString(metadata?.userId) ?? nonEmptyString(data.externalCustomerId); const requestKey = nonEmptyString(metadata?.requestKey); const customerId = nonEmptyString(data.customerId); const eventKind = polarEventKind(eventType); if (eventKind && !resourceId) throw new Error(`Polar ${eventType} event did not include data.id`); if (eventKind === "subscription" && resourceId) { const providerEventAt = requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs); const status = eventType === "subscription.canceled" || eventType === "subscription.revoked" ? "canceled" as const : mapPolarSubscriptionStatus(data.status); if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); await runBillingMutation("upsertSubscription", { userId: userId as Id<"users">, provider: "polar", providerSubscriptionId: resourceId, status, metadata, providerEventAt }); if (customerId) await runBillingMutation("upsertCustomer", { userId: userId as Id<"users">, provider: "polar", providerCustomerId: customerId, metadata }); } else if (eventKind === "checkout" && resourceId) { if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); const providerEventAt = requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs); const status = data.status === "confirmed" || data.status === "succeeded" ? "completed" as const : data.status === "expired" ? "expired" as const : "pending" as const; await runBillingMutation("upsertCheckout", { userId: userId as Id<"users">, provider: "polar", providerCheckoutId: resourceId, requestKey, status, url: nonEmptyString(data.url) ?? undefined, metadata, providerEventAt }); } else if (eventKind === "order" && resourceId) { if (!userId) throw new Error(`Polar ${eventType} event did not include actor ownership`); const providerEventAt = requireProviderEventMillis(`Polar ${eventType}`, eventOccurredAtMs); const amount = typeof data.totalAmount === "number" ? data.totalAmount : typeof data.amount === "number" ? data.amount : 0; const status = eventType === "order.paid" || data.paid === true || data.status === "paid" ? "paid" as const : "open" as const; await runBillingMutation("upsertInvoice", { userId: userId as Id<"users">, provider: "polar", providerInvoiceId: resourceId, status, amount, currency: nonEmptyString(data.currency) ?? undefined, customerId: customerId ?? undefined, subscriptionId: nonEmptyString(data.subscriptionId) ?? nonEmptyString(data.subscription_id) ?? undefined, metadata, providerEventAt }); } }',
+    '  catch (error) { const message = error instanceof Error ? error.message : String(error); try { await runBillingMutation("failWebhookEvent", { provider: "polar", providerEventId: eventId, leaseToken: claim.leaseToken, error: message }); } catch (releaseError) { logger.error(`[polar webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook handler failed", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  try { await runBillingMutation("completeWebhookEvent", { provider: "polar", providerEventId: eventId, leaseToken: claim.leaseToken }); } catch (error) { const message = error instanceof Error ? error.message : String(error); try { await runBillingMutation("failWebhookEvent", { provider: "polar", providerEventId: eventId, leaseToken: claim.leaseToken, error: message }); } catch (releaseError) { logger.error(`[polar webhook] claim release failed: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`); } return new Response("Webhook event store unavailable", { status: 500, headers: { "Retry-After": "60" } }); }',
+    '  return new Response("ok", { status: 200 });',
+    "}",
+  ].join("\n");
+}
+
+export function polarRouteBaseContent(imp: DbImports): string {
+  return (imp as ConvexImp).isConvex ? convexBase(imp) : postgresBase(imp);
+}
 export function polarNextContent(imp: DbImports): string {
-  if ((imp as ConvexImp).isConvex) return polarNextConvexContent(imp);
-  return baseNext(imp);
+  return polarRouteBaseContent(imp);
 }
 export function polarNextConvexContent(imp: DbImports): string {
-  return convexNext(imp);
+  return convexBase(imp);
 }
