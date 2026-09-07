@@ -453,7 +453,10 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
   expect(source).toContain("MAX_CAPTURE_CHARS");
   expect(source).toContain('} from "../tests/helpers/process-tree.js"');
   expect(source).toContain("await stopWorkerPreview(child)");
-  expect(source).toContain("captured = await captureWindowsProcessTree(child)");
+  expect(source).toContain("await captureWorkerPreviewOwnership(child)");
+  expect(source).toContain("const current = await captureWindowsProcessTree(child)");
+  expect(source).toContain("captured = [...captured, ...current]");
+  expect(source).toContain("console.error(workerRuntime.detail)");
   expect(source).toContain("await assertProcessTreeExited(child, captured)");
   expect(source).toContain("previewStops.get(child)");
   expect(source).toContain("cleanupVerified: boolean");

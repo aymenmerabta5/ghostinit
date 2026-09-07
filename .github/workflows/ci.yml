@@ -67,6 +67,8 @@ jobs:
           tests/unit/temporary-workspace.test.ts
           tests/unit/worker-preview-readiness.test.ts
           tests/unit/worker-preview-stop.test.ts
+          tests/unit/worker-preview-early-exit.test.ts
+          tests/unit/worker-preview-diagnostics.test.ts
           tests/unit/cloudflare-preview-config.test.ts
           tests/unit/cloudflare-secret-ownership.test.ts
           tests/unit/cloudflare-wrapper-lifecycle.test.ts
