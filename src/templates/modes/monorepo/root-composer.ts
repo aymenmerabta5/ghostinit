@@ -28,6 +28,7 @@ export function rootComposerFiles(
     runtime,
     addonMap as AddonInstallerMap,
     deploy as unknown as import("../../../lib/addons.js").DeployTarget,
+    { mode: "monorepo", framework: framework ?? "nextjs" },
   );
   const effectiveDb = database ?? "postgres";
   // Only emit the public env prefix the project actually validates.
@@ -55,6 +56,12 @@ export function rootComposerFiles(
   return raw.map((f: TemplateFile) => {
     if (f.path === ".env.example") return filteredExample;
     if (f.path === ".env.local") return filteredLocal;
+    if (f.path === ".dev.vars") {
+      return { ...filteredLocal, path: ".dev.vars" };
+    }
+    if (f.path === "apps/web/.dev.vars") {
+      return { ...filteredLocal, path: "apps/web/.dev.vars" };
+    }
     return f;
   });
 }

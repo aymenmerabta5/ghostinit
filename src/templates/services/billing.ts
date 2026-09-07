@@ -1,32 +1,40 @@
 import { file, type TemplateFile } from "../shared.js";
-import type { ProjectMode } from "../../lib/addons.js";
-import { resultImportForMode } from "./shared.js";
+import type { FrameworkName, ProjectMode } from "../../lib/addons.js";
+import { resultImportForMode, serverOnlyImportForFramework } from "./shared.js";
 
 const sharedBillingIndex = `export { createCheckoutService } from "./create-checkout.service.js";
 export { listSubscriptionsService } from "./list-subscriptions.service.js";
 export { createPortalSessionService } from "./create-portal-session.service.js";
 export type { BillingProviderName, CheckoutRecord, BillingProviderPort, CreateCheckoutInput, CreateCheckoutDeps, CreateCheckoutOutput } from "./create-checkout.service.js";
-export type { PortalSessionRecord, CreatePortalSessionInput, CreatePortalSessionDeps, CreatePortalSessionOutput } from "./create-portal-session.service.js";
+export type { PortalSessionRecord, PortalProviderPort, CreatePortalSessionInput, CreatePortalSessionDeps, CreatePortalSessionOutput } from "./create-portal-session.service.js";
+export type { BillingSnapshot } from "./list-subscriptions.service.js";
 `;
 
-export function billingCreateCheckoutContent(mode: ProjectMode): string {
+export function billingCreateCheckoutContent(
+  mode: ProjectMode,
+  framework: FrameworkName,
+): string {
   const resultImport = resultImportForMode(mode);
-  return `import "server-only";\n${resultImport}
+  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export interface CheckoutRecord { id: string; provider: BillingProviderName; url: string; status: string; }
-export interface BillingProviderPort { createCheckout(input: { provider: BillingProviderName; priceId: string; successUrl: string; failureUrl: string; }): Promise<CheckoutRecord>; }
-export interface CreateCheckoutInput { provider: BillingProviderName; priceId: string; successUrl: string; failureUrl: string; userId?: string; }
+export interface CheckoutProviderResult { id: string; url: string; providerCheckoutId?: string; }
+export interface CreateCheckoutInput { provider: BillingProviderName; priceId: string; successUrl: string; failureUrl?: string; cancelUrl?: string; customerEmail?: string; quantity?: number; userId: string; }
+export interface BillingProviderPort { createCheckout(input: CreateCheckoutInput): Promise<CheckoutProviderResult>; }
 export interface CreateCheckoutDeps { billingProvider: BillingProviderPort; }
 export type CreateCheckoutOutput = Result<CheckoutRecord, Error>;
 export async function createCheckoutService(input: CreateCheckoutInput, deps: CreateCheckoutDeps): Promise<CreateCheckoutOutput> {
-  try { const record = await deps.billingProvider.createCheckout(input); return ok(record); } catch (e) { return err(e instanceof Error ? e : new Error(String(e))); }
+  try {
+    const record = await deps.billingProvider.createCheckout(input);
+    return ok({ id: record.id, url: record.url, provider: input.provider, status: "pending" });
+  } catch (e) { return err(e instanceof Error ? e : new Error(String(e))); }
 }
 `;
 }
 
-function portalServiceContent(mode: ProjectMode): string {
+function portalServiceContent(mode: ProjectMode, framework: FrameworkName): string {
   const resultImport = resultImportForMode(mode);
-  return `import "server-only";\n${resultImport}
+  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export interface PortalSessionRecord { url: string; }
 export interface PortalProviderPort { createPortalSession?(input: { customerId: string; returnUrl: string }): Promise<PortalSessionRecord>; }
@@ -50,7 +58,7 @@ export async function createPortalSessionService(input: CreatePortalSessionInput
 `;
 }
 
-function listSubscriptionsContent(mode: ProjectMode): string {
+function listSubscriptionsContent(mode: ProjectMode, framework: FrameworkName): string {
   const resultImport = resultImportForMode(mode);
   const dbImport =
     mode === "monorepo"
@@ -61,7 +69,7 @@ import { subscriptions, invoices, usage_events, license_keys } from "@repo/billi
 import { db } from "@/server/db";
 import { subscriptions, invoices, usage_events, license_keys } from "@/server/billing/schema/billing";`;
 
-  return `import "server-only";\n${resultImport}
+  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
 ${dbImport}
 export interface BillingSnapshot {
   subscriptions: Array<Record<string, unknown>>;
@@ -91,12 +99,21 @@ export async function listSubscriptionsService(userId: string): Promise<Result<B
 `;
 }
 
-export function billingServiceFiles(mode: ProjectMode): TemplateFile[] {
+export function billingServiceFiles(mode: ProjectMode, framework: FrameworkName): TemplateFile[] {
   const base = mode === "monorepo" ? "packages/services/src" : "src/server/services";
   return [
     file(`${base}/billing/index.ts`, sharedBillingIndex),
-    file(`${base}/billing/create-checkout.service.ts`, billingCreateCheckoutContent(mode)),
-    file(`${base}/billing/create-portal-session.service.ts`, portalServiceContent(mode)),
-    file(`${base}/billing/list-subscriptions.service.ts`, listSubscriptionsContent(mode)),
+    file(
+      `${base}/billing/create-checkout.service.ts`,
+      billingCreateCheckoutContent(mode, framework),
+    ),
+    file(
+      `${base}/billing/create-portal-session.service.ts`,
+      portalServiceContent(mode, framework),
+    ),
+    file(
+      `${base}/billing/list-subscriptions.service.ts`,
+      listSubscriptionsContent(mode, framework),
+    ),
   ];
 }

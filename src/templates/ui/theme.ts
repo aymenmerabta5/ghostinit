@@ -9,14 +9,15 @@ import {
 
 /**
  * Single source OKLCH theme — @repo/ui/src/theme.css
- * DARK-FIRST — near-black #09090b, card #111113, fg #fafafa
+ * DARK-FIRST — background oklch(0.15 0.01 285), card 0.18, foreground 0.985
  * Web: apps/web/src/app/globals.css does @import "@repo/ui/theme.css"
  * Mobile: apps/mobile/global.css does @import "tailwindcss"; @import "uniwind"; @import "@repo/ui/theme.css"
  * Contains light/dark tokens + @theme inline + grain + 48px grid + @layer theme @variant for Uniwind compat.
  * Dark is default; light is toggle via .light / .dark class (next-themes attribute="class" defaultTheme="dark").
- * Accent oklch 0.68 0.17 262 (~#6b7cff), ok #4ac06c (0.72 0.16 150), warn #e8a127 (0.76 0.15 75), danger #ff3b4a (0.63 0.24 27)
+ * Accent --primary oklch 0.68 0.17 262 (~#6b7cff); semantic --success (150 hue), --warning (75 hue), --destructive (27 hue);
+ * --code / --code-foreground carry terminal surfaces (dashboard code blocks, command tiles) so pages never hardcode zinc/emerald hexes.
  * Radius 0.75rem (12px) / 8px / 16px; Fonts DM Sans 400/500/600 + JetBrains Mono 400/500, tracking -0.035em display, 11px mono meta
- * One edit to --primary updates both web and mobile after restart.
+ * One edit to --primary updates web, mobile and desktop after restart.
  */
 
 export function themeCssContent(): string {
@@ -48,6 +49,10 @@ export function themeCssContent(): string {
       --color-border: var(--border);
       --color-input: var(--input);
       --color-ring: var(--ring);
+      --color-success: var(--success);
+      --color-warning: var(--warning);
+      --color-code: var(--code);
+      --color-code-foreground: var(--code-foreground);
     }
     @variant dark {
       --color-background: var(--background);
@@ -69,6 +74,10 @@ export function themeCssContent(): string {
       --color-border: var(--border);
       --color-input: var(--input);
       --color-ring: var(--ring);
+      --color-success: var(--success);
+      --color-warning: var(--warning);
+      --color-code: var(--code);
+      --color-code-foreground: var(--code-foreground);
     }
   }
 }

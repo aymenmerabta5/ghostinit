@@ -11,14 +11,15 @@ export function rootTsConfig(): TemplateFile {
           incremental: true,
           composite: false,
           paths: {
-            "@/*": ["./src/*", "./apps/*/src/*", "./packages/*/src/*"],
-            "@repo/*": ["packages/*/src", "tooling/*/src"],
+            "@/*": ["./src/*"],
+            "@repo/*": ["./packages/*/src"],
           },
         },
         exclude: [
           "node_modules",
           "dist",
           ".next",
+          ".open-next",
           ".output",
           ".turbo",
           "apps/*/dist",
@@ -131,9 +132,13 @@ export function gitignore(): TemplateFile {
     `node_modules
 dist
 .next
-.env
-.env.local
-.env.*.local
+.open-next
+.wrangler
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env*
+!.env.example
 .turbo
 .ghostinit/
 .ghostinit-staging/
@@ -151,7 +156,7 @@ export function githubWorkflow(runtime: string): TemplateFile {
   const installCmd = runtime === "bun" ? "bun install" : "npm install";
   const setupBun =
     runtime === "bun"
-      ? "      - uses: oven-sh/setup-bun@v2\n        with:\n          bun-version: 1.3.14\n"
+      ? "      - uses: oven-sh/setup-bun@v2\n        with:\n          bun-version: 1.4.0\n"
       : "";
   return file(
     ".github/workflows/ci.yml",

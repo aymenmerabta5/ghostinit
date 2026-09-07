@@ -71,6 +71,23 @@ function generatedPins(): Array<[string, string, string]> {
     { ...base, database: "convex" } as ProjectConfig,
     { ...base, mode: "single" } as ProjectConfig,
     { ...base, mode: "single", framework: "tanstack-start" } as ProjectConfig,
+    {
+      ...base,
+      billing: [],
+      features: [],
+      eve: false,
+      database: "convex",
+      deploy: "cloudflare",
+    } as ProjectConfig,
+    {
+      ...base,
+      billing: [],
+      features: [],
+      eve: false,
+      database: "convex",
+      framework: "tanstack-start",
+      deploy: "cloudflare",
+    } as ProjectConfig,
   ];
 
   const seen = new Map<string, [string, string, string]>();

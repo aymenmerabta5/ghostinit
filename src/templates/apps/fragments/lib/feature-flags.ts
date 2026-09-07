@@ -2,9 +2,13 @@ import { file, type TemplateFile } from "../../../shared.js";
 
 // Generic feature flags — scaffolder starter, not domain copy.
 // Shows the dual server/client env pattern (server FEATURE_*, client NEXT_PUBLIC_/VITE_) without hardcoding Stagio names.
-export function featureFlagsLibFiles(base = "apps/web/src"): TemplateFile[] {
-  const serverContent = `import "server-only";
-import { env } from "@repo/config";
+export function featureFlagsLibFiles(
+  base = "apps/web/src",
+  framework: "nextjs" | "tanstack-start" = "nextjs",
+): TemplateFile[] {
+  const envImport = base.startsWith("apps") ? "@repo/config" : "@/lib/env";
+  const serverOnlyImport = framework === "nextjs" ? `import "server-only";\n` : "";
+  const serverContent = `${serverOnlyImport}import { env } from "${envImport}";
 
 // Add your flags here. Example:
 // BILLING: env.FEATURE_BILLING === "true",
@@ -19,7 +23,7 @@ export function isFeatureEnabled(flag: ServerFeatureFlag): boolean {
 `;
 
   const clientContent = `"use client";
-import { env } from "@repo/config";
+import { env } from "${envImport}";
 
 // Mirror server flags for the browser. Keep keys in sync with feature-flags.ts.
 // For Next.js use NEXT_PUBLIC_*, for TanStack Start use VITE_* — the helper handles both.

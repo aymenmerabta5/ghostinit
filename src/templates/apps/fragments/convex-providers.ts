@@ -9,7 +9,7 @@ export type RouterType = "next" | "tanstack";
 export function convexClientProviderContent(router: RouterType = "next"): string {
   const convexEnv =
     router === "tanstack"
-      ? "process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL"
+      ? "import.meta.env.VITE_CONVEX_URL"
       : "process.env.NEXT_PUBLIC_CONVEX_URL";
   const convexKey =
     router === "tanstack" ? "NEXT_PUBLIC_CONVEX_URL / VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL";
@@ -39,7 +39,7 @@ export const convexClient = new ConvexReactClient(convexUrl ?? "");
  */
 export function ConvexClientProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convexClient} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       {children}
     </ConvexBetterAuthProvider>
   );
@@ -67,7 +67,7 @@ export const convexClient = new ConvexReactClient(convexUrl ?? "");
 
 export function ConvexClientProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convexClient} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       {children}
     </ConvexBetterAuthProvider>
   );
@@ -88,7 +88,7 @@ import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL;
+const convexUrl = import.meta.env.VITE_CONVEX_URL;
 if (!convexUrl) {
   throw new Error("NEXT_PUBLIC_CONVEX_URL is not set. Set it in .env.local via \`npx convex dev\`");
 }
@@ -98,7 +98,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   const [queryClient] = React.useState(() => new QueryClient());
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       <QueryClientProvider client={queryClient}>
         <PostHogProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
@@ -136,7 +136,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       <QueryClientProvider client={queryClient}>
         <PostHogProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>

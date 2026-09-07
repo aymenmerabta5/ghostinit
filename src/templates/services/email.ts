@@ -1,14 +1,14 @@
 import { file, type TemplateFile } from "../shared.js";
-import type { ProjectMode } from "../../lib/addons.js";
-import { resultImportForMode } from "./shared.js";
+import type { FrameworkName, ProjectMode } from "../../lib/addons.js";
+import { resultImportForMode, serverOnlyImportForFramework } from "./shared.js";
 
 const sharedEmailIndex = `export { sendResetPasswordEmailService } from "./send-reset-password.service.js";
 export type { SendResetPasswordInput, EmailProviderPort, SendResetPasswordDeps, SendResetPasswordOutput } from "./send-reset-password.service.js";
 `;
 
-export function emailSendResetContent(mode: ProjectMode): string {
+export function emailSendResetContent(mode: ProjectMode, framework: FrameworkName): string {
   const resultImport = resultImportForMode(mode);
-  return `import "server-only";\n${resultImport}
+  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
 export interface SendResetPasswordInput { email: string; resetUrl: string; }
 export interface EmailProviderPort { sendEmail(to: string, subject: string, html: string): Promise<{ id: string }>; }
 export interface SendResetPasswordDeps { emailProvider: EmailProviderPort; }
@@ -19,10 +19,10 @@ export async function sendResetPasswordEmailService(input: SendResetPasswordInpu
 `;
 }
 
-export function emailServiceFiles(mode: ProjectMode): TemplateFile[] {
+export function emailServiceFiles(mode: ProjectMode, framework: FrameworkName): TemplateFile[] {
   const base = mode === "monorepo" ? "packages/services/src" : "src/server/services";
   return [
     file(`${base}/email/index.ts`, sharedEmailIndex),
-    file(`${base}/email/send-reset-password.service.ts`, emailSendResetContent(mode)),
+    file(`${base}/email/send-reset-password.service.ts`, emailSendResetContent(mode, framework)),
   ];
 }

@@ -102,11 +102,21 @@ export function buildNextFiles(
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
   const isNone = hasAddon(addonMap, "none");
+  const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const files: TemplateFile[] = [];
   files.push(
     file(
       "package.json",
-      singlePackageJson(projectName, runtime, effectiveBilling, hasEve, false, isConvex),
+      singlePackageJson(
+        projectName,
+        runtime,
+        effectiveBilling,
+        hasEve,
+        false,
+        isConvex,
+        false,
+        hasCloudflare,
+      ),
     ),
   );
   files.push(file("next.config.ts", singleNextConfigContent(hasEve)));
@@ -178,7 +188,9 @@ export function buildNextFiles(
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthSingle()));
-    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(
+      file("src/server/db/index.ts", serverDbIndexSingle(effectiveBilling.length > 0)),
+    );
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
@@ -187,7 +199,7 @@ export function buildNextFiles(
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   // Generic web lib (animations, feature-flags, storage, notifications, hooks, form-fields, dialogs) — scaffolder starter, not domain copy.
-  for (const f of webLibFiles("src")) {
+  for (const f of webLibFiles("src", "nextjs")) {
     // singleWebUiFiles already covers form-fields/dialogs under web-ui, but webLibFiles also includes them via webUiFiles duplication.
     // Filter to avoid duplicate paths: keep only lib/* and hooks/* and surface-styles
     if (
@@ -231,9 +243,10 @@ export function buildNextFiles(
 
   files.push(
     ...(servicesFiles(
-      { mode: "single", runtime, addons: addonMap } as {
+      { mode: "single", runtime, framework: "nextjs", addons: addonMap } as {
         mode: "single";
         runtime: "node" | "bun";
+        framework: "nextjs";
         addons: typeof addonMap;
       },
       runtime,
@@ -262,7 +275,11 @@ export function buildNextFiles(
   files.push(...(billingFiles(billingArg, runtime) as TemplateFile[]));
   files.push(
     ...(emailFiles(
-      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      { mode: "single", runtime, framework: "nextjs" } as {
+        mode: "single";
+        runtime: "node" | "bun";
+        framework: "nextjs";
+      },
       runtime,
     ) as TemplateFile[]),
   );

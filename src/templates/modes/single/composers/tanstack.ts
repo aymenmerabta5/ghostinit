@@ -109,15 +109,25 @@ export function buildTanstackFiles(
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
   const isNone = hasAddon(addonMap, "none");
+  const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const files: TemplateFile[] = [];
   files.push(
     file(
       "package.json",
-      singlePackageJsonTanstack(projectName, runtime, effectiveBilling, hasEve, hasI18n, isConvex),
+      singlePackageJsonTanstack(
+        projectName,
+        runtime,
+        effectiveBilling,
+        hasEve,
+        hasI18n,
+        isConvex,
+        false,
+        hasCloudflare,
+      ),
     ),
   );
-  files.push(file("vite.config.ts", singleViteConfigTanstackContent()));
-  files.push(file("nitro.config.ts", singleNitroConfigTanstackContent()));
+  files.push(file("vite.config.ts", singleViteConfigTanstackContent(hasCloudflare)));
+  if (!hasCloudflare) files.push(file("nitro.config.ts", singleNitroConfigTanstackContent()));
   files.push(file("tsconfig.json", singleTsConfigTanstackContent()));
   files.push(file("postcss.config.mjs", singlePostCssTanstackContent()));
   files.push(file("src/styles/app.css", singleGlobalsCssTanstackContent()));
@@ -209,7 +219,9 @@ export function buildTanstackFiles(
   } else {
     files.push(file("src/lib/auth-client.ts", authClientSingle()));
     files.push(file("src/server/auth/index.ts", serverAuthTanstackSingle()));
-    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(
+      file("src/server/db/index.ts", serverDbIndexSingle(effectiveBilling.length > 0)),
+    );
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
@@ -217,7 +229,7 @@ export function buildTanstackFiles(
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
   // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
-  for (const f of webLibFiles("src")) {
+  for (const f of webLibFiles("src", "tanstack-start")) {
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||
@@ -252,9 +264,10 @@ export function buildTanstackFiles(
 
   files.push(
     ...(servicesFiles(
-      { mode: "single", runtime, addons: addonMap } as {
+      { mode: "single", runtime, framework: "tanstack-start", addons: addonMap } as {
         mode: "single";
         runtime: "node" | "bun";
+        framework: "tanstack-start";
         addons: typeof addonMap;
       },
       runtime,
@@ -292,7 +305,11 @@ export function buildTanstackFiles(
 
   files.push(
     ...(emailFiles(
-      { mode: "single", runtime } as { mode: "single"; runtime: "node" | "bun" },
+      { mode: "single", runtime, framework: "tanstack-start" } as {
+        mode: "single";
+        runtime: "node" | "bun";
+        framework: "tanstack-start";
+      },
       runtime,
     ) as TemplateFile[]),
   );

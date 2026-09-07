@@ -36,6 +36,7 @@ function isConvex(input?: AddonMapInput): boolean {
 
 export function tanstackComponentFiles(addonMap?: AddonMapInput): TemplateFile[] {
   const convex = isConvex(addonMap);
+  const analytics = addonMap ? hasAddon(addonMap as AddonInstallerMap, "analytics") : true;
   const base: TemplateFile[] = [
     themeProviderComponent(),
     themeToggleComponent(),
@@ -47,7 +48,7 @@ export function tanstackComponentFiles(addonMap?: AddonMapInput): TemplateFile[]
     useCopyHook(),
     useBillingHook(),
     useAuthHook(),
-    providersComponent(convex),
+    providersComponent(convex, analytics),
   ];
   if (convex) {
     base.push(convexClientProviderComponent());
@@ -63,8 +64,11 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(isConvex = false): TemplateFile {
-  return file("apps/web/src/components/providers.tsx", providersFileContent("tanstack", isConvex));
+function providersComponent(isConvex = false, hasAnalytics = true): TemplateFile {
+  return file(
+    "apps/web/src/components/providers.tsx",
+    providersFileContent("tanstack", isConvex, hasAnalytics),
+  );
 }
 
 function convexClientProviderComponent(): TemplateFile {

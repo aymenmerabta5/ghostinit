@@ -16,7 +16,7 @@ export const sharedDashboardGrid = `        <div className="grid grid-cols-1 gap
           <div className="md:col-span-7 rounded-lg border bg-card">
             <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Identity</span>
-              <Badge variant="secondary" className="capitalize font-mono text-[11px]"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" /> {session.user.role}</span></Badge>
+              <Badge variant="secondary" className="capitalize font-mono text-[11px]"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-success" /> {session.user.role}</span></Badge>
             </div>
             <div className="p-4">
               <p className="font-mono text-xs text-muted-foreground max-w-[60ch]">Signed in as {session.user.email}. Name {session.user.name ?? "not set"}.</p>
@@ -58,28 +58,28 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)] animate-pulse" aria-hidden />
+                <span className="size-2 rounded-full bg-success animate-pulse" aria-hidden />
                 <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">ghostinit — control plane</span>
                 <span className="hidden sm:inline-flex items-center rounded-full border bg-card px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">monorepo</span>
               </div>
-              <h1 className="font-sans text-2xl font-semibold tracking-tight tracking-[-0.035em]">Dashboard</h1>
+              <h1 className="font-sans text-2xl font-semibold tracking-display">Dashboard</h1>
               <p className="font-mono text-xs leading-relaxed text-muted-foreground max-w-[65ch]">Monorepo control plane — architecture layers, module health, and verification. Built for the builder at 2am, not the manager.</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground"><span className="size-1.5 rounded-full bg-emerald-500" /> system live</span>
+              <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground"><span className="size-1.5 rounded-full bg-success" /> system live</span>
               <Button variant="ghost" size="sm" className="font-mono text-xs" asChild><Link ${toSettings}>Settings</Link></Button>
               <SignOutButton />
             </div>
           </div>
           {/* env + command hint — terminal native */}
           <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1"><span className="size-1.5 rounded-full bg-emerald-500" /> env: local</span>
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-[#09090b] px-2 py-1 text-zinc-300"><span className="text-muted-foreground">$</span> bunx ghostinit check</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1"><span className="size-1.5 rounded-full bg-success" /> env: local</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-code px-2 py-1 text-code-foreground"><span className="text-muted-foreground">$</span> bunx ghostinit check</span>
             <span className="hidden sm:inline text-muted-foreground">— architecture, typecheck, lint</span>
           </div>
         </div>
 
-        <Separator className="bg-white/[0.08] dark:bg-white/[0.08]" />
+        <Separator />
 
         {/* row 1: architecture layers (8) + checks (4) — dense, scannable */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
@@ -87,7 +87,7 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="md:col-span-8 rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Architecture — 6 layers</span>
-              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-600 dark:text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" /> PASS</span>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-success"><span className="size-1.5 rounded-full bg-success" /> PASS</span>
             </div>
             <div className="p-4 flex flex-col gap-4">
               {/* layered chain */}
@@ -105,12 +105,12 @@ export function dashboardInnerContent(router: RouterType): string {
                 <span className="rounded-md border bg-background px-2 py-1">L6 Supporting</span>
               </div>
               <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L1</span><span className="text-zinc-200">apps/web</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L2</span><span className="text-zinc-200">packages/api · oRPC</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L3</span><span className="text-zinc-200">domain · packages/core</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L4</span><span className="text-zinc-200">services · billing</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L5</span><span className="text-zinc-200">providers · SDKs</span><span className="size-1.5 rounded-full bg-zinc-600" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L6</span><span className="text-zinc-200">database · config · kernel</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L1</span><span className="text-code-foreground">apps/web</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L2</span><span className="text-code-foreground">packages/api · oRPC</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L3</span><span className="text-code-foreground">domain · packages/core</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L4</span><span className="text-code-foreground">services · billing</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L5</span><span className="text-code-foreground">providers · SDKs</span><span className="size-1.5 rounded-full bg-muted-foreground" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L6</span><span className="text-code-foreground">database · config · kernel</span><span className="size-1.5 rounded-full bg-success" /></div>
               </div>
               <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">No upward imports. Enforced by <span className="text-foreground">oxc-parser</span> via <span className="rounded bg-muted px-1 py-0.5">ghostinit check</span>. See <span className="underline decoration-dotted">tooling/architecture</span>.</p>
             </div>
@@ -122,17 +122,17 @@ export function dashboardInnerContent(router: RouterType): string {
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Checks</span>
             </div>
             <div className="p-4 flex flex-col gap-3">
-              <div className="rounded-md border bg-[#09090b] p-3 font-mono text-xs leading-relaxed">
-                <div className="flex items-center justify-between text-zinc-300"><span><span className="text-muted-foreground">$</span> ghostinit check</span><span className="text-emerald-400">✓</span></div>
+              <div className="rounded-md border bg-code p-3 font-mono text-xs leading-relaxed">
+                <div className="flex items-center justify-between text-code-foreground"><span><span className="text-muted-foreground">$</span> ghostinit check</span><span className="text-success">✓</span></div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                  <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-400">0 blockers</span>
-                  <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-400">0 highs</span>
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-400">3 mediums</span>
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-success">0 blockers</span>
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-success">0 highs</span>
+                  <span className="rounded bg-secondary px-2 py-0.5 text-muted-foreground">3 mediums</span>
                 </div>
                 <div className="mt-3 grid gap-1 text-[11px]">
-                  <div className="flex justify-between"><span className="text-muted-foreground">architecture</span><span className="text-emerald-400">PASS</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">typecheck</span><span className="text-emerald-400">PASS</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">oxlint / oxfmt</span><span className="text-emerald-400">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">architecture</span><span className="text-success">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">typecheck</span><span className="text-success">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">oxlint / oxfmt</span><span className="text-success">PASS</span></div>
                 </div>
               </div>
               <div className="rounded-md border bg-card p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
@@ -152,7 +152,7 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="md:col-span-7 rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Identity — Profile</span>
-              <Badge variant="secondary" className="capitalize font-mono text-[11px] tracking-wide"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" /> ${roleExpr}</span></Badge>
+              <Badge variant="secondary" className="capitalize font-mono text-[11px] tracking-wide"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-success" /> ${roleExpr}</span></Badge>
             </div>
             <div className="p-4 flex flex-col gap-4">
               <div className="grid gap-3">
@@ -171,7 +171,7 @@ export function dashboardInnerContent(router: RouterType): string {
                 <Button variant="outline" size="sm" className="font-mono text-xs" asChild><Link ${toBilling}>Billing</Link></Button>
                 <Button variant="outline" size="sm" className="font-mono text-xs" asChild><Link ${toAdmin}>Admin</Link></Button>
               </div>
-              <pre className="overflow-x-auto rounded-md border bg-[#09090b] p-3 font-mono text-[11px] leading-relaxed text-zinc-300"><span className="text-muted-foreground">// session — Better Auth</span>{"\\n"}<span className="text-zinc-500">await</span> auth<span className="text-muted-foreground">.</span>api<span className="text-muted-foreground">.</span>getSession<span className="text-muted-foreground">({"{"} headers {"}"})</span></pre>
+              <pre className="overflow-x-auto rounded-md border bg-code p-3 font-mono text-[11px] leading-relaxed text-code-foreground"><span className="text-muted-foreground">// session — Better Auth</span>{"\\n"}<span className="text-muted-foreground">await</span> auth<span className="text-muted-foreground">.</span>api<span className="text-muted-foreground">.</span>getSession<span className="text-muted-foreground">({"{"} headers {"}"})</span></pre>
             </div>
           </div>
 
@@ -184,9 +184,9 @@ export function dashboardInnerContent(router: RouterType): string {
               <Button variant="outline" size="sm" className="justify-between font-mono text-xs" asChild><Link ${toBilling}>Manage billing <span aria-hidden>→</span></Link></Button>
               <Button variant="outline" size="sm" className="justify-between font-mono text-xs" asChild><Link ${toDashboard}>Back to dashboard <span aria-hidden>→</span></Link></Button>
             </div>
-            <div className="mt-auto border-t bg-[#09090b] p-3">
+            <div className="mt-auto border-t bg-code p-3">
               <div className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Command</div>
-              <pre className="mt-2 overflow-x-auto font-mono text-xs leading-relaxed text-zinc-300"><span className="text-muted-foreground">$</span> bunx ghostinit sync{"\\n"}<span className="text-muted-foreground">$</span> bunx ghostinit add module identity</pre>
+              <pre className="mt-2 overflow-x-auto font-mono text-xs leading-relaxed text-code-foreground"><span className="text-muted-foreground">$</span> bunx ghostinit sync{"\\n"}<span className="text-muted-foreground">$</span> bunx ghostinit add module identity</pre>
             </div>
           </div>
         </div>
@@ -197,36 +197,36 @@ export function dashboardInnerContent(router: RouterType): string {
             <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Modules — workspace packages</span>
             <span className="font-mono text-[11px] text-muted-foreground">4 active · 1 optional</span>
           </div>
-          <div className="divide-y divide-white/[0.06] dark:divide-white/[0.06]">
+          <div className="divide-y divide-border">
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/ui</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/ui</span>
               <span className="hidden sm:inline text-muted-foreground">L1 · tokens + theme.css</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/auth</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/auth</span>
               <span className="hidden sm:inline text-muted-foreground">L6 · Better Auth</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/database</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/database</span>
               <span className="hidden sm:inline text-muted-foreground">L6 · Drizzle / Convex</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-zinc-500" /> @repo/billing</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-muted-foreground" /> @repo/billing</span>
               <span className="hidden sm:inline text-muted-foreground">L4 · stripe · chargily · paddle · polar</span>
-              <span className="rounded border bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400">optional</span>
+              <span className="rounded border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">optional</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> apps/web</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> apps/web</span>
               <span className="hidden sm:inline text-muted-foreground">L1 · Next / TanStack</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
           </div>
-          <div className="border-t bg-[#09090b] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-            <span className="text-zinc-300">turbo.json</span> <span className="text-muted-foreground">globalEnv — 50+ vars · hoist:true</span>
-            <pre className="mt-2 overflow-x-auto text-zinc-300">{"{"} <span className="text-muted-foreground">"pipeline": {"{"} "check": {"{"} "dependsOn": ["^check"] {"}"} {"}"}</span> {"}"}</pre>
+          <div className="border-t bg-code p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <span className="text-code-foreground">turbo.json</span> <span className="text-muted-foreground">globalEnv — 50+ vars · hoist:true</span>
+            <pre className="mt-2 overflow-x-auto text-code-foreground">{"{"} <span className="text-muted-foreground">"pipeline": {"{"} "check": {"{"} "dependsOn": ["^check"] {"}"} {"}"}</span> {"}"}</pre>
           </div>
         </div>`;
   }
@@ -235,15 +235,15 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)] animate-pulse" aria-hidden />
+                <span className="size-2 rounded-full bg-success animate-pulse" aria-hidden />
                 <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">ghostinit — control plane</span>
                 <span className="hidden sm:inline-flex items-center rounded-full border bg-card px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">monorepo</span>
               </div>
-              <h1 className="font-sans text-2xl font-semibold tracking-tight tracking-[-0.035em]">Dashboard</h1>
+              <h1 className="font-sans text-2xl font-semibold tracking-display">Dashboard</h1>
               <p className="font-mono text-xs leading-relaxed text-muted-foreground max-w-[65ch]">Monorepo control plane — architecture layers, module health, and verification. Built for the builder at 2am, not the manager.</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground"><span className="size-1.5 rounded-full bg-emerald-500" /> system live</span>
+              <span className="hidden md:inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground"><span className="size-1.5 rounded-full bg-success" /> system live</span>
               <Button variant="ghost" size="sm" className="font-mono text-xs" asChild>
                 <Link href="/settings">Settings</Link>
               </Button>
@@ -252,13 +252,13 @@ export function dashboardInnerContent(router: RouterType): string {
           </div>
           {/* env + command hint — terminal native */}
           <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1"><span className="size-1.5 rounded-full bg-emerald-500" /> env: local</span>
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-[#09090b] px-2 py-1 text-zinc-300"><span className="text-muted-foreground">$</span> bunx ghostinit check</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1"><span className="size-1.5 rounded-full bg-success" /> env: local</span>
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-code px-2 py-1 text-code-foreground"><span className="text-muted-foreground">$</span> bunx ghostinit check</span>
             <span className="hidden sm:inline text-muted-foreground">— architecture, typecheck, lint</span>
           </div>
         </div>
 
-        <Separator className="bg-white/[0.08] dark:bg-white/[0.08]" />
+        <Separator />
 
         {/* row 1: architecture layers (8) + checks (4) — dense, scannable */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
@@ -266,7 +266,7 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="md:col-span-8 rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-3">
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Architecture — 6 layers</span>
-              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-600 dark:text-emerald-400"><span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" /> PASS</span>
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-success"><span className="size-1.5 rounded-full bg-success" /> PASS</span>
             </div>
             <div className="p-4 flex flex-col gap-4">
               {/* layered chain */}
@@ -284,12 +284,12 @@ export function dashboardInnerContent(router: RouterType): string {
                 <span className="rounded-md border bg-background px-2 py-1">L6 Supporting</span>
               </div>
               <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L1</span><span className="text-zinc-200">apps/web</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L2</span><span className="text-zinc-200">packages/api · oRPC</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L3</span><span className="text-zinc-200">domain · packages/core</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L4</span><span className="text-zinc-200">services · billing</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L5</span><span className="text-zinc-200">providers · SDKs</span><span className="size-1.5 rounded-full bg-zinc-600" /></div>
-                <div className="flex items-center justify-between rounded-md border bg-[#09090b] px-3 py-2"><span className="text-muted-foreground">L6</span><span className="text-zinc-200">database · config · kernel</span><span className="size-1.5 rounded-full bg-emerald-500" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L1</span><span className="text-code-foreground">apps/web</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L2</span><span className="text-code-foreground">packages/api · oRPC</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L3</span><span className="text-code-foreground">domain · packages/core</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L4</span><span className="text-code-foreground">services · billing</span><span className="size-1.5 rounded-full bg-success" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L5</span><span className="text-code-foreground">providers · SDKs</span><span className="size-1.5 rounded-full bg-muted-foreground" /></div>
+                <div className="flex items-center justify-between rounded-md border bg-code px-3 py-2"><span className="text-muted-foreground">L6</span><span className="text-code-foreground">database · config · kernel</span><span className="size-1.5 rounded-full bg-success" /></div>
               </div>
               <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">No upward imports. Enforced by <span className="text-foreground">oxc-parser</span> via <span className="rounded bg-muted px-1 py-0.5">ghostinit check</span>. See <span className="underline decoration-dotted">tooling/architecture</span>.</p>
             </div>
@@ -301,17 +301,17 @@ export function dashboardInnerContent(router: RouterType): string {
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Checks</span>
             </div>
             <div className="p-4 flex flex-col gap-3">
-              <div className="rounded-md border bg-[#09090b] p-3 font-mono text-xs leading-relaxed">
-                <div className="flex items-center justify-between text-zinc-300"><span><span className="text-muted-foreground">$</span> ghostinit check</span><span className="text-emerald-400">✓</span></div>
+              <div className="rounded-md border bg-code p-3 font-mono text-xs leading-relaxed">
+                <div className="flex items-center justify-between text-code-foreground"><span><span className="text-muted-foreground">$</span> ghostinit check</span><span className="text-success">✓</span></div>
                 <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                  <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-400">0 blockers</span>
-                  <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-400">0 highs</span>
-                  <span className="rounded bg-zinc-800 px-2 py-0.5 text-zinc-400">3 mediums</span>
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-success">0 blockers</span>
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-success">0 highs</span>
+                  <span className="rounded bg-secondary px-2 py-0.5 text-muted-foreground">3 mediums</span>
                 </div>
                 <div className="mt-3 grid gap-1 text-[11px]">
-                  <div className="flex justify-between"><span className="text-muted-foreground">architecture</span><span className="text-emerald-400">PASS</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">typecheck</span><span className="text-emerald-400">PASS</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">oxlint / oxfmt</span><span className="text-emerald-400">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">architecture</span><span className="text-success">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">typecheck</span><span className="text-success">PASS</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">oxlint / oxfmt</span><span className="text-success">PASS</span></div>
                 </div>
               </div>
               <div className="rounded-md border bg-card p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
@@ -331,7 +331,7 @@ export function dashboardInnerContent(router: RouterType): string {
           <div className="md:col-span-7 rounded-lg border bg-card overflow-hidden">
             <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
               <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Identity — Profile</span>
-              <Badge variant="secondary" className="capitalize font-mono text-[11px] tracking-wide"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-emerald-500" /> ${roleExpr}</span></Badge>
+              <Badge variant="secondary" className="capitalize font-mono text-[11px] tracking-wide"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-success" /> ${roleExpr}</span></Badge>
             </div>
             <div className="p-4 flex flex-col gap-4">
               <div className="grid gap-3">
@@ -350,7 +350,7 @@ export function dashboardInnerContent(router: RouterType): string {
                 <Button variant="outline" size="sm" className="font-mono text-xs" asChild><Link href="/billing">Billing</Link></Button>
                 <Button variant="outline" size="sm" className="font-mono text-xs" asChild><Link href="/admin">Admin</Link></Button>
               </div>
-              <pre className="overflow-x-auto rounded-md border bg-[#09090b] p-3 font-mono text-[11px] leading-relaxed text-zinc-300"><span className="text-muted-foreground">// session — Better Auth</span>{"\\n"}<span className="text-zinc-500">await</span> auth<span className="text-muted-foreground">.</span>api<span className="text-muted-foreground">.</span>getSession<span className="text-muted-foreground">({"{"} headers {"}"})</span></pre>
+              <pre className="overflow-x-auto rounded-md border bg-code p-3 font-mono text-[11px] leading-relaxed text-code-foreground"><span className="text-muted-foreground">// session — Better Auth</span>{"\\n"}<span className="text-muted-foreground">await</span> auth<span className="text-muted-foreground">.</span>api<span className="text-muted-foreground">.</span>getSession<span className="text-muted-foreground">({"{"} headers {"}"})</span></pre>
             </div>
           </div>
 
@@ -363,9 +363,9 @@ export function dashboardInnerContent(router: RouterType): string {
               <Button variant="outline" size="sm" className="justify-between font-mono text-xs" asChild><Link href="/billing">Manage billing <span aria-hidden>→</span></Link></Button>
               <Button variant="outline" size="sm" className="justify-between font-mono text-xs" asChild><Link href="/admin">Admin <span aria-hidden>→</span></Link></Button>
             </div>
-            <div className="mt-auto border-t bg-[#09090b] p-3">
+            <div className="mt-auto border-t bg-code p-3">
               <div className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Command</div>
-              <pre className="mt-2 overflow-x-auto font-mono text-xs leading-relaxed text-zinc-300"><span className="text-muted-foreground">$</span> bunx ghostinit sync{"\\n"}<span className="text-muted-foreground">$</span> bunx ghostinit add module identity</pre>
+              <pre className="mt-2 overflow-x-auto font-mono text-xs leading-relaxed text-code-foreground"><span className="text-muted-foreground">$</span> bunx ghostinit sync{"\\n"}<span className="text-muted-foreground">$</span> bunx ghostinit add module identity</pre>
             </div>
           </div>
         </div>
@@ -376,36 +376,36 @@ export function dashboardInnerContent(router: RouterType): string {
             <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Modules — workspace packages</span>
             <span className="font-mono text-[11px] text-muted-foreground">4 active · 1 optional</span>
           </div>
-          <div className="divide-y divide-white/[0.06] dark:divide-white/[0.06]">
+          <div className="divide-y divide-border">
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/ui</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/ui</span>
               <span className="hidden sm:inline text-muted-foreground">L1 · tokens + theme.css</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/auth</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/auth</span>
               <span className="hidden sm:inline text-muted-foreground">L6 · Better Auth</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> @repo/database</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> @repo/database</span>
               <span className="hidden sm:inline text-muted-foreground">L6 · Drizzle / Convex</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-zinc-500" /> @repo/billing</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-muted-foreground" /> @repo/billing</span>
               <span className="hidden sm:inline text-muted-foreground">L4 · stripe · chargily · paddle · polar</span>
-              <span className="rounded border bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-400">optional</span>
+              <span className="rounded border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">optional</span>
             </div>
             <div className="flex items-center justify-between gap-3 px-4 py-3 font-mono text-xs">
-              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-emerald-500" /> apps/web</span>
+              <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-success" /> apps/web</span>
               <span className="hidden sm:inline text-muted-foreground">L1 · Next / TanStack</span>
-              <span className="rounded border bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">ok</span>
+              <span className="rounded border bg-success/10 px-2 py-0.5 text-[11px] text-success">ok</span>
             </div>
           </div>
-          <div className="border-t bg-[#09090b] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
-            <span className="text-zinc-300">turbo.json</span> <span className="text-muted-foreground">globalEnv — 50+ vars · hoist:true</span>
-            <pre className="mt-2 overflow-x-auto text-zinc-300">{"{"} <span className="text-muted-foreground">"pipeline": {"{"} "check": {"{"} "dependsOn": ["^check"] {"}"} {"}"}</span> {"}"}</pre>
+          <div className="border-t bg-code p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <span className="text-code-foreground">turbo.json</span> <span className="text-muted-foreground">globalEnv — 50+ vars · hoist:true</span>
+            <pre className="mt-2 overflow-x-auto text-code-foreground">{"{"} <span className="text-muted-foreground">"pipeline": {"{"} "check": {"{"} "dependsOn": ["^check"] {"}"} {"}"}</span> {"}"}</pre>
           </div>
         </div>`;
 }

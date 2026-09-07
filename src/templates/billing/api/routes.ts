@@ -340,7 +340,10 @@ export async function POST(request: Request): Promise<Response> {
 /** Wrap a Next.js-style handler module as a TanStack Start file route. */
 function asTanstackRoute(routePath: string, source: string, methods: string[]): string {
   const body = source
-    .replace(/export async function (GET|POST)\(/g, "async function $1(")
+    .replace(
+      /export async function (GET|POST)\(request: Request\)/g,
+      "async function $1({ request }: { request: Request })",
+    )
     .replace(/^import /gm, "import ");
   return `import { createFileRoute } from "@tanstack/react-router";
 ${body}

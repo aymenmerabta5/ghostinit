@@ -1,16 +1,18 @@
-export function serverDbIndexSingle(): string {
+export function serverDbIndexSingle(hasBilling = true): string {
   return [
     "import { drizzle } from 'drizzle-orm/node-postgres';",
     "import { Pool } from 'pg';",
     "import * as authSchema from './schema/auth';",
-    "import * as billingSchema from './schema/billing';",
+    ...(hasBilling ? ["import * as billingSchema from './schema/billing';"] : []),
     "",
     "const pool = new Pool({",
     "  connectionString: process.env.DATABASE_URL ?? `postgres://postgres:${process.env.POSTGRES_PASSWORD}@${process.env.POSTGRES_HOST ?? 'localhost'}:${process.env.POSTGRES_PORT ?? '5432'}/${process.env.POSTGRES_DB ?? 'ghostinit'}`,",
     "  max: Number(process.env.DATABASE_POOL_SIZE ?? '20'),",
     "});",
     "",
-    "export const db = drizzle(pool, { schema: { ...authSchema, ...billingSchema } });",
+    hasBilling
+      ? "export const db = drizzle(pool, { schema: { ...authSchema, ...billingSchema } });"
+      : "export const db = drizzle(pool, { schema: authSchema });",
     "",
   ].join("\n");
 }

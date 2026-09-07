@@ -4,7 +4,7 @@
 
 Reference files: `src/templates/billing/providers/stripe/`
 
-- client.ts — `getStripeClient()` validates key not placeholder, pinned apiVersion basil.
+- client.ts — `getStripeClient()` validates key not placeholder, pinned apiVersion clover.
 - checkout.ts — `createStripeCheckoutSession(userId, priceId)` via `stripe.checkout.sessions.create`.
 - customer.ts — getOrCreate by metadata userId.
 - portal.ts — `stripe.billingPortal.sessions.create`.

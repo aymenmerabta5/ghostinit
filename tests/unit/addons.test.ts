@@ -171,6 +171,46 @@ describe("addon registry - isValidAddonCombo", () => {
     const result = isValidAddonCombo({ billing: ["polar"], database: "postgres", mode: "single" });
     expect(result.valid).toBe(true);
   });
+
+  it("accepts Cloudflare with a web Convex project", () => {
+    const result = isValidAddonCombo({
+      billing: ["polar"],
+      database: "convex",
+      mode: "monorepo",
+      framework: "tanstack-start",
+      apps: ["web"],
+      hasAuth: true,
+      deploy: "cloudflare",
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects Cloudflare PostgreSQL until request-scoped Hyperdrive is generated", () => {
+    const result = isValidAddonCombo({
+      billing: [],
+      database: "postgres",
+      mode: "monorepo",
+      framework: "tanstack-start",
+      apps: ["web"],
+      deploy: "cloudflare",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.message).toContain("Hyperdrive");
+  });
+
+  it("rejects Cloudflare runtimes that still require Node or Bun servers", () => {
+    for (const flags of [{ hasEve: true }, { hasPdf: true }]) {
+      const result = isValidAddonCombo({
+        billing: [],
+        database: "convex",
+        mode: "monorepo",
+        apps: ["web"],
+        deploy: "cloudflare",
+        ...flags,
+      });
+      expect(result.valid).toBe(false);
+    }
+  });
 });
 
 describe("addon registry - buildAddonInstallerMap", () => {
@@ -228,6 +268,33 @@ describe("addon registry - buildAddonInstallerMap", () => {
     });
     expect(single["single"]?.inUse).toBe(true);
     expect(single["monorepo"]?.inUse).toBe(false);
+  });
+
+  it("marks Cloudflare as the selected deployment adapter", () => {
+    const map = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "convex",
+      mode: "monorepo",
+      deploy: "cloudflare",
+    });
+    expect(map.cloudflare?.inUse).toBe(true);
+    expect(map.vercel?.inUse).toBe(false);
+    expect(map.convex?.inUse).toBe(true);
+    expect(map.none?.inUse).toBe(false);
+  });
+
+  it("preserves database=none when another deploy target is selected", () => {
+    const map = buildAddonInstallerMap({
+      billing: [],
+      features: [],
+      database: "none",
+      mode: "single",
+      cache: "redis",
+      deploy: "cloudflare",
+    });
+    expect(map.none?.inUse).toBe(true);
+    expect(map.cloudflare?.inUse).toBe(true);
   });
 
   it("marks database selection as inUse", () => {

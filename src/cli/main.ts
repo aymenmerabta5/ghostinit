@@ -73,22 +73,35 @@ export async function main(argv: string[]): Promise<ExitCodeType> {
     // adding a create-only flag cannot silently skip the gate — `--apps` was
     // omitted from the old hand-maintained condition, so `sync --apps mobile`
     // was accepted and quietly ignored.
-    const CREATE_ONLY_FLAGS = [
+    const SCAFFOLD_ONLY_FLAGS = [
       "mode",
       "framework",
       "billing",
       "features",
       "database",
       "apps",
+      "preset",
+      "cache",
+      "deploy",
+      "stack",
+      "with-auth",
+      "with-api",
+      "with-email",
+      "with-analytics",
+      "with-cache",
+      "with-eve",
+      "with-i18n",
+      "with-pdf",
+      "with-messaging",
     ] as const;
 
-    if (command !== "create") {
-      const offending = CREATE_ONLY_FLAGS.filter((flag) => values[flag] !== undefined).map(
+    if (command !== "create" && command !== "init") {
+      const offending = SCAFFOLD_ONLY_FLAGS.filter((flag) => values[flag] !== undefined).map(
         (flag) => `--${flag}`,
       );
       if (offending.length > 0) {
         return rejectInvalid(
-          `${offending.join(", ")} can only be used with 'create' command`,
+          `${offending.join(", ")} can only be used with 'create' or 'init'`,
           command,
           jsonFlag,
           logger,

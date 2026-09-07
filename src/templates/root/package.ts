@@ -21,6 +21,10 @@ export function rootPackageJson(
 ): TemplateFile {
   const installCmd = runtime === "bun" ? "bun install" : "npm install";
   const isConvex = isConvexAddon(addonMap);
+  const isCloudflare = Boolean(
+    (addonMap as Record<string, { inUse?: boolean }> | undefined)?.cloudflare?.inUse,
+  );
+  const webRun = runtime === "bun" ? "bun --cwd apps/web run" : "npm --prefix apps/web run";
 
   const baseScripts: Record<string, string> = {
     dev: "turbo run dev",
@@ -28,8 +32,8 @@ export function rootPackageJson(
     start: "turbo run start",
     typecheck: "turbo run typecheck",
     test: "turbo run test",
-    lint: "biome lint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs",
-    "lint:biome": "biome lint .",
+    lint: "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs",
+    "lint:oxlint": "oxlint .",
     "lint:imports": "node scripts/check-import-aliases.cjs",
     "lint:next-parity": "node scripts/check-next-parity.cjs",
     "lint:navigation": "node scripts/check-navigation-imports.cjs",
@@ -46,6 +50,13 @@ export function rootPackageJson(
     "doctor:fix": "ghostinit doctor --fix",
     prepare: "husky",
     "install:cmd": installCmd,
+    ...(isCloudflare
+      ? {
+          preview: `${webRun} preview`,
+          deploy: `${webRun} deploy`,
+          "cf-typegen": `${webRun} cf-typegen`,
+        }
+      : {}),
   };
 
   const scripts = isConvex

@@ -71,7 +71,7 @@ export type DatabaseProvider = (typeof availableDatabases)[number];
 export const availablePresets = PRESETS;
 export const availableCacheProviders = CACHE_PROVIDERS;
 
-export const availableDeployTargets = ["vercel", "fly", "docker", "none"] as const;
+export const availableDeployTargets = ["vercel", "fly", "docker", "cloudflare", "none"] as const;
 export type DeployTarget = (typeof availableDeployTargets)[number];
 
 export const availableStacks = ["nextjs", "tanstack-start", "expo", "both"] as const;
@@ -475,7 +475,7 @@ export function parseCacheInput(input?: string): CacheProvider {
  * Parse deploy input:
  * - undefined / "" / whitespace -> "none" default
  * - case-insensitive, trimmed
- * - valid values: vercel, fly, docker, none
+ * - valid values: vercel, fly, docker, cloudflare, none
  * - invalid -> throws ValidationError
  */
 export function parseDeployInput(input?: string): DeployTarget {
@@ -531,6 +531,9 @@ export function isValidAddonCombo(options: {
   cache?: CacheProvider;
   hasAuth?: boolean;
   hasMessaging?: boolean;
+  hasEve?: boolean;
+  hasPdf?: boolean;
+  deploy?: DeployTarget;
 }): { valid: boolean; message?: string } {
   const apps = options.apps ?? ["web" as AppName];
   if (options.billing.length > 0 && options.database === "none") {
@@ -599,6 +602,41 @@ export function isValidAddonCombo(options: {
       valid: false,
       message: "Messaging requires auth (--with-auth) when enabled",
     };
+  }
+  if (options.deploy === "cloudflare") {
+    if (!apps.includes("web" as AppName)) {
+      return {
+        valid: false,
+        message: "Cloudflare Workers deployment requires the web app target",
+      };
+    }
+    if (options.database === "postgres") {
+      return {
+        valid: false,
+        message:
+          "Cloudflare Workers currently supports database=convex or database=none; PostgreSQL requires a request-scoped Hyperdrive adapter",
+      };
+    }
+    if (options.hasEve) {
+      return {
+        valid: false,
+        message: "Cloudflare Workers does not yet support the Eve Node.js sidecar",
+      };
+    }
+    if (options.hasPdf) {
+      return {
+        valid: false,
+        message:
+          "Cloudflare Workers does not yet support server-side @react-pdf/renderer generation",
+      };
+    }
+    if (hasMessaging && options.database !== "convex") {
+      return {
+        valid: false,
+        message:
+          "Cloudflare Workers messaging currently requires Convex; the PostgreSQL path uses Bun WebSockets and local filesystem storage",
+      };
+    }
   }
   return { valid: true };
 }
@@ -704,7 +742,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // isFrontend preset already handled via noPreset false logic above
   void isFrontendPreset;
   for (const m of availableModes) map[m] = { inUse: m === input.mode };
-  for (const d of availableDatabases) map[d] = { inUse: false };
+  for (const database of availableDatabases) map[database] = { inUse: false };
   map[input.database] = { inUse: true };
   // features + unified eve/i18n handling (features kept for backward compat, but new map uses eve/i18n direct)
   const eveInUse =
@@ -731,7 +769,15 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   for (const c of CACHE_PROVIDERS) map[c] = { inUse: c === (input.cache ?? "none") };
   // deploy targets
   const effectiveDeploy = input.deploy ?? "none";
-  for (const d of availableDeployTargets) map[d] = { inUse: d === effectiveDeploy };
+  // "none" is also a database provider key. Never let deploy=none overwrite
+  // database=none in the shared installer map.
+  for (const d of availableDeployTargets) {
+    if (d !== "none") map[d] = { inUse: d === effectiveDeploy };
+  }
+  // Reassert the database dimension after cache/deploy aliases; both registries
+  // also contain the literal "none" for their own CLI value.
+  for (const database of availableDatabases) map[database] = { inUse: false };
+  map[input.database] = { inUse: true };
   return map as AddonInstallerMap;
 }
 

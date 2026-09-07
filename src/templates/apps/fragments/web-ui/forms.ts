@@ -18,7 +18,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         type={type}
         data-slot="input"
         className={cn(
-          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20",
+          "flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20",
           className,
         )}
         ref={ref}
@@ -175,7 +175,7 @@ export const InputGroupInput = React.forwardRef<HTMLInputElement, React.InputHTM
       ref={ref}
       data-slot="input-group-input"
       className={cn(
-        "flex h-10 w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-9 w-full bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
       {...props}
@@ -225,25 +225,25 @@ ToggleGroupItem.displayName = "ToggleGroupItem";
       `"use client";
 
 import * as React from "react";
-import { Field, useForm, type FormApi } from "@tanstack/react-form";
+import { Field, useForm } from "@tanstack/react-form";
 import { Button, type ButtonProps } from "./button.js";
 import { cn } from "../../lib/utils.js";
 
 export { Field, useForm };
 
-export interface FormProps<TFormData = unknown> {
-  form: FormApi<TFormData, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown, unknown>;
+export interface FormProps {
+  form: { handleSubmit: () => unknown | Promise<unknown> };
   onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Form<TFormData = unknown>({
+export function Form({
   form,
   onSubmit,
   children,
   className,
-}: FormProps<TFormData>): React.JSX.Element {
+}: FormProps): React.JSX.Element {
   return (
     <form
       data-slot="form"

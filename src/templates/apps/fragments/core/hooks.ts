@@ -11,11 +11,11 @@ import type { UseCopyReturn } from "@repo/kernel";
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false);
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timeoutRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
     };
   }, []);
 
@@ -24,7 +24,7 @@ export function useCopy(): UseCopyReturn {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success("Copied to clipboard");
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
       return true;
     } catch {
@@ -118,11 +118,11 @@ import type { UseCopyReturn } from '@repo/kernel'
 
 export function useCopy(): UseCopyReturn {
   const [copied, setCopied] = React.useState(false)
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timeoutRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
     }
   }, [])
 
@@ -131,7 +131,7 @@ export function useCopy(): UseCopyReturn {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       toast.success('Copied to clipboard')
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current)
       timeoutRef.current = window.setTimeout(() => setCopied(false), 2000)
       return true
     } catch {

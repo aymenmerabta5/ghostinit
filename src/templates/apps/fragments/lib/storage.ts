@@ -1,8 +1,13 @@
 import { file, type TemplateFile } from "../../../shared.js";
 
 // Stagio: src/lib/storage.ts resolvePublicUrl + src/server/storage/s3.ts
-export function storageLibFiles(base = "apps/web/src"): TemplateFile[] {
+export function storageLibFiles(
+  base = "apps/web/src",
+  framework: "nextjs" | "tanstack-start" = "nextjs",
+): TemplateFile[] {
   const isMonorepo = base.startsWith("apps");
+  const envImport = isMonorepo ? "@repo/config" : "@/lib/env";
+  const serverOnlyImport = framework === "nextjs" ? `import "server-only";\n` : "";
   const libContent = `export function resolvePublicUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) return path;
@@ -18,8 +23,7 @@ export function getPublicUrl(path: string | null | undefined): string | null {
 }
 `;
 
-  const serverContent = `import "server-only";
-import { env } from "@repo/config";
+  const serverContent = `${serverOnlyImport}import { env } from "${envImport}";
 
 export interface S3Config {
   bucket: string;

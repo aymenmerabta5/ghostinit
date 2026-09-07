@@ -163,6 +163,16 @@ describe("parseCreateArgs database", () => {
   });
 });
 
+describe("parseCreateArgs deploy", () => {
+  it("parses Cloudflare Workers", () => {
+    expect(parseCreateArgs({ deploy: "cloudflare" }).deploy).toBe("cloudflare");
+  });
+
+  it("rejects unknown deployment targets", () => {
+    expect(() => parseCreateArgs({ deploy: "workers" })).toThrow("Invalid --deploy value");
+  });
+});
+
 describe("normalizeBillingSelection (multiselect checkbox result)", () => {
   it("returns [] for empty", () => {
     expect(normalizeBillingSelection([])).toEqual([]);

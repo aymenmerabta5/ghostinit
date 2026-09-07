@@ -4,7 +4,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { ProjectConfig } from "../lib/config.js";
-import type { AddonInstallerMap, ProjectMode } from "../lib/addons.js";
+import type { AddonInstallerMap, FrameworkName, ProjectMode } from "../lib/addons.js";
 import * as v from "./versions.js";
 
 export type TemplateRuntime = "node" | "bun";
@@ -30,9 +30,15 @@ export function normalizeTemplateArgs(
     | Record<string, unknown>
     | undefined,
   maybeAddons: AddonInstallerMap | Record<string, unknown> | undefined,
-): { mode: ProjectMode; runtime: TemplateRuntime; addons: AddonInstallerMap | undefined } {
+): {
+  mode: ProjectMode;
+  runtime: TemplateRuntime;
+  framework: FrameworkName;
+  addons: AddonInstallerMap | undefined;
+} {
   let mode: ProjectMode = "monorepo";
   let runtime: TemplateRuntime = "bun";
+  let framework: FrameworkName = "nextjs";
   let addons: AddonInstallerMap | undefined;
 
   if (typeof modeOrOpts === "string") {
@@ -45,6 +51,9 @@ export function normalizeTemplateArgs(
     const obj = modeOrOpts as Record<string, unknown>;
     if (isProjectMode(obj.mode)) mode = obj.mode as ProjectMode;
     if (obj.runtime === "node" || obj.runtime === "bun") runtime = obj.runtime as TemplateRuntime;
+    if (obj.framework === "nextjs" || obj.framework === "tanstack-start") {
+      framework = obj.framework;
+    }
     if (obj.addons && typeof obj.addons === "object") addons = obj.addons as AddonInstallerMap;
     if (obj.addonRegistry && typeof obj.addonRegistry === "object")
       addons = obj.addonRegistry as AddonInstallerMap;
@@ -64,7 +73,7 @@ export function normalizeTemplateArgs(
     addons = maybeAddons as AddonInstallerMap;
   }
 
-  return { mode, runtime, addons };
+  return { mode, runtime, framework, addons };
 }
 
 /** Backwards compat alias — some generators used `normalizeArgs` name */

@@ -94,10 +94,10 @@ export const SECURITY_HEADERS = [
   "          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },",
   "          { key: 'X-XSS-Protection', value: '0' },",
   "          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },",
-  "          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },",
+  "          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },",
   "          {",
   "            key: 'Content-Security-Policy',",
-  "            value: \"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';\",",
+  "            value: \"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com https://*.convex.cloud https://*.convex.site wss://*.convex.cloud; frame-ancestors 'none'; base-uri 'self'; form-action 'self';\",",
   "          },",
   "        ],",
   "      },",
@@ -113,9 +113,9 @@ export function viteSecurityHeaders(): string {
             'Referrer-Policy': 'strict-origin-when-cross-origin',
             'X-XSS-Protection': '0',
             'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
-            'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+            'Strict-Transport-Security': 'max-age=63072000; includeSubDomains',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com https://*.convex.cloud https://*.convex.site wss://*.convex.cloud; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
           },
         },`;
 }

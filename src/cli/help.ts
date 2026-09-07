@@ -9,6 +9,8 @@ Usage: ghostinit <command> [options]
 
 Commands:
   create <name>          Create a new project
+  init [name]            Initialize a project in the current directory
+  upgrade                Re-sync registries + turbo env + stamp CLI version
   add module <name>      Add a module to the current project
   add use-case <module> <name> --kind command|query
   add procedure <module> <name>
@@ -45,6 +47,8 @@ Create options:
   --apps web,mobile,desktop|both|all Apps: web, mobile, desktop or combos (repeatable or comma-separated, default: web; both=web,mobile, all=web,mobile,desktop)
   --preset saas|frontend|custom  Preset: saas (full), frontend (minimal ui+config), custom (pick features) (default: saas)
   --cache redis|none         Cache: redis (Upstash) or none (default: none)
+  --deploy vercel|fly|docker|cloudflare|none  Emit provider deployment config (default: none)
+                                      cloudflare supports Convex/none (Next via OpenNext, TanStack native)
   --stack nextjs|tanstack-start|expo|both  Stack shorthand for frontend (framework+apps)
   --with-auth --with-api --with-email --with-analytics --with-cache --with-eve --with-i18n --with-pdf --with-messaging  Opt-in addons for custom preset (repeatable; --features kept as alias)
 `;

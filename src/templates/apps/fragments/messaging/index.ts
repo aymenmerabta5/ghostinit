@@ -116,12 +116,17 @@ import { useConversations, useMessages, useTyping, useSendMessage } from "./hook
   const body = `
 function ConversationList({ onSelect, selectedId }: { onSelect: (id: string) => void; selectedId: string | null }) {
   const { data, isLoading } = useConversations();
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading conversations…</p>;
-  if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">No conversations yet. Start one by peer ID.</p>;
+  if (isLoading) return <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading conversations">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-10 rounded-md border bg-muted/40 animate-pulse" />)}</div>;
+  if (!data || data.length === 0) return (
+    <div className="rounded-md border border-dashed p-4 text-center">
+      <p className="text-sm font-medium">No conversations yet</p>
+      <p className="mt-1 text-xs text-muted-foreground">Start one by peer ID — threads appear here with realtime updates.</p>
+    </div>
+  );
   return (
     <div className="flex flex-col gap-2">
       {data.map((c) => (
-        <button key={c.id} onClick={() => onSelect(c.id)} className={\`flex items-center justify-between rounded-md border px-3 py-2 text-left \${selectedId===c.id?"bg-accent":""}\`}>
+        <button key={c.id} onClick={() => onSelect(c.id)} aria-pressed={selectedId===c.id} className={\`flex items-center justify-between rounded-md border px-3 py-2 text-left \${selectedId===c.id?"bg-accent":""}\`}>
           <span className="font-mono text-xs truncate">{c.id.slice(0,8)}</span>
           <Badge variant="secondary">DM</Badge>
         </button>
@@ -141,9 +146,9 @@ function Thread({ conversationId }: { conversationId: string }) {
     <Card>
       <CardHeader><CardTitle className="text-base">Thread <span className="font-mono text-xs">{conversationId.slice(0,8)}</span></CardTitle></CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : (
-          <div className="flex flex-col gap-2 max-h-[400px] overflow-auto">
-            {(messages ?? []).map((m) => (
+        {isLoading ? <div className="flex flex-col gap-2" aria-busy="true" aria-label="Loading messages">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 rounded-md border bg-muted/40 animate-pulse" />)}</div> : (
+          <div role="log" aria-live="polite" aria-label="Messages" className="flex flex-col gap-2 max-h-[400px] overflow-auto">
+            {(messages ?? []).length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">No messages yet — say hello.</p> : (messages ?? []).map((m) => (
               <div key={m.id} className="rounded-md border px-3 py-2">
                 <div className="text-xs text-muted-foreground">{m.senderId.slice(0,6)} • {new Date(m.createdAt).toLocaleTimeString()}</div>
                 {m.body && <div className="text-sm">{m.body}</div>}
@@ -511,12 +516,15 @@ export const dynamic = "force-dynamic";
       file(
         "apps/web/server.ts",
         `// Custom Bun server for Next.js + oRPC WS (Docker primary) — also broadcasts realtime events via @repo/realtime
+// Run from anywhere (repo root or apps/web): the Next app dir resolves from this file's location.
 import { createServer } from "node:http";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import next from "next";
 import { appRouter, createContext } from "@repo/api";
 const port = parseInt(process.env.PORT ?? "3000", 10);
 const dev = process.env.NODE_ENV !== "production";
-const app = next({ dev, dir: "./apps/web" });
+const app = next({ dev, dir: dirname(fileURLToPath(import.meta.url)) });
 const handle = app.getRequestHandler();
 await app.prepare();
 let wsHandler: { upgrade: (ws: unknown, opts: unknown) => void; message: (ws: unknown, data: unknown, opts: unknown) => Promise<void>; close: (ws: unknown) => void } | null = null;

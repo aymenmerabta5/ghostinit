@@ -59,10 +59,11 @@ export function tanstackCoreFiles(
   const hasI18n = resolveHasI18n(hasI18nInput ?? hasEveInput);
   const effectiveHasI18n = typeof hasEveInput !== "boolean" ? resolveHasI18n(hasEveInput) : hasI18n;
   const addonMap = resolveAddonMapTanstack(hasEveInput, addonMapExplicit);
+  const hasCloudflare = Boolean(addonMap && hasAddon(addonMap, "cloudflare"));
   return [
     webPackageTanstack(runtime, hasEve, effectiveHasI18n, "tanstack-start", addonMap),
-    viteConfig(hasEve, effectiveHasI18n),
-    nitroConfig(),
+    viteConfig(hasCloudflare),
+    ...(hasCloudflare ? [] : [nitroConfig()]),
     routerFile(),
     globalCss(),
     postcssConfig(),
@@ -77,7 +78,7 @@ export function tanstackCoreFiles(
     // it left every TanStack project referencing components that were never
     // generated (TS2307 across the whole app).
     ...webUiFiles(),
-    ...webLibFiles(),
+    ...webLibFiles("apps/web/src", "tanstack-start"),
   ];
 }
 
@@ -88,6 +89,12 @@ function webPackageTanstack(
   _framework: string = "tanstack-start",
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
 ): TemplateFile {
+  const hasCloudflare = Boolean(
+    addonMap && hasAddon(addonMap as AddonInstallerMap, "cloudflare"),
+  );
+  const hasAnalytics = addonMap
+    ? hasAddon(addonMap as AddonInstallerMap, "analytics")
+    : true;
   return file(
     "apps/web/package.json",
     packageJson({
@@ -95,9 +102,18 @@ function webPackageTanstack(
       type: "module",
       packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
       scripts: {
-        dev: "vite dev --port 3000",
-        build: "vite build",
-        start: "node .output/server/index.mjs",
+        dev: hasCloudflare ? "node scripts/vite-cloudflare.mjs dev" : "vite dev --port 3000",
+        build: hasCloudflare ? "node scripts/vite-cloudflare.mjs build" : "vite build",
+        start: hasCloudflare ? "vite preview" : "node .output/server/index.mjs",
+        ...(hasCloudflare
+          ? {
+              preview: "node scripts/vite-cloudflare.mjs build && vite preview",
+              deploy:
+                "node scripts/vite-cloudflare.mjs build --production && wrangler deploy --keep-vars",
+              "cf-typegen":
+                "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+            }
+          : {}),
         ...codeScripts({
           test: runtime === "bun" ? "bun test tests" : "npm run test:unit",
           e2e: true,
@@ -111,7 +127,7 @@ function webPackageTanstack(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        "@repo/analytics": "workspace:*",
+        ...(hasAnalytics ? { "@repo/analytics": "workspace:*" } : {}),
         "@repo/api": "workspace:*",
         "@repo/auth": "workspace:*",
         "@repo/config": "workspace:*",
@@ -134,6 +150,9 @@ function webPackageTanstack(
         sonner: `^${v.ui.sonner}`,
         recharts: `^${v.ui.recharts}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        motion: `^${v.ui.motion}`,
+        "better-auth": `^${v.auth["better-auth"]}`,
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
           ? {
@@ -164,9 +183,15 @@ function webPackageTanstack(
         "bun-types": `^${v.runtime.bun}`,
         "@playwright/test": `^${v.testing.playwright}`,
         vite: `^${v.tanstackStart.vite}`,
+        "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
         "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
         "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
-        nitro: `^${v.tanstackStart.nitro}`,
+        ...(hasCloudflare
+          ? {
+              "@cloudflare/vite-plugin": `^${v.cloudflare["@cloudflare/vite-plugin"]}`,
+              wrangler: `^${v.cloudflare.wrangler}`,
+            }
+          : { nitro: `^${v.tanstackStart.nitro}` }),
         oxfmt: `^${v.tooling.oxfmt}`,
         oxlint: `^${v.tooling.oxlint}`,
         "@repo/typescript-config": "workspace:*",
@@ -182,20 +207,23 @@ function webPackageTanstack(
   );
 }
 
-function viteConfig(_hasEve = false, _hasI18n = false): TemplateFile {
+function viteConfig(hasCloudflare = false): TemplateFile {
   return file(
     "apps/web/vite.config.ts",
     `import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
+import tsconfigPaths from 'vite-tsconfig-paths'
+${hasCloudflare ? "import { cloudflare } from '@cloudflare/vite-plugin'" : "import { nitro } from 'nitro/vite'"}
 
 export default defineConfig({
   server: {
     port: 3000,
   },
   plugins: [
+${hasCloudflare ? "    cloudflare({ viteEnvironment: { name: 'ssr' } })," : ""}
+    tsconfigPaths(),
     tailwindcss(),
     tanstackStart({
       srcDirectory: 'src',
@@ -203,7 +231,7 @@ export default defineConfig({
         routesDirectory: 'routes',
       },
     }),
-    nitro(),
+${hasCloudflare ? "" : "    nitro(),"}
     viteReact(),
   ],
 })

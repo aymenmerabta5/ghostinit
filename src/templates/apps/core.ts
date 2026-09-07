@@ -79,15 +79,33 @@ function webPackage(
   hasI18n = false,
   addonMap?: AddonInstallerMap | Record<string, { inUse?: boolean }>,
 ): TemplateFile {
+  const hasAnalytics = addonMap
+    ? hasAddon(addonMap as AddonInstallerMap, "analytics")
+    : true;
+  const hasCloudflare = Boolean(
+    addonMap && hasAddon(addonMap as AddonInstallerMap, "cloudflare"),
+  );
   return file(
     "apps/web/package.json",
     packageJson({
       name: "web",
       packageManager: runtime === "bun" ? `bun@${v.runtime.bun}` : `npm@10.8.0`,
       scripts: {
-        dev: "next dev",
+        dev: hasCloudflare ? "node scripts/build-cloudflare.mjs --dev" : "next dev",
         build: "next build",
         start: "next start",
+        ...(hasCloudflare
+          ? {
+              "build:worker": "node scripts/build-cloudflare.mjs",
+              preview: "node scripts/build-cloudflare.mjs && opennextjs-cloudflare preview",
+              deploy:
+                "node scripts/build-cloudflare.mjs --production && opennextjs-cloudflare deploy -- --keep-vars",
+              upload:
+                "node scripts/build-cloudflare.mjs --production && opennextjs-cloudflare upload",
+              "cf-typegen":
+                "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+            }
+          : {}),
         ...codeScripts({
           test: runtime === "bun" ? "bun test tests" : "npm run test:unit",
           e2e: true,
@@ -99,7 +117,7 @@ function webPackage(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        "@repo/analytics": "workspace:*",
+        ...(hasAnalytics ? { "@repo/analytics": "workspace:*" } : {}),
         "@repo/api": "workspace:*",
         "@repo/auth": "workspace:*",
         "@repo/billing": "workspace:*",
@@ -122,6 +140,13 @@ function webPackage(
         "tailwind-merge": `^${v.ui["tailwind-merge"]}`,
         "tw-animate-css": `^${v.uniwind["tw-animate-css"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        motion: `^${v.ui.motion}`,
+        "server-only": v.runtime["server-only"],
+        "better-auth": `^${v.auth["better-auth"]}`,
+        ...(hasCloudflare
+          ? { "@opennextjs/cloudflare": `^${v.cloudflare["@opennextjs/cloudflare"]}` }
+          : {}),
         ...(hasEve ? { eve: `^${v.eve.eve}` } : {}),
         ...(hasI18n ? { "next-intl": `^${v.i18n["next-intl"]}` } : {}),
         ...(addonMap && hasAddon(addonMap as AddonInstallerMap, "convex")
@@ -162,6 +187,7 @@ function webPackage(
         postcss: `^${v.styling.postcss}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
         typescript: `^${v.typescript.typescript}`,
+        ...(hasCloudflare ? { wrangler: `^${v.cloudflare.wrangler}` } : {}),
       },
     }),
   );

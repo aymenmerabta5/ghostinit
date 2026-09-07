@@ -32,8 +32,11 @@ function buildDeps(
         "better-auth": `^${v.auth["better-auth"]}`,
         ...baseConvex,
         zod: `^${v.validation.zod}`,
-        "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
+        "@t3-oss/env-core": `^${v.validation["@t3-oss/env-core"]}`,
         resend: `^${v.email.resend}`,
+        "@react-email/components": `^${v.email["@react-email/components"]}`,
+        "@react-email/render": `^${v.email["@react-email/render"]}`,
+        "@react-email/tailwind": `^${v.email["@react-email/tailwind"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/contract": `^${v.orpc["@orpc/contract"]}`,
         "@orpc/client": `^${v.orpc["@orpc/client"]}`,
@@ -47,8 +50,11 @@ function buildDeps(
         "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        motion: `^${v.ui.motion}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
         "posthog-node": `^${v.analytics["posthog-node"]}`,
+        "server-only": v.runtime["server-only"],
       }
     : {
         next: `^${v.nextStack.next}`,
@@ -59,6 +65,9 @@ function buildDeps(
         zod: `^${v.validation.zod}`,
         "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
         resend: `^${v.email.resend}`,
+        "@react-email/components": `^${v.email["@react-email/components"]}`,
+        "@react-email/render": `^${v.email["@react-email/render"]}`,
+        "@react-email/tailwind": `^${v.email["@react-email/tailwind"]}`,
         "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
         "@tanstack/react-form": `^${v.tanstack["@tanstack/react-form"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
@@ -74,8 +83,11 @@ function buildDeps(
         "@base-ui/react": `^${v.ui["@base-ui/react"]}`,
         "class-variance-authority": `^${v.ui["class-variance-authority"]}`,
         "next-themes": `^${v.ui["next-themes"]}`,
+        "lucide-react": `^${v.ui["lucide-react"]}`,
+        motion: `^${v.ui.motion}`,
         "posthog-js": `^${v.analytics["posthog-js"]}`,
         "posthog-node": `^${v.analytics["posthog-node"]}`,
+        "server-only": v.runtime["server-only"],
       };
 
   const has = (n: BillingProviderName) => selectedBilling.includes(n);
@@ -112,6 +124,7 @@ export function singlePackageJson(
   hasI18n: boolean,
   isConvex = false,
   hasMessaging = false,
+  hasCloudflare = false,
 ): string {
   const lintAll =
     "oxlint . && node scripts/check-import-aliases.cjs && node scripts/check-next-parity.cjs && node scripts/check-navigation-imports.cjs";
@@ -123,7 +136,7 @@ export function singlePackageJson(
         typecheck: "tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
         lint: lintAll,
-        "lint:biome": "oxlint .",
+        "lint:oxlint": "oxlint .",
         "lint:imports": "node scripts/check-import-aliases.cjs",
         "lint:next-parity": "node scripts/check-next-parity.cjs",
         "lint:navigation": "node scripts/check-navigation-imports.cjs",
@@ -144,7 +157,7 @@ export function singlePackageJson(
         typecheck: "tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
         lint: lintAll,
-        "lint:biome": "oxlint .",
+        "lint:oxlint": "oxlint .",
         "lint:imports": "node scripts/check-import-aliases.cjs",
         "lint:next-parity": "node scripts/check-next-parity.cjs",
         "lint:navigation": "node scripts/check-navigation-imports.cjs",
@@ -159,13 +172,30 @@ export function singlePackageJson(
         "db:push": "drizzle-kit push",
       };
 
+  if (hasCloudflare) {
+    scripts.dev = "node scripts/build-cloudflare.mjs --dev";
+    scripts["build:worker"] = "node scripts/build-cloudflare.mjs";
+    scripts.preview = "node scripts/build-cloudflare.mjs && opennextjs-cloudflare preview";
+    scripts.deploy =
+      "node scripts/build-cloudflare.mjs --production && opennextjs-cloudflare deploy -- --keep-vars";
+    scripts.upload =
+      "node scripts/build-cloudflare.mjs --production && opennextjs-cloudflare upload";
+    scripts["cf-typegen"] =
+      "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts";
+  }
+
   return packageJson({
     name: projectName,
     version: v.ghostinitVersion,
     private: true,
     type: "module",
     scripts,
-    dependencies: buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex, hasMessaging),
+    dependencies: {
+      ...buildDeps(selectedBilling, hasEve, hasI18n, false, isConvex, hasMessaging),
+      ...(hasCloudflare
+        ? { "@opennextjs/cloudflare": `^${v.cloudflare["@opennextjs/cloudflare"]}` }
+        : {}),
+    },
     devDependencies: {
       ...(runtime === "bun" ? { "bun-types": `^${v.runtime.bun}` } : {}),
       typescript: `^${v.typescript.typescript}`,
@@ -178,6 +208,7 @@ export function singlePackageJson(
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,
+      ...(hasCloudflare ? { wrangler: `^${v.cloudflare.wrangler}` } : {}),
     },
   });
 }
@@ -190,6 +221,7 @@ export function singlePackageJsonTanstack(
   hasI18n: boolean,
   isConvex = false,
   hasMessaging = false,
+  hasCloudflare = false,
 ): string {
   void hasI18n;
   const lintAll =
@@ -198,11 +230,11 @@ export function singlePackageJsonTanstack(
     ? {
         dev: "vite dev --port 3000",
         build: "vite build",
-        start: "node .output/server/index.mjs",
+        start: hasCloudflare ? "vite preview" : "node .output/server/index.mjs",
         typecheck: "tsr generate && tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
         lint: lintAll,
-        "lint:biome": "oxlint .",
+        "lint:oxlint": "oxlint .",
         "lint:imports": "node scripts/check-import-aliases.cjs",
         "lint:architecture": "node scripts/check-feature-folder.cjs",
         "lint:rtl": "node scripts/check-rtl-logical.cjs",
@@ -217,11 +249,11 @@ export function singlePackageJsonTanstack(
     : {
         dev: "vite dev --port 3000",
         build: "vite build",
-        start: "node .output/server/index.mjs",
+        start: hasCloudflare ? "vite preview" : "node .output/server/index.mjs",
         typecheck: "tsr generate && tsc --noEmit",
         test: runtime === "bun" ? "bun test" : "npm run test:unit",
         lint: lintAll,
-        "lint:biome": "oxlint .",
+        "lint:oxlint": "oxlint .",
         "lint:imports": "node scripts/check-import-aliases.cjs",
         "lint:architecture": "node scripts/check-feature-folder.cjs",
         "lint:rtl": "node scripts/check-rtl-logical.cjs",
@@ -233,6 +265,16 @@ export function singlePackageJsonTanstack(
         "db:migrate": "drizzle-kit migrate",
         "db:push": "drizzle-kit push",
       };
+
+  if (hasCloudflare) {
+    scripts.dev = "node scripts/vite-cloudflare.mjs dev";
+    scripts.build = "node scripts/vite-cloudflare.mjs build";
+    scripts.preview = "node scripts/vite-cloudflare.mjs build && vite preview";
+    scripts.deploy =
+      "node scripts/vite-cloudflare.mjs build --production && wrangler deploy --keep-vars";
+    scripts["cf-typegen"] =
+      "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts";
+  }
 
   return packageJson({
     name: projectName,
@@ -247,9 +289,15 @@ export function singlePackageJsonTanstack(
       // Provides `tsr generate` for src/routeTree.gen.ts (see typecheck script).
       "@tanstack/router-cli": `^${v.tanstackStart["@tanstack/router-cli"]}`,
       vite: `^${v.tanstackStart.vite}`,
+      "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
       "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
       "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
-      nitro: `^${v.tanstackStart.nitro}`,
+      ...(hasCloudflare
+        ? {
+            "@cloudflare/vite-plugin": `^${v.cloudflare["@cloudflare/vite-plugin"]}`,
+            wrangler: `^${v.cloudflare.wrangler}`,
+          }
+        : { nitro: `^${v.tanstackStart.nitro}` }),
       tailwindcss: `^${v.styling.tailwindcss}`,
       "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
       postcss: `^${v.styling.postcss}`,

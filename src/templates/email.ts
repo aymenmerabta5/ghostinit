@@ -8,7 +8,7 @@ import {
   type TemplateFile,
 } from "./shared.js";
 import * as v from "./versions.js";
-import type { AddonInstallerMap, ProjectMode } from "../lib/addons.js";
+import type { AddonInstallerMap, FrameworkName, ProjectMode } from "../lib/addons.js";
 
 type Runtime = "node" | "bun";
 
@@ -52,7 +52,7 @@ export {
 
 // React Email + Resend sending mechanism — copied/adapted from licence-last/src/server/email
 // Same for monorepo/single and for Next/TanStack — server-only email is framework-agnostic.
-function sendContent(mode: ProjectMode): string {
+function sendContent(mode: ProjectMode, framework: FrameworkName): string {
   const isMonorepo = mode === "monorepo";
   const envImport = isMonorepo
     ? `import { env } from "@repo/config";`
@@ -62,8 +62,11 @@ function sendContent(mode: ProjectMode): string {
 } as const;`;
   const fromRef = isMonorepo ? `env.EMAIL_FROM` : `env.EMAIL_FROM`;
   const apiKeyRef = isMonorepo ? `env.RESEND_API_KEY` : `env.RESEND_API_KEY`;
-  // Single mode stays plain node; monorepo can use server-only guard when available.
-  const serverOnlyImport = isMonorepo ? `import "server-only";\n` : ``;
+  const serverOnlyImport = isMonorepo
+    ? framework === "tanstack-start"
+      ? `import "@tanstack/react-start/server-only";\n`
+      : `import "server-only";\n`
+    : ``;
   return `${serverOnlyImport}import * as React from "react";
 import { render } from "@react-email/render";
 import { Resend } from "resend";
@@ -322,7 +325,11 @@ export function emailFiles(
   runtimeOrAddons?: Runtime | string | AddonInstallerMap | Record<string, unknown>,
   maybeAddons?: AddonInstallerMap | Record<string, unknown>,
 ): TemplateFile[] {
-  const { mode, runtime } = normalizeTemplateArgs(modeOrOpts, runtimeOrAddons, maybeAddons);
+  const { mode, runtime, framework } = normalizeTemplateArgs(
+    modeOrOpts,
+    runtimeOrAddons,
+    maybeAddons,
+  );
   const testCmd = runtime === "bun" ? "bun test" : "npm run test:unit";
 
   const emailDependencies: Record<string, string> = {
@@ -335,6 +342,12 @@ export function emailFiles(
   };
   if (mode === "monorepo") {
     (emailDependencies as Record<string, string>)["@repo/config"] = "workspace:*";
+    if (framework === "tanstack-start") {
+      (emailDependencies as Record<string, string>)["@tanstack/react-start"] =
+        `^${v.tanstackStart["@tanstack/react-start"]}`;
+    } else {
+      (emailDependencies as Record<string, string>)["server-only"] = v.runtime["server-only"];
+    }
   }
 
   const files: TemplateFile[] = [];
@@ -387,7 +400,7 @@ describe("@repo/email barrel", () => {
       ),
       file("packages/email/src/constants.ts", constantsContent("monorepo")),
       file("packages/email/src/index.ts", indexContent("monorepo")),
-      file("packages/email/src/send.ts", sendContent("monorepo")),
+      file("packages/email/src/send.ts", sendContent("monorepo", framework)),
       file("packages/email/src/templates/EmailLayout.tsx", emailLayoutContent),
       file("packages/email/src/templates/VerifyEmail.tsx", verifyEmailContent),
       file("packages/email/src/templates/ResetPassword.tsx", resetPasswordContent),
@@ -401,7 +414,7 @@ describe("@repo/email barrel", () => {
     files.push(
       file("src/server/email/constants.ts", constantsContent("single")),
       file("src/server/email/index.ts", indexContent("single")),
-      file("src/server/email/send.ts", sendContent("single")),
+      file("src/server/email/send.ts", sendContent("single", framework)),
       file("src/server/email/templates/EmailLayout.tsx", emailLayoutContent),
       file("src/server/email/templates/VerifyEmail.tsx", verifyEmailContent),
       file("src/server/email/templates/ResetPassword.tsx", resetPasswordContent),

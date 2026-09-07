@@ -46,7 +46,7 @@ export function themeToggleSingleContent(): string {
     "  const [mounted, setMounted] = React.useState(false);",
     "  React.useEffect(() => setMounted(true), []);",
     "  if (!mounted) {",
-    '    return <Button variant="ghost" size="icon" disabled aria-label="Toggle theme placeholder"><span className="size-4" /></Button>;',
+    '    return <Button variant="ghost" size="icon" disabled aria-label="Toggle theme"><span className="size-4" /></Button>;',
     "  }",
     "  return (",
     '    <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="Toggle theme">',

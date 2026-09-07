@@ -71,6 +71,7 @@ export function monorepoFiles(
       i18n: config.i18n,
       pdf: config.pdf,
       messaging: config.messaging,
+      deploy: config.deploy,
     });
 
   const hasEve = Boolean(
@@ -178,8 +179,10 @@ export function monorepoFiles(
     ...(hasMessaging
       ? messagingFilesFor(effectiveFramework, effectiveDatabase, effectiveApps)
       : []),
-    ...(hasWebEarly && effectiveFramework === "nextjs" ? proxyFiles(mode, hasI18n) : []),
-    ...accessFiles(mode),
+    ...(hasWebEarly && effectiveFramework === "nextjs"
+      ? proxyFiles(mode, hasI18n, config.deploy ?? "none")
+      : []),
+    ...(hasAuth ? accessFiles(mode) : []),
     ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode) : []),
   ];
 

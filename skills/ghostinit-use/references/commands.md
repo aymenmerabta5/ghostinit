@@ -4,7 +4,7 @@ For agents with zero codebase knowledge.
 
 ## Registry
 
-Commands: `create, add, sync, status, check, doctor, version, help`. Invoke via `ghostinit <command> [args] [flags]`.
+Commands: `create, init, upgrade, add, sync, status, check, doctor, version, help`. Invoke via `ghostinit <command> [args] [flags]`.
 
 ## `create <name>`
 
@@ -83,7 +83,7 @@ ghostinit create my-app --apps mobile --mode single
 ghostinit create my-app --apps both --framework tanstack-start
 ghostinit create my-app --dry-run --yes --no-install
 ghostinit create my-app --dry-run --json --yes | jq .data.files
-ghostinit create my-app --preset saas --billing stripe --with-pdf --with-messaging --yes --no-install
+ghostinit create my-app --preset saas --billing stripe --with-pdf --with-messaging --deploy docker --yes --no-install
 ```
 
 ## `add module <name>`
@@ -213,7 +213,7 @@ Tooling + env verification:
 
 ```bash
 ghostinit doctor
-# [OK] bun: Bun 1.3.14
+# [OK] bun: Bun 1.4.0
 # [OK] node: Node 24.18.0
 # [OK] typescript: TypeScript 6.0.3
 # [OK] ghostinit-version: ghostinit 0.1.0

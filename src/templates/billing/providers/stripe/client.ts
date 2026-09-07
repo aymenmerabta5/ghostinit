@@ -1,11 +1,11 @@
 /**
  * Stripe client init — server-only.
- * Context7: Stripe Node v19.1.0 basil API version
+ * Stripe Node v19.1.0 clover API version
  */
 // @ts-ignore - optional dep, not installed in CLI
 import Stripe from "stripe";
 
-export const STRIPE_API_VERSION = "2025-03-31.basil" as const;
+export const STRIPE_API_VERSION = "2025-09-30.clover" as const;
 
 type StripeConfig = {
   secretKey?: string;

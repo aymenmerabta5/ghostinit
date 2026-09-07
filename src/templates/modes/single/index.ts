@@ -34,6 +34,7 @@ import { messagingFilesFor } from "../../apps/fragments/messaging/index.js";
 import { realtimePackage } from "../../realtime.js";
 import { storagePackage } from "../../storage.js";
 import { lintScriptFiles } from "../../tooling/lint-scripts.js";
+import { deployFiles } from "../../root/deploy.js";
 import * as v from "../../versions.js";
 
 export interface SingleContext {
@@ -71,6 +72,7 @@ export function singleFiles(
       i18n: config.i18n,
       pdf: config.pdf,
       messaging: config.messaging,
+      deploy: config.deploy,
     });
 
   const hasEve = Boolean(
@@ -144,9 +146,19 @@ export function singleFiles(
   const isNextSingle =
     (config.framework ?? "nextjs") === "nextjs" ||
     (!config.framework && !hasAddon(addonMap, "tanstack-start"));
-  if (hasWebSingle && isNextSingle) for (const f of proxyFiles(mode, hasI18n)) withoutOld.push(f);
-  for (const f of accessFiles(mode)) withoutOld.push(f);
-  if (hasWebSingle) for (const f of shellFiles(mode)) withoutOld.push(f);
+  if (hasWebSingle && isNextSingle) {
+    for (const f of proxyFiles(mode, hasI18n, config.deploy ?? "none")) withoutOld.push(f);
+  }
+  if (hasAddon(addonMap, "auth")) {
+    for (const f of accessFiles(mode)) withoutOld.push(f);
+  }
+  if (hasWebSingle && isNextSingle) {
+    for (const f of shellFiles(mode)) withoutOld.push(f);
+  }
+  // Provider deployment config — same framework-aware emitter as monorepo.
+  for (const f of deployFiles(config.name, config.deploy ?? "none", { mode, framework })) {
+    withoutOld.push(f);
+  }
   // pdf: inject server pdf package + route + mobile/desktop helpers when opted in
   const hasPdfEarly = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (hasPdfEarly) {
@@ -266,7 +278,12 @@ export function singleFiles(
   const finalFiles = deduped.sort((a, b) => a.path.localeCompare(b.path));
 
   return finalFiles.map((f) => ({
-    path: f.path.replace(/__PROJECT_NAME__/g, config.name),
+    path: f.path
+      .replace(/__PROJECT_NAME__/g, config.name)
+      .replace(
+        config.deploy === "cloudflare" ? /\.env\.local$/ : /$^/,
+        ".dev.vars",
+      ),
     content: f.content.replace(/__PROJECT_NAME__/g, config.name),
   }));
 }

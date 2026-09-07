@@ -30,6 +30,7 @@ export interface PromptResult {
   apps: string[];
   preset: "saas" | "frontend" | "custom";
   cache: string;
+  deploy: string;
   stack?: string;
   noInstall: boolean;
   cancelled?: boolean;
@@ -62,6 +63,7 @@ export async function promptInteractive(
     apps: string[];
     preset?: string;
     cache?: string;
+    deploy?: string;
     noInstall: boolean;
   },
 ): Promise<PromptResult> {
@@ -97,6 +99,7 @@ export async function promptInteractive(
         apps: initial.apps,
         preset: (initial.preset as PromptResult["preset"]) ?? "saas",
         cache: initial.cache ?? "none",
+        deploy: initial.deploy ?? "none",
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -124,6 +127,7 @@ export async function promptInteractive(
           apps: initial.apps,
           preset: (initial.preset as PromptResult["preset"]) ?? "saas",
           cache: initial.cache ?? "none",
+          deploy: initial.deploy ?? "none",
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -156,6 +160,7 @@ export async function promptInteractive(
           apps: initial.apps,
           preset: (initial.preset as PromptResult["preset"]) ?? "saas",
           cache: initial.cache ?? "none",
+          deploy: initial.deploy ?? "none",
           noInstall: initial.noInstall,
           cancelled: true,
           exitCode: ExitCode.CANCELLED,
@@ -195,6 +200,7 @@ export async function promptInteractive(
         apps: initial.apps,
         preset: presetValue,
         cache: initial.cache ?? "none",
+        deploy: initial.deploy ?? "none",
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -246,6 +252,26 @@ export async function promptInteractive(
                 { value: "web", label: "Web", hint: "Next.js or TanStack Start (default)" },
                 { value: "mobile", label: "Mobile", hint: "Expo SDK 52 Router + SecureStore" },
                 { value: "desktop", label: "Desktop", hint: "Electron 41 + TanStack Router SPA" },
+              ],
+            }),
+          deploy: () =>
+            p.select({
+              message: "Deployment target?",
+              initialValue: initial.deploy ?? "none",
+              options: [
+                { value: "none", label: "None", hint: "No deploy config (default)" },
+                {
+                  value: "docker",
+                  label: "Docker",
+                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
+                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                {
+                  value: "cloudflare",
+                  label: "Cloudflare Workers",
+                  hint: "TanStack native / Next OpenNext; requires Convex or no DB",
+                },
               ],
             }),
           install: () =>
@@ -351,6 +377,26 @@ export async function promptInteractive(
                 },
               ],
             }),
+          deploy: () =>
+            p.select({
+              message: "Deployment target?",
+              initialValue: initial.deploy ?? "none",
+              options: [
+                { value: "none", label: "None", hint: "No deploy config (default)" },
+                {
+                  value: "docker",
+                  label: "Docker",
+                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
+                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                {
+                  value: "cloudflare",
+                  label: "Cloudflare Workers",
+                  hint: "TanStack native / Next OpenNext; requires Convex or no DB",
+                },
+              ],
+            }),
           install: () =>
             p.confirm({
               message: "Install dependencies with Bun?",
@@ -449,6 +495,26 @@ export async function promptInteractive(
                 { value: "polar", label: "Polar", hint: "MoR + metering" },
               ],
             }),
+          deploy: () =>
+            p.select({
+              message: "Deployment target?",
+              initialValue: initial.deploy ?? "none",
+              options: [
+                { value: "none", label: "None", hint: "No deploy config (default)" },
+                {
+                  value: "docker",
+                  label: "Docker",
+                  hint: "Dockerfile + .dockerignore (Bun runtime)",
+                },
+                { value: "fly", label: "Fly.io", hint: "fly.toml + Dockerfile" },
+                { value: "vercel", label: "Vercel", hint: "vercel.json (Next.js)" },
+                {
+                  value: "cloudflare",
+                  label: "Cloudflare Workers",
+                  hint: "TanStack native / Next OpenNext; requires Convex or no DB",
+                },
+              ],
+            }),
           install: () =>
             p.confirm({
               message: "Install dependencies with Bun?",
@@ -475,6 +541,7 @@ export async function promptInteractive(
         apps: initial.apps,
         preset: presetValue,
         cache: initial.cache ?? "none",
+        deploy: initial.deploy ?? "none",
         noInstall: initial.noInstall,
         cancelled: true,
         exitCode: ExitCode.CANCELLED,
@@ -496,6 +563,7 @@ export async function promptInteractive(
       apps: initial.apps,
       preset: presetValue,
       cache: initial.cache ?? "none",
+      deploy: initial.deploy ?? "none",
       noInstall: initial.noInstall,
       cancelled: true,
       exitCode: ExitCode.CANCELLED,
@@ -510,6 +578,9 @@ export async function promptInteractive(
   let features: string[];
   let apps: string[];
   let cache: string = "none";
+  const deploy = ((group.deploy as string | undefined) ??
+    initial.deploy ??
+    "none") as PromptResult["deploy"];
   let stack: string | undefined;
 
   if (presetValue === "frontend") {
@@ -593,11 +664,12 @@ export async function promptInteractive(
   const billingLabel = billing.length ? ` + billing:${billing.join(",")}` : "";
   const featuresLabel = features.length ? ` + ${features.join(",")}` : "";
   const cacheLabel = cache !== "none" ? ` + cache:${cache}` : "";
+  const deployLabel = deploy !== "none" ? ` + deploy:${deploy}` : "";
   const frameworkLabel = framework ? ` + ${framework}` : "";
   const appsLabel = apps.length ? ` + apps:${apps.join(",")}` : "";
   void appsLabel;
   p.outro(
-    `Scaffolding ${name} with ${presetLabel} ${mode}${frameworkLabel} + ${apps.join(",")} + ${database}${billingLabel}${featuresLabel}${cacheLabel}...`,
+    `Scaffolding ${name} with ${presetLabel} ${mode}${frameworkLabel} + ${apps.join(",")} + ${database}${billingLabel}${featuresLabel}${cacheLabel}${deployLabel}...`,
   );
 
   return {
@@ -610,6 +682,7 @@ export async function promptInteractive(
     apps,
     preset: presetValue,
     cache,
+    deploy,
     stack,
     noInstall,
   };

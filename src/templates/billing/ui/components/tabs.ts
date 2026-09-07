@@ -35,15 +35,13 @@ export function billingTabsContent(selected: string[]): string {
   if (selected.length === 1) {
     return `"use client";
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+  import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 ${imports}
 interface BillingTabsProps { providers: string[]; }
 export function BillingTabs({ providers }: BillingTabsProps): React.JSX.Element {
   const list = providers.length > 0 ? providers : ${JSON.stringify(selected)} as string[];
   const only = list[0];
   const hasChargily = list.includes("chargily");
-  const hasGlobal = list.some((p) => ["stripe", "paddle", "polar"].includes(p));
   const isChargilyAlone = hasChargily && list.length === 1;
   return (
     <div className="flex flex-col gap-6">

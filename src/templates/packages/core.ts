@@ -85,7 +85,7 @@ export function corePackagesFiles(runtime: "node" | "bun" = "bun"): TemplateFile
     ),
     file(
       "packages/kernel/src/admin.ts",
-      `export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }\nexport interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; }\n`,
+      `export interface AdminUser { id: string; name: string | null; email: string; role: string; banned: boolean; }\nexport interface UseAdminUsersReturn { data: { users: AdminUser[]; total: number } | null; error: string | null; loading: boolean; refresh: () => Promise<void>; toggleBan: (userId: string, banned: boolean) => Promise<void>; setRole: (userId: string, currentRole: string) => Promise<void>; search: string; setSearch: (value: string) => void; page: number; setPage: (value: number) => void; limit: number; }\n`,
     ),
     file(
       "packages/kernel/src/hooks.ts",

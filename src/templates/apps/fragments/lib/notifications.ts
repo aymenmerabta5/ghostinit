@@ -45,7 +45,6 @@ export function getNotificationHref(_type: string, payload: unknown): Notificati
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatNotification } from "@/lib/notifications";
 
 export interface NotificationItem {
   id: string;
@@ -57,9 +56,10 @@ export interface NotificationItem {
 
 export function NotificationBell({ notifications, onMarkRead }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void }) {
   const unread = notifications.filter((n) => !n.readAt).length;
+  const firstUnread = notifications.find((n) => !n.readAt);
   return (
     <div className="relative">
-      <Button variant="ghost" size="icon" aria-label="Notifications">
+      <Button variant="ghost" size="icon" aria-label="Notifications" onClick={() => firstUnread && onMarkRead?.(firstUnread.id)}>
         <Bell className="size-5" />
         {unread > 0 && <Badge className="absolute -top-1 -end-1 size-5 rounded-full p-0 text-xs flex items-center justify-center">{unread > 9 ? "9+" : unread}</Badge>}
       </Button>

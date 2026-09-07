@@ -56,7 +56,7 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       expect(c).toContain("Webhook Error");
       expect(c).toContain("Buffer.from(await req.arrayBuffer())");
       expect(c).toContain("STRIPE_WEBHOOK_SECRET");
-      expect(c).toContain("2025-03-31.basil");
+      expect(c).toContain("2025-09-30.clover");
     });
 
     it("stripe monorepo idempotent via webhook_events unique provider+providerEventId check processed return 200 already processed, switch checkout.session.completed -> update checkout status completed create subscription, invoice.paid lifecycle broader vs payment_succeeded narrower, customer.subscription.updated/deleted, insert webhook_events processed true onConflictDoNothing return ok 200", () => {

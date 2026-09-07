@@ -8,8 +8,7 @@ export type RouterType = "next" | "tanstack";
 
 export function sitemapFileContent(router: RouterType = "next"): string {
   if (router === "tanstack") {
-    return `import type { Sitemap } from "vite";
-export default function sitemap(): Sitemap {
+    return `export default function sitemap() {
   const base = process.env.VITE_APP_URL ?? "http://localhost:3000";
   return [
     { url: \`\${base}/\`, lastModified: new Date(), changeFrequency: "daily", priority: 1 },

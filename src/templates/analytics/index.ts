@@ -170,7 +170,7 @@ function singleList(_mode: ProjectMode, framework: AnalyticsFramework): Template
     file("src/server/analytics/testing/mocks.ts", c.testingMocksContent("single")),
     file("src/server/analytics/integrations/auth.ts", c.integrationsAuthContent("single")),
     file("src/server/analytics/integrations/billing.ts", c.integrationsBillingContent("single")),
-    file("src/lib/analytics.ts", c.singleLibAnalyticsContent()),
+    file("src/lib/analytics.ts", c.singleLibAnalyticsContent(framework)),
     file("src/components/analytics/posthog-provider.tsx", c.singleComponentsProviderContent()),
     file("src/components/analytics/posthog-pageview.tsx", c.singlePageViewContent(framework)),
     file("src/components/analytics/feature-flag-gate.tsx", c.singleFeatureFlagGateContent()),

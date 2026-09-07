@@ -2,8 +2,8 @@
  * Stripe provider barrel — composes split modules for <300 compliance.
  * Original monolith 433 lines now <200 barrel + submodules.
  *
- * Context7 /stripe/stripe-node v19.1.0 basil
- * Stripe(SECRET, {apiVersion:'2025-03-31.basil'}) checkout.sessions.create line_items mode subscription
+ * Stripe Node v19.1.0 clover API
+ * Stripe(SECRET, {apiVersion:'2025-09-30.clover'}) checkout.sessions.create line_items mode subscription
  *   automatic_tax success_url cancel_url expand subscription expand[]=subscription
  * billingPortal.sessions.create customer return_url flow_data subscription_update deep-link
  * webhooks.constructEvent rawBody Buffer sig secret stripe-signature Buffer.from(await req.arrayBuffer())

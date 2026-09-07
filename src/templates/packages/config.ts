@@ -48,14 +48,14 @@ export function clientRuntimeEnvLines(prefix: "NEXT_PUBLIC_" | "VITE_"): string 
     "POSTHOG_AUTOCAPTURE",
     "ANALYTICS_DISABLED",
   ];
-  return names.map((n) => `    ${prefix}${n}: process.env.${prefix}${n},`).join("\n");
+  const source = prefix === "VITE_" ? "import.meta.env." : "process.env.";
+  return names.map((n) => `    ${prefix}${n}: ${source}${prefix}${n},`).join("\n");
 }
 
 export const EXPO_CLIENT_VARS = [
   `    // Expo public vars — validated when mobile is enabled; optional otherwise`,
   `    EXPO_PUBLIC_APP_URL: z.string().url().optional().default("http://localhost:3000"),`,
   `    EXPO_PUBLIC_API_URL: z.string().url().optional(),`,
-  `    EXPO_PUBLIC_CONVEX_URL: z.string().url().optional(),`,
   `    EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1).optional().default("pk_test_REPLACE"),`,
   `    EXPO_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().min(1).optional(),`,
   `    EXPO_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),`,
@@ -66,7 +66,6 @@ export const EXPO_CLIENT_VARS = [
 export const EXPO_CLIENT_RUNTIME = [
   `    EXPO_PUBLIC_APP_URL: process.env.EXPO_PUBLIC_APP_URL,`,
   `    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,`,
-  `    EXPO_PUBLIC_CONVEX_URL: process.env.EXPO_PUBLIC_CONVEX_URL,`,
   `    EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,`,
   `    EXPO_PUBLIC_PADDLE_CLIENT_TOKEN: process.env.EXPO_PUBLIC_PADDLE_CLIENT_TOKEN,`,
   `    EXPO_PUBLIC_POSTHOG_KEY: process.env.EXPO_PUBLIC_POSTHOG_KEY,`,
@@ -110,7 +109,7 @@ export function configPackageFiles(
     ? `\n    ${isTanstack ? "VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL"}: z.string().url(),`
     : "";
   const convexClientRuntime = isConvex
-    ? `\n    ${isTanstack ? "VITE_CONVEX_URL: process.env.VITE_CONVEX_URL," : "NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,"}`
+    ? `\n    ${isTanstack ? "VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL," : "NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,"}`
     : "";
   const envPackage = isTanstack ? "@t3-oss/env-core" : "@t3-oss/env-nextjs";
   const envVersion = isTanstack
@@ -118,6 +117,26 @@ export function configPackageFiles(
     : v.validation["@t3-oss/env-nextjs"];
   const clientVars = isTanstack ? VITE_CLIENT_VARS : NEXT_PUBLIC_CLIENT_VARS;
   const clientRuntime = clientRuntimeEnvLines(isTanstack ? "VITE_" : "NEXT_PUBLIC_");
+  const postgresServer =
+    database === "postgres"
+      ? `
+    DATABASE_URL: z.string().min(1).optional(),
+    POSTGRES_USER: z.string().min(1).default("postgres"),
+    POSTGRES_PASSWORD: z.string().min(1),
+    POSTGRES_HOST: z.string().min(1).default("localhost"),
+    POSTGRES_PORT: z.string().regex(/^\\d+$/).default("5432"),
+    POSTGRES_DB: z.string().min(1).default("ghostinit"),`
+      : "";
+  const postgresRuntime =
+    database === "postgres"
+      ? `
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_USER: process.env.POSTGRES_USER,
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
+    POSTGRES_HOST: process.env.POSTGRES_HOST,
+    POSTGRES_PORT: process.env.POSTGRES_PORT,
+    POSTGRES_DB: process.env.POSTGRES_DB,`
+      : "";
   // Expo vars are framework-agnostic and always validated (optional) to avoid runtime undefined when mobile is later added
   const expoVars = `\n${EXPO_CLIENT_VARS}`;
   const expoRuntime = `\n${EXPO_CLIENT_RUNTIME}`;
@@ -168,15 +187,13 @@ import { z } from "zod";
 export const env = createEnv({
 ${clientPrefixLine}  server: {${convexServer}${expoVars}
     NODE_ENV: z.enum(["development","production","test"]).default("development"),
-    APP_NAME: z.string().min(1).default("GhostInit App"),
-    DATABASE_URL: z.string().min(1).optional(),
-    POSTGRES_USER: z.string().min(1).default("postgres"),
-    POSTGRES_PASSWORD: z.string().min(1),
-    POSTGRES_HOST: z.string().min(1).default("localhost"),
-    POSTGRES_PORT: z.string().regex(/^\\d+$/).default("5432"),
-    POSTGRES_DB: z.string().min(1).default("ghostinit"),
+    APP_NAME: z.string().min(1).default("GhostInit App"),${postgresServer}
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.string().url(),
+    GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+    GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+    GITHUB_CLIENT_ID: z.string().min(1).optional(),
+    GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
     DATABASE_SSL: z.enum(["true","false"]).default("false"),
     DATABASE_SSL_CA: z.string().optional(),
     DATABASE_POOL_SIZE: z.string().regex(/^\\d+$/).default("20").transform((s: string) => Number.parseInt(s, 10)),
@@ -204,15 +221,13 @@ ${clientVars}${convexClient}
   },
   runtimeEnv: {${convexServerRuntime}${expoRuntime}
     NODE_ENV: process.env.NODE_ENV,
-    APP_NAME: process.env.APP_NAME,
-    DATABASE_URL: process.env.DATABASE_URL,
-    POSTGRES_USER: process.env.POSTGRES_USER,
-    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
-    POSTGRES_HOST: process.env.POSTGRES_HOST,
-    POSTGRES_PORT: process.env.POSTGRES_PORT,
-    POSTGRES_DB: process.env.POSTGRES_DB,
+    APP_NAME: process.env.APP_NAME,${postgresRuntime}
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+    GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
 ${clientRuntime}${convexClientRuntime}
     DATABASE_SSL: process.env.DATABASE_SSL,
     DATABASE_SSL_CA: process.env.DATABASE_SSL_CA,

@@ -72,7 +72,7 @@ const path = require("node:path");
 const ROOTS = [path.join(process.cwd(),"src","server"), path.join(process.cwd(),"packages","services","src"), path.join(process.cwd(),"src","server","services")];
 const EXT = /\\.(ts|js)$/;
 function collect(dir, out) { if (!fs.existsSync(dir)) return; for (const e of fs.readdirSync(dir,{withFileTypes:true})) { const p=path.join(dir,e.name); if(e.isDirectory()) collect(p,out); else if(e.isFile() && EXT.test(e.name) && !e.name.endsWith(".test.ts")) out.push(p); } }
-function hasServerOnly(c) { return /^import\\s+["']server-only["']/m.test(c); }
+function hasServerOnly(c) { return /^import\\s+["'](?:server-only|@tanstack\\/react-start\\/server-only)["']/m.test(c); }
 function main() {
   const files=[]; for(const r of ROOTS) collect(r, files);
   if(files.length===0){ console.log("server-only check passed (no service files)."); return; }
@@ -97,13 +97,13 @@ function list(dir, out=[]){ for(const e of fs.readdirSync(dir,{withFileTypes:tru
 function isRel(s){return s.startsWith("./")||s.startsWith("../");}
 function isStyle(s){return STYLE.some(e=>s.endsWith(e));}
 function kind(fp){return fp.endsWith(".tsx")?ts.ScriptKind.TSX:ts.ScriptKind.TS;}
-function add(node,sf,text,fp,viol){ if(!node||!ts.isStringLiteral(node)) return; const spec=node.text; if(!isRel(spec)||isStyle(spec)) return; const {line,character}=sf.getLineAndCharacterOfPosition(node.getStart(sf)); viol.push({file:toPosix(path.relative(process.cwd(),fp)), line:line+1, column:character+1, spec:text.slice(node.getStart(sf),node.getEnd())});}
+function add(node,sf,text,fp,root,viol){ if(!node||!ts.isStringLiteral(node)) return; const spec=node.text; if(!isRel(spec)||isStyle(spec)) return; const target=path.resolve(path.dirname(fp),spec); const relTarget=path.relative(root,target); if(relTarget===""||(!relTarget.startsWith("..")&&!path.isAbsolute(relTarget))) return; const {line,character}=sf.getLineAndCharacterOfPosition(node.getStart(sf)); viol.push({file:toPosix(path.relative(process.cwd(),fp)), line:line+1, column:character+1, spec:text.slice(node.getStart(sf),node.getEnd())});}
 function main(){
   const dirs=roots(); if(dirs.length===0){console.error("Missing src root");process.exit(1);}
   const files=dirs.flatMap(d=>list(d)); const viol=[];
-  for(const fp of files){ const txt=fs.readFileSync(fp,"utf8"); const sf=ts.createSourceFile(fp,txt,ts.ScriptTarget.Latest,true,kind(fp)); function visit(n){ if(ts.isImportDeclaration(n)) add(n.moduleSpecifier,sf,txt,fp,viol); else if(ts.isExportDeclaration(n) && n.moduleSpecifier) add(n.moduleSpecifier,sf,txt,fp,viol); ts.forEachChild(n,visit);} visit(sf); }
+  for(const fp of files){ const root=dirs.find(d=>fp===d||fp.startsWith(d+path.sep)); const txt=fs.readFileSync(fp,"utf8"); const sf=ts.createSourceFile(fp,txt,ts.ScriptTarget.Latest,true,kind(fp)); function visit(n){ if(ts.isImportDeclaration(n)) add(n.moduleSpecifier,sf,txt,fp,root,viol); else if(ts.isExportDeclaration(n) && n.moduleSpecifier) add(n.moduleSpecifier,sf,txt,fp,root,viol); ts.forEachChild(n,visit);} visit(sf); }
   if(viol.length===0){console.log("Import alias check passed."); return;}
-  console.error("Relative imports forbidden in src/**/*.{ts,tsx}. Use @/ aliases (styles exempt):"); for(const v of viol) console.error(\`\${v.file}:\${v.line}:\${v.column} \${v.spec}\`);
+  console.error("Relative imports may not escape their source root. Use a declared package alias:"); for(const v of viol) console.error(\`\${v.file}:\${v.line}:\${v.column} \${v.spec}\`);
   process.exit(1);
 }
 main();
@@ -134,7 +134,6 @@ for(const fp of files){
     if(ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)){
       const tag = ts.isJsxElement(n)? tagName(n.openingElement.tagName): tagName(n.tagName);
       if(tag==="img"){
-        const srcAttr = ts.isJsxElement(n)? attr(n.openingElement.attributes,"src"): attr(n.attributes,"src");
         const allowList = new Set();
         const relPath=rel(fp);
         if(!allowList.has(relPath)) violations.push({file:relPath, line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line+1, msg: "Use next/image <Image> instead of <img> for optimization"});
@@ -170,6 +169,7 @@ function kind(fp){return fp.endsWith(".tsx")?ts.ScriptKind.TSX:ts.ScriptKind.TS;
 function getSpec(node){ if(!ts.isImportDeclaration(node)) return null; const ms=node.moduleSpecifier; if(!ts.isStringLiteral(ms)) return null; const src=ms.text; const b=node.importClause?.namedBindings; if(!b||!ts.isNamedImports(b)) return {source:src,names:[]}; const names=b.elements.map(el=>el.propertyName?.text ?? el.name.text); return {source:src,names}; }
 function main(){
   const dirs=roots(); if(dirs.length===0){ console.log("navigation imports check passed (no src)."); return; }
+  const hasI18n=dirs.some(d=>fs.existsSync(path.join(d,"i18n","routing.ts"))); if(!hasI18n){ console.log("Navigation imports check passed (i18n disabled)."); return; }
   const files=dirs.flatMap(d=>list(d)); const viol=[];
   for(const fp of files){
     const rel=toPosix(path.relative(process.cwd(),fp)); if(ALLOWLIST.has(rel)) continue;
@@ -193,7 +193,7 @@ function checkRtlLogicalContent(): string {
 const fs=require("node:fs"), path=require("node:path");
 function roots(){ return [path.join(process.cwd(),"src","components"), path.join(process.cwd(),"src","app","[locale]"), path.join(process.cwd(),"apps","web","src","components"), path.join(process.cwd(),"apps","web","src","app","[locale]")].filter(fs.existsSync); }
 const EXT=/\\.(tsx|ts|jsx|js)$/;
-const PATTERNS=[{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*text-left(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*text-right(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*border-l(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*border-r(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*rounded-l(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*rounded-r(?:-[^\\s"'\\\`]+)?(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*-?ml-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*-?mr-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*pl-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\\`]+:)*pr-[^\\s"'\\\`]+(?=$|\\s|["'\\\`])/}];
+const PATTERNS=[{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*text-left(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*text-right(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*border-l(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*border-r(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*rounded-l(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*rounded-r(?:-[^\\s"'\\x60]+)?(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*-?ml-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*-?mr-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*pl-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/},{pattern:/(?:^|\\s)(?:[^\\s"'\\x60]+:)*pr-[^\\s"'\\x60]+(?=$|\\s|["'\\x60])/}];
 const EXCEPT=[/data-\\[side=(left|right)\\]/];
 function hasToken(l){ return PATTERNS.some(tp=>tp.pattern.test(l)); }
 function hasExcept(l){ return EXCEPT.some(p=>p.test(l)); }

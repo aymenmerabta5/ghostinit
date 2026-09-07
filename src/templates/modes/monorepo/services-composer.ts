@@ -19,8 +19,8 @@ export function servicesComposerFiles(
   hasEmail = true,
 ): TemplateFile[] {
   const out: TemplateFile[] = [];
-  out.push(...servicesFiles({ mode: "monorepo", runtime, addons }, runtime));
-  if (hasEmail) out.push(...genEmailFiles(runtime));
+  out.push(...servicesFiles({ mode: "monorepo", runtime, framework, addons }, runtime));
+  if (hasEmail) out.push(...genEmailFiles({ mode: "monorepo", runtime, framework }, runtime));
   if (hasI18n) out.push(...genI18nFiles(runtime, addons, framework));
   if (hasEve) {
     out.push(...genAgenticFiles(projectName));

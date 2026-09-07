@@ -408,19 +408,3 @@ export default function Loading(): React.JSX.Element {
 }
 `;
 }
-
-/**
- * Shared 404 for TanStack root or Next not-found – ensures h-14 max-w-6xl etc checks pass via marketing
- * This file also exports small helpers used by pages.ts marketing check
- */
-export function marketingRequiredClasses(): string[] {
-  return [
-    "h-14",
-    "max-w-6xl",
-    "sticky",
-    "backdrop-blur",
-    "Badge",
-    "modular monolith",
-    "ThemeToggle",
-  ];
-}

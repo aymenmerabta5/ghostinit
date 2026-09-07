@@ -1,8 +1,46 @@
-// @allow-long 120: proxy template shared by monorepo + single, must stay reviewable side-by-side with licence-last src/proxy.ts
+// @allow-long 150: proxy template shared by monorepo + single, must stay reviewable side-by-side with licence-last src/proxy.ts
 import { file, type TemplateFile } from "./shared.js";
-import type { ProjectMode } from "../lib/addons.js";
+import type { DeployTarget, ProjectMode } from "../lib/addons.js";
 
 const MATCHER = `"/((?!api|_next|_vercel|static|.*\\\\..*).*)"`;
+
+/** Env-driven maintenance gate shared by both proxy variants (see MAINTENANCE_MODE in .env.example). */
+const MAINTENANCE_GATE = `const MAINTENANCE_COOKIE = "ghostinit_maintenance_bypass";
+
+interface MaintenanceStatus {
+  enabled: boolean;
+  canBypass: boolean;
+  /** Token captured from ?maintenance_bypass=<token> — proxy sets the bypass cookie when present. */
+  paramToken?: string;
+}
+
+function checkMaintenanceStatus(request: NextRequest): MaintenanceStatus {
+  if (process.env.MAINTENANCE_MODE !== "true") return { enabled: false, canBypass: true };
+  const token = process.env.MAINTENANCE_BYPASS_TOKEN;
+  if (!token) return { enabled: true, canBypass: false };
+  const paramToken = request.nextUrl.searchParams.get("maintenance_bypass") ?? undefined;
+  const canBypass =
+    (paramToken !== undefined && paramToken === token) ||
+    request.cookies.get(MAINTENANCE_COOKIE)?.value === token;
+  return { enabled: true, canBypass, paramToken: paramToken === token ? token : undefined };
+}`;
+
+function maintenancePageContent(): string {
+  return `export const metadata = { title: "Maintenance" };
+
+export default function MaintenancePage() {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background px-6 text-center text-foreground">
+      <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">503</p>
+      <h1 className="text-2xl font-semibold tracking-tight">Down for maintenance</h1>
+      <p className="max-w-[60ch] text-sm text-muted-foreground">
+        We are applying changes and will be back shortly. Your data is safe.
+      </p>
+    </main>
+  );
+}
+`;
+}
 
 function proxyContent(mode: ProjectMode): string {
   const isSingle = mode === "single";
@@ -56,26 +94,24 @@ export function isMaintenanceExemptPath(pathname: string): boolean {
   return MAINTENANCE_EXEMPT_PATHS.some((p) => matchesPath(path, p));
 }
 
-async function checkMaintenanceStatus(_request: NextRequest): Promise<{ enabled: boolean; canBypass: boolean }> {
-  // Stub: integrate with @repo/database site_settings or Upstash when needed
-  return { enabled: false, canBypass: true };
-}
+${MAINTENANCE_GATE}
 
 export async function proxy(request: NextRequest): Promise<ReturnType<typeof NextResponse.next>> {
   const { pathname } = request.nextUrl;
 ${localeExtraction}
 
   if (!isMaintenanceExemptPath(pathname)) {
-    try {
-      const { enabled, canBypass } = await checkMaintenanceStatus(request);
-      if (enabled && !canBypass) {
-        const response = NextResponse.rewrite(new URL(\`/\${locale}/maintenance\`, request.url));
-        response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-        response.headers.set("CDN-Cache-Control", "no-store");
-        return response;
-      }
-    } catch (err) {
-      console.error("[proxy] maintenance check failed:", err);
+    const { enabled, canBypass, paramToken } = checkMaintenanceStatus(request);
+    if (enabled && canBypass && paramToken) {
+      const bypassed = NextResponse.next();
+      bypassed.cookies.set(MAINTENANCE_COOKIE, paramToken, { httpOnly: true, sameSite: "lax", path: "/" });
+      return bypassed;
+    }
+    if (enabled && !canBypass) {
+      const response = NextResponse.rewrite(new URL(\`/\${locale}/maintenance\`, request.url));
+      response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      response.headers.set("CDN-Cache-Control", "no-store");
+      return response;
     }
   }
 
@@ -98,14 +134,20 @@ export const config = {
 `;
 }
 
-export function proxyFiles(mode: ProjectMode = "monorepo", hasI18n = false): TemplateFile[] {
+export function proxyFiles(
+  mode: ProjectMode = "monorepo",
+  hasI18n = false,
+  deploy: DeployTarget = "none",
+): TemplateFile[] {
   const proxyPath = mode === "single" ? "src/proxy.ts" : "apps/web/src/proxy.ts";
-  const middlewarePath = mode === "single" ? "src/middleware.ts" : "apps/web/src/middleware.ts";
-  // Shared matcher exported for Next middleware discovery (Next 16 supports both proxy.ts and middleware.ts)
-  const middlewareShim = `import { proxy as proxyHandler, config } from "./proxy.js";
-export default proxyHandler;
-export { config };
-`;
+  const middlewarePath =
+    mode === "single" ? "src/middleware.ts" : "apps/web/src/middleware.ts";
+  // The maintenance rewrite target must exist, otherwise the gate 404s.
+  const pageDir = mode === "single" ? "src/app" : "apps/web/src/app";
+  const maintenancePage = hasI18n
+    ? `${pageDir}/[locale]/maintenance/page.tsx`
+    : `${pageDir}/maintenance/page.tsx`;
+
   // For non-i18n projects, emit a simplified proxy without next-intl import to avoid alias failure
   if (!hasI18n) {
     const simple = `import { getSessionCookie } from "better-auth/cookies";
@@ -128,9 +170,20 @@ function matchesPath(path: string, base: string): boolean {
 export function isProtectedPath(p: string): boolean { return PROTECTED_PATHS.some((x) => matchesPath(stripLocale(p), x)); }
 export function isAuthPath(p: string): boolean { return AUTH_PATHS.some((x) => matchesPath(stripLocale(p), x)); }
 export function isMaintenanceExemptPath(pathname: string): boolean { return MAINTENANCE_EXEMPT_PATHS.some((x) => matchesPath(stripLocale(pathname), x)); }
+${MAINTENANCE_GATE}
 export async function proxy(request: NextRequest) {
-  if (!isMaintenanceExemptPath(request.nextUrl.pathname) && false) {
-    // placeholder maintenance gate — see proxyContent full version for implementation
+  if (!isMaintenanceExemptPath(request.nextUrl.pathname)) {
+    const { enabled, canBypass, paramToken } = checkMaintenanceStatus(request);
+    if (enabled && canBypass && paramToken) {
+      const bypassed = NextResponse.next();
+      bypassed.cookies.set(MAINTENANCE_COOKIE, paramToken, { httpOnly: true, sameSite: "lax", path: "/" });
+      return bypassed;
+    }
+    if (enabled && !canBypass) {
+      const res = NextResponse.rewrite(new URL("/maintenance", request.url));
+      res.headers.set("Cache-Control", "no-store");
+      return res;
+    }
   }
   if (isProtectedPath(request.nextUrl.pathname)) {
     const c = getSessionCookie(request);
@@ -144,7 +197,30 @@ export async function proxy(request: NextRequest) {
 }
 export const config = { matcher: [${MATCHER}] };
 `;
-    return [file(proxyPath, simple), file(middlewarePath, middlewareShim)];
+    const entryPath = deploy === "cloudflare" ? middlewarePath : proxyPath;
+    const entryContent =
+      deploy === "cloudflare"
+        ? simple.replace(
+            "export async function proxy(request: NextRequest)",
+            "export default async function middleware(request: NextRequest)",
+          )
+        : simple;
+    return [
+      file(entryPath, entryContent),
+      file(maintenancePage, maintenancePageContent()),
+    ];
   }
-  return [file(proxyPath, proxyContent(mode)), file(middlewarePath, middlewareShim)];
+  const content = proxyContent(mode);
+  const entryPath = deploy === "cloudflare" ? middlewarePath : proxyPath;
+  const entryContent =
+    deploy === "cloudflare"
+      ? content.replace(
+          "export async function proxy(request: NextRequest)",
+          "export default async function middleware(request: NextRequest)",
+        )
+      : content;
+  return [
+    file(entryPath, entryContent),
+    file(maintenancePage, maintenancePageContent()),
+  ];
 }

@@ -11,16 +11,17 @@ import type { AddonInstallerMap, ProjectMode } from "../../lib/addons.js";
 import { billingServiceFiles } from "./billing.js";
 import { emailServiceFiles } from "./email.js";
 import { invoiceServiceFiles } from "./invoice.js";
-import { hasBillingAddon } from "./shared.js";
+import { hasBillingAddon, serverOnlyImportForFramework } from "./shared.js";
 
 export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFile[] {
-  const { mode, addons } = normalizeTemplateArgs(
+  const { mode, framework, addons } = normalizeTemplateArgs(
     a as ProjectMode | string | Record<string, unknown> | undefined,
     b as string | AddonInstallerMap | Record<string, unknown> | undefined,
     c as AddonInstallerMap | Record<string, unknown> | undefined,
   );
   const isMonorepo = mode === "monorepo";
   const base = isMonorepo ? "packages/services/src" : "src/server/services";
+  const withBilling = hasBillingAddon(addons);
   const files: TemplateFile[] = [];
 
   // Single mode has no @repo/kernel package, and the service files import
@@ -49,9 +50,25 @@ export function err<E = Error>(error: E): Result<never, E> {
       `${isMonorepo ? "packages/services" : "src/server/services"}/package.json`,
       packageJson({
         name: "@repo/services",
-        exports: { ".": "./src/index.ts" },
+        exports: {
+          ".": "./src/index.ts",
+          ...(withBilling ? { "./billing": "./src/billing/index.ts" } : {}),
+        },
         scripts: codeScripts(),
-        dependencies: { "@repo/kernel": "workspace:*", zod: `^${v.validation.zod}` },
+        dependencies: {
+          "@repo/kernel": "workspace:*",
+          ...(withBilling && isMonorepo
+            ? {
+                "@repo/billing": "workspace:*",
+                "@repo/database": "workspace:*",
+                "drizzle-orm": `^${v.database["drizzle-orm"]}`,
+              }
+            : {}),
+          ...(framework === "tanstack-start"
+            ? { "@tanstack/react-start": `^${v.tanstackStart["@tanstack/react-start"]}` }
+            : { "server-only": v.runtime["server-only"] }),
+          zod: `^${v.validation.zod}`,
+        },
       }),
     ),
   );
@@ -69,21 +86,20 @@ export function err<E = Error>(error: E): Result<never, E> {
   files.push(
     file(
       `${base}/errors.ts`,
-      `import "server-only";\n\n/**\n * Shared typed error for service-layer domain failures.\n * Routes map \`code\` to transport-safe ORPC errors via createServiceORPCError.\n */\nexport class ServiceError<TCode extends string = string> extends Error {\n  readonly code: TCode;\n  constructor(code: TCode, message: string, options?: { cause?: unknown }) {\n    super(message);\n    this.name = "ServiceError";\n    this.code = code;\n    if (options?.cause !== undefined) this.cause = options.cause;\n  }\n}\nexport function isServiceError(error: unknown): error is ServiceError<string> {\n  return error instanceof ServiceError;\n}\n`,
+      `${serverOnlyImportForFramework(framework)}\n\n/**\n * Shared typed error for service-layer domain failures.\n * Routes map \`code\` to transport-safe ORPC errors via createServiceORPCError.\n */\nexport class ServiceError<TCode extends string = string> extends Error {\n  readonly code: TCode;\n  constructor(code: TCode, message: string, options?: { cause?: unknown }) {\n    super(message);\n    this.name = "ServiceError";\n    this.code = code;\n    if (options?.cause !== undefined) this.cause = options.cause;\n  }\n}\nexport function isServiceError(error: unknown): error is ServiceError<string> {\n  return error instanceof ServiceError;\n}\n`,
     ),
   );
   // The billing service module is only emitted when a billing provider is
   // selected, so the barrel must not re-export it unconditionally — doing so left
   // no-billing projects with a barrel importing a file that was never generated.
-  const withBilling = hasBillingAddon(addons);
   const barrelLines = [
     ...(withBilling ? [`export * as billing from "./billing/index.js";`] : []),
     `export * as email from "./email/index.js";`,
     `export * as invoice from "./invoice/index.js";`,
   ];
   files.push(file(`${base}/index.ts`, `${barrelLines.join("\n")}\n`));
-  if (withBilling) files.push(...billingServiceFiles(mode as ProjectMode));
-  files.push(...emailServiceFiles(mode as ProjectMode));
-  files.push(...invoiceServiceFiles(mode as ProjectMode));
+  if (withBilling) files.push(...billingServiceFiles(mode as ProjectMode, framework));
+  files.push(...emailServiceFiles(mode as ProjectMode, framework));
+  files.push(...invoiceServiceFiles(mode as ProjectMode, framework));
   return files;
 }

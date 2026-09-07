@@ -475,7 +475,9 @@ export const authClient = createAuthClient({
     files.push(file("src/server/db/index.ts", serverDbIndexSingleNone()));
   } else {
     files.push(file("src/server/auth/index.ts", serverAuthSingle()));
-    files.push(file("src/server/db/index.ts", serverDbIndexSingle()));
+    files.push(
+      file("src/server/db/index.ts", serverDbIndexSingle(effectiveBilling.length > 0)),
+    );
     files.push(file("src/server/db/schema/auth.ts", serverDbAuthSchemaStub()));
   }
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
@@ -530,7 +532,7 @@ export const authClient = createAuthClient({
 
   files.push(
     ...(servicesFiles(
-      { mode: "single", runtime: runtime as never, addons: addonMap } as never,
+      { mode: "single", runtime: runtime as never, framework: "nextjs", addons: addonMap } as never,
       runtime as never,
     ) as TemplateFile[]),
   );
@@ -562,7 +564,7 @@ export const authClient = createAuthClient({
 
   files.push(
     ...(emailFiles(
-      { mode: "single", runtime: runtime as never } as never,
+      { mode: "single", runtime: runtime as never, framework: "nextjs" } as never,
       runtime as never,
     ) as TemplateFile[]),
   );

@@ -15,7 +15,7 @@ import {
 } from "./config.js";
 import { envExample, envLocal, webEnvLocal } from "./env.js";
 import { huskyFiles } from "./husky.js";
-import { deployFiles } from "./deploy.js";
+import { deployFiles, type DeployTemplateContext } from "./deploy.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import type { DeployTarget } from "../../lib/addons.js";
 export type { RootSecrets } from "./secrets.js";
@@ -28,8 +28,9 @@ export function rootFiles(
   runtime: "node" | "bun" = "bun",
   addonMap?: AddonInstallerMap | Record<string, { inUse: boolean }>,
   deploy: DeployTarget = "none",
+  deployContext: DeployTemplateContext = { mode: "monorepo", framework: "nextjs" },
 ): TemplateFile[] {
-  return [
+  const files = [
     rootPackageJson(projectName, runtime, addonMap),
     ...(runtime === "bun" ? [bunfig()] : []),
     turbo(runtime),
@@ -45,8 +46,15 @@ export function rootFiles(
     readme(projectName, runtime),
     githubWorkflow(runtime),
     ...huskyFiles(),
-    ...deployFiles(projectName, deploy),
+    ...deployFiles(projectName, deploy, deployContext),
   ];
+  if (deploy !== "cloudflare") return files;
+  return files.map((entry) => ({
+    ...entry,
+    path: entry.path.endsWith(".env.local")
+      ? entry.path.replace(/\.env\.local$/, ".dev.vars")
+      : entry.path,
+  }));
 }
 
 export {

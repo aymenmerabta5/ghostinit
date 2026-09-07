@@ -2,12 +2,12 @@
 
 Fixture: `tests/fixtures/compatibility/drizzle-betterauth-orpc/`
 Date: 2026-07-12
-Runtime: Bun 1.3.14
+Runtime: Bun 1.4.0
 Platform: Windows 11 Pro 10.0.26200
 
 ## Goal
 
-Verify that the exact pinned versions below can be installed and typechecked together under Bun with TypeScript 7.0.2:
+Verify that the exact pinned versions below can be installed and typechecked together under Bun with TypeScript 6.0.3:
 
 - `drizzle-orm` 0.45.2
 - `drizzle-kit` 0.31.10
@@ -15,7 +15,7 @@ Verify that the exact pinned versions below can be installed and typechecked tog
 - `better-auth` 1.6.23
 - `@orpc/server/contract/client/openapi` 1.14.7
 - `zod` 4.4.3
-- `typescript` 7.0.2
+- `typescript` 6.0.3
 
 ## Files Created
 
@@ -48,13 +48,13 @@ Verify that the exact pinned versions below can be installed and typechecked tog
 | `@orpc/zod`      | 1.14.7           |
 | `zod`            | 4.4.3            |
 | `@types/pg`      | 8.11.14          |
-| `bun-types`      | 1.3.14           |
-| `typescript`     | 7.0.2            |
+| `bun-types`      | 1.4.0            |
+| `typescript`     | 6.0.3            |
 
 ### 2. `bunx tsc --noEmit`
 
 - Exit code: `0`
-- TypeScript 7.0.2 reports no errors across all source files with strict mode enabled.
+- TypeScript 6.0.3 reports no errors across all source files with strict mode enabled.
 
 ### 3. `bun test`
 

@@ -51,6 +51,9 @@ export async function createCheckoutUseCase(
       priceId: input.priceId,
       successUrl: input.successUrl,
       failureUrl: input.failureUrl ?? "",
+      cancelUrl: input.cancelUrl,
+      customerEmail: input.customerEmail,
+      quantity: input.quantity,
       userId: input.userId,
     },
     { billingProvider: deps.billingProvider },
@@ -75,13 +78,14 @@ export async function listSubscriptionsUseCase(userId: string): Promise<Result<B
 function portalUseCase(mode: ProjectMode): string {
   const servicesImport =
     mode === "monorepo" ? `@repo/services/billing` : `@/server/services/billing`;
+  const resultImport = mode === "monorepo" ? `@repo/kernel` : `@/server/kernel/result`;
   return `import {
   createPortalSessionService,
   type BillingProviderName,
   type PortalProviderPort,
   type PortalSessionRecord,
-  type Result,
 } from "${servicesImport}";
+import type { Result } from "${resultImport}";
 
 export interface CreatePortalSessionUseCaseInput {
   provider: BillingProviderName;

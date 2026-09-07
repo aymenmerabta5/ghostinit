@@ -30,19 +30,24 @@ export function apiPackage(hasBilling = true, hasMessaging = false): TemplateFil
           "@repo/contracts": "workspace:*",
           "@repo/database": "workspace:*",
           "@repo/modules": "workspace:*",
+          ...(hasBilling ? { "@repo/billing": "workspace:*" } : {}),
           ...(hasMessaging ? { "@repo/realtime": "workspace:*" } : {}),
           zod: `^${v.validation.zod}`,
         },
         devDependencies: {
           // tsconfig declares types: ["node"] — must be depended on or TS2688.
           "@types/node": `^${v.runtime["@types/node"]}`,
+          "@types/react": `^${v.nextStack["@types/react"]}`,
           typescript: `^${v.typescript.typescript}`,
         },
       }),
     ),
     file(
       "packages/api/tsconfig.json",
-      tsconfig({ compilerOptions: { types: ["node"] }, include: ["src/**/*"] }),
+      tsconfig({
+        compilerOptions: { types: ["node", "react"], jsx: "react-jsx" },
+        include: ["src/**/*"],
+      }),
     ),
     file(
       "packages/api/src/context.ts",
@@ -259,10 +264,10 @@ const contract = {
     .errors({ UNAUTHORIZED: { message: "Unauthorized" } })
     .output(
       z.object({
-        subscriptions: z.array(z.record(z.unknown())),
-        invoices: z.array(z.record(z.unknown())),
-        usageEvents: z.array(z.record(z.unknown())),
-        licenseKeys: z.array(z.record(z.unknown())),
+        subscriptions: z.array(z.record(z.string(), z.unknown())),
+        invoices: z.array(z.record(z.string(), z.unknown())),
+        usageEvents: z.array(z.record(z.string(), z.unknown())),
+        licenseKeys: z.array(z.record(z.string(), z.unknown())),
       }),
     ),
 };
@@ -429,7 +434,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { listConversationsUseCase } from "@repo/modules/messaging/application/list-conversations";
 import { z } from "zod";
 import type { ApiContext } from "../../context.js";
-const contract = { listConversations: oc.route({ method: "GET", path: "/messaging/conversations" }).output(z.object({ conversations: z.array(z.record(z.unknown())) })) };
+const contract = { listConversations: oc.route({ method: "GET", path: "/messaging/conversations" }).output(z.object({ conversations: z.array(z.record(z.string(), z.unknown())) })) };
 export const messagingListConversationsContract = contract.listConversations;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingListConversations = implementer.listConversations.handler(async ({ context }) => {
@@ -446,7 +451,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { listMessagesUseCase } from "@repo/modules/messaging/application/list-messages";
 import { z } from "zod";
 import type { ApiContext } from "../../context.js";
-const contract = { listMessages: oc.route({ method: "GET", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), limit: z.number().int().min(1).max(50).optional(), cursor: z.string().optional() })).output(z.object({ messages: z.array(z.record(z.unknown())), nextCursor: z.string().nullable() })) };
+const contract = { listMessages: oc.route({ method: "GET", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), limit: z.number().int().min(1).max(50).optional(), cursor: z.string().optional() })).output(z.object({ messages: z.array(z.record(z.string(), z.unknown())), nextCursor: z.string().nullable() })) };
 export const messagingListMessagesContract = contract.listMessages;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingListMessages = implementer.listMessages.handler(async ({ input, context }) => {
@@ -469,7 +474,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { getOrCreateConversationUseCase } from "@repo/modules/messaging/application/get-or-create-conversation";
 import { z } from "zod";
 import type { ApiContext } from "../../context.js";
-const contract = { getOrCreateConversation: oc.route({ method: "POST", path: "/messaging/conversations/find-or-create" }).input(z.object({ peerUserId: z.string().uuid() })).output(z.record(z.unknown())) };
+const contract = { getOrCreateConversation: oc.route({ method: "POST", path: "/messaging/conversations/find-or-create" }).input(z.object({ peerUserId: z.string().uuid() })).output(z.record(z.string(), z.unknown())) };
 export const messagingGetOrCreateConversationContract = contract.getOrCreateConversation;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingGetOrCreateConversation = implementer.getOrCreateConversation.handler(async ({ input, context }) => {
@@ -486,7 +491,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { sendMessageUseCase } from "@repo/modules/messaging/application/send-message";
 import { z } from "zod";
 import type { ApiContext } from "../../context.js";
-const contract = { sendMessage: oc.route({ method: "POST", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), body: z.string().min(1).max(4000).optional(), replyToId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).optional() }).refine((v) => !!v.body || !!v.attachmentIds?.length, "body or attachment required")).output(z.record(z.unknown())) };
+const contract = { sendMessage: oc.route({ method: "POST", path: "/messaging/messages" }).input(z.object({ conversationId: z.string().uuid(), body: z.string().min(1).max(4000).optional(), replyToId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).optional() }).refine((v) => !!v.body || !!v.attachmentIds?.length, "body or attachment required")).output(z.record(z.string(), z.unknown())) };
 export const messagingSendMessageContract = contract.sendMessage;
 const implementer = implement<typeof contract, ApiContext>(contract);
 export const messagingSendMessage = implementer.sendMessage.handler(async ({ input, context }) => {

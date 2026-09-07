@@ -1,4 +1,9 @@
-export function singleLibAnalyticsContent(): string {
+export function singleLibAnalyticsContent(framework: "nextjs" | "tanstack-start" = "nextjs"): string {
+  const readEnv =
+    framework === "tanstack-start"
+      ? `  return import.meta.env as Record<string, string | undefined>;`
+      : `  if (typeof process === "undefined") return {};
+  return process.env as Record<string, string | undefined>;`;
   return `"use client";
 
 import posthog, { type PostHog, type PostHogConfig } from "posthog-js";
@@ -20,8 +25,7 @@ export interface AnalyticsConfig {
 }
 
 function readEnv(): Record<string, string | undefined> {
-  if (typeof process === "undefined") return {};
-  return process.env as Record<string, string | undefined>;
+${readEnv}
 }
 
 function parseEnvBoolean(value: string | undefined, defaultValue: boolean): boolean {
@@ -38,7 +42,7 @@ export function isAnalyticsEnabled(): boolean {
     const env = readEnv();
     const disabledFlag = env.ANALYTICS_DISABLED ?? env.NEXT_PUBLIC_ANALYTICS_DISABLED ?? env.VITE_ANALYTICS_DISABLED;
     if (isDisabledFlag(disabledFlag)) return false;
-    const key = env.NEXT_PUBLIC_POSTHOG_KEY;
+    const key = env.NEXT_PUBLIC_POSTHOG_KEY ?? env.VITE_POSTHOG_KEY;
     if (!key) return false;
     if (key.includes("REPLACE") || key.includes("placeholder")) return false;
     return true;

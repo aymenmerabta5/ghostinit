@@ -12,9 +12,10 @@
 export const ghostinitVersion = "0.1.0" as const;
 
 export const runtime = {
-  bun: "1.3.14",
+  bun: "1.4.0",
   node: "24.18.0", // LTS target; local has v25.8.0 (EOL) for development only
   "@types/node": "22.20.1",
+  "server-only": "0.0.1",
 } as const;
 
 export const typescript = {
@@ -58,6 +59,7 @@ export const convex = {
 
 export const auth = {
   "better-auth": "1.6.23",
+  "@better-auth/passkey": "1.6.23",
   // Expo client plugin — must track the better-auth version above.
   "@better-auth/expo": "1.6.23",
 } as const;
@@ -101,9 +103,17 @@ export const tanstackStart = {
   "@tanstack/router-cli": "1.167.21",
   "@tanstack/react-router-devtools": "1.167.0",
   vite: "7.3.6",
+  "vite-tsconfig-paths": "6.1.1",
   "@vitejs/plugin-react": "5.2.0",
   nitro: "3.0.0",
   "@tailwindcss/vite": "4.3.3",
+} as const;
+
+export const cloudflare = {
+  // This release supports the pinned Next.js 16.2.x adapter API.
+  "@opennextjs/cloudflare": "1.19.9",
+  "@cloudflare/vite-plugin": "1.54.3",
+  wrangler: "4.128.0",
 } as const;
 
 export const styling = {
@@ -122,6 +132,8 @@ export const ui = {
   sonner: "1.7.0",
   recharts: "2.12.0",
   "next-themes": "0.4.6",
+  "lucide-react": "1.39.0",
+  motion: "13.2.0",
 } as const;
 
 export const tooling = {
@@ -278,6 +290,7 @@ export const catalog = {
   ...validation,
   ...tanstack,
   ...tanstackStart,
+  ...cloudflare,
   ...styling,
   ...ui,
   ...tooling,

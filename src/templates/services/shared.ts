@@ -1,6 +1,6 @@
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import { billingProviders } from "../../lib/addons.js";
-import type { ProjectMode } from "../../lib/addons.js";
+import type { FrameworkName, ProjectMode } from "../../lib/addons.js";
 
 export function hasBillingAddon(
   map?: AddonInstallerMap | Record<string, { inUse: boolean }>,
@@ -13,5 +13,10 @@ export function resultImportForMode(mode: ProjectMode): string {
   return mode === "monorepo"
     ? `import { Result } from "@repo/kernel";\nimport { err, ok } from "@repo/kernel";`
     : `import { Result } from "@/server/kernel/result.js";\nimport { err, ok } from "@/server/kernel/result.js";`;
+}
+export function serverOnlyImportForFramework(framework: FrameworkName): string {
+  return framework === "tanstack-start"
+    ? `import "@tanstack/react-start/server-only";`
+    : `import "server-only";`;
 }
 export const sharedCalculateTotal = `function calculateTotal(items: InvoiceItem[]): number { return items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0); }`;

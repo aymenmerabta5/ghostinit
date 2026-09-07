@@ -30,8 +30,8 @@ export function getInitialsTanstackVariant(): string {
 }
 
 export const sharedHeaderStructure = {
-  shellClass:
-    "sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60",
+  // Opaque background, border carries the structure (DESIGN.md bans glass-by-default)
+  shellClass: "sticky top-0 z-40 w-full border-b bg-background",
   innerClass: "mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-6 md:px-8",
   logo: `<span className="text-sm font-semibold tracking-tight">GhostInit</span>`,
   badge: `<Badge variant="secondary" className="hidden sm:inline-flex">modular monolith</Badge>`,

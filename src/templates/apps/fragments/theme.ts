@@ -78,7 +78,7 @@ export function ThemeToggle(): React.JSX.Element {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" disabled aria-label="Toggle theme placeholder">
+      <Button variant="ghost" size="icon" disabled aria-label="Toggle theme">
         <span className="size-4" />
       </Button>
     );
@@ -107,7 +107,67 @@ export function ThemeToggle(): React.JSX.Element {
  */
 export type RouterType = "next" | "tanstack";
 
-export function providersFileContent(router: RouterType, isConvex = false): string {
+export function providersFileContent(
+  router: RouterType,
+  isConvex = false,
+  hasAnalytics = true,
+): string {
+  if (!hasAnalytics && !isConvex) {
+    return `"use client";
+
+import * as React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "./theme-provider.js";
+import { Toaster } from "@/components/ui/sonner";
+
+export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [queryClient] = React.useState(() => new QueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+        {children}
+        <Toaster richColors position="bottom-right" />
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+`;
+  }
+
+  if (!hasAnalytics && isConvex) {
+    const convexUrl =
+      router === "tanstack"
+        ? "import.meta.env.VITE_CONVEX_URL"
+        : "process.env.NEXT_PUBLIC_CONVEX_URL";
+    return `"use client";
+
+import * as React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConvexReactClient } from "convex/react";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { authClient } from "@/lib/auth-client";
+import { ThemeProvider } from "./theme-provider.js";
+import { Toaster } from "@/components/ui/sonner";
+
+const convexUrl = ${convexUrl};
+if (!convexUrl) throw new Error("Convex URL is not configured");
+const convex = new ConvexReactClient(convexUrl);
+
+export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const [queryClient] = React.useState(() => new QueryClient());
+  return (
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          {children}
+          <Toaster richColors position="bottom-right" />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ConvexBetterAuthProvider>
+  );
+}
+`;
+  }
   if (isConvex) {
     if (router === "tanstack") {
       return `"use client";
@@ -121,7 +181,7 @@ import { ThemeProvider } from "./theme-provider.js";
 import { Toaster } from "@/components/ui/sonner";
 import { PostHogProvider, PostHogPageView } from "@repo/analytics/client";
 
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.VITE_CONVEX_URL;
+const convexUrl = import.meta.env.VITE_CONVEX_URL;
 if (!convexUrl) {
   throw new Error("NEXT_PUBLIC_CONVEX_URL is not set. Set it in .env.local via \`npx convex dev\`");
 }
@@ -131,7 +191,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   const [queryClient] = React.useState(() => new QueryClient());
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       <QueryClientProvider client={queryClient}>
         <PostHogProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
@@ -169,7 +229,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   const [queryClient] = useState(() => new QueryClient());
 
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as import("@convex-dev/better-auth/react").AuthClient}>
       <QueryClientProvider client={queryClient}>
         <PostHogProvider>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>

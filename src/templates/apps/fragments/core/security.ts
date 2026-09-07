@@ -37,7 +37,7 @@ export const securityHeaders = [
     // If adding a library that needs eval (e.g. legacy analytics), isolate it
     // and add 'unsafe-eval' only to that route's CSP.
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
   },
 ];
 
@@ -76,7 +76,7 @@ export function nextConfigHeadersFunction(): string {
             key: "Content-Security-Policy",
             // 'unsafe-eval' removed; PostHog served via /ingest rewrites so no extra connect-src needed in CSP here
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self' https://us.i.posthog.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://us.i.posthog.com https://*.convex.cloud https://*.convex.site wss://*.convex.cloud; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
           },
         ],
       },

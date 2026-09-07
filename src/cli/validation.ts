@@ -101,10 +101,10 @@ export function validateKind(raw: unknown): "command" | "query" | undefined {
 
 export function validateNoExtraPositionals(command: string, positionals: string[]): void {
   const count = positionals.length;
-  if (command === "create") {
+  if (command === "create" || command === "init") {
     if (count > 2) {
       throw new ValidationError(
-        `Too many arguments for 'create': expected at most 1 (project name) but got ${count - 1}. Usage: ghostinit create <name>`,
+        `Too many arguments for '${command}': expected at most 1 (project name) but got ${count - 1}. Usage: ghostinit ${command} [name]`,
       );
     }
   } else if (command === "add") {

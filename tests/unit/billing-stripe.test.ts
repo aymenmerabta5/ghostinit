@@ -41,8 +41,8 @@ describe("billing provider — stripe", () => {
     expect(content).toContain("automatic_tax");
     expect(content).toContain("success_url");
     expect(content).toContain("cancel_url");
-    expect(content).toContain("basil");
-    expect(content).toContain("2025-03-31.basil");
+    expect(content).toContain("clover");
+    expect(content).toContain("2025-09-30.clover");
     expect(content).toContain("expand");
     expect(content).toContain("subscription");
     expect(content).toContain("billingPortal.sessions.create");

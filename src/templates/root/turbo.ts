@@ -11,8 +11,18 @@ export function turbo(runtime: "node" | "bun"): TemplateFile {
         globalDependencies: ["**/.env.*local"],
         globalEnv: dedupedEnvList,
         tasks: {
-          build: { dependsOn: ["^build"], outputs: ["dist/**", ".next/**", "!.next/cache/**"] },
+          build: {
+            dependsOn: ["^build"],
+            outputs: [
+              "dist/**",
+              ".next/**",
+              "!.next/cache/**",
+              ".output/**",
+              ".open-next/**",
+            ],
+          },
           dev: { cache: false, persistent: true },
+          start: { dependsOn: ["build"], cache: false, persistent: true },
           typecheck: { dependsOn: ["^build"] },
           lint: {},
           format: {},

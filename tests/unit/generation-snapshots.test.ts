@@ -85,6 +85,146 @@ describe("generation snapshots", () => {
     expect(parsed.framework).toBe("nextjs");
   });
 
+  it("deploy=cloudflare emits a Next.js OpenNext worker plan", () => {
+    const files = generateProjectFiles(
+      cfg({ deploy: "cloudflare" as never, database: "convex" }),
+    );
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("apps/web/wrangler.jsonc");
+    expect(paths).toContain("apps/web/open-next.config.ts");
+    expect(paths).toContain("apps/web/src/middleware.ts");
+    expect(paths).toContain("apps/web/scripts/build-cloudflare.mjs");
+    expect(paths).not.toContain("apps/web/src/proxy.ts");
+    expect(paths).not.toContain("apps/web/src/cloudflare-worker.ts");
+    expect(paths).toContain(".dev.vars");
+    expect(paths).toContain("apps/web/.dev.vars");
+    expect(paths).not.toContain(".env.local");
+    expect(paths).not.toContain("apps/web/.env.local");
+    const wrangler = JSON.parse(
+      files.find((f) => f.path === "apps/web/wrangler.jsonc")!.content,
+    );
+    expect(wrangler.main).toBe(".open-next/worker.js");
+    expect(wrangler.assets.directory).toBe(".open-next/assets");
+    const webPackage = JSON.parse(
+      files.find((f) => f.path === "apps/web/package.json")!.content,
+    );
+    expect(webPackage.dependencies["@opennextjs/cloudflare"]).toBeDefined();
+    expect(webPackage.scripts["build:worker"]).toBe("node scripts/build-cloudflare.mjs");
+  });
+
+  it("deploy=cloudflare emits the native TanStack Start worker plan", () => {
+    const files = generateProjectFiles(
+      cfg({
+        deploy: "cloudflare" as never,
+        database: "convex",
+        framework: "tanstack-start",
+      }),
+    );
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("apps/web/wrangler.jsonc");
+    expect(paths).toContain("apps/web/src/cloudflare-worker.ts");
+    expect(paths).not.toContain("apps/web/nitro.config.ts");
+
+    const vite = files.find((f) => f.path === "apps/web/vite.config.ts")!.content;
+    expect(vite).toContain("@cloudflare/vite-plugin");
+    expect(vite).toContain("vite-tsconfig-paths");
+    expect(vite).toContain("tsconfigPaths()");
+    expect(vite).toContain("cloudflare({ viteEnvironment: { name: 'ssr' } })");
+    expect(vite).not.toContain("nitro/vite");
+
+    const webPackage = JSON.parse(
+      files.find((f) => f.path === "apps/web/package.json")!.content,
+    );
+    expect(webPackage.devDependencies["@cloudflare/vite-plugin"]).toBeDefined();
+    expect(webPackage.devDependencies.nitro).toBeUndefined();
+    expect(webPackage.scripts.deploy).toContain("vite-cloudflare.mjs build --production");
+
+    const rootPackage = JSON.parse(files.find((f) => f.path === "package.json")!.content);
+    expect(rootPackage.scripts.deploy).toBe("bun --cwd apps/web run deploy");
+  });
+
+  it("single mode places Cloudflare configuration beside the web application", () => {
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      const files = generateProjectFiles(
+        cfg({ mode: "single", framework, database: "convex", deploy: "cloudflare" as never }),
+      );
+      const paths = files.map((f) => f.path);
+      expect(paths).toContain("wrangler.jsonc");
+      expect(paths).toContain("CLOUDFLARE.md");
+      expect(paths).toContain(
+        framework === "nextjs" ? "open-next.config.ts" : "src/cloudflare-worker.ts",
+      );
+      expect(paths).toContain(".dev.vars");
+      expect(paths).not.toContain(".env.local");
+      if (framework === "nextjs") {
+        expect(paths).toContain("src/middleware.ts");
+        expect(paths).not.toContain("src/proxy.ts");
+      }
+      const pkg = JSON.parse(files.find((f) => f.path === "package.json")!.content);
+      expect(pkg.scripts.deploy).toBeDefined();
+      expect(pkg.devDependencies.wrangler).toBeDefined();
+    }
+  });
+
+  it("rejects unsafe Cloudflare combinations before files are emitted", () => {
+    expect(() =>
+      generateProjectFiles(
+        cfg({
+          deploy: "cloudflare" as never,
+          framework: "tanstack-start",
+          database: "postgres",
+        }),
+      ),
+    ).toThrow("Hyperdrive");
+    expect(() =>
+      generateProjectFiles(
+        cfg({
+          deploy: "cloudflare" as never,
+          database: "convex",
+          framework: "tanstack-start",
+          pdf: true,
+        }),
+      ),
+    ).toThrow("@react-pdf/renderer");
+  });
+
+  it("single mode deploy=docker emits the same deploy files (flat layout)", () => {
+    const files = generateProjectFiles(cfg({ mode: "single" as const, deploy: "docker" as never }));
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("Dockerfile");
+    expect(paths).toContain(".dockerignore");
+  });
+
+  it("maintenance mode: page exists and env vars are declared", () => {
+    const files = generateProjectFiles(cfg({}));
+    const paths = files.map((f) => f.path);
+    expect(paths).toContain("apps/web/src/app/maintenance/page.tsx");
+    const proxy = files.find((f) => f.path === "apps/web/src/proxy.ts")!;
+    expect(proxy.content).toContain("MAINTENANCE_MODE");
+    expect(proxy.content).toContain("checkMaintenanceStatus");
+    const env = files.find((f) => f.path === ".env.example")!;
+    expect(env.content).toContain("MAINTENANCE_MODE=false");
+    // i18n projects get the locale-scoped maintenance page
+    const i18nFiles = generateProjectFiles(cfg({ i18n: true }));
+    expect(i18nFiles.map((f) => f.path)).toContain(
+      "apps/web/src/app/[locale]/maintenance/page.tsx",
+    );
+  });
+
+  it("generated turbo.json declares a start task for the deploy chain", () => {
+    const files = generateProjectFiles(cfg({}));
+    const turbo = JSON.parse(files.find((f) => f.path === "turbo.json")!.content);
+    expect(turbo.tasks.start).toBeDefined();
+    expect(turbo.tasks.start.persistent).toBe(true);
+  });
+
+  it("generated root lint uses oxlint, not the unshipped biome binary", () => {
+    const files = generateProjectFiles(cfg({}));
+    const pkg = JSON.parse(files.find((f) => f.path === "package.json")!.content);
+    expect(pkg.scripts.lint.startsWith("oxlint .")).toBe(true);
+    expect(JSON.stringify(pkg.scripts)).not.toContain("biome lint");
+  });
+
   it(".env.example contains placeholders not minted secrets", () => {
     const files = generateProjectFiles(cfg({ billing: ["stripe"] as never }));
     const env = files.find((f) => f.path === ".env.example")!;
