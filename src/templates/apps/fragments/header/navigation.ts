@@ -57,7 +57,7 @@ function isCurrentPath(pathname: string, destination: string): boolean {
   return pathname === root || pathname.startsWith(root + "/");
 }
 
-export function workspaceSection(pathname: string): string | undefined {
+export function workspaceSection(pathname: string): (typeof NAVIGATION)[number]["label"] | "workspace" | undefined {
   const item = NAVIGATION.find((entry) => isCurrentPath(pathname, entry.path));
   if (item) return item.label;
   // Add custom protected route roots here; unknown routes retain the public layout.

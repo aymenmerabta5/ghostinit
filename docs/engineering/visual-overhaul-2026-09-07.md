@@ -21,8 +21,11 @@ control visibility. Component and page size limits are unchanged.
 
 ## Verification status
 
-The redesigned source passes the focused regression suite. The freshly generated
-application has not yet completed installed gates or browser acceptance.
+The redesigned source passes the focused regression suite. The first fresh
+generated candidate installed and passed formatting and architecture validation,
+then found a widened navigation-label return type during TypeScript checking.
+The helper now preserves its exact selected-label union. A new candidate must
+complete the remaining installed gates and browser acceptance.
 
 - Full source check passed after integration and after the first corrections.
 - The first isolated 47-file run completed: 700 passed tests, 43 failed tests,
