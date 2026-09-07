@@ -43,21 +43,21 @@ async function evaluate(
 }
 
 const environments = [
-  ["development", undefined, "full"],
-  ["development", "", "full"],
-  ["development", "true", "auto"],
-  ["development", "1", "auto"],
-  ["production", undefined, "auto"],
-  ["production", "true", "auto"],
-  ["test", undefined, "auto"],
-  [undefined, undefined, "auto"],
+  ["development", undefined, "full", 2],
+  ["development", "", "full", 2],
+  ["development", "true", "auto", undefined],
+  ["development", "1", "auto", undefined],
+  ["production", undefined, "auto", 2],
+  ["production", "true", "auto", undefined],
+  ["test", undefined, "auto", 2],
+  [undefined, undefined, "auto", 2],
 ] as const;
 
-describe("generated Next development memory policy", () => {
+describe("generated Next local memory policy", () => {
   for (const mode of ["monorepo", "single"] as const) {
     for (const eve of [false, true]) {
       for (const i18n of [false, true]) {
-        test(`${mode}/eve-${eve}/i18n-${i18n} preserves plugins and selects eviction only for local development`, async () => {
+        test(`${mode}/eve-${eve}/i18n-${i18n} bounds local workers and development caches without changing CI or plugins`, async () => {
           const files = generateProjectFiles(
             projectConfigSchema.parse({
               name: "next-memory",
@@ -79,11 +79,16 @@ describe("generated Next development memory policy", () => {
           const path = mode === "monorepo" ? "apps/web/next.config.ts" : "next.config.ts";
           const source = files.find((file) => file.path === path)?.content;
           if (!source) throw new Error(`Missing ${path}`);
+          expect(source.match(/cpus:/g)).toHaveLength(1);
           expect(source.match(/turbopackMemoryEviction:/g)).toHaveLength(1);
           expect(source).not.toContain("memoryLimit");
           expect(source).not.toContain("turbopackFileSystemCacheForDev: false");
-          for (const [nodeEnv, ci, expected] of environments) {
+          for (const [nodeEnv, ci, expected, workers] of environments) {
             const config = await evaluate(source, nodeEnv, ci);
+            expect(Object.hasOwn(config.experimental ?? {}, "cpus"), `${nodeEnv}/${ci}`).toBe(
+              workers !== undefined,
+            );
+            expect(config.experimental?.cpus, `${nodeEnv}/${ci}`).toBe(workers);
             expect(config.experimental?.turbopackMemoryEviction, `${nodeEnv}/${ci}`).toBe(expected);
             expect(config.cacheComponents).toBe(true);
             expect(typeof config.headers).toBe("function");

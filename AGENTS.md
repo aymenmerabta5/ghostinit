@@ -31,6 +31,11 @@ retention; process isolation also releases module-level fixtures. Preserve the
 complete test manifest and report interrupted files as failed verification.
 CI retains the full workload without a local machine's memory limits.
 
+Generated Next builds use two static-generation workers locally through
+`experimental.cpus`; a non-empty `CI` leaves Next's default parallelism intact.
+Every route still builds. Keep process/tree/RAM guards: worker limits are not
+memory caps, and installed production builds remain required.
+
 Native Next configurations externalize only the selected billing SDKs through
 `serverExternalPackages`, using the same provider/package map as dependency
 emission. Keep Cloudflare Worker configurations bundled. Local Turbopack cache

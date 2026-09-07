@@ -136,6 +136,7 @@
     "src/templates/proxy.ts",
     "src/templates/root/cloudflare.ts",
     "src/templates/tooling/lint-scripts.ts",
+    "src/templates/tooling/next-memory.ts",
     "src/templates/ui/brand.ts",
     "src/templates/ui/contract-foundation.ts",
     "src/templates/ui/contract.ts",

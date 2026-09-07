@@ -141,3 +141,9 @@ English document direction. The Next locale control now synchronizes `lang`
 and `dir` in a layout effect when the resolved locale changes, before paint;
 cookie persistence and server refresh remain intact. TanStack already performs
 this synchronization. A fresh production replay must verify the correction.
+
+The v14 cold production build exceeded the local 4GB process-tree guard while
+individual processes remained below 2.3GB. Next used 11 page-generation workers
+on this machine. Local Next builds now select two workers; CI omits the override
+and retains Next's default. All routes, type checks and build stages remain
+required. The final cold build and full runtime workload must verify this limit.
