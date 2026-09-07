@@ -131,6 +131,21 @@ query-provider path.
 
 ### Architecture review changes, 2026-09-07
 
+- Authentication routes compose focused `TwoFactorForm` and `ResetPasswordForm`
+  components. Routes own layout and framework search adaptation; forms own
+  validation, submission, and recovery. Agent routes compose header, transcript,
+  and prompt components; PDF controls consume a separate sample-data module.
+  Session presentation consumes a dedicated data adapter. These boundaries keep
+  formatted components within the existing size policy while preserving their
+  controls, loading states, and ownership rules.
+
+- Agent routes compose focused header, transcript, and prompt components. The
+  route retains the Eve connection and error boundary, the transcript owns
+  message presentation and streaming announcements, and the prompt owns its
+  editable input. PDF routes compose a focused workspace; bounded sample data
+  lives in a pure module shared by each app's templates. These structural splits
+  preserve the rendered controls and states while keeping every emitted surface
+  within the existing 150-line limit.
 - Successful web signup opens email verification when the authentication response
   has no session token, and opens the dashboard only when a session exists.
   Verification guidance explains the inbox step and how to request another link
@@ -205,6 +220,11 @@ the needs of billing, settings, admin, or native screens.
   error; confirmed success clears both password fields and uses the shared toast
   store so feedback survives the same-user session boundary remount. Ordinary
   application mutations retain their validated Server Actions.
+- Next.js session management keeps its initial-data contract, authenticated query
+  ownership, and revocation mutations in the route's `sessions.ts` data module.
+  The card and list only render state and invoke supplied actions. Single and
+  monorepo projects use the same producer, and API-disabled outputs omit the
+  complete session slice.
 - Next.js request-owned snapshots protect the complete private subtree for
   admin users, billing, settings, and the identity workspace. A changed account
   or tenant hides the old snapshot before display and refreshes the affected

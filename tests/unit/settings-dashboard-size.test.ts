@@ -41,6 +41,57 @@ function formattedLineCount(path: string, content: string): number {
 
 describe("generated settings and single-dashboard file budgets", () => {
   for (const mode of ["monorepo", "single"] as const) {
+    for (const database of ["postgres", "convex"] as const) {
+      test(`${mode} Next ${database} sessions keep data ownership outside presentation`, () => {
+        const root = mode === "monorepo" ? "apps/web/src" : "src";
+        const files = generateProjectFiles(
+          { ...config(mode), framework: "nextjs", database },
+          { dryRun: false },
+        );
+        const card = files.find(
+          ({ path }) => path === `${root}/app/settings/components/sessions-card.tsx`,
+        );
+        const data = files.find(({ path }) => path === `${root}/app/settings/sessions.ts`);
+        const list = files.find(
+          ({ path }) => path === `${root}/app/settings/components/session-list.tsx`,
+        );
+        if (!card || !data || !list) throw new Error("Incomplete generated session feature");
+        for (const generated of [card, data, list]) {
+          expect(
+            formattedLineCount(generated.path, generated.content),
+            generated.path,
+          ).toBeLessThanOrEqual(150);
+          expect(parseSync(generated.path, generated.content).errors, generated.path).toEqual([]);
+        }
+        expect(card.content).toContain('from "../sessions"');
+        expect(card.content).toContain("useIdentitySessions(initialState)");
+        expect(card.content).not.toMatch(
+          /@tanstack\/react-query|@\/lib\/(?:auth-client|orpc|query-client)|\.mutate\(/,
+        );
+        expect(data.content).toContain('from "./actions"');
+        expect(data.content).toContain(
+          "queryInitialDataForScope(scope, initialScope, initialData)",
+        );
+        expect(data.content).toContain("currentQueryAuthScope(queryClient)");
+        expect(data.content).toContain("session.revokedAt === null");
+      });
+    }
+
+    test(`${mode} Next API-disabled settings omits the entire session slice`, () => {
+      const root = mode === "monorepo" ? "apps/web/src" : "src";
+      const files = generateProjectFiles(
+        { ...config(mode, false), framework: "nextjs" },
+        { dryRun: false },
+      );
+      for (const path of [
+        "sessions.ts",
+        "components/sessions-card.tsx",
+        "components/session-list.tsx",
+      ]) {
+        expect(files.some((file) => file.path === `${root}/app/settings/${path}`)).toBe(false);
+      }
+    });
+
     test(`${mode} TanStack settings uses small cohesive feature files`, () => {
       const root = mode === "monorepo" ? "apps/web/src" : "src";
       const files = generateProjectFiles(config(mode), { dryRun: false });

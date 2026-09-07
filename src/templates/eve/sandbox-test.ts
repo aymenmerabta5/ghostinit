@@ -72,6 +72,8 @@ async function dependencyHashes() {
 }
 const before = await dependencyHashes();
 const fixture = await mkdtemp(join(tmpdir(), "ghostinit-eve-sandbox-"));
+const target = resolve(fixture);
+if (dirname(target) !== resolve(tmpdir()) || !basename(target).startsWith("ghostinit-eve-sandbox-")) throw new Error("Unsafe sandbox fixture cleanup");
 try {
   const backend = sandbox.backend;
   assert.equal(backend?.name, scenario === "hosted-selection" ? "vercel" : "just-bash");
@@ -98,8 +100,6 @@ try {
   process.stdout.write(JSON.stringify({ ok: true, scenario, nodeVersion: process.versions.node, dependencyHashesUnchanged: true }) + "\\n");
 } finally {
   console.info = originalInfo;
-  const target = resolve(fixture);
-  if (dirname(target) !== resolve(tmpdir()) || !basename(target).startsWith("ghostinit-eve-sandbox-")) throw new Error("Unsafe sandbox fixture cleanup");
   await rm(target, { recursive: true, force: true });
 }
 `,

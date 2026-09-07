@@ -1,6 +1,7 @@
 import {
   forgotPasswordPageContent,
   resetPasswordPageContent,
+  resetPasswordFormContent,
 } from "../../../apps/fragments/recovery/index.js";
 
 export function forgotPasswordPageSingle(): string {
@@ -9,4 +10,8 @@ export function forgotPasswordPageSingle(): string {
 
 export function resetPasswordPageSingle(): string {
   return resetPasswordPageContent("next");
+}
+
+export function resetPasswordFormSingleContent(): string {
+  return resetPasswordFormContent("next");
 }

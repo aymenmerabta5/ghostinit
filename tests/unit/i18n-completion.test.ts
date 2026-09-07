@@ -240,9 +240,11 @@ describe("completed application localization", () => {
         expect(source).toContain("pdfTextAlign");
         expect(source).toContain("pdfRowDirection");
       }
-      const web = read(files, `${sourceRoot(mode)}/app/pdf/page.client.tsx`);
+      const web = read(files, `${sourceRoot(mode)}/features/pdf/pdf-workspace.tsx`);
       expect(web).toContain("samplePdfData(template, t)");
-      expect(web).toContain('translate("sample.invoiceItem")');
+      expect(read(files, `${sourceRoot(mode)}/features/pdf/sample-data.ts`)).toContain(
+        'translate("sample.invoiceItem")',
+      );
       expect(web).not.toContain('description: "Pro subscription"');
     }
   });

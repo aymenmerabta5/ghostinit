@@ -21,7 +21,7 @@ describe("PDF UI event completion", () => {
               : "apps/desktop/src/renderer";
         const path =
           target === "web"
-            ? `${root}/${framework === "nextjs" ? "app/pdf/page.tsx" : "routes/pdf.tsx"}`
+            ? `${root}/features/pdf/pdf-workspace.tsx`
             : target === "mobile"
               ? `${root}/app/pdf.tsx`
               : `${root}/routes/pdf.tsx`;
@@ -52,7 +52,13 @@ describe("PDF UI event completion", () => {
         const source = clientPage
           ? output.read(`${path.slice(0, path.lastIndexOf("/"))}/${clientPage[1]}.tsx`)
           : route;
+        const sampleRoot = target === "mobile" ? `${root}/src` : root;
+        const samples = generatedFormHarness(
+          output.read(`${sampleRoot}/features/pdf/sample-data.ts`),
+          ["samplePdfData"],
+        );
         const ui = generatedFormHarness(source, [component], {
+          samplePdfData: samples.module.samplePdfData,
           usePdf: () => ({ ...state, generate }),
           usePdfMobile: () => ({ ...state, generateAndShare: generate }),
           generatePdfDesktop: generate,

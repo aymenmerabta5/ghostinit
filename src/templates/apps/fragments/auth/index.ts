@@ -10,7 +10,7 @@ export { authOAuthButtonsContent } from "./controls.js";
 export { signInFormContent, signInPageContent } from "./sign-in.js";
 export { signInMethodsContent } from "./sign-in-methods.js";
 export { signUpFormContent, signUpPageContent } from "./sign-up.js";
-export { twoFactorPageContent } from "./two-factor.js";
+export { twoFactorFormContent, twoFactorPageContent } from "./two-factor.js";
 export {
   tanstackGetSessionFnContent,
   tanstackAuthBeforeLoadContent,

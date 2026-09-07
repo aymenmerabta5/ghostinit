@@ -81,12 +81,14 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           `${root}/components/auth/sign-up-form.tsx`,
           `${root}/app/2fa/page.tsx`,
           `${root}/app/2fa/page.client.tsx`,
+          `${root}/components/auth/two-factor-form.tsx`,
         ],
         recovery: [
           `${root}/app/forgot-password/page.tsx`,
           `${root}/app/forgot-password/page.client.tsx`,
           `${root}/app/reset-password/page.tsx`,
           `${root}/app/reset-password/page.client.tsx`,
+          `${root}/components/auth/reset-password-form.tsx`,
         ],
         dashboard:
           mode === "monorepo"
@@ -135,8 +137,13 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           `${root}/components/auth/sign-in-form.tsx`,
           `${root}/components/auth/sign-up-form.tsx`,
           `${root}/routes/2fa.tsx`,
+          `${root}/components/auth/two-factor-form.tsx`,
         ],
-        recovery: [`${root}/routes/forgot-password.tsx`, `${root}/routes/reset-password.tsx`],
+        recovery: [
+          `${root}/routes/forgot-password.tsx`,
+          `${root}/routes/reset-password.tsx`,
+          `${root}/components/auth/reset-password-form.tsx`,
+        ],
         dashboard:
           mode === "single"
             ? [

@@ -416,7 +416,7 @@ describe("generated TanStack authenticated Query boundary", () => {
           "queryAuthScopeFromSession",
         );
         expect(read("src/app/settings/page.tsx")).toContain("initialScope={initialScope}");
-        expect(read("src/app/settings/components/sessions-card.tsx")).toContain(
+        expect(read("src/app/settings/sessions.ts")).toContain(
           "queryInitialDataForScope(scope, initialScope, initialData)",
         );
         expect(read("tests/query-auth.test.ts")).toContain("new QueryObserver(client");

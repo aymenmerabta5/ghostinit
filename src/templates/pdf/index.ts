@@ -23,7 +23,13 @@ import {
   agreementExampleContent,
 } from "./examples.js";
 import { usePdfHookContent, usePdfMobileContent, desktopPdfHelperContent } from "./client.js";
-import { pdfDesktopPageContent, pdfExpoPageContent, pdfWebPageContent } from "./surfaces.js";
+import {
+  pdfDesktopPageContent,
+  pdfExpoPageContent,
+  pdfWebPageContent,
+  pdfWebWorkspaceContent,
+} from "./surfaces.js";
+import { pdfSampleDataContent } from "./sample-data.js";
 
 type PdfMode = "monorepo" | "single";
 
@@ -615,18 +621,25 @@ function pdfWebSurfaceFiles(mode: PdfMode, framework: string): TemplateFile[] {
       : isNext
         ? "src/app/pdf/page.tsx"
         : "src/routes/pdf.tsx";
-  return [file(path, pdfWebPageContent(mode, isNext ? "nextjs" : "tanstack-start"))];
+  const root = mode === "monorepo" ? "apps/web/src" : "src";
+  return [
+    file(path, pdfWebPageContent(mode, isNext ? "nextjs" : "tanstack-start")),
+    file(`${root}/features/pdf/pdf-workspace.tsx`, pdfWebWorkspaceContent(mode)),
+    file(`${root}/features/pdf/sample-data.ts`, pdfSampleDataContent()),
+  ];
 }
 
 function pdfMobileHookFiles(mode: PdfMode, hasI18n: boolean): TemplateFile[] {
   if (mode === "single") {
     return [
       file("src/hooks/usePdfMobile.ts", usePdfMobileContent("single")),
+      file("src/features/pdf/sample-data.ts", pdfSampleDataContent()),
       file("app/pdf.tsx", pdfExpoPageContent("@/hooks/usePdfMobile", hasI18n)),
     ];
   }
   return [
     file("apps/mobile/src/hooks/usePdf.ts", usePdfMobileContent("monorepo")),
+    file("apps/mobile/src/features/pdf/sample-data.ts", pdfSampleDataContent()),
     file("apps/mobile/app/pdf.tsx", pdfExpoPageContent("@/hooks/usePdf", hasI18n)),
   ];
 }
@@ -635,11 +648,13 @@ function pdfDesktopHelperFiles(mode: PdfMode, hasI18n: boolean): TemplateFile[] 
   if (mode === "single") {
     return [
       file("src/lib/pdf.ts", desktopPdfHelperContent("single")),
+      file("src/renderer/features/pdf/sample-data.ts", pdfSampleDataContent()),
       file("src/renderer/routes/pdf.tsx", pdfDesktopPageContent(hasI18n, "@/renderer/lib/i18n")),
     ];
   }
   return [
     file("apps/desktop/src/lib/pdf.ts", desktopPdfHelperContent("monorepo")),
+    file("apps/desktop/src/renderer/features/pdf/sample-data.ts", pdfSampleDataContent()),
     file("apps/desktop/src/renderer/routes/pdf.tsx", pdfDesktopPageContent(hasI18n)),
   ];
 }

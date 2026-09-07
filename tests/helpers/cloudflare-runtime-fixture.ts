@@ -282,12 +282,17 @@ function installLocalPackages(root: string, dependencies: Record<string, string>
       2,
     )}\n`,
   );
-  const installed = spawnSync(process.execPath, ["install", "--offline", "--ignore-scripts"], {
-    cwd: root,
-    encoding: "utf8",
-    env: testEnvironment(),
-    windowsHide: true,
-  });
+  // macOS clones installed files; keep vendor and installed bytes independent on every OS.
+  const installed = spawnSync(
+    process.execPath,
+    ["install", "--offline", "--ignore-scripts", "--backend", "copyfile"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: testEnvironment(),
+      windowsHide: true,
+    },
+  );
   if (installed.status !== 0) {
     throw new Error(`Local fixture install failed: ${installed.stdout}${installed.stderr}`);
   }

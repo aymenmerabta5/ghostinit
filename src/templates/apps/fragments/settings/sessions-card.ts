@@ -58,106 +58,40 @@ export function SessionList({
 `;
 }
 
-export function settingsSessionsCardContent(useServerActions = false): string {
-  const actionImport = useServerActions
-    ? 'import { revokeIdentitySessionAction, revokeOtherIdentitySessionsAction } from "../actions";'
-    : "";
-  const revokeSessionOptions = useServerActions
-    ? `return { mutationFn: async (input: { sessionId: string }) => {
-    const result = await revokeIdentitySessionAction(input);
-    if (!result.ok) throw new Error(result.error);
-    return result;
-  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
-    : `return orpc.identity.sessions.revoke.mutationOptions({
-    onSuccess: async () => invalidateIdentitySessions(queryClient),
-  });`;
-  const revokeOthersOptions = useServerActions
-    ? `return { mutationFn: async (_input: Record<string, never>) => {
-    const result = await revokeOtherIdentitySessionsAction();
-    if (!result.ok) throw new Error(result.error);
-    return result;
-  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
-    : `return orpc.identity.sessions.revokeOthers.mutationOptions({
-    onSuccess: async () => invalidateIdentitySessions(queryClient),
-  });`;
+export function settingsSessionsCardContent(): string {
   return `"use client";
 import type * as React from "react";
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { identityClient } from "@/lib/auth-client";
-import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope, queryInitialDataForScope, type QueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { SessionList } from "./session-list";
-${actionImport}
+import { useIdentitySessions, type IdentitySessionsInitialState } from "../sessions";
 
-export interface IdentitySessionInitialData {
-  id: string; userId: string; createdAt: string; authenticatedAt: string; expiresAt: string;
-  revokedAt: string | null; activeOrganizationId?: string | null; activeTeamId?: string | null;
-  ipAddress?: string | null; userAgent?: string | null;
-}
-
-export function identitySessionsQueryOptions(scope: QueryAuthScope | null, initialData?: IdentitySessionInitialData[], initialScope?: QueryAuthScope) {
-  const options = orpc.identity.sessions.list.queryOptions({
-    input: {}, initialData: queryInitialDataForScope(scope, initialScope, initialData),
-  });
-  return {
-    ...options,
-    queryKey: scope ? authScopedQueryKey(scope, options.queryKey) : ["auth", "anonymous", "identity-sessions"],
-    enabled: Boolean(scope) && typeof window !== "undefined",
-  };
-}
-
-export function identitySessionsQueryKey(scope: QueryAuthScope) {
-  return authScopedQueryKey(scope, orpc.identity.sessions.list.key({ type: "query" }));
-}
-
-async function invalidateIdentitySessions(queryClient: QueryClient): Promise<void> {
-  const scope = currentQueryAuthScope(queryClient);
-  if (scope) await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey(scope) });
-}
-
-export function revokeIdentitySessionMutationOptions(queryClient: QueryClient) {
-  ${revokeSessionOptions}
-}
-
-export function revokeOtherIdentitySessionsMutationOptions(queryClient: QueryClient) {
-  ${revokeOthersOptions}
-}
-
-export function SessionsCard({ initialSessions, initialScope }: { initialSessions?: IdentitySessionInitialData[]; initialScope?: QueryAuthScope }): React.JSX.Element {
+export function SessionsCard(initialState: IdentitySessionsInitialState): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
-  const queryClient = useQueryClient();
-  const { data: currentSession, isPending: sessionPending } = identityClient.useSession();
-  const scope = currentQueryAuthScope(queryClient) ?? (sessionPending ? initialScope ?? null : null);
-  const sessionsQuery = useQuery(identitySessionsQueryOptions(scope, initialSessions, initialScope));
-  const revokeSession = useMutation(revokeIdentitySessionMutationOptions(queryClient));
-  const revokeOthers = useMutation(revokeOtherIdentitySessionsMutationOptions(queryClient));
-  const sessions = (sessionsQuery.data ?? []).filter((session) => session.revokedAt === null);
-  const operationError = sessionsQuery.error ?? revokeSession.error ?? revokeOthers.error;
+  const state = useIdentitySessions(initialState);
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{t("sessions.title")}</CardTitle><Badge variant="secondary">{sessions.length}</Badge></div>
+        <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{t("sessions.title")}</CardTitle><Badge variant="secondary">{state.sessions.length}</Badge></div>
         <CardDescription className="max-w-[60ch]">{t("sessions.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {operationError ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{operationError instanceof Error ? operationError.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
+        {state.error ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{state.error instanceof Error ? state.error.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()} disabled={sessionsQuery.isFetching}>{sessionsQuery.isFetching ? t("sessions.loading") : t("sessions.refresh")}</Button>
-          <Button size="sm" variant="destructive" onClick={() => revokeOthers.mutate({})} disabled={sessions.length <= 1 || revokeOthers.isPending}>{revokeOthers.isPending ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
+          <Button size="sm" variant="outline" onClick={state.refresh} disabled={state.isRefreshing}>{state.isRefreshing ? t("sessions.loading") : t("sessions.refresh")}</Button>
+          <Button size="sm" variant="destructive" onClick={state.revokeOtherSessions} disabled={state.sessions.length <= 1 || state.isRevokingOthers}>{state.isRevokingOthers ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
         </div>
         <Separator />
         <SessionList
-          currentSessionId={currentSession?.session.id}
-          isLoading={sessionsQuery.isPending}
-          pendingSessionId={revokeSession.isPending ? revokeSession.variables?.sessionId : undefined}
-          sessions={sessions}
-          onRevoke={(sessionId) => revokeSession.mutate({ sessionId })}
+          currentSessionId={state.currentSessionId}
+          isLoading={state.isLoading}
+          pendingSessionId={state.pendingSessionId}
+          sessions={state.sessions}
+          onRevoke={state.revokeSession}
         />
       </CardContent>
     </Card>
@@ -166,10 +100,10 @@ export function SessionsCard({ initialSessions, initialScope }: { initialSession
 `;
 }
 
-export function settingsSessionsCard(useServerActions = false): TemplateFile {
+export function settingsSessionsCard(): TemplateFile {
   return file(
     "apps/web/src/app/settings/components/sessions-card.tsx",
-    settingsSessionsCardContent(useServerActions),
+    settingsSessionsCardContent(),
   );
 }
 

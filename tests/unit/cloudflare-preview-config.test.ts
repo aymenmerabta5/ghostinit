@@ -430,7 +430,7 @@ describe("generated preview wrapper metadata lifecycle", () => {
   test("identical-byte replacement of the lifecycle lock preserves ownership evidence", () => {
     const fixture = createWorkerFixture({ framework: "tanstack-start" });
     fixtures.push(fixture);
-    const adapter = join(fixture.root, "vendor/vite/index.mjs");
+    const adapter = join(fixture.root, "node_modules/vite/index.mjs");
     writeFileSync(
       adapter,
       readFileSync(adapter, "utf8") +
@@ -470,7 +470,7 @@ if (action === "preview") {
           devVars: 'SERVER_SECRET="local-fixture-secret"\nAPP_NAME=""\n',
         });
         fixtures.push(fixture);
-        const adapter = join(fixture.root, "vendor/vite/index.mjs");
+        const adapter = join(fixture.root, "node_modules/vite/index.mjs");
         writeFileSync(
           adapter,
           readFileSync(adapter, "utf8") +
@@ -538,7 +538,7 @@ if (action === "preview") {
   test("nonzero adapter exit restores after verified cleanup", () => {
     const fixture = createWorkerFixture({ framework: "tanstack-start" });
     fixtures.push(fixture);
-    const adapter = join(fixture.root, "vendor/vite/index.mjs");
+    const adapter = join(fixture.root, "node_modules/vite/index.mjs");
     writeFileSync(
       adapter,
       readFileSync(adapter, "utf8") + '\nif (action === "preview") process.exit(19);\n',

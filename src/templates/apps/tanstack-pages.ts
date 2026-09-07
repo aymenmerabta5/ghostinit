@@ -36,6 +36,7 @@ import {
   signUpFormContent,
   signUpPageContent,
   twoFactorPageContent,
+  twoFactorFormContent,
 } from "./fragments/auth.js";
 import {
   tanstackDashboardFeatureFiles,
@@ -68,7 +69,7 @@ export function tanstackPageFiles(
           signInRoute(hasEmail),
           signUpRoute(),
           ...authFormComponents(hasEmail, isPostgres),
-          ...(hasEmail ? [twoFactorRoute()] : []),
+          ...(hasEmail ? [twoFactorRoute(), twoFactorForm()] : []),
           ...recoveryFiles("tanstack", hasEmail),
           dashboardRoute(isConvex),
           ...tanstackDashboardFeatureFiles(hasBilling),
@@ -145,6 +146,9 @@ function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] 
 
 function twoFactorRoute(): TemplateFile {
   return file("apps/web/src/routes/2fa.tsx", twoFactorPageContent("tanstack"));
+}
+function twoFactorForm(): TemplateFile {
+  return file("apps/web/src/components/auth/two-factor-form.tsx", twoFactorFormContent("tanstack"));
 }
 
 function dashboardRoute(isConvex = false): TemplateFile {

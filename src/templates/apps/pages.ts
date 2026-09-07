@@ -23,6 +23,7 @@ import {
   signUpFormContent,
   signUpPageContent,
   twoFactorPageContent,
+  twoFactorFormContent,
 } from "./fragments/auth.js";
 import { nextDashboardFeatureFiles, nextDashboardPageContent } from "./fragments/dashboard-next.js";
 import { settingsFiles } from "./fragments/settings/index.js";
@@ -99,7 +100,7 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
           signInPage(hasEmail),
           signUpPage(),
           ...authFormComponents(hasEmail, isPostgres),
-          ...(hasEmail ? [twoFactorPage()] : []),
+          ...(hasEmail ? [twoFactorPage(), twoFactorForm()] : []),
           dashboardPage(isConvex),
           ...nextDashboardFeatureFiles(hasBilling),
           ...settingsFiles(
@@ -182,6 +183,9 @@ function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] 
 }
 function twoFactorPage(): TemplateFile {
   return file("apps/web/src/app/2fa/page.tsx", twoFactorPageContent("next"));
+}
+function twoFactorForm(): TemplateFile {
+  return file("apps/web/src/components/auth/two-factor-form.tsx", twoFactorFormContent("next"));
 }
 function dashboardPage(isConvex = false): TemplateFile {
   return file("apps/web/src/app/dashboard/page.tsx", nextDashboardPageContent(isConvex));

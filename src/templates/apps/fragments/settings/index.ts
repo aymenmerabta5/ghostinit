@@ -22,6 +22,7 @@ import {
   settingsSessionsList,
   settingsSessionsListContent,
 } from "./sessions-card.js";
+import { settingsSessionsData, settingsSessionsDataContent } from "./sessions-data.js";
 import { settingsPage, settingsPageContent } from "./page.js";
 import { settingsActionsContent } from "./actions.js";
 import {
@@ -45,6 +46,7 @@ export {
   settingsDangerZoneCard,
   settingsSessionsCard,
   settingsSessionsList,
+  settingsSessionsData,
   settingsPage,
   settingsPageContent,
   settingsHookContent,
@@ -57,6 +59,7 @@ export {
   settingsDangerZoneCardContent,
   settingsSessionsCardContent,
   settingsSessionsListContent,
+  settingsSessionsDataContent,
   tanstackSettingsPage,
   tanstackSettingsPageContent,
   tanstackSettingsFeatureFiles,
@@ -91,7 +94,9 @@ export function settingsFiles(
     settingsProfileCard(useBetterAuthServerActions),
     ...(hasEmail ? [settingsPasswordCard(), settingsTwoFactorCard(), settingsTwoFactorHook()] : []),
     ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
-    ...(hasIdentityTransport ? [settingsSessionsCard(true), settingsSessionsList()] : []),
+    ...(hasIdentityTransport
+      ? [settingsSessionsCard(), settingsSessionsList(), settingsSessionsData(true)]
+      : []),
     settingsDangerZoneCard(hasEmail, useBetterAuthServerActions),
     settingsPage(hasIdentityTransport, hasEmail, hasPasskey, hasIdentityTransport),
   ];

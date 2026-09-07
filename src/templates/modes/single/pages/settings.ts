@@ -8,6 +8,7 @@ import {
   settingsPasswordCardContent,
   settingsProfileCardContent,
   settingsSessionsCardContent,
+  settingsSessionsDataContent,
   settingsSessionsListContent,
   settingsTwoFactorCardContent,
   settingsTwoFactorHookContent,
@@ -45,8 +46,12 @@ export function settingsTwoFactorHookSingle(): string {
   return settingsTwoFactorHookContent();
 }
 
-export function settingsSessionsCardSingle(useServerActions = false): string {
-  return settingsSessionsCardContent(useServerActions);
+export function settingsSessionsCardSingle(): string {
+  return settingsSessionsCardContent();
+}
+
+export function settingsSessionsDataSingle(useServerActions = false): string {
+  return settingsSessionsDataContent(useServerActions);
 }
 
 export function settingsSessionsListSingle(): string {

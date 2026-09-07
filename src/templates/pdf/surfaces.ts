@@ -1,75 +1,10 @@
 import { nativeI18nTemplate } from "../apps/fragments/native-i18n.js";
-import { EN_MESSAGES } from "../i18n/messages/en.js";
 
 type PdfMode = "monorepo" | "single";
 type PdfFramework = "nextjs" | "tanstack-start";
 
-const sampleDataFunction = `type PdfTemplate = "invoice" | "certificate" | "agreement";
-type PdfSampleKey =
-  | "sample.customer"
-  | "sample.recipient"
-  | "sample.invoiceItem"
-  | "sample.invoiceNotes"
-  | "sample.certificateReason"
-  | "sample.agreementTitle"
-  | "sample.provider"
-  | "sample.customerRole"
-  | "sample.deliverService"
-  | "sample.protectInformation";
-
-const PDF_SAMPLE_ENGLISH: Readonly<Record<PdfSampleKey, string>> = {
-  "sample.customer": ${JSON.stringify(EN_MESSAGES.pdf.sample.customer)},
-  "sample.recipient": ${JSON.stringify(EN_MESSAGES.pdf.sample.recipient)},
-  "sample.invoiceItem": ${JSON.stringify(EN_MESSAGES.pdf.sample.invoiceItem)},
-  "sample.invoiceNotes": ${JSON.stringify(EN_MESSAGES.pdf.sample.invoiceNotes)},
-  "sample.certificateReason": ${JSON.stringify(EN_MESSAGES.pdf.sample.certificateReason)},
-  "sample.agreementTitle": ${JSON.stringify(EN_MESSAGES.pdf.sample.agreementTitle)},
-  "sample.provider": ${JSON.stringify(EN_MESSAGES.pdf.sample.provider)},
-  "sample.customerRole": ${JSON.stringify(EN_MESSAGES.pdf.sample.customerRole)},
-  "sample.deliverService": ${JSON.stringify(EN_MESSAGES.pdf.sample.deliverService)},
-  "sample.protectInformation": ${JSON.stringify(EN_MESSAGES.pdf.sample.protectInformation)},
-};
-
-function samplePdfData(
-  template: PdfTemplate,
-  translate: (key: PdfSampleKey) => string = (key) => PDF_SAMPLE_ENGLISH[key],
-): Record<string, unknown> {
-  const now = new Date();
-  if (template === "invoice") {
-    return {
-      invoiceNumber: "INV-DEMO-001",
-      issuedAt: now.toISOString(),
-      dueDate: new Date(now.getTime() + 14 * 86_400_000).toISOString(),
-      from: { name: "GhostInit Studio", email: "billing@example.com" },
-      to: { name: translate("sample.customer"), email: "customer@example.com" },
-      items: [{ description: translate("sample.invoiceItem"), quantity: 1, unitPrice: 49 }],
-      currency: "USD",
-      notes: translate("sample.invoiceNotes"),
-    };
-  }
-  if (template === "certificate") {
-    return {
-      recipientName: translate("sample.recipient"),
-      recipientEmail: "recipient@example.com",
-      issuerName: "GhostInit Academy",
-      reason: translate("sample.certificateReason"),
-      issuedAt: now.toISOString(),
-    };
-  }
-  return {
-    title: translate("sample.agreementTitle"),
-    subtitle: "GhostInit",
-    parties: [
-      { name: "GhostInit Studio", email: "legal@example.com", roleLabel: translate("sample.provider"), color: "#2563eb" },
-      { name: translate("sample.customer"), email: "customer@example.com", roleLabel: translate("sample.customerRole"), color: "#059669" },
-    ],
-    effectiveDate: now.toISOString(),
-    expiryDate: new Date(now.getTime() + 365 * 86_400_000).toISOString(),
-    terms: [translate("sample.deliverService"), translate("sample.protectInformation")],
-  };
-}`;
-
-function webPresentationContent(hookImport: string): string {
+export function pdfWebWorkspaceContent(mode: PdfMode): string {
+  const hookImport = mode === "monorepo" ? "@repo/pdf/client/usePdf" : "@/hooks/usePdf";
   return `"use client";
 import * as React from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -80,7 +15,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { usePdf } from "${hookImport}";
 import { useSurfaceLocale, useSurfaceTranslations } from "@/lib/translations";
 
-${sampleDataFunction}
+import { samplePdfData, type PdfTemplate } from "@/features/pdf/sample-data";
 
 export function PdfWorkspace(): React.JSX.Element {
   const locale = useSurfaceLocale();
@@ -115,11 +50,11 @@ export function PdfWorkspace(): React.JSX.Element {
 }`;
 }
 
-export function pdfWebPageContent(mode: PdfMode, framework: PdfFramework): string {
-  const hookImport = mode === "monorepo" ? "@repo/pdf/client/usePdf" : "@/hooks/usePdf";
-  const presentation = webPresentationContent(hookImport);
-  if (framework === "nextjs") return `${presentation}\nexport default PdfWorkspace;\n`;
-  return `${presentation}
+export function pdfWebPageContent(_mode: PdfMode, framework: PdfFramework): string {
+  const workspaceImport = 'import { PdfWorkspace } from "@/features/pdf/pdf-workspace";';
+  if (framework === "nextjs")
+    return `"use client";\n${workspaceImport}\nexport default PdfWorkspace;\n`;
+  return `${workspaceImport}
 import { createFileRoute } from "@tanstack/react-router";
 import { loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
 export const Route = createFileRoute("/pdf")({
@@ -159,7 +94,7 @@ import { usePdfMobile } from "${hookImport}";
 ${i18n.importLine}
 ${localeImport}
 
-${sampleDataFunction}
+import { samplePdfData, type PdfTemplate } from "@/features/pdf/sample-data";
 
 export default function PdfScreen(): React.JSX.Element {
 ${i18n.hookLine}
@@ -208,7 +143,7 @@ import { downloadPdfBase64, generatePdfDesktop } from "../../lib/pdf";
 ${i18n.importLine}
 ${localeImport}
 
-${sampleDataFunction}
+import { samplePdfData, type PdfTemplate } from "../features/pdf/sample-data";
 
 export const Route = createFileRoute("/pdf")({ component: PdfPage });
 

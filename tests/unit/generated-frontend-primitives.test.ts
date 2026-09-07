@@ -270,16 +270,16 @@ function pendingFormExpectations(
   const auth =
     target.framework === "nextjs"
       ? [
-          "app/2fa/page.tsx",
+          "components/auth/two-factor-form.tsx",
           "app/forgot-password/page.tsx",
-          "app/reset-password/page.tsx",
+          "components/auth/reset-password-form.tsx",
           "components/auth/sign-in-form.tsx",
           "components/auth/sign-up-form.tsx",
         ]
       : [
-          "routes/2fa.tsx",
+          "components/auth/two-factor-form.tsx",
           "routes/forgot-password.tsx",
-          "routes/reset-password.tsx",
+          "components/auth/reset-password-form.tsx",
           "components/auth/sign-in-form.tsx",
           "components/auth/sign-up-form.tsx",
         ];
@@ -434,7 +434,7 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     "getNotificationHref(notification.type, notification.payload)",
     "onClick={async () => {",
     "if (notification.readAt === null) await onMarkRead?.(notification.id);",
-    "if (destination) onNavigate?.(destination.href);",
+    "if (isCurrent() && destination) onNavigate?.(destination.href);",
   ]);
 
   addMissingTokens(records, "pending-boolean-or-spinner", formPath, form, [
@@ -716,8 +716,7 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   if (target.mode === "single") {
     const forgotPath =
       target.framework === "nextjs" ? "app/forgot-password/page.tsx" : "routes/forgot-password.tsx";
-    const resetPath =
-      target.framework === "nextjs" ? "app/reset-password/page.tsx" : "routes/reset-password.tsx";
+    const resetPath = "components/auth/reset-password-form.tsx";
     const forgot = source(target, forgotPath);
     const reset = source(target, resetPath);
     if (forgot.includes("<form.AppField")) {
@@ -848,7 +847,11 @@ describe("generated shared frontend primitives", () => {
       "utf8",
     );
     expect(integration.match(/expect\(pageErrors\)\.toEqual\(\[\]\)/g)).toHaveLength(2);
-    expect(integration.match(/expect\(consoleErrors\)\.toEqual\(\[\]\)/g)).toHaveLength(2);
+    expect(
+      integration.match(
+        /expect\(consoleErrors(?:,\s*JSON\.stringify\(failedResponses\))?\)\.toEqual\(\[\]\)/g,
+      ),
+    ).toHaveLength(2);
     expect(integration.lastIndexOf("expect(pageErrors).toEqual([])")).toBeGreaterThan(
       integration.indexOf("disabledReveal.click"),
     );

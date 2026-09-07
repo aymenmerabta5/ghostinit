@@ -16,7 +16,9 @@ export {
   singleSignUpRouteTanstackContent,
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
+  singleResetPasswordFormTanstackContent,
   singleTwoFactorRouteTanstackContent,
+  singleTwoFactorFormTanstackContent,
 } from "./pages/auth.js";
 export {
   singleDashboardRouteTanstackContent,

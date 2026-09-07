@@ -47,6 +47,8 @@ import {
   singleSignUpRouteTanstackContent,
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
+  singleResetPasswordFormTanstackContent,
+  singleTwoFactorFormTanstackContent,
   singleTwoFactorRouteTanstackContent,
 } from "../tanstack/pages/auth.js";
 import {
@@ -255,13 +257,21 @@ export function buildTanstackFiles(
   if (hasAuth && hasEmail) {
     files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
     files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
+    files.push(
+      file("src/components/auth/reset-password-form.tsx", singleResetPasswordFormTanstackContent()),
+    );
     files.push(file("src/routes/magic-link.tsx", emailFlowPageContent("magic-link", "tanstack")));
     files.push(
       file("src/routes/verify-email.tsx", emailFlowPageContent("verify-email", "tanstack")),
     );
   }
   if (hasAuth) {
-    if (hasEmail) files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
+    if (hasEmail) {
+      files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
+      files.push(
+        file("src/components/auth/two-factor-form.tsx", singleTwoFactorFormTanstackContent()),
+      );
+    }
     files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent(isConvex)));
     files.push(...singleDashboardFeatureFilesTanstack(hasBilling));
     files.push(

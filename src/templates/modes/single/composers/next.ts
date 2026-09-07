@@ -55,6 +55,8 @@ import {
   authOAuthButtonsSingleContent,
   forgotPasswordPageSingle,
   resetPasswordPageSingle,
+  resetPasswordFormSingleContent,
+  singleTwoFactorFormContent,
   signInFormSingleContent,
   signInMethodsSingleContent,
   signInPageSingle,
@@ -73,6 +75,7 @@ import {
   settingsTwoFactorCardSingle,
   settingsTwoFactorHookSingle,
   settingsSessionsCardSingle,
+  settingsSessionsDataSingle,
   settingsSessionsListSingle,
   settingsDangerZoneCardSingle,
   settingsPageSingleContent,
@@ -224,6 +227,9 @@ export function buildNextFiles(
   if (hasAuth && hasEmail) {
     files.push(file("src/app/forgot-password/page.tsx", forgotPasswordPageSingle()));
     files.push(file("src/app/reset-password/page.tsx", resetPasswordPageSingle()));
+    files.push(
+      file("src/components/auth/reset-password-form.tsx", resetPasswordFormSingleContent()),
+    );
     files.push(file("src/app/magic-link/page.tsx", emailFlowPageContent("magic-link", "next")));
     files.push(file("src/app/verify-email/page.tsx", emailFlowPageContent("verify-email", "next")));
   }
@@ -249,7 +255,10 @@ export function buildNextFiles(
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
   files.push(file("src/app/error.tsx", singleErrorPage()));
   files.push(file("src/app/loading.tsx", singleLoadingPage()));
-  if (hasAuth && hasEmail) files.push(file("src/app/2fa/page.tsx", singleTwoFactorPageContent()));
+  if (hasAuth && hasEmail) {
+    files.push(file("src/app/2fa/page.tsx", singleTwoFactorPageContent()));
+    files.push(file("src/components/auth/two-factor-form.tsx", singleTwoFactorFormContent()));
+  }
   if (hasEve) files.push(file("src/app/agent/page.tsx", singleAgentPageContent()));
   if (hasAuth) {
     files.push(file("src/app/api/auth/[...all]/route.ts", singleAuthRouteContent(hasCloudflare)));
@@ -332,8 +341,9 @@ export function buildNextFiles(
     }
     if (apiCapabilities.identity) {
       files.push(
-        file("src/app/settings/components/sessions-card.tsx", settingsSessionsCardSingle(true)),
+        file("src/app/settings/components/sessions-card.tsx", settingsSessionsCardSingle()),
         file("src/app/settings/components/session-list.tsx", settingsSessionsListSingle()),
+        file("src/app/settings/sessions.ts", settingsSessionsDataSingle(true)),
       );
     }
     files.push(

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   cloudflarePlan,
   createConvexFixture,
@@ -52,6 +53,30 @@ function startWrapper(fixture: RuntimeFixture, action: string, extra: NodeJS.Pro
     child.once("exit", resolveExit);
   });
   return { child, exited, output: () => output };
+}
+
+function withFailureDiagnostics(fixture: RuntimeFixture): RuntimeFixture {
+  const script = "fixture-error-diagnostics.mjs";
+  writeFileSync(
+    join(fixture.root, script),
+    `const seen = new Set();
+function details(error) {
+  if (!error || typeof error !== "object" || seen.has(error)) return [];
+  seen.add(error);
+  return [
+    { name: error.name, message: error.message, code: error.code },
+    ...details(error.cause),
+    ...(Array.isArray(error.errors) ? error.errors.flatMap(details) : []),
+  ];
+}
+try { await import(${JSON.stringify(pathToFileURL(join(fixture.root, fixture.script)).href)}); }
+catch (error) {
+  console.error("Fixture error tree: " + JSON.stringify(details(error)));
+  process.exitCode = 1;
+}
+`,
+  );
+  return { ...fixture, script };
 }
 
 function installDescendantAdapter(fixture: RuntimeFixture, packageName: "vite" | "convex") {
@@ -387,12 +412,20 @@ setInterval(() => {
     const generated = generatedContent(plan, "scripts/cloudflare-convex.mjs");
     const boundary =
       '  writeFileSync(path, content, { encoding: "utf8", mode: 0o600, flag: "wx" });';
-    const instrumented = generated.replace(
-      boundary,
-      '  throw new Error("injected recovery-marker write failure");',
-    );
+    const instrumented = generated
+      .replace(boundary, '  throw new Error("injected recovery-marker write failure");')
+      .replace(
+        'throw new Error("Could not verify the POSIX process table");',
+        'throw new Error("Could not verify the POSIX process table: " + JSON.stringify({ status: result.status, signal: result.signal, code: result.error?.code, stderr: result.stderr }));',
+      )
+      .replace(
+        'throw new Error("POSIX process table contained an invalid identity");',
+        'throw new Error("POSIX process table contained an invalid identity: " + JSON.stringify(line));',
+      );
     expect(instrumented).not.toBe(generated);
-    const fixture = track(createConvexFixture(instrumented, "NEXT_PUBLIC_CONVEX_URL"));
+    const fixture = track(
+      withFailureDiagnostics(createConvexFixture(instrumented, "NEXT_PUBLIC_CONVEX_URL")),
+    );
     installDescendantAdapter(fixture, "convex");
     writeFileSync(
       join(fixture.root, ".dev.vars"),
@@ -403,7 +436,10 @@ setInterval(() => {
       await waitUntil(() => wrapper.child.exitCode !== null);
       expect(await wrapper.exited).not.toBe(0);
       expect(wrapper.output()).toContain("injected recovery-marker write failure");
-      expect(existsSync(join(fixture.root, ".dev.vars.ghostinit-build-lock"))).toBe(false);
+      expect(
+        existsSync(join(fixture.root, ".dev.vars.ghostinit-build-lock")),
+        wrapper.output(),
+      ).toBe(false);
       const heartbeat = readFileSync(join(fixture.root, ".descendant-heartbeat"), "utf8");
       await Bun.sleep(100);
       expect(readFileSync(join(fixture.root, ".descendant-heartbeat"), "utf8")).toBe(heartbeat);
