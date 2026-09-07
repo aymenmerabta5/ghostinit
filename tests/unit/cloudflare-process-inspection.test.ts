@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { cloudflareProcessHelpers } from "../../src/templates/root/cloudflare-process.js";
+import { runWindowsQueryFixture } from "../helpers/cloudflare-process-query-fixture.js";
+import { testEnvironment } from "../helpers/cloudflare-runtime-fixture.js";
 import { resolveWindowsSystemExecutable } from "../helpers/process-tree.js";
 
 interface ProcessRecord {
@@ -309,6 +311,25 @@ describe("generated Windows process inspection", () => {
     expect(query).toBeDefined();
     expect(query!.exitCode !== null || query!.signalCode !== null).toBe(true);
   }, 5_000);
+
+  test.skipIf(process.platform !== "win32")(
+    "reads real identities from a wrapper with the filtered fixture environment",
+    () => {
+      const result = runWindowsQueryFixture(testEnvironment());
+      if (result.status !== 0 || !result.report?.success || !result.report.ownIdentity) {
+        const diagnostics = {
+          filtered: result,
+          filteredStages: runWindowsQueryFixture(testEnvironment(), true),
+          fullEnvironment: runWindowsQueryFixture({ ...process.env }, true),
+        };
+        console.error("Windows query fixture diagnostics: " + JSON.stringify(diagnostics));
+      }
+      expect(result.status).toBe(0);
+      expect(result.report?.success).toBe(true);
+      expect(result.report?.ownIdentity).toBe(true);
+    },
+    45_000,
+  );
 
   test.skipIf(process.platform !== "win32")(
     "reads real Windows identities through the bounded native query",

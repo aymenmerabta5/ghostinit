@@ -273,7 +273,9 @@ export function buildTanstackFiles(
       );
     }
     files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent(isConvex)));
-    files.push(...singleDashboardFeatureFilesTanstack(hasBilling));
+    files.push(
+      ...singleDashboardFeatureFilesTanstack(hasBilling, hasApi && (isConvex || hasPostgres)),
+    );
     files.push(
       file(
         "src/routes/settings.tsx",

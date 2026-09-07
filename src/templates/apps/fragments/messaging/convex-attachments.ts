@@ -126,7 +126,7 @@ async function readBoundedMultipartFormData(request: Request): Promise<FormData>
   }).formData();
 }
 
-export async function uploadConvexAttachment(request: Request): Promise<Response> {
+async function uploadConvexAttachment(request: Request): Promise<Response> {
   const context = await createContext(request.headers);
   if (!context.user?.id) return Response.json({ error: "Unauthorized" }, { status: 401 });
   if (context.user.banned === true) {
@@ -229,7 +229,9 @@ export const POST = uploadConvexAttachment;
     file(
       `${root}src/server/http/messaging/attachments-upload.server.ts`,
       `import "server-only";
-${handlerContent(mode, router, convexServerApiImport(mode))}`,
+${handlerContent(mode, router, convexServerApiImport(mode))}
+export { uploadConvexAttachment };
+`,
     ),
     file(
       `${root}src/routes/api/messaging/attachments.ts`,

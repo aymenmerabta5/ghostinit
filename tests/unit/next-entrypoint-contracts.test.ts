@@ -74,33 +74,47 @@ function valueExports(path: string, content: string): string[] {
 }
 
 for (const mode of ["single", "monorepo"] as const) {
-  for (const i18n of [false, true]) {
-    test(`${mode}/i18n=${i18n} Next entrypoints expose only framework-supported values`, () => {
-      const result = resolveCreateConfig({
-        name: "next-entry-contract",
-        mode,
-        framework: "nextjs",
-        runtime: "bun",
-        apps: ["web"],
-        preset: "saas",
-        database: "postgres",
-        billing: [],
-        features: [],
-        withI18n: i18n,
-      });
-      if (!result.ok) throw new Error(result.message);
-      const files = buildProjectGenerationPlan(result.resolvedConfig).files.filter(
-        ({ physicalPath }) => /\/app\/(?:.*\/)?(?:page|layout|route)\.tsx?$/.test(physicalPath),
-      );
-      expect(files.length).toBeGreaterThan(5);
-      for (const entry of files) {
-        const allowed = entry.physicalPath.endsWith("/route.ts") ? routeExports : pageExports;
+  for (const database of ["postgres", "convex"] as const) {
+    for (const i18n of [false, true]) {
+      test(`${mode}/${database}/i18n=${i18n} capability-rich Next entrypoints expose only framework-supported values`, () => {
+        const result = resolveCreateConfig({
+          name: "next-entry-contract",
+          mode,
+          framework: "nextjs",
+          runtime: "bun",
+          apps: ["web"],
+          preset: "saas",
+          database,
+          billing: ["stripe", "chargily", "paddle", "polar"],
+          features: [],
+          withI18n: i18n,
+          withMessaging: true,
+          withStorage: true,
+          withNotifications: true,
+          withJobs: true,
+          withPdf: true,
+          withEve: database === "postgres",
+          featureFlags: "posthog",
+        });
+        if (!result.ok) throw new Error(result.message);
+        const files = buildProjectGenerationPlan(result.resolvedConfig).files.filter(
+          ({ physicalPath }) => /\/app\/(?:.*\/)?(?:page|layout|route)\.tsx?$/.test(physicalPath),
+        );
+        expect(files.length).toBeGreaterThan(5);
         expect(
-          valueExports(entry.physicalPath, entry.content).filter((name) => !allowed.has(name)),
-          entry.physicalPath,
-        ).toEqual([]);
-      }
-    });
+          files.some(({ physicalPath }) =>
+            physicalPath.endsWith("/api/messaging/attachments/route.ts"),
+          ),
+        ).toBe(true);
+        for (const entry of files) {
+          const allowed = entry.physicalPath.endsWith("/route.ts") ? routeExports : pageExports;
+          expect(
+            valueExports(entry.physicalPath, entry.content).filter((name) => !allowed.has(name)),
+            entry.physicalPath,
+          ).toEqual([]);
+        }
+      });
+    }
   }
 }
 

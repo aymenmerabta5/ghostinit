@@ -72,7 +72,7 @@ export function tanstackPageFiles(
           ...(hasEmail ? [twoFactorRoute(), twoFactorForm()] : []),
           ...recoveryFiles("tanstack", hasEmail),
           dashboardRoute(isConvex),
-          ...tanstackDashboardFeatureFiles(hasBilling),
+          ...tanstackDashboardFeatureFiles(hasBilling, hasAdminUi),
           ...settingsFiles(
             "tanstack",
             isConvex,

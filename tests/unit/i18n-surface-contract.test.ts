@@ -101,7 +101,12 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
                 `${root}/features/dashboard/actions-card.tsx`,
                 `${root}/features/dashboard/modules-card.tsx`,
               ]
-            : [`${root}/app/dashboard/page.tsx`],
+            : [
+                `${root}/app/dashboard/page.tsx`,
+                `${root}/features/dashboard/dashboard-overview.tsx`,
+                `${root}/features/dashboard/identity-card.tsx`,
+                `${root}/features/dashboard/quick-actions.tsx`,
+              ],
         settings: [
           `${root}/app/settings/page.tsx`,
           `${root}/app/settings/components/profile-card.tsx`,

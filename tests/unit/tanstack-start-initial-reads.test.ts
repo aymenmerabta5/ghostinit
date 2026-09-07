@@ -110,13 +110,18 @@ describe("TanStack Start-native initial reads", () => {
           const messagingQueries = read(generated, mode, "src/routes/-hooks/use-messaging.ts");
           expect(messagingQueries).toContain("messagingConversationsQueryKey(scope)");
         } else {
-          expect(messagingRoute).toContain("messagingConversationsQueryKey(scope)");
-          expect(messagingRoute).toContain("conversations: Array<{ id: string }>");
-          expect(messagingRoute).toContain("liveConversations.map((conversation)");
-          expect(messagingRoute).toContain("liveId: null");
-          expect(messagingRoute).not.toContain(
-            'conversations: Array<{ _id: Id<"conversations"> }>',
+          expect(messagingRoute).toContain('from "./-components/messages/convex-messages"');
+          expect(messagingRoute).toContain("component: ConvexMessagesPage");
+          const messagingPage = read(
+            generated,
+            mode,
+            "src/routes/-components/messages/convex-messages.tsx",
           );
+          expect(messagingPage).toContain("messagingConversationsQueryKey(scope)");
+          expect(messagingPage).toContain("conversations: Array<{ id: string }>");
+          expect(messagingPage).toContain("liveConversations.map((conversation)");
+          expect(messagingPage).toContain("liveId: null");
+          expect(messagingPage).not.toContain('conversations: Array<{ _id: Id<"conversations"> }>');
         }
 
         const flagRoute = read(generated, mode, "src/routes/feature-flags.tsx");

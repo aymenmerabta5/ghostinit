@@ -24,6 +24,12 @@ bun run test:workers   # four Cloudflare Worker build/dry-run/runtime corners
 bun run test:ci        # static + host/fixtures + 24 generated corners + oRPC WS runtime + six audited production builds
 ```
 
+For local checks under a strict RAM budget, use `bun --smol test <file>` and a
+fresh guarded process per file. More frequent garbage collection reduces heap
+retention; process isolation also releases module-level fixtures. Preserve the
+complete test manifest and report interrupted files as failed verification.
+CI retains the full workload without a local machine's memory limits.
+
 Manual generation smoke:
 
 ```bash

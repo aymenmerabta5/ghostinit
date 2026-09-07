@@ -6,10 +6,18 @@ import { eve } from "../../packages/versions/src/index.js";
 
 describe("Eve dependency lifecycle policy", () => {
   test("the authored sandbox preserves Vercel and disables local optional installation", () => {
-    const source = eveSandboxFile()
-      .content.replace(/^import[^\n]*\n/gm, "")
-      .replace("export default", "return");
-    const create = new Function("defineSandbox", "justbash", "vercel", "process", source) as (
+    const source = new Bun.Transpiler({ loader: "ts" }).transformSync(
+      `function createSandbox() {\n${eveSandboxFile()
+        .content.replace(/^import[^;]+;\s*/gm, "")
+        .replace("export default", "return")}\n}`,
+    );
+    const create = new Function(
+      "defineSandbox",
+      "justbash",
+      "vercel",
+      "process",
+      `${source}\nreturn createSandbox();`,
+    ) as (
       define: (definition: unknown) => unknown,
       backend: (options: { autoInstall: boolean }) => unknown,
       hosted: () => unknown,

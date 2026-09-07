@@ -8,8 +8,11 @@ function nextLinkContent(content: string): string {
 }
 
 /** Dashboard presentation is identical across routers; only Link composition differs. */
-export function nextDashboardFeatureFiles(hasBilling = true): TemplateFile[] {
-  return tanstackDashboardFeatureFiles(hasBilling).map((entry) => ({
+export function nextDashboardFeatureFiles(
+  hasBilling = true,
+  hasAdminNavigation = true,
+): TemplateFile[] {
+  return tanstackDashboardFeatureFiles(hasBilling, hasAdminNavigation).map((entry) => ({
     ...entry,
     content: nextLinkContent(entry.content),
   }));

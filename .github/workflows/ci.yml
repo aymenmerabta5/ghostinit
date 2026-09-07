@@ -45,6 +45,9 @@ jobs:
         run: bun run typecheck
       - name: Check portable capability evidence
         run: bun run check:capability-evidence
+      - name: Probe native Windows process discovery
+        if: runner.os == 'Windows'
+        run: bun test --timeout 120000 tests/unit/cloudflare-process-inspection.test.ts
       - name: Test installer, supervisors, process-tree, filesystem, and Bun portability
         run: >-
           bun test --timeout 120000

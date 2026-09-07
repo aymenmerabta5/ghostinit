@@ -288,6 +288,16 @@ Organization selectors stack the name above the slug and wrap long values within
 the card. These repairs address measured tablet header overflow and mobile
 workspace overflow while retaining the semantic colors, controls, and states.
 
+Dashboard authorization stays in the server route. The request's identity is
+used for server rendering and matching initial hydration; subsequent renders
+select the canonical current-request user, or the reactive provider session
+when the API capability is absent. Loading, error, and signed-out states never
+fall back to a retained user's identity. Dashboard Admin controls require both
+the generated admin routes and the current admin role. A shared identity-state
+component consumes existing authentication state without adding a network read.
+Single Next.js and TanStack dashboards share bounded components with explicit
+framework-specific link emission.
+
 ### Single-project marketing
 
 Single Next.js and TanStack Start landing sections receive explicit resolved

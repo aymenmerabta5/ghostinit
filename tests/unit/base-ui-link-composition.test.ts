@@ -84,7 +84,9 @@ const TARGETS: Record<Mode, Record<Framework, Record<string, number>>> = {
   single: {
     nextjs: {
       "src/components/marketing/hero.tsx": 2,
-      "src/app/dashboard/page.tsx": 7,
+      "src/features/dashboard/dashboard-overview.tsx": 2,
+      "src/features/dashboard/identity-card.tsx": 3,
+      "src/features/dashboard/quick-actions.tsx": 2,
       "src/app/not-found.tsx": 1,
     },
     "tanstack-start": {
@@ -269,13 +271,9 @@ describe("generated Base UI link-button composition", () => {
         targets["apps/web/src/features/dashboard/actions-card.tsx"] = 2;
       }
       if (entry.billing.length === 0 && entry.mode === "single") {
-        if (entry.framework === "nextjs") {
-          targets["src/app/dashboard/page.tsx"] = 4;
-        } else {
-          targets["src/features/dashboard/dashboard-overview.tsx"] = 1;
-          targets["src/features/dashboard/identity-card.tsx"] = 2;
-          targets["src/features/dashboard/quick-actions.tsx"] = 1;
-        }
+        targets["src/features/dashboard/dashboard-overview.tsx"] = 1;
+        targets["src/features/dashboard/identity-card.tsx"] = 2;
+        targets["src/features/dashboard/quick-actions.tsx"] = 1;
       }
       if (entry.billing.length > 0 && entry.mode === "monorepo" && entry.framework === "nextjs") {
         targets["apps/web/src/app/billing/components/billing-empty.tsx"] = 1;

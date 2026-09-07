@@ -16,6 +16,7 @@ function text(value: unknown): string {
 
 function render(source: string, name: string, catalog: object): unknown {
   const bindings: Record<string, unknown> = {
+    useDashboardIdentity: () => ({ user: { role: "admin" }, pending: false, error: null }),
     React: {
       createElement(
         type: unknown,

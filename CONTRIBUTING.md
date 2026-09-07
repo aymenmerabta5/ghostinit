@@ -379,6 +379,12 @@ bun run test:workers            # four Cloudflare Worker build/dry-run/runtime c
 bun run test:ci # static + host/fixtures + generated --all + oRPC WS runtime + six audited production builds
 ```
 
+For local checks under a strict RAM budget, use `bun --smol test <file>` in a
+fresh guarded process per file. Garbage collection reduces heap retention;
+process isolation also releases module-level fixtures. Retain the complete
+manifest and every result; interrupted files are failed verification. CI runs
+the full workload without a local machine's memory limits.
+
 GitHub CI runs `bun run check` plus the Bun-version, installer, generated
 supervisor, process-tree, and filesystem portability suites on `ubuntu-latest`,
 `windows-latest`, and `macos-latest`. Expensive fixture, generated-project,

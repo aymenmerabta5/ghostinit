@@ -13,13 +13,15 @@ export default defineAgent({ model: "anthropic/claude-sonnet-5" });
 export function eveSandboxFile(): TemplateFile {
   return file(
     "apps/eve/agent/sandbox.ts",
-    `import { defineSandbox } from "eve/sandbox";
+    `import { defineSandbox, type SandboxDefinition } from "eve/sandbox";
 import { justbash } from "eve/sandbox/just-bash";
-import { vercel } from "eve/sandbox/vercel";
+import { vercel, type VercelSandboxBootstrapUseOptions, type VercelSandboxSessionUseOptions } from "eve/sandbox/vercel";
 
-export default process.env.VERCEL
+const sandbox: SandboxDefinition | SandboxDefinition<VercelSandboxBootstrapUseOptions, VercelSandboxSessionUseOptions> = process.env.VERCEL
   ? defineSandbox({ backend: vercel() })
   : defineSandbox({ backend: justbash({ autoInstall: false }) });
+
+export default sandbox;
 `,
   );
 }

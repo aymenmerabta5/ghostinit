@@ -1,95 +1,39 @@
-export function dashboardPageSingle(hasBilling = true, isConvex = false): string {
-  return [
-    "import * as React from 'react';",
-    "import { Suspense } from 'react';",
-    ...(isConvex ? [] : ["import { headers } from 'next/headers';"]),
-    "import { redirect } from 'next/navigation';",
-    "import Link from 'next/link';",
-    "import { getRequestUser } from '@/server/auth';",
-    "import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';",
-    "import { Badge } from '@/components/ui/badge';",
-    "import { Button } from '@/components/ui/button';",
-    "import { Separator } from '@/components/ui/separator';",
-    "import { Skeleton } from '@/components/ui/skeleton';",
-    "import { getSurfaceTranslations } from '@/lib/translations.server';",
-    "",
-    "async function DashboardContent(): Promise<React.JSX.Element> {",
-    `  const user = await getRequestUser(${isConvex ? "" : "await headers()"});`,
-    "  const session = user ? { user } : null;",
-    "  if (!session?.user) redirect('/sign-in');",
-    "  const t = await getSurfaceTranslations('dashboard');",
-    "  return (",
-    "    <main className='min-h-screen bg-background text-foreground'>",
-    "      <div className='mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8 lg:p-10'>",
-    "        <div className='flex flex-col gap-2'>",
-    "          <div className='flex items-center justify-between gap-4'>",
-    "            <h1 className='text-2xl font-semibold tracking-tight'>{t('title')}</h1>",
-    "            <div className='flex items-center gap-2'>",
-    "              <Button variant='ghost' size='sm' render={<Link href='/settings' />} nativeButton={false}>{t('single.settingsTitle')}</Button>",
-    ...(hasBilling
-      ? [
-          "              <Button variant='outline' size='sm' render={<Link href='/billing' />} nativeButton={false}>{t('single.billingTitle')}</Button>",
-        ]
-      : []),
-    "            </div>",
-    "          </div>",
-    "          <p className='text-sm text-muted-foreground max-w-[65ch]'>{t('single.description')}</p>",
-    "        </div>",
-    "        <Separator />",
-    "        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>",
-    "          <Card className='md:col-span-2'>",
-    "            <CardHeader>",
-    "              <div className='flex items-center justify-between gap-3'>",
-    "                <CardTitle className='text-base'>{t('single.profileTitle')}</CardTitle>",
-    "                <Badge variant='secondary' className='capitalize'><span className='flex items-center gap-1.5'><span className='size-1.5 rounded-full bg-primary' /> {session.user.role ?? t('identity.roleFallback')}</span></Badge>",
-    "              </div>",
-    "              <CardDescription className='max-w-[60ch]'>{t('identity.signedInAs', { email: session.user.email, name: session.user.name ?? t('identity.nameNotSet') })}</CardDescription>",
-    "            </CardHeader>",
-    "            <CardContent className='flex flex-col gap-3'>",
-    "              <div className='flex flex-wrap gap-2'>",
-    "                <Button variant='outline' size='sm' render={<Link href='/settings' />} nativeButton={false}>{t('identity.editProfile')}</Button>",
-    ...(hasBilling
-      ? [
-          "                <Button variant='outline' size='sm' render={<Link href='/billing' />} nativeButton={false}>{t('identity.billing')}</Button>",
-        ]
-      : []),
-    "                <Button variant='outline' size='sm' render={<Link href='/admin' />} nativeButton={false}>{t('identity.admin')}</Button>",
-    "              </div>",
-    "            </CardContent>",
-    "          </Card>",
-    "          <Card>",
-    "            <CardHeader>",
-    "              <CardTitle className='text-base'>{t('single.quickActionsTitle')}</CardTitle>",
-    "            </CardHeader>",
-    "            <CardContent className='flex flex-col gap-2'>",
-    "              <Button variant='outline' size='sm' render={<Link href='/settings' />} nativeButton={false}>{t('actions.security')}</Button>",
-    ...(hasBilling
-      ? [
-          "              <Button variant='outline' size='sm' render={<Link href='/billing' />} nativeButton={false}>{t('actions.manageBilling')}</Button>",
-        ]
-      : []),
-    "            </CardContent>",
-    "          </Card>",
-    "        </div>",
-    "      </div>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-    "function DashboardFallback(): React.JSX.Element {",
-    "  return (",
-    "    <main className='min-h-screen bg-background text-foreground'>",
-    "      <div className='mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8 lg:p-10'>",
-    "        <Skeleton className='h-8 w-48' />",
-    "        <Skeleton className='h-64 w-full' />",
-    "      </div>",
-    "    </main>",
-    "  );",
-    "}",
-    "",
-    "export default function DashboardPage(): React.JSX.Element {",
-    "  return <Suspense fallback={<DashboardFallback />}><DashboardContent /></Suspense>;",
-    "}",
-    "",
-  ].join("\n");
+import type { TemplateFile } from "../../../shared.js";
+import { singleDashboardFeatureFiles } from "./dashboard-feature.js";
+
+export function singleDashboardFeatureFilesNext(
+  hasBilling = true,
+  hasAdminNavigation = true,
+): TemplateFile[] {
+  return singleDashboardFeatureFiles("next", hasBilling, hasAdminNavigation);
+}
+
+export function dashboardPageSingle(isConvex = false): string {
+  return `import type * as React from "react";
+import { Suspense } from "react";
+${isConvex ? "" : 'import { headers } from "next/headers";'}
+import { redirect } from "next/navigation";
+import { getRequestUser } from "@/server/auth";
+import { DashboardOverview } from "@/features/dashboard/dashboard-overview";
+import { Skeleton } from "@/components/ui/skeleton";
+
+async function DashboardContent(): Promise<React.JSX.Element> {
+  const user = await getRequestUser(${isConvex ? "" : "await headers()"});
+  if (!user) redirect("/sign-in");
+  return <DashboardOverview user={{ name: user.name, email: user.email, role: user.role }} />;
+}
+
+function DashboardFallback(): React.JSX.Element {
+  return <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8 lg:p-10">
+    <Skeleton className="h-8 w-48" />
+    <Skeleton className="h-64 w-full" />
+  </div>;
+}
+
+export default function DashboardPage(): React.JSX.Element {
+  return <main className="min-h-screen bg-background text-foreground">
+    <Suspense fallback={<DashboardFallback />}><DashboardContent /></Suspense>
+  </main>;
+}
+`;
 }

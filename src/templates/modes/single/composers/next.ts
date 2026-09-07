@@ -64,7 +64,7 @@ import {
   signUpPageSingle,
 } from "../pages/auth.js";
 import { singleTwoFactorPageContent, singleAgentPageContent } from "../pages/two-factor.js";
-import { dashboardPageSingle } from "../pages/dashboard.js";
+import { dashboardPageSingle, singleDashboardFeatureFilesNext } from "../pages/dashboard.js";
 import {
   settingsLayoutSingle,
   useSettingsHookSingle,
@@ -250,7 +250,8 @@ export function buildNextFiles(
       ),
     );
     files.push(file("src/components/auth/sign-up-form.tsx", signUpFormSingleContent(hasEmail)));
-    files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle(hasBilling, isConvex)));
+    files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle(isConvex)));
+    files.push(...singleDashboardFeatureFilesNext(hasBilling, hasApi && !isNone));
   }
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
   files.push(file("src/app/error.tsx", singleErrorPage()));

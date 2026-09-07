@@ -102,7 +102,7 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
           ...authFormComponents(hasEmail, isPostgres),
           ...(hasEmail ? [twoFactorPage(), twoFactorForm()] : []),
           dashboardPage(isConvex),
-          ...nextDashboardFeatureFiles(hasBilling),
+          ...nextDashboardFeatureFiles(hasBilling, hasAdminUi),
           ...settingsFiles(
             "next",
             isConvex,

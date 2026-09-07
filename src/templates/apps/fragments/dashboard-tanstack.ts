@@ -1,5 +1,6 @@
 // @allow-long 530: bounded TanStack dashboard component renderers preserve one control-plane surface
 import { file, type TemplateFile } from "../../shared.js";
+import { dashboardIdentityStateContent } from "./dashboard-identity.js";
 
 function headerContent(): string {
   return `"use client";
@@ -69,12 +70,12 @@ export function ArchitectureCard(): React.JSX.Element {
 `;
 }
 
-function checksCardContent(): string {
+function checksCardContent(hasAdminNavigation: boolean): string {
   return `"use client";
 import type * as React from "react";
-import { Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+${hasAdminNavigation ? 'import { Link } from "@tanstack/react-router";\nimport { Button } from "@/components/ui/button";\nimport { useDashboardIdentity } from "./identity-state";' : ""}
 import { useSurfaceTranslations } from "@/lib/translations";
+import type { DashboardUser } from "./types";
 
 const CHECKS = [
   ["checks.architecture", "bun run check"],
@@ -82,8 +83,9 @@ const CHECKS = [
   ["checks.lint", "bun run lint:all"],
 ] as const;
 
-export function ChecksCard(): React.JSX.Element {
+export function ChecksCard(${hasAdminNavigation ? "{ user: initialUser }" : "_props"}: { user?: DashboardUser } = {}): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
+  ${hasAdminNavigation ? "const { user } = useDashboardIdentity(initialUser);" : ""}
   return <div className="flex flex-col overflow-hidden rounded-lg border bg-card md:col-span-4">
     <div className="border-b px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("checks.title")}</span></div>
     <div className="flex flex-col gap-3 p-4">
@@ -92,7 +94,7 @@ export function ChecksCard(): React.JSX.Element {
         <div className="mt-3 grid gap-3 text-[11px]">{CHECKS.map(([name, command]) => <div key={name} className="flex flex-col gap-1"><span className="text-muted-foreground">{t(name)}</span><code className="text-code-foreground">$ {command}</code></div>)}</div>
       </div>
       <div className="rounded-md border bg-card p-3 font-mono text-[11px] leading-relaxed text-muted-foreground"><div className="font-medium text-foreground">{t("checks.nextSteps")}</div><p className="mt-1">{t("checks.reviewResults")}</p></div>
-      <Button variant="outline" size="sm" className="w-full justify-between" render={<Link to="/admin" />} nativeButton={false}>{t("checks.openAdmin")} <span aria-hidden className="rtl:rotate-180">→</span></Button>
+      ${hasAdminNavigation ? '{user?.role === "admin" ? <Button variant="outline" size="sm" className="w-full justify-between" render={<Link to="/admin" />} nativeButton={false}>{t("checks.openAdmin")} <span aria-hidden className="rtl:rotate-180">→</span></Button> : null}' : ""}
     </div>
   </div>;
 }
@@ -103,13 +105,14 @@ function architectureStatusContent(): string {
   return `import type * as React from "react";
 import { ArchitectureCard } from "./architecture-card";
 import { ChecksCard } from "./checks-card";
-export function ArchitectureStatus(): React.JSX.Element {
-  return <div className="grid grid-cols-1 gap-4 md:grid-cols-12"><ArchitectureCard /><ChecksCard /></div>;
+import type { DashboardUser } from "./types";
+export function ArchitectureStatus({ user }: { user: DashboardUser }): React.JSX.Element {
+  return <div className="grid grid-cols-1 gap-4 md:grid-cols-12"><ArchitectureCard /><ChecksCard user={user} /></div>;
 }
 `;
 }
 
-function identityCardContent(hasBilling: boolean): string {
+function identityCardContent(hasBilling: boolean, hasAdminNavigation: boolean): string {
   const billingAction = hasBilling
     ? '<Button variant="outline" size="sm" render={<Link to="/billing" />} nativeButton={false}>{t("identity.billing")}</Button>'
     : "";
@@ -119,13 +122,16 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
+import { DashboardIdentityStatus, useDashboardIdentity } from "./identity-state";
 import type { DashboardUser } from "./types";
-export function IdentityCard({ user }: { user: DashboardUser }): React.JSX.Element {
+export function IdentityCard({ user: initialUser }: { user: DashboardUser }): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
+  const { user, pending, error } = useDashboardIdentity(initialUser);
+  if (!user) return <DashboardIdentityStatus pending={pending} error={error} className="md:col-span-7" />;
   return <div className="overflow-hidden rounded-lg border bg-card md:col-span-7"><div className="flex items-center justify-between gap-3 border-b px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("identity.title")}</span><Badge variant="secondary" className="font-mono text-[11px] capitalize tracking-wide">{String(user.role ?? t("identity.roleFallback"))}</Badge></div><div className="flex flex-col gap-4 p-4">
     <div className="grid gap-3"><div className="flex flex-col gap-1"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("identity.emailLabel")}</span><span className="truncate font-mono text-sm tracking-tight">{String(user.email ?? "")}</span></div><div className="flex flex-col gap-1"><span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">{t("identity.nameLabel")}</span><span className="truncate font-mono text-sm">{String(user.name ?? t("identity.nameNotSet"))}</span></div></div>
     <p className="font-mono text-xs text-muted-foreground">{t("identity.signedInAs", { email: String(user.email ?? ""), name: String(user.name ?? t("identity.nameNotSet")) })}</p>
-    <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" render={<Link to="/settings" />} nativeButton={false}>{t("identity.editProfile")}</Button>${billingAction}<Button variant="outline" size="sm" render={<Link to="/admin" />} nativeButton={false}>{t("identity.admin")}</Button></div>
+    <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" render={<Link to="/settings" />} nativeButton={false}>{t("identity.editProfile")}</Button>${billingAction}${hasAdminNavigation ? '{user.role === "admin" ? <Button variant="outline" size="sm" render={<Link to="/admin" />} nativeButton={false}>{t("identity.admin")}</Button> : null}' : ""}</div>
     <pre className="overflow-x-auto rounded-md border bg-code p-3 font-mono text-[11px] leading-relaxed text-code-foreground">// {t("identity.sessionComment")}{"\\n"}await auth.api.getSession({"({ headers })"})</pre>
   </div></div>;
 }
@@ -194,7 +200,7 @@ import { IdentityActions } from "./identity-actions";
 import { ModulesCard } from "./modules-card";
 import type { DashboardUser } from "./types";
 export function DashboardView({ user }: { user: DashboardUser }): React.JSX.Element {
-  return <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8"><DashboardHeader /><Separator /><ArchitectureStatus /><IdentityActions user={user} /><ModulesCard /></div>;
+  return <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8 lg:p-8"><DashboardHeader /><Separator /><ArchitectureStatus user={user} /><IdentityActions user={user} /><ModulesCard /></div>;
 }
 `;
 }
@@ -208,15 +214,19 @@ function typesContent(): string {
 `;
 }
 
-export function tanstackDashboardFeatureFiles(hasBilling = true): TemplateFile[] {
+export function tanstackDashboardFeatureFiles(
+  hasBilling = true,
+  hasAdminNavigation = true,
+): TemplateFile[] {
   const root = "apps/web/src/features/dashboard";
   return [
     file(`${root}/types.ts`, typesContent()),
+    file(`${root}/identity-state.tsx`, dashboardIdentityStateContent()),
     file(`${root}/dashboard-header.tsx`, headerContent()),
     file(`${root}/architecture-card.tsx`, architectureCardContent()),
-    file(`${root}/checks-card.tsx`, checksCardContent()),
+    file(`${root}/checks-card.tsx`, checksCardContent(hasAdminNavigation)),
     file(`${root}/architecture-status.tsx`, architectureStatusContent()),
-    file(`${root}/identity-card.tsx`, identityCardContent(hasBilling)),
+    file(`${root}/identity-card.tsx`, identityCardContent(hasBilling, hasAdminNavigation)),
     file(`${root}/actions-card.tsx`, actionsCardContent(hasBilling)),
     file(`${root}/identity-actions.tsx`, identityActionsContent()),
     file(`${root}/modules-card.tsx`, modulesCardContent(hasBilling)),
