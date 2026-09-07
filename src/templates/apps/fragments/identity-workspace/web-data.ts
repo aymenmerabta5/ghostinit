@@ -1,13 +1,19 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { identityWorkspaceFeatureRoot, type IdentityWorkspaceMode } from "./model.js";
-import { identityWorkspacePermissionsContent } from "./web-access.js";
+import {
+  identityWorkspacePermissionQueriesContent,
+  identityWorkspacePermissionsContent,
+} from "./web-access.js";
 
 export function identityWorkspaceQueriesContent(): string {
   return `"use client";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { authScopedQueryKey, currentQueryAuthScope } from "@/lib/query-client";
 import type { IdentityWorkspaceInitialData } from "./types";
-import { useWorkspacePermissions } from "./permissions";
+import { WORKSPACE_PERMISSIONS, resolveWorkspacePermissions } from "./permissions";
+
+${identityWorkspacePermissionQueriesContent()}
 
 export function useIdentityWorkspaceQueries(
   selectedOrganizationId: string | null,
@@ -28,38 +34,16 @@ export function useIdentityWorkspaceQueries(
 `;
 }
 
-function identityWorkspaceInitialLoaderContent(): string {
-  return `import { orpcClient } from "@/lib/orpc";
-import type { QueryAuthScope } from "@/lib/query-client";
-import type { IdentityWorkspaceInitialData } from "./types";
-
-export async function fetchInitialIdentityWorkspace(scope: QueryAuthScope): Promise<IdentityWorkspaceInitialData> {
-  const organizations = await orpcClient.identity.organizations.list({});
-  const organizationId = organizations.some((organization) => organization.id === scope.tenantId)
-    ? scope.tenantId
-    : organizations[0]?.id ?? null;
-  if (!organizationId) return { organizations, organizationId: null, teams: [], members: [], invitations: [], teamId: null, teamMembers: [] };
-  const permission = await orpcClient.identity.organizations.hasPermission({ organizationId, permission: "invitation:read" });
-  const [teams, members, invitations] = await Promise.all([
-    orpcClient.identity.teams.list({ organizationId }),
-    orpcClient.identity.organizations.listMembers({ organizationId }),
-    permission.allowed ? orpcClient.identity.invitations.list({ organizationId }) : Promise.resolve([]),
-  ]);
-  const teamId = teams.some((team) => team.id === scope.teamId) ? scope.teamId : teams[0]?.id ?? null;
-  const teamMembers = teamId ? await orpcClient.identity.teams.listMembers({ organizationId, teamId }) : [];
-  return { organizations, organizationId, teams, members, invitations, teamId, teamMembers };
-}
-`;
-}
-
 function identityWorkspaceTanstackQueriesContent(): string {
   return `"use client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey } from "@/lib/query-client";
+import { getInitialIdentityWorkspace } from "@/lib/server-functions";
 import type { IdentityWorkspaceInitialData } from "./types";
-import { fetchInitialIdentityWorkspace } from "./load-initial-workspace";
-import { useWorkspacePermissions } from "./permissions";
+import { WORKSPACE_PERMISSIONS, resolveWorkspacePermissions } from "./permissions";
+
+${identityWorkspacePermissionQueriesContent()}
 
 export function useIdentityWorkspaceQueries(
   selectedOrganizationId: string | null,
@@ -74,7 +58,7 @@ export function useIdentityWorkspaceQueries(
       : ["auth", "anonymous", "identity-workspace", "initial"],
     queryFn: async () => {
       if (!scope) throw new Error("Authentication is required");
-      return await fetchInitialIdentityWorkspace(scope);
+      return await getInitialIdentityWorkspace();
     },
     enabled: Boolean(scope) && typeof window !== "undefined",
     staleTime: 30_000,
@@ -253,9 +237,6 @@ export function webIdentityWorkspaceDataFiles(
   const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
   return [
     file(`${root}/permissions.ts`, identityWorkspacePermissionsContent()),
-    ...(router === "tanstack"
-      ? [file(`${root}/load-initial-workspace.ts`, identityWorkspaceInitialLoaderContent())]
-      : []),
     file(
       `${root}/queries.ts`,
       router === "next"

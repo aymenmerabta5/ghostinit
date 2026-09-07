@@ -207,6 +207,7 @@
       "tests/unit/maintenance-bypass-security.test.ts",
       "tests/unit/marketing-capabilities.test.ts",
       "tests/unit/session-device-label.test.ts",
+      "tests/unit/workspace-data-adapter-architecture.test.ts",
       "tests/unit/workspace-removal-scope-recovery.test.ts",
       "tests/unit/workspace-shell.test.ts",
       "tests/unit/workspace-ui-permissions.test.ts"

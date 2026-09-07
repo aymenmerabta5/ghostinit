@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
+import { identityWorkspacePermissionsContent } from "../../src/templates/apps/fragments/identity-workspace/web-access.js";
 
 type Mode = "monorepo" | "single";
 type Database = "postgres" | "convex";
@@ -153,6 +154,7 @@ interface QueryOptions {
   input?: { organizationId?: string; teamId?: string };
   enabled?: boolean;
   initialData?: unknown;
+  queryKey?: readonly unknown[];
 }
 
 function readClientQueries(
@@ -163,14 +165,29 @@ function readClientQueries(
 ) {
   const queries: QueryOptions[] = [];
   const procedure = (operation: string) => ({
-    queryOptions: (options: Omit<QueryOptions, "operation">) => ({ ...options, operation }),
+    queryOptions: (options: Omit<QueryOptions, "operation"> = {}) => ({
+      ...options,
+      operation,
+      queryKey: [operation],
+    }),
   });
   const useQuery = (options: QueryOptions) => {
     queries.push(options);
-    if (options.operation === "permission") return { data: { allowed: canReadInvitations } };
+    if (options.operation === "permission" || options.operation === "me")
+      return {
+        data:
+          options.operation === "permission"
+            ? { allowed: canReadInvitations }
+            : { user: { id: "actor" } },
+        isSuccess: true,
+        isPending: false,
+        isError: false,
+        refetch: async () => {},
+      };
     return { data: options.initialData };
   };
   const orpc = {
+    me: procedure("me"),
     identity: {
       organizations: {
         list: procedure("organizations"),
@@ -183,10 +200,20 @@ function readClientQueries(
   };
   const read = new Function(
     "useQuery",
+    "useQueries",
+    "useQueryClient",
+    "currentQueryAuthScope",
+    "authScopedQueryKey",
     "orpc",
-    "useWorkspacePermissions",
-    `${javascript(querySource)}; return useIdentityWorkspaceQueries;`,
-  )(useQuery, orpc, () => ({ canReadInvitations })) as (
+    `${javascript(identityWorkspacePermissionsContent())}\n${javascript(querySource)}; return useIdentityWorkspaceQueries;`,
+  )(
+    useQuery,
+    ({ queries: options }: { queries: QueryOptions[] }) => options.map(useQuery),
+    () => ({}),
+    () => ({ userId: "actor" }),
+    (_scope: unknown, key: readonly unknown[]) => key,
+    orpc,
+  ) as (
     organizationId: string | null,
     teamId: string | null,
     initialData: Snapshot,

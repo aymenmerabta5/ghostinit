@@ -1,41 +1,48 @@
 export function identityWorkspacePermissionsContent(): string {
-  return `"use client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope } from "@/lib/query-client";
+  return `export const WORKSPACE_PERMISSIONS = ["member:write", "team:write", "invitation:read", "invitation:write", "organization:write"] as const;
 
-type Permission = "member:write" | "team:write" | "invitation:read" | "invitation:write" | "organization:write";
-
-function useOrganizationPermission(organizationId: string | null, permission: Permission) {
-  const queryClient = useQueryClient();
-  const scope = currentQueryAuthScope(queryClient);
-  const options = orpc.identity.organizations.hasPermission.queryOptions({ input: { organizationId: organizationId ?? "", permission } });
-  return useQuery({ ...options, queryKey: scope ? authScopedQueryKey(scope, options.queryKey) : ["auth", "anonymous", "workspace-permission", permission], enabled: Boolean(scope && organizationId) });
+interface QueryState<T> {
+  data?: T;
+  isSuccess: boolean;
+  isPending: boolean;
+  isError: boolean;
 }
 
-export function useWorkspacePermissions(organizationId: string | null) {
-  const queryClient = useQueryClient();
-  const scope = currentQueryAuthScope(queryClient);
-  const meOptions = orpc.me.queryOptions();
-  const me = useQuery({ ...meOptions, queryKey: scope ? authScopedQueryKey(scope, meOptions.queryKey) : ["auth", "anonymous", "workspace-user"], enabled: Boolean(scope) });
-  const memberWrite = useOrganizationPermission(organizationId, "member:write");
-  const teamWrite = useOrganizationPermission(organizationId, "team:write");
-  const invitationRead = useOrganizationPermission(organizationId, "invitation:read");
-  const invitationWrite = useOrganizationPermission(organizationId, "invitation:write");
-  const organizationWrite = useOrganizationPermission(organizationId, "organization:write");
-  const queries = [me, memberWrite, teamWrite, invitationRead, invitationWrite, organizationWrite];
-  const ready = Boolean(scope && organizationId && me.isSuccess && me.data?.user) && queries.every((query) => query.isSuccess);
-  const allowed = (query: { data?: { allowed: boolean } }) => ready && query.data?.allowed === true;
+export function resolveWorkspacePermissions(
+  authenticated: boolean,
+  organizationId: string | null,
+  me: QueryState<{ user: { id: string; name: string | null; email: string } | null }>,
+  checks: readonly QueryState<{ allowed: boolean }>[],
+) {
+  const queries = [me, ...checks];
+  const ready = Boolean(authenticated && organizationId && me.isSuccess && me.data?.user) && checks.length === WORKSPACE_PERMISSIONS.length && queries.every((query) => query.isSuccess);
+  const allowed = (index: number) => ready && checks[index]?.data?.allowed === true;
   return {
-    currentUser: scope && me.isSuccess ? me.data?.user ?? null : null,
-    canWriteMembers: allowed(memberWrite),
-    canWriteTeams: allowed(teamWrite),
-    canReadInvitations: allowed(invitationRead),
-    canWriteInvitations: allowed(invitationWrite),
-    isOwner: allowed(organizationWrite),
+    currentUser: authenticated && me.isSuccess ? me.data?.user ?? null : null,
+    canWriteMembers: allowed(0),
+    canWriteTeams: allowed(1),
+    canReadInvitations: allowed(2),
+    canWriteInvitations: allowed(3),
+    isOwner: allowed(4),
     isPending: Boolean(organizationId) && queries.some((query) => query.isPending),
     hasError: Boolean(organizationId) && queries.some((query) => query.isError),
-    retry: async () => { await Promise.all(queries.map((query) => query.refetch())); },
+  };
+}
+`;
+}
+
+export function identityWorkspacePermissionQueriesContent(): string {
+  return `function useWorkspacePermissions(organizationId: string | null) {
+  const scope = currentQueryAuthScope(useQueryClient());
+  const meOptions = orpc.me.queryOptions();
+  const me = useQuery({ ...meOptions, queryKey: scope ? authScopedQueryKey(scope, meOptions.queryKey) : ["auth", "anonymous", "workspace-user"], enabled: Boolean(scope) });
+  const checks = useQueries({ queries: WORKSPACE_PERMISSIONS.map((permission) => {
+    const options = orpc.identity.organizations.hasPermission.queryOptions({ input: { organizationId: organizationId ?? "", permission } });
+    return { ...options, queryKey: scope ? authScopedQueryKey(scope, options.queryKey) : ["auth", "anonymous", "workspace-permission", permission], enabled: Boolean(scope && organizationId) };
+  }) });
+  return {
+    ...resolveWorkspacePermissions(Boolean(scope), organizationId, me, checks),
+    retry: async () => { await Promise.all([me, ...checks].map((query) => query.refetch())); },
   };
 }
 `;

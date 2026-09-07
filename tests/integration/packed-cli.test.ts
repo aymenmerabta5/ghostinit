@@ -376,7 +376,7 @@ test("runtime.node.packed-cli.v1: the exact Bun-packed tarball generates Bun and
       },
     );
     expect(checkResult.error).toBeUndefined();
-    expect(checkResult.status, checkResult.stderr).toBe(0);
+    expect(checkResult.status, `${checkResult.stdout}\n${checkResult.stderr}`).toBe(0);
     expect(checkResult.stderr).not.toMatch(TSCONFIG_PATH_DIAGNOSTIC);
     const checkPayload = JSON.parse(checkResult.stdout) as {
       success?: unknown;

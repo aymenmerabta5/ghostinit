@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   identityWorkspaceAccessContent,
+  identityWorkspacePermissionQueriesContent,
   identityWorkspacePermissionsContent,
 } from "../../src/templates/apps/fragments/identity-workspace/web-access.js";
 import { webIdentityWorkspaceDataFiles } from "../../src/templates/apps/fragments/identity-workspace/web-data.js";
@@ -162,26 +163,29 @@ function permissions(
       },
     },
   };
+  const readQuery = (options: QueryOptions) => {
+    captured.push(options);
+    const status =
+      failedPermission && options.input?.permission === failedPermission ? "error" : state;
+    return {
+      isSuccess: status === "success",
+      isPending: status === "pending",
+      isError: status === "error",
+      data: options.input ? { allowed: true } : { user: { id: "app-user" } },
+      refetch: async () => {},
+    };
+  };
   const run = new Function(
     "useQuery",
+    "useQueries",
     "useQueryClient",
     "orpc",
     "authScopedQueryKey",
     "currentQueryAuthScope",
-    `${javascript(identityWorkspacePermissionsContent())}; return useWorkspacePermissions;`,
+    `${javascript(identityWorkspacePermissionsContent())}\n${javascript(identityWorkspacePermissionQueriesContent())}; return useWorkspacePermissions;`,
   )(
-    (options: QueryOptions) => {
-      captured.push(options);
-      const status =
-        failedPermission && options.input?.permission === failedPermission ? "error" : state;
-      return {
-        isSuccess: status === "success",
-        isPending: status === "pending",
-        isError: status === "error",
-        data: options.input ? { allowed: true } : { user: { id: "app-user" } },
-        refetch: async () => {},
-      };
-    },
+    readQuery,
+    ({ queries }: { queries: QueryOptions[] }) => queries.map(readQuery),
     () => ({}),
     orpc,
     (value: { userId: string }, key: string[]) => [value.userId, ...key],

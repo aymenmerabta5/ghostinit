@@ -110,6 +110,21 @@ runs do not establish complete route/feature coverage or a successful full local
 memory workload. The final wordmark and later source fixes have not received a
 complete final browser replay.
 
+Candidate v12 was generated from `8c6aa904ec7ab0959d38bc5f266f9471f7f6f94b`
+with CLI SHA-256
+`27f9a7495e45ce3ec65be39bbd8a8e8e5a6c896adf025f81684e998e3a20943c`.
+Its 665-file output passed dependency bootstrap/audit, formatting and format-check,
+then failed architecture validation with exit code 1 and two HIGH findings.
+`src/features/identity-workspace/permissions.ts` imported `@tanstack/react-query`
+and `@/lib/orpc` outside the feature's root query/mutation adapters. Hosted
+E2E-fast and packed-CLI gates also reported this boundary defect. The remaining
+installed and browser acceptance sequence was blocked; v12 is retained as failed
+candidate evidence. The repair must cover both Next and TanStack output while
+preserving the isolation rule. The corrective source keeps permissions as pure
+projection/types, puts remote execution in root `queries.ts`, and uses TanStack's
+existing server function instead of the extra feature loader. Fresh generated
+validation and the final browser replay remain outstanding.
+
 Remaining evidence includes a fresh final generated candidate and its installed
 gates, all selected page/feature/security lifecycles, keyboard and responsive
 review in light/dark and EN/FR/AR, production build/runtime checks, a complete

@@ -89,10 +89,7 @@ describe("generated identity workspace boundaries", () => {
         const featureRoot = `${sourceRoot}/features/identity-workspace`;
         const featureFiles = generated.filter(({ path }) => path.startsWith(`${featureRoot}/`));
 
-        const expectedFeatureFiles = [
-          ...FEATURE_FILES,
-          ...(framework === "tanstack-start" ? ["load-initial-workspace.ts"] : []),
-        ];
+        const expectedFeatureFiles = [...FEATURE_FILES];
         expect(featureFiles.map(({ path }) => path).sort()).toEqual(
           expectedFeatureFiles.map((name) => `${featureRoot}/${name}`).sort(),
         );
