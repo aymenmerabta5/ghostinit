@@ -2285,53 +2285,6 @@ async function main(): Promise<void> {
         console.error(`\nLeft projects in ${root} because descendant cleanup was unverified.`);
       } else console.log(`\nLeft projects in ${root}`);
     }
-
-    if (corner.worker) {
-      const appDir = existsSync(join(dir, "apps", "web")) ? join(dir, "apps", "web") : dir;
-      const buildScript = corner.worker === "next" ? "build:worker" : "build";
-      const buildEnv = readDevVars(appDir);
-      const workerBuild = run("bun", ["run", buildScript], appDir, buildEnv);
-      console.log(`   worker build: ${workerBuild.ok ? "ok" : "FAIL"}`);
-      if (!workerBuild.ok) {
-        results.push({
-          id: corner.id,
-          step: "worker-build",
-          ok: false,
-          expected: false,
-          detail: workerBuild.output,
-        });
-        hardFailures++;
-        continue;
-      }
-
-      const secret = buildEnv.BETTER_AUTH_SECRET ?? buildEnv.POSTGRES_PASSWORD ?? "";
-      const leakedArtifact = findSecretInWorkerArtifacts(appDir, secret);
-      console.log(`   secret scan:  ${leakedArtifact ? "FAIL" : "ok"}`);
-      if (leakedArtifact) {
-        results.push({
-          id: corner.id,
-          step: "worker-secret-scan",
-          ok: false,
-          expected: false,
-          detail: `Secret-like local build value was embedded in ${leakedArtifact}`,
-        });
-        hardFailures++;
-        continue;
-      }
-
-      const dryRun = run("bunx", ["wrangler", "deploy", "--dry-run"], appDir);
-      console.log(`   worker dry:   ${dryRun.ok ? "ok" : "FAIL"}`);
-      if (!dryRun.ok) {
-        results.push({
-          id: corner.id,
-          step: "worker-dry-run",
-          ok: false,
-          expected: false,
-          detail: dryRun.output,
-        });
-        hardFailures++;
-      }
-    }
   }
 }
 

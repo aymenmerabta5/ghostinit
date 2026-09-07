@@ -830,7 +830,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // isFrontend preset already handled via noPreset false logic above
   void isFrontendPreset;
   for (const m of availableModes) map[m] = { inUse: m === input.mode };
-  for (const database of availableDatabases) map[database] = { inUse: false };
+  for (const d of availableDatabases) map[d] = { inUse: false };
   map[input.database] = { inUse: true };
   // features + unified eve/i18n handling (features kept for backward compat, but new map uses eve/i18n direct)
   const eveInUse =

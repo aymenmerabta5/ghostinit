@@ -161,7 +161,7 @@ function webPackageTanstack(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        ...(hasAnalytics ? { "@repo/analytics": "workspace:*" } : {}),
+        "@repo/analytics": "workspace:*",
         "@repo/api": "workspace:*",
         ...(hasAuth ? { "@repo/auth": "workspace:*" } : {}),
         "@repo/config": "workspace:*",
@@ -236,7 +236,6 @@ function webPackageTanstack(
         "bun-types": `^${v.runtime.bun}`,
         "@playwright/test": `^${v.testing.playwright}`,
         vite: `^${v.tanstackStart.vite}`,
-        "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
         "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
         "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
         ...(hasCloudflare

@@ -715,7 +715,6 @@ export function requireAdmin(ctx: ApiContext) {
         devDependencies: {
           // tsconfig declares types: ["node"] — must be depended on or TS2688.
           "@types/node": `^${v.runtime["@types/node"]}`,
-          "@types/react": `^${v.nextStack["@types/react"]}`,
           typescript: `^${v.typescript.typescript}`,
         },
       }),

@@ -28,12 +28,9 @@ export { billingSnapshotRepository } from "./billing-snapshot.repository.js";
 `;
 }
 
-export function billingCreateCheckoutContent(
-  mode: ProjectMode,
-  framework: FrameworkName,
-): string {
+export function billingCreateCheckoutContent(mode: ProjectMode): string {
   const resultImport = resultImportForMode(mode);
-  return `${serverOnlyImportForFramework(framework)}\n${resultImport}
+  return `import "server-only";\n${resultImport}
 export type BillingProviderName = "stripe" | "chargily" | "paddle" | "polar";
 export interface CheckoutRecord { id: string; provider: BillingProviderName; url: string; status: string; }
 export interface BillingProviderPort {

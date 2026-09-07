@@ -38,9 +38,6 @@ import { defaultStatements } from "better-auth/plugins/admin/access";
 
 export const ac = createAccessControl(defaultStatements);
 
-// Role ladder: superAdmin (everything) > admin (manage users) > member (self) > viewer (read-only).
-// Rename or extend these to your domain — they are examples, not requirements.
-
 export const superAdmin = ac.newRole({
   user: ${renderPermissions(SUPER_ADMIN_USER_PERMISSIONS)},
   session: ${renderPermissions(SESSION_PERMISSIONS)},

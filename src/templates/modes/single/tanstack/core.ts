@@ -108,8 +108,6 @@ export function singleViteConfigTanstackContent(
     "  },",
     ...(hasPostgres ? ["  ssr: { external: ['pg'] },"] : []),
     "  plugins: [",
-    ...(hasCloudflare ? ["    cloudflare({ viteEnvironment: { name: 'ssr' } }),"] : []),
-    "    tsconfigPaths(),",
     "    tailwindcss(),",
     "    ...tanstackStart({",
     "      srcDirectory: 'src',",

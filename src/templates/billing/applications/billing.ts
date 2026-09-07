@@ -101,7 +101,6 @@ export async function listSubscriptionsUseCase(userId: string, repository: Billi
 function portalUseCase(mode: ProjectMode): string {
   const servicesImport =
     mode === "monorepo" ? `@repo/services/billing` : `@/server/services/billing`;
-  const resultImport = mode === "monorepo" ? `@repo/kernel` : `@/server/kernel/result`;
   return `import {
   createPortalSessionService,
   validateBillingRedirectUrl,
@@ -111,7 +110,6 @@ function portalUseCase(mode: ProjectMode): string {
   type PortalSessionRecord,
   type CreatePortalSessionOutput,
 } from "${servicesImport}";
-import type { Result } from "${resultImport}";
 
 export interface CreatePortalSessionUseCaseInput {
   provider: BillingProviderName;

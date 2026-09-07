@@ -268,33 +268,6 @@ describe("addon registry - buildAddonInstallerMap", () => {
     expect(single["monorepo"]?.inUse).toBe(false);
   });
 
-  it("marks Cloudflare as the selected deployment adapter", () => {
-    const map = buildAddonInstallerMap({
-      billing: [],
-      features: [],
-      database: "convex",
-      mode: "monorepo",
-      deploy: "cloudflare",
-    });
-    expect(map.cloudflare?.inUse).toBe(true);
-    expect(map.vercel?.inUse).toBe(false);
-    expect(map.convex?.inUse).toBe(true);
-    expect(map.none?.inUse).toBe(false);
-  });
-
-  it("preserves database=none when another deploy target is selected", () => {
-    const map = buildAddonInstallerMap({
-      billing: [],
-      features: [],
-      database: "none",
-      mode: "single",
-      cache: "redis",
-      deploy: "cloudflare",
-    });
-    expect(map.none?.inUse).toBe(true);
-    expect(map.cloudflare?.inUse).toBe(true);
-  });
-
   it("marks database selection as inUse", () => {
     const map = buildAddonInstallerMap({
       billing: [],

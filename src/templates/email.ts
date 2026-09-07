@@ -101,7 +101,7 @@ ${templatesIndexContent()}export {
 
 // React Email + Resend sending mechanism — copied/adapted from licence-last/src/server/email
 // Same for monorepo/single and for Next/TanStack — server-only email is framework-agnostic.
-function sendContent(mode: ProjectMode, framework: FrameworkName): string {
+function sendContent(mode: ProjectMode): string {
   const isMonorepo = mode === "monorepo";
   const envImport = isMonorepo
     ? `import { env } from "@repo/config/server";`
@@ -398,12 +398,6 @@ export function emailFiles(
   };
   if (mode === "monorepo") {
     (emailDependencies as Record<string, string>)["@repo/config"] = "workspace:*";
-    if (framework === "tanstack-start") {
-      (emailDependencies as Record<string, string>)["@tanstack/react-start"] =
-        `^${v.tanstackStart["@tanstack/react-start"]}`;
-    } else {
-      (emailDependencies as Record<string, string>)["server-only"] = v.runtime["server-only"];
-    }
   }
 
   const files: TemplateFile[] = [];

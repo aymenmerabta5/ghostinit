@@ -20,7 +20,7 @@ export function servicesComposerFiles(
   selectedBilling: readonly BillingProviderName[] = [],
 ): TemplateFile[] {
   const out: TemplateFile[] = [];
-  out.push(...servicesFiles({ mode: "monorepo", runtime, addons }, runtime));
+  out.push(...servicesFiles({ mode: "monorepo", runtime, framework, addons }, runtime));
   if (hasEmail) {
     out.push(...genEmailFiles({ mode: "monorepo", runtime, i18n: hasI18n }, runtime));
   }

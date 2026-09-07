@@ -25,7 +25,6 @@ export function modulesPackage(
         exports: {
           ".": "./src/index.ts",
           "./*": "./src/*/index.ts",
-          "./billing/application/*": "./src/billing/application/*.ts",
         },
         dependencies: {
           "@repo/contracts": "workspace:*",

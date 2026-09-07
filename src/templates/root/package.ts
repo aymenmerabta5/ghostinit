@@ -75,13 +75,6 @@ export function rootPackageJson(
     "doctor:fix": `${pinnedGhostinit} doctor --fix`,
     prepare: "husky",
     "install:cmd": installCmd,
-    ...(isCloudflare
-      ? {
-          preview: `${webRun} preview`,
-          deploy: `${webRun} deploy`,
-          "cf-typegen": `${webRun} cf-typegen`,
-        }
-      : {}),
   };
 
   if (isCloudflare && hasWeb) {

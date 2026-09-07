@@ -28,7 +28,6 @@ export function rootTsConfig(): TemplateFile {
           "node_modules",
           "dist",
           ".next",
-          ".open-next",
           ".output",
           ".turbo",
           "apps/*/dist",

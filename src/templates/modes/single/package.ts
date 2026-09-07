@@ -472,7 +472,6 @@ export function singlePackageJsonTanstack(
       // Provides `tsr generate` for src/routeTree.gen.ts (see typecheck script).
       "@tanstack/router-cli": `^${v.tanstackStart["@tanstack/router-cli"]}`,
       vite: `^${v.tanstackStart.vite}`,
-      "vite-tsconfig-paths": `^${v.tanstackStart["vite-tsconfig-paths"]}`,
       "@vitejs/plugin-react": `^${v.tanstackStart["@vitejs/plugin-react"]}`,
       "@tailwindcss/vite": `^${v.tanstackStart["@tailwindcss/vite"]}`,
       ...(hasCloudflare

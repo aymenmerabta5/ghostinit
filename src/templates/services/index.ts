@@ -31,7 +31,6 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
   );
   const isMonorepo = mode === "monorepo";
   const base = isMonorepo ? "packages/services/src" : "src/server/services";
-  const withBilling = hasBillingAddon(addons);
   const files: TemplateFile[] = [];
   const withBilling = hasBillingAddon(addons);
   const withEmail = addons ? hasAddon(addons as AddonInstallerMap, "email") : true;
@@ -157,7 +156,7 @@ export function err<E = Error>(error: E): Result<never, E> {
   files.push(
     file(
       `${base}/errors.ts`,
-      `${serverOnlyImportForFramework(framework)}\n\n/**\n * Shared typed error for service-layer domain failures.\n * Routes map \`code\` to transport-safe ORPC errors via createServiceORPCError.\n */\nexport class ServiceError<TCode extends string = string> extends Error {\n  readonly code: TCode;\n  constructor(code: TCode, message: string, options?: { cause?: unknown }) {\n    super(message);\n    this.name = "ServiceError";\n    this.code = code;\n    if (options?.cause !== undefined) this.cause = options.cause;\n  }\n}\nexport function isServiceError(error: unknown): error is ServiceError<string> {\n  return error instanceof ServiceError;\n}\n`,
+      `import "server-only";\n\n/**\n * Shared typed error for service-layer domain failures.\n * Routes map \`code\` to transport-safe ORPC errors via createServiceORPCError.\n */\nexport class ServiceError<TCode extends string = string> extends Error {\n  readonly code: TCode;\n  constructor(code: TCode, message: string, options?: { cause?: unknown }) {\n    super(message);\n    this.name = "ServiceError";\n    this.code = code;\n    if (options?.cause !== undefined) this.cause = options.cause;\n  }\n}\nexport function isServiceError(error: unknown): error is ServiceError<string> {\n  return error instanceof ServiceError;\n}\n`,
     ),
   );
   // The billing service module is only emitted when a billing provider is
@@ -197,8 +196,8 @@ export function err<E = Error>(error: E): Result<never, E> {
   if (withNotifications) files.push(...notificationsServiceFiles(mode as ProjectMode));
   if (withFeatureFlags) files.push(...featureFlagsServiceFiles(mode as ProjectMode));
   if (withJobs) files.push(...jobsServiceFiles(mode as ProjectMode));
-  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode));
-  files.push(...invoiceServiceFiles(mode as ProjectMode));
+  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode, framework));
+  files.push(...invoiceServiceFiles(mode as ProjectMode, framework));
   if (withRequestApplication) {
     files.push(
       ...requestApplicationFiles(

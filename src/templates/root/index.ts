@@ -71,13 +71,6 @@ export function rootFiles(
     ...cloudflareWorkspaceFiles(deploy, profile),
     ...deployFiles(projectName, deploy, runtime, profile),
   ];
-  if (deploy !== "cloudflare") return files;
-  return files.map((entry) => ({
-    ...entry,
-    path: entry.path.endsWith(".env.local")
-      ? entry.path.replace(/\.env\.local$/, ".dev.vars")
-      : entry.path,
-  }));
 }
 
 export {

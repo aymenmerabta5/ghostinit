@@ -1,9 +1,4 @@
-export function singleLibAnalyticsContent(framework: "nextjs" | "tanstack-start" = "nextjs"): string {
-  const readEnv =
-    framework === "tanstack-start"
-      ? `  return import.meta.env as Record<string, string | undefined>;`
-      : `  if (typeof process === "undefined") return {};
-  return process.env as Record<string, string | undefined>;`;
+export function singleLibAnalyticsContent(): string {
   return `"use client";
 
 import posthog, { type PostHogConfig, type PostHogInterface } from "posthog-js";

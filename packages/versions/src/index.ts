@@ -128,7 +128,6 @@ export const tanstackStart = {
   // APIs differ from 3.0.0, so keep this pin coupled to the generated Nitro
   // config/runtime compatibility tests.
   vite: "7.3.6",
-  "vite-tsconfig-paths": "6.1.1",
   "@vitejs/plugin-react": "5.2.0",
   nitro: "3.0.260610-beta",
   "@tailwindcss/vite": "4.3.3",
@@ -145,13 +144,6 @@ export const cloudflare = {
   "@cloudflare/vite-plugin": "1.53.1",
   dotenv: "17.4.2",
   wrangler: "4.125.0",
-} as const;
-
-export const cloudflare = {
-  // This release supports the pinned Next.js 16.2.x adapter API.
-  "@opennextjs/cloudflare": "1.19.9",
-  "@cloudflare/vite-plugin": "1.54.3",
-  wrangler: "4.128.0",
 } as const;
 
 export const styling = {
@@ -173,8 +165,6 @@ export const ui = {
   "react-is": "19.2.8",
   "@types/react-is": "19.2.0",
   "next-themes": "0.4.6",
-  "lucide-react": "1.39.0",
-  motion: "13.2.0",
 } as const;
 
 export const tooling = {

@@ -150,7 +150,7 @@ function webPackage(
         "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
         "@orpc/server": `^${v.orpc["@orpc/server"]}`,
         "@orpc/openapi": `^${v.orpc["@orpc/openapi"]}`,
-        ...(hasAnalytics ? { "@repo/analytics": "workspace:*" } : {}),
+        "@repo/analytics": "workspace:*",
         "@repo/api": "workspace:*",
         ...(hasAuth ? { "@repo/auth": "workspace:*" } : {}),
         "@repo/billing": "workspace:*",
