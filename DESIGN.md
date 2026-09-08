@@ -328,6 +328,11 @@ query-provider path.
 - Administrator search places its label, control and supporting messages on
   separate grid tracks. Search and clear actions align with the control on
   desktop and follow the field on mobile, including when validation adds an error.
+- Administrator row actions stack and share their cell width below `sm`. Keyboard
+  focus can reveal either complete button within the horizontally scrolling
+  table. At `sm` and above, actions keep their existing horizontal arrangement.
+  Returning focus after confirmation also reveals the action, because changed
+  status and action labels can resize the table columns while the dialog closes.
 - Dashboard role labels and passkey device labels use the selected language.
   Unknown role identifiers remain readable as isolated data. Passkey wording
   distinguishes current backup state from the ability to be backed up.

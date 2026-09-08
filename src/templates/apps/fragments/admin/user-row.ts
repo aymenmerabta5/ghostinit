@@ -64,7 +64,10 @@ export function UserRow({
           </Badge>
         </TableCell>
         <TableCell>
-          <div className="flex justify-end gap-2">
+          <div
+            className="flex flex-col items-stretch gap-2 sm:flex-row sm:justify-end"
+            onFocusCapture={(event) => event.target.scrollIntoView({ block: "nearest", inline: "nearest" })}
+          >
             <Button
               type="button"
               size="sm"

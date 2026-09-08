@@ -1,4 +1,4 @@
-// @allow-long 750: one bounded cross-platform harness owns two generated targets, interaction/layout contracts, server readiness, and process-tree cleanup
+// @allow-long 900: one bounded cross-platform harness owns two generated targets, interaction/layout and keyboard clipping contracts, server readiness, and process-tree cleanup
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -15,6 +15,11 @@ import { desktopUiAlertContent } from "../../src/templates/apps/desktop/ui/surfa
 import { adminFiltersFile } from "../../src/templates/apps/fragments/admin/filters.js";
 import { adminSchemaFiles } from "../../src/templates/apps/fragments/admin/feature-schema.js";
 import { adminTranslationsFile } from "../../src/templates/apps/fragments/admin/translations.js";
+import {
+  adminUserRowFile,
+  adminUserRowConfirmationFile,
+} from "../../src/templates/apps/fragments/admin/user-row.js";
+import { adminUserTableFile } from "../../src/templates/apps/fragments/admin/user-table.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
 import { resolveLocalPlaywrightInvocation } from "../helpers/generated-playwright-cli.js";
 import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
@@ -76,6 +81,8 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Alert as DesktopAlert, AlertTitle as DesktopAlertTitle, AlertDescription as DesktopAlertDescription } from "@/components/desktop-alert-contract";
 import { AdminUserFilters } from "@/features/admin-users/components/filters";
+import { UserTable } from "@/features/admin-users/components/user-table";
+import type { AdminUser } from "@/features/admin-users/types";
 import { TriangleAlert } from "lucide-react";
 
 const roles: readonly SelectOption[] = [
@@ -93,16 +100,28 @@ const notifications: NotificationItem[] = [
   },
 ];
 
+const initialAdminUser: AdminUser = {
+  id: "application-admin",
+  identityId: "identity-admin",
+  name: "Workspace administrator",
+  email: "administrator.with.a.long.identifier@example.test",
+  role: "admin",
+  banned: false,
+};
+
 export default function PrimitiveContractPage(): React.JSX.Element {
   const [role, setRole] = useState("user");
   const [marked, setMarked] = useState("none");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [alertActions, setAlertActions] = useState(0);
+  const [adminUser, setAdminUser] = useState(initialAdminUser);
+  const [adminMutations, setAdminMutations] = useState<string[]>([]);
   const [hydrationState, setHydrationState] = useState("waiting");
   useEffect(() => setHydrationState("ready"), []);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col gap-6 p-6">
+    <main className="mx-auto min-h-screen w-full max-w-6xl">
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-6 p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Primitive contract</h1>
       <Field>
         <FieldLabel htmlFor="name">Name</FieldLabel>
@@ -158,6 +177,23 @@ export default function PrimitiveContractPage(): React.JSX.Element {
         }))}
         <output data-testid="alert-actions">{alertActions}</output>
       </section>
+      </div>
+      <section data-testid="admin-row-layout" className="grid gap-3 p-6" aria-label="Admin row actions">
+        <Button data-testid="before-admin-actions" onClick={() => { setAdminUser(initialAdminUser); setAdminMutations([]); }}>Reset admin row</Button>
+        <UserTable users={[adminUser]} total={1} totalIsExact rolePendingId={null} banPendingId={null}
+          onToggleRole={async (identityId, currentRole) => {
+            setAdminMutations((actions) => [...actions, "role:" + identityId + ":" + currentRole]);
+            setAdminUser((user) => ({ ...user, role: currentRole === "admin" ? "user" : "admin" }));
+            return true;
+          }}
+          onToggleBanned={async (identityId, currentlyBanned) => {
+            setAdminMutations((actions) => [...actions, "ban:" + identityId + ":" + currentlyBanned]);
+            setAdminUser((user) => ({ ...user, banned: !currentlyBanned }));
+            return true;
+          }} />
+        <Button data-testid="after-admin-actions">After admin row</Button>
+        <output data-testid="admin-mutations">{adminMutations.join("|")}</output>
+      </section>
     </main>
   );
 }
@@ -186,9 +222,47 @@ async function expectActiveFocusVisible(page: Page): Promise<void> {
   expect(await page.evaluate(() => document.activeElement?.matches(":focus-visible"))).toBe(true);
 }
 
+async function measureFocusedActionGeometry(action: Locator) {
+  return action.evaluate((element) => {
+    const container = element.closest('[data-slot="table-container"]');
+    if (!container) throw new Error("Admin action has no scrolling table container");
+    const clip = container.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    const left = Math.max(0, clip.left + container.clientLeft);
+    const right = Math.min(innerWidth, clip.left + container.clientLeft + container.clientWidth);
+    const top = Math.max(0, clip.top + container.clientTop);
+    const bottom = Math.min(innerHeight, clip.top + container.clientTop + container.clientHeight);
+    return {
+      label: element.textContent?.trim(),
+      direction: getComputedStyle(container).direction,
+      viewport: { width: innerWidth, height: innerHeight },
+      rect: { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height },
+      clip: { left, right, top, bottom },
+      scroll: { left: container.scrollLeft, top: container.scrollTop, width: container.scrollWidth, height: container.scrollHeight },
+      focused: element === document.activeElement,
+      focusVisible: element.matches(":focus-visible"),
+      contained: box.left >= left - 1 && box.right <= right + 1 && box.top >= top - 1 && box.bottom <= bottom + 1,
+    };
+  });
+}
+
+async function expectFocusedActionUnclipped(action: Locator, phase: string): Promise<void> {
+  let geometry = await measureFocusedActionGeometry(action);
+  try {
+    await expectFocusVisible(action);
+    await expect.poll(async () => {
+      geometry = await measureFocusedActionGeometry(action);
+      return geometry.contained;
+    }, { timeout: 2000 }).toBe(true);
+  } catch (error) {
+    throw new Error("Admin action clipping at " + phase + ": " + JSON.stringify(geometry), { cause: error });
+  }
+}
+
 test("shared primitives preserve keyboard, focus, controlled value, and mark-read behavior", async ({
   page,
 }) => {
+  test.setTimeout(120_000);
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   const failedResponses: string[] = [];
@@ -344,6 +418,54 @@ test("shared primitives preserve keyboard, focus, controlled value, and mark-rea
         }
         await page.getByTestId(id + "-retry").click();
       }
+      const adminTable = page.getByTestId("admin-row-layout");
+      const beforeActions = adminTable.getByTestId("before-admin-actions");
+      await beforeActions.focus();
+      await page.keyboard.press("Enter");
+      const container = adminTable.locator('[data-slot="table-container"]');
+      await container.evaluate((element) => { element.scrollLeft = 0; });
+      const dimensions = await container.evaluate((element) => ({ viewport: element.clientWidth, content: element.scrollWidth }));
+      if (width < 640) expect(dimensions.content).toBeGreaterThan(dimensions.viewport);
+      else expect(dimensions.viewport).toBeGreaterThanOrEqual(960);
+      const row = adminTable.locator("tbody tr").first();
+      const roleAction = row.getByRole("button").nth(0);
+      const banAction = row.getByRole("button").nth(1);
+      await expect(roleAction).toHaveText("Remove administrator role");
+      await page.keyboard.press("Tab");
+      await expectFocusedActionUnclipped(roleAction, "initial-role-tab");
+      await page.keyboard.press("Tab");
+      await expectFocusedActionUnclipped(banAction, "initial-ban-tab");
+      const roleBox = (await roleAction.boundingBox())!;
+      const banBox = (await banAction.boundingBox())!;
+      if (width < 640) {
+        expect(Math.abs(roleBox.x - banBox.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(roleBox.width - banBox.width)).toBeLessThanOrEqual(1);
+        expect(banBox.y).toBeGreaterThanOrEqual(roleBox.y + roleBox.height + 4);
+      } else {
+        expect(Math.abs(roleBox.y - banBox.y)).toBeLessThanOrEqual(1);
+        if (direction === "rtl") expect(banBox.x + banBox.width).toBeLessThan(roleBox.x);
+        else expect(roleBox.x + roleBox.width).toBeLessThan(banBox.x);
+      }
+      await page.keyboard.press("Enter");
+      const confirmation = page.getByRole("alertdialog", { name: "Suspend this account?" });
+      await expect(confirmation).toBeVisible();
+      const cancel = confirmation.getByRole("button", { name: "Cancel", exact: true });
+      await expectFocusVisible(cancel);
+      await page.keyboard.press("Enter");
+      await expect(confirmation).toHaveCount(0);
+      await expectFocusedActionUnclipped(banAction, "cancel-restoration");
+      await expect(adminTable.getByTestId("admin-mutations")).toHaveText("");
+      await page.keyboard.press("Enter");
+      await expectFocusVisible(cancel);
+      await page.keyboard.press("Tab");
+      await expectFocusVisible(confirmation.getByRole("button", { name: "Suspend account", exact: true }));
+      await page.keyboard.press("Enter");
+      await expect(adminTable.getByTestId("admin-mutations")).toHaveText("ban:identity-admin:false");
+      await expect(confirmation).toHaveCount(0);
+      await expect(banAction).toHaveText("Restore access");
+      await expectFocusedActionUnclipped(banAction, "mutation-restoration");
+      await page.keyboard.press("Tab");
+      await expectFocusVisible(adminTable.getByTestId("after-admin-actions"));
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
     }
   }
@@ -398,6 +520,9 @@ async function writeGeneratedFixture(
     adminFiltersFile(adminOptions),
     ...adminSchemaFiles(adminOptions),
     adminTranslationsFile(adminOptions),
+    adminUserRowFile(adminOptions),
+    adminUserRowConfirmationFile(adminOptions),
+    adminUserTableFile(adminOptions),
   ]) {
     await transaction.write(file.path, file.content);
   }
@@ -686,6 +811,12 @@ describe("generated web primitive interactions", () => {
         await runStage(`${target.kind} readiness`, () =>
           waitForHttp200(`${target.url}/primitive-contract`, runningServer, 120_000),
         );
+        if (target.kind === "next-monorepo") {
+          // The client provider needs this separately compiled route to finish hydration.
+          await runStage("next-monorepo session route readiness", () =>
+            waitForHttp200(`${target.url}/api/auth/get-session`, runningServer, 120_000),
+          );
+        }
         await runStage(`${target.kind} Playwright interaction`, () =>
           runLocalPlaywright(
             nextTarget.appRoot,
