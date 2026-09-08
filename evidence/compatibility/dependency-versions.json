@@ -10,13 +10,13 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 166,
-    "uniquePackages": 137,
-    "latestScopes": 142,
-    "compatibilityHeldScopes": 24,
+    "auditedScopes": 168,
+    "uniquePackages": 139,
+    "latestScopes": 143,
+    "compatibilityHeldScopes": 25,
     "uniqueCompatibilityHolds": 19,
     "auditedLockfiles": 4,
-    "lockedPackageVersions": 1071,
+    "lockedPackageVersions": 1070,
     "missingPins": 0,
     "unreviewedPins": 0
   },
@@ -80,9 +80,19 @@
       "reason": "Unused pins; stable TS7 replaced native-preview and no generated consumer used the TS5 alias."
     },
     {
+      "scope": "typescript",
+      "removed": ["typescriptNext"],
+      "reason": "Generated applications and shared packages now select the same 7.0.2 catalog pin. Exact-package source audits did not establish a mandatory TS6 API dependency in the emitted paths; installed migration gates remain proof-required in evidence/toolchain/typescript-7.0.2.json."
+    },
+    {
       "scope": "supplyChain.minimumReleaseAgeSeconds",
       "value": 604800,
       "reason": "Require every direct, emitted, and locked npm package release to mature for seven days; no release-age exceptions are approved."
+    },
+    {
+      "scope": "eve.just-bash",
+      "value": "3.4.2",
+      "reason": "Install the eligible optional sandbox engine through audited generated manifests; explicit justbash autoInstall:false prevents runtime graph mutation."
     }
   ],
   "holds": [
@@ -96,6 +106,17 @@
         "https://registry.npmjs.org/better-auth"
       ],
       "scopes": ["auth.better-auth", "host.devDependencies.better-auth"]
+    },
+    {
+      "package": "@better-auth/core",
+      "pinned": "1.6.30",
+      "reasonCode": "better-auth-lockstep",
+      "detail": "Better Auth 1.6.30 depends on core 1.6.30. The public transaction context must use that same version in generated PostgreSQL auth and host regression fixtures.",
+      "evidence": [
+        "https://registry.npmjs.org/better-auth/1.6.30",
+        "https://registry.npmjs.org/@better-auth%2Fcore"
+      ],
+      "scopes": ["auth.@better-auth/core", "host.devDependencies.@better-auth/core"]
     },
     {
       "package": "@better-auth/passkey",
@@ -132,14 +153,6 @@
         "host.overrides.@types/node",
         "runtime.@types/node"
       ]
-    },
-    {
-      "package": "typescript",
-      "pinned": "6.0.3",
-      "reasonCode": "typescript-compiler-api",
-      "detail": "TanStack, Vite, and Expo consumers still load lib/typescript.js; stable TS7 is the native CLI line and TS6.0.3 is the newest compatible JavaScript compiler-API release.",
-      "evidence": ["https://registry.npmjs.org/typescript"],
-      "scopes": ["typescript.typescript"]
     },
     {
       "package": "react",
@@ -6401,12 +6414,6 @@
     },
     {
       "package": "typescript",
-      "version": "6.0.3",
-      "publishedAt": "2026-04-16T23:38:27.905Z",
-      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="
-    },
-    {
-      "package": "typescript",
       "version": "7.0.2",
       "publishedAt": "2026-07-08T15:55:18.431Z",
       "integrity": "sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA=="
@@ -6768,6 +6775,22 @@
       "eligibleLatestPublishedAt": "2026-08-25T13:22:08.572Z"
     },
     {
+      "scope": "auth.@better-auth/core",
+      "group": "auth",
+      "key": "@better-auth/core",
+      "package": "@better-auth/core",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "compatibility-hold",
+      "pinned": "1.6.30",
+      "pinnedPublishedAt": "2026-08-17T19:11:14.311Z",
+      "registryLatest": "1.7.2",
+      "registryLatestPublishedAt": "2026-08-26T19:13:25.334Z",
+      "eligibleLatest": "1.7.1",
+      "eligibleLatestPublishedAt": "2026-08-18T18:51:38.502Z"
+    },
+    {
       "scope": "auth.@better-auth/expo",
       "group": "auth",
       "key": "@better-auth/expo",
@@ -6814,54 +6837,6 @@
       "registryLatestPublishedAt": "2026-08-26T19:06:23.235Z",
       "eligibleLatest": "1.7.1",
       "eligibleLatestPublishedAt": "2026-08-18T18:52:43.420Z"
-    },
-    {
-      "scope": "backend.@elysiajs/cors",
-      "group": "backend",
-      "key": "@elysiajs/cors",
-      "package": "@elysiajs/cors",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.4.2",
-      "pinnedPublishedAt": "2026-04-23T21:01:31.091Z",
-      "registryLatest": "1.4.2",
-      "registryLatestPublishedAt": "2026-04-23T21:01:31.091Z",
-      "eligibleLatest": "1.4.2",
-      "eligibleLatestPublishedAt": "2026-04-23T21:01:31.091Z"
-    },
-    {
-      "scope": "backend.@elysiajs/swagger",
-      "group": "backend",
-      "key": "@elysiajs/swagger",
-      "package": "@elysiajs/swagger",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.3.1",
-      "pinnedPublishedAt": "2025-06-27T21:24:09.771Z",
-      "registryLatest": "1.3.1",
-      "registryLatestPublishedAt": "2025-06-27T21:24:09.771Z",
-      "eligibleLatest": "1.3.1",
-      "eligibleLatestPublishedAt": "2025-06-27T21:24:09.771Z"
-    },
-    {
-      "scope": "backend.elysia",
-      "group": "backend",
-      "key": "elysia",
-      "package": "elysia",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
-      "status": "latest",
-      "pinned": "1.4.29",
-      "pinnedPublishedAt": "2026-06-16T22:28:07.079Z",
-      "registryLatest": "1.4.30",
-      "registryLatestPublishedAt": "2026-08-26T17:14:43.181Z",
-      "eligibleLatest": "1.4.29",
-      "eligibleLatestPublishedAt": "2026-06-16T22:28:07.079Z"
     },
     {
       "scope": "billing.@chargily/chargily-pay",
@@ -7310,6 +7285,22 @@
       "registryLatestPublishedAt": "2026-09-01T14:55:52.471Z",
       "eligibleLatest": "0.44.4",
       "eligibleLatestPublishedAt": "2026-08-24T22:34:09.967Z"
+    },
+    {
+      "scope": "eve.just-bash",
+      "group": "eve",
+      "key": "just-bash",
+      "package": "just-bash",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "3.4.2",
+      "pinnedPublishedAt": "2026-08-22T03:28:27.717Z",
+      "registryLatest": "3.4.2",
+      "registryLatestPublishedAt": "2026-08-22T03:28:27.717Z",
+      "eligibleLatest": "3.4.2",
+      "eligibleLatestPublishedAt": "2026-08-22T03:28:27.717Z"
     },
     {
       "scope": "expo.@expo/metro-runtime",
@@ -7822,6 +7813,22 @@
       "registryLatestPublishedAt": "2026-08-29T17:55:42.775Z",
       "eligibleLatest": "4.4.3",
       "eligibleLatestPublishedAt": "2026-05-04T07:06:40.819Z"
+    },
+    {
+      "scope": "host.devDependencies.@better-auth/core",
+      "group": "host.devDependencies",
+      "key": "@better-auth/core",
+      "package": "@better-auth/core",
+      "source": "host",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "compatibility-hold",
+      "pinned": "1.6.30",
+      "pinnedPublishedAt": "2026-08-17T19:11:14.311Z",
+      "registryLatest": "1.7.2",
+      "registryLatestPublishedAt": "2026-08-26T19:13:25.334Z",
+      "eligibleLatest": "1.7.1",
+      "eligibleLatestPublishedAt": "2026-08-18T18:51:38.502Z"
     },
     {
       "scope": "host.devDependencies.@better-auth/passkey",
@@ -9063,22 +9070,6 @@
       "source": "catalog",
       "exists": true,
       "currentDeprecated": null,
-      "status": "compatibility-hold",
-      "pinned": "6.0.3",
-      "pinnedPublishedAt": "2026-04-16T23:38:27.905Z",
-      "registryLatest": "7.0.2",
-      "registryLatestPublishedAt": "2026-07-08T15:55:18.431Z",
-      "eligibleLatest": "7.0.2",
-      "eligibleLatestPublishedAt": "2026-07-08T15:55:18.431Z"
-    },
-    {
-      "scope": "typescript.typescriptNext",
-      "group": "typescript",
-      "key": "typescriptNext",
-      "package": "typescript",
-      "source": "catalog",
-      "exists": true,
-      "currentDeprecated": null,
       "status": "latest",
       "pinned": "7.0.2",
       "pinnedPublishedAt": "2026-07-08T15:55:18.431Z",
@@ -9102,6 +9093,54 @@
       "registryLatestPublishedAt": "2026-08-04T09:55:20.089Z",
       "eligibleLatest": "1.7.0",
       "eligibleLatestPublishedAt": "2026-08-04T09:55:20.089Z"
+    },
+    {
+      "scope": "ui.@fontsource-variable/geist",
+      "group": "ui",
+      "key": "@fontsource-variable/geist",
+      "package": "@fontsource-variable/geist",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "5.3.0",
+      "pinnedPublishedAt": "2026-07-19T03:50:13.458Z",
+      "registryLatest": "5.3.0",
+      "registryLatestPublishedAt": "2026-07-19T03:50:13.458Z",
+      "eligibleLatest": "5.3.0",
+      "eligibleLatestPublishedAt": "2026-07-19T03:50:13.458Z"
+    },
+    {
+      "scope": "ui.@fontsource-variable/geist-mono",
+      "group": "ui",
+      "key": "@fontsource-variable/geist-mono",
+      "package": "@fontsource-variable/geist-mono",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "5.3.0",
+      "pinnedPublishedAt": "2026-07-19T03:50:13.385Z",
+      "registryLatest": "5.3.0",
+      "registryLatestPublishedAt": "2026-07-19T03:50:13.385Z",
+      "eligibleLatest": "5.3.0",
+      "eligibleLatestPublishedAt": "2026-07-19T03:50:13.385Z"
+    },
+    {
+      "scope": "ui.@fontsource-variable/noto-sans-arabic",
+      "group": "ui",
+      "key": "@fontsource-variable/noto-sans-arabic",
+      "package": "@fontsource-variable/noto-sans-arabic",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "status": "latest",
+      "pinned": "5.3.0",
+      "pinnedPublishedAt": "2026-07-19T03:50:53.927Z",
+      "registryLatest": "5.3.0",
+      "registryLatestPublishedAt": "2026-07-19T03:50:53.927Z",
+      "eligibleLatest": "5.3.0",
+      "eligibleLatestPublishedAt": "2026-07-19T03:50:53.927Z"
     },
     {
       "scope": "ui.@types/react-is",

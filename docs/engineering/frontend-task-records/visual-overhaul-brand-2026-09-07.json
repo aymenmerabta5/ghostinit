@@ -1,0 +1,106 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "visual-overhaul-brand-2026-09-07",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "evidence/compatibility/dependency-versions.json",
+    "packages/versions/src/index.ts",
+    "schemas/design-system-contract.schema.json",
+    "src/templates/apps/desktop/shell/renderer.ts",
+    "src/templates/apps/desktop/shell/root.ts",
+    "src/templates/apps/desktop/ui/primitives.ts",
+    "src/templates/apps/desktop/ui/surfaces.ts",
+    "src/templates/apps/desktop/ui/theme.ts",
+    "src/templates/apps/expo-pages.ts",
+    "src/templates/apps/fragments/css.ts",
+    "src/templates/apps/fragments/expo/header.ts",
+    "src/templates/apps/fragments/expo/marketing.ts",
+    "src/templates/apps/fragments/header/header.ts",
+    "src/templates/apps/fragments/header/sidebar.ts",
+    "src/templates/apps/fragments/layout.ts",
+    "src/templates/apps/fragments/marketing.ts",
+    "src/templates/apps/fragments/marketing/components.ts",
+    "src/templates/apps/fragments/marketing/index.ts",
+    "src/templates/apps/fragments/marketing/page.ts",
+    "src/templates/apps/fragments/marketing/preview.ts",
+    "src/templates/apps/fragments/marketing/sections.ts",
+    "src/templates/apps/fragments/marketing/shared.ts",
+    "src/templates/apps/fragments/marketing/single.ts",
+    "src/templates/billing/ui/components/header.ts",
+    "src/templates/billing/ui/components/main.ts",
+    "src/templates/billing/ui/components/providers/chargily.ts",
+    "src/templates/billing/ui/components/providers/paddle.ts",
+    "src/templates/billing/ui/components/providers/polar.ts",
+    "src/templates/billing/ui/components/providers/stripe-invoices.ts",
+    "src/templates/billing/ui/components/providers/stripe.ts",
+    "src/templates/billing/ui/components/tabs.ts",
+    "src/templates/billing/ui/paddle-checkout-client.ts",
+    "src/templates/billing/ui/return-pages.ts",
+    "src/templates/i18n/messages/ar.ts",
+    "src/templates/i18n/messages/en.ts",
+    "src/templates/i18n/messages/fr.ts",
+    "src/templates/modes/single/core/layout.ts",
+    "src/templates/modes/single/tanstack/core.ts",
+    "src/templates/ui/brand.ts",
+    "src/templates/ui/contract-foundation.ts",
+    "src/templates/ui/contract.ts",
+    "src/templates/ui/design-system.ts",
+    "src/templates/ui/manifest.ts",
+    "src/templates/ui/styles.ts",
+    "src/templates/ui/theme.ts",
+    "src/templates/ui/utils.ts"
+  ],
+  "register": "brand",
+  "appliedRules": [
+    "design.shared-tokens",
+    "design.logical-directions",
+    "design.readable-states",
+    "architecture.component-ownership",
+    "architecture.capability-scoping"
+  ],
+  "selectedComponentIds": ["action.button", "surface.card"],
+  "exceptionIds": [],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "9c2ac63c1db7e8bdababb03b0ef2f497fc35e448051d75d43509cb255b5f56d6"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      },
+      {
+        "path": "policy/maintained-source-globs.json",
+        "sha256": "955195bad82112e7ed1b13e0b63e0c9492500afaca1f91672f170234f9d408b2"
+      },
+      {
+        "path": "policy/component-size-policy.json",
+        "sha256": "0f22dceb96500a913d1399260716843270f231924e753bb324c5e48257da2666"
+      }
+    ],
+    "decisions": [
+      "DESIGN.md#color-and-elevation",
+      "DESIGN.md#direction",
+      "DESIGN.md#layout",
+      "DESIGN.md#ownership-and-composition",
+      "DESIGN.md#refinements-from-browser-review",
+      "DESIGN.md#typography"
+    ],
+    "evidence": [
+      "docs/engineering/visual-overhaul-2026-09-07.md",
+      "tests/unit/brand-wordmark.test.ts",
+      "tests/unit/design-system-app-integration.test.ts",
+      "tests/unit/design-system-contract.test.ts",
+      "tests/unit/expo-marketing-capabilities.test.ts",
+      "tests/unit/marketing-capabilities.test.ts",
+      "tests/unit/native-i18n-parity.test.ts",
+      "tests/unit/platform-ui-accessibility.test.ts",
+      "tests/unit/workspace-shell.test.ts"
+    ]
+  }
+}

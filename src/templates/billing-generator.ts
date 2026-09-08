@@ -311,18 +311,18 @@ function providerFiles(
 }
 
 function interfaceSplitFiles(mode: ProjectMode): TemplateFile[] {
-  const base =
-    mode === "monorepo"
-      ? "packages/billing/src/providers/interface/"
-      : "src/server/billing/providers/interface/";
-  const files: TemplateFile[] = [];
-  const subfiles = ["types", "inputs", "ports"];
-  for (const sf of subfiles) {
-    const rel = `./billing/providers/interface/${sf}.ts`;
-    const content = tryLoad(rel);
-    if (content) files.push(file(`${base}${sf}.ts`, content));
-  }
-  return files;
+  const base = mode === "monorepo" ? "packages/billing/src" : "src/server/billing";
+  return [
+    ...["types", "inputs", "ports"].map((name) =>
+      file(
+        `${base}/providers/interface/${name}.ts`,
+        load(`./billing/providers/interface/${name}.ts`),
+      ),
+    ),
+    ...["model", "inputs", "ports"].map((name) =>
+      file(`${base}/domain/${name}.ts`, load(`./billing/domain/${name}.ts`)),
+    ),
+  ];
 }
 
 /** Table modules that make up the billing schema, one pgTable file each. */

@@ -7,7 +7,5 @@ export function authComposerFiles(
   addonMap?: AddonInstallerMap | Record<string, { inUse: boolean } | boolean>,
   hasEmail = true,
 ): TemplateFile[] {
-  // FrameworkName and AuthFramework are the same union ("nextjs" | "tanstack-start"),
-  // and addonMap already matches authPackage's second parameter — no casts needed.
   return authPackage(framework, addonMap, { hasEmail });
 }

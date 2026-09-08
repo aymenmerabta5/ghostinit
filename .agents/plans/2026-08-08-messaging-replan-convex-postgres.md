@@ -92,7 +92,7 @@ This replan supersedes `.agents/plans/2026-08-07-messaging-orpc-websocket.md` (v
 ### Phase 5 — CLI/Docs/Tests
 
 - `src/lib/addons.ts` `presetDefaults.*.messaging=false`, `isValidAddonCombo` checks DB gate, `buildAddonInstallerMap` maps `input.messaging ?? false`.
-- `docs/ARCHITECTURE.md` table adds row “Messaging realtime: postgres→WS (Bun.serve+crossws), convex→Convex queries+storage (no WS)”.
+- `CONTRIBUTING.md#architecture-overview` table adds row “Messaging realtime: postgres→WS (Bun.serve+crossws), convex→Convex queries+storage (no WS)”.
 - Tests: generation-matrix gains 4 new corners (`postgres-messaging`, `convex-messaging` each monorepo/single); assertions branch on `effectiveDatabase` to allow `convex/_generated/*` but forbid `@repo/realtime` when convex.
 
 ## Work Plan
@@ -106,7 +106,7 @@ This replan supersedes `.agents/plans/2026-08-07-messaging-orpc-websocket.md` (v
 | 4   | Transport branched (oRPC for postgres, none for convex)        | 3       | `templates/api.ts`, `templates/apps/fragments/api/core.ts`                                                    |
 | 5   | App clients+UI branched (WS vs convex hooks, i18n gated)       | 4       | `templates/apps/fragments/{realtime,messaging}`, `templates/apps/{core,tanstack-core,expo-core,desktop-core}` |
 | 6   | Composers + filtering + Docker                                 | 5       | `modes/monorepo/*-composer.ts`, `modes/single.ts`, `templates/root.ts`                                        |
-| 7   | CLI config/addons + docs + generation-matrix tests             | 6       | `lib/addons.ts`, `lib/config.ts`, `cli/args.ts`, `commands/create/*`, `docs/ARCHITECTURE.md`                  |
+| 7   | CLI config/addons + docs + generation-matrix tests             | 6       | `lib/addons.ts`, `lib/config.ts`, `cli/args.ts`, `commands/create/*`, `CONTRIBUTING.md#architecture-overview` |
 
 ## Validation Plan
 

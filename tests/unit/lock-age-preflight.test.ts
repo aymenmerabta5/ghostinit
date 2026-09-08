@@ -171,7 +171,7 @@ describe("dependency-free preinstall lock-age gate", () => {
         );
       }
     }
-    expect(installs).toBe(9);
+    expect(installs).toBe(10);
 
     const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, "package.json"), "utf8")) as {
       scripts: Record<string, string>;

@@ -211,7 +211,6 @@ describe("installer orphan containment", () => {
         {
           projectName: resolved.config.name,
           projectRoot,
-          config: resolved.config,
           desiredConfig: resolved.desiredConfig,
           resolvedConfig: resolved.resolvedConfig,
           options,

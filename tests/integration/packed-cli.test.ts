@@ -19,11 +19,13 @@ import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { runtime } from "../../packages/versions/src/index.js";
 import {
+  PACKED_PATCHED_DEPENDENCIES,
   STALE_DIST_SENTINEL,
   verifyDistClosure,
   verifyPackedPackageClosure,
 } from "../../scripts/package-contract.js";
 import { minimumReleaseAgeBunfigContent } from "../helpers/bunfig.js";
+import { verifyCliUnicode } from "../helpers/cli-unicode.js";
 
 const root = resolve(import.meta.dir, "../..");
 const BUN_EXECUTABLE = process.execPath;
@@ -156,6 +158,9 @@ test("runtime.node.packed-cli.v1: the exact Bun-packed tarball generates Bun and
 
     const installedPackageRoot = join(temp, "node_modules", "ghostinit");
     const packedClosure = verifyPackedPackageClosure(installedPackageRoot);
+    for (const patchPath of Object.values(PACKED_PATCHED_DEPENDENCIES)) {
+      expect(sha256(join(installedPackageRoot, patchPath))).toBe(sha256(join(root, patchPath)));
+    }
     expect(packedClosure.distFiles).not.toContain(STALE_DIST_SENTINEL);
     expect(packedClosure.files).not.toContain(`dist/${STALE_DIST_SENTINEL}`);
     const installedPackage = JSON.parse(
@@ -241,6 +246,8 @@ test("runtime.node.packed-cli.v1: the exact Bun-packed tarball generates Bun and
     });
 
     const installedCli = join(temp, "node_modules", "ghostinit", "dist", "cli.js");
+    await verifyCliUnicode(BUN_EXECUTABLE, installedCli, temp, "packed-bun");
+    await verifyCliUnicode("node", installedCli, temp, "packed-node");
     const importProbe = join(temp, "runtime-import.mjs");
     writeFileSync(
       importProbe,
@@ -369,7 +376,7 @@ test("runtime.node.packed-cli.v1: the exact Bun-packed tarball generates Bun and
       },
     );
     expect(checkResult.error).toBeUndefined();
-    expect(checkResult.status, checkResult.stderr).toBe(0);
+    expect(checkResult.status, `${checkResult.stdout}\n${checkResult.stderr}`).toBe(0);
     expect(checkResult.stderr).not.toMatch(TSCONFIG_PATH_DIAGNOSTIC);
     const checkPayload = JSON.parse(checkResult.stdout) as {
       success?: unknown;

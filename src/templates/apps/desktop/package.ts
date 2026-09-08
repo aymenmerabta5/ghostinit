@@ -38,6 +38,13 @@ export function desktopPackageJsonContent(
         : {}),
     },
     dependencies: {
+      ...(mode === "single"
+        ? {
+            "@fontsource-variable/geist": v.ui["@fontsource-variable/geist"],
+            "@fontsource-variable/geist-mono": v.ui["@fontsource-variable/geist-mono"],
+            "@fontsource-variable/noto-sans-arabic": v.ui["@fontsource-variable/noto-sans-arabic"],
+          }
+        : {}),
       react: `^${v.nextStack.react}`,
       "react-dom": `^${v.nextStack["react-dom"]}`,
       "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}`,

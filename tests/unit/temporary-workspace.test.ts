@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { createTemporaryWorkspace } from "../helpers/temporary-workspace.js";
 
@@ -25,6 +26,56 @@ function createRoot(): string {
 }
 
 describe("canonical temporary workspaces", () => {
+  test("Worker fixture cleanup accepts a canonical temp child while rejecting links and escaped roots", () => {
+    const root = createRoot();
+    const physical = join(root, "cleanup-parent");
+    const alias = join(root, "cleanup-alias");
+    mkdirSync(physical);
+    symlinkSync(physical, alias, process.platform === "win32" ? "junction" : "dir");
+    const fixturesUrl = pathToFileURL(
+      resolve(import.meta.dir, "../helpers/cloudflare-runtime-fixture.ts"),
+    ).href;
+    const temporaryUrl = pathToFileURL(
+      resolve(import.meta.dir, "../helpers/temporary-workspace.ts"),
+    ).href;
+    const source = `import { existsSync, lstatSync, mkdirSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { destroyFixture } from ${JSON.stringify(fixturesUrl)};
+import { createTemporaryWorkspace } from ${JSON.stringify(temporaryUrl)};
+const owned = createTemporaryWorkspace("ghostinit-cloudflare-cleanup-");
+destroyFixture({ root: owned, script: "unused.mjs" });
+const target = join(tmpdir(), "preserve-unrelated");
+const link = join(tmpdir(), "ghostinit-cloudflare-link");
+const nested = join(tmpdir(), "nested", "ghostinit-cloudflare-not-direct");
+mkdirSync(target);
+mkdirSync(nested, { recursive: true });
+symlinkSync(target, link, process.platform === "win32" ? "junction" : "dir");
+let rejected = 0;
+for (const root of [link, nested, target]) {
+  try { destroyFixture({ root, script: "unused.mjs" }); }
+  catch { rejected += 1; }
+}
+console.log(JSON.stringify({ removed: !existsSync(owned), rejected,
+  linkPreserved: lstatSync(link).isSymbolicLink(), targetPreserved: existsSync(target), nestedPreserved: existsSync(nested) }));
+`;
+    const result = Bun.spawnSync([process.execPath, "-e", source], {
+      cwd: resolve(import.meta.dir, "../.."),
+      env: { ...process.env, TEMP: alias, TMP: alias, TMPDIR: alias, NO_COLOR: "1" },
+      stdout: "pipe",
+      stderr: "pipe",
+      timeout: 10_000,
+    });
+    expect(result.exitCode, result.stderr.toString()).toBe(0);
+    expect(JSON.parse(result.stdout.toString())).toEqual({
+      removed: true,
+      rejected: 3,
+      linkPreserved: true,
+      targetPreserved: true,
+      nestedPreserved: true,
+    });
+  });
+
   test("Worker binding callers handle a fixture created through a temp-directory alias", () => {
     const root = createRoot();
     const physical = join(root, "binding-parent");

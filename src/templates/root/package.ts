@@ -7,12 +7,12 @@ import {
   hasPersistentPostgresStorage,
   nodeEngineSelector,
   hasPersistentPostgresJobs,
-  typescriptRuntimeCommand,
   usesCustomNextServer,
   type DeploymentProfile,
 } from "./deploy.js";
 import { OPENNEXT_AWS_WINDOWS_PATCH_KEY, OPENNEXT_AWS_WINDOWS_PATCH_PATH } from "./cloudflare.js";
 import { hasHostedWebEve } from "./eve-lifecycle.js";
+import { customNextServerCommand } from "./next-server-runtime.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
 
@@ -43,9 +43,7 @@ export function rootPackageJson(
   const isCloudflare = addonMap ? hasAddon(addonMap as AddonInstallerMap, "cloudflare") : false;
   const hostedEve = hasHostedWebEve(profile);
   const webStart = usesCustomNextServer(profile)
-    ? runtime === "bun"
-      ? "bun --cwd apps/web --conditions=react-server server.ts"
-      : typescriptRuntimeCommand(runtime, "apps/web/server.ts")
+    ? customNextServerCommand(runtime, "start")
     : hasWeb
       ? "bun run --cwd apps/web start"
       : "turbo run start";
@@ -104,7 +102,7 @@ export function rootPackageJson(
   }
   if (hostedEve) {
     baseScripts["start:web"] = webStart;
-    baseScripts["start:eve"] = "bun apps/eve/.output/server/index.mjs";
+    baseScripts["start:eve"] = "node apps/eve/.output/server/index.mjs";
     baseScripts["start:production"] = "bun scripts/start-production.mjs";
   }
 
@@ -119,20 +117,21 @@ export function rootPackageJson(
     baseScripts["start:production"] = "bun scripts/start-production.mjs";
   }
 
-  const scripts: Record<string, string> = isConvex
-    ? {
-        ...baseScripts,
-        "convex:dev": "convex dev",
-        "convex:deploy": "convex deploy",
-        "convex:codegen": "convex codegen",
-        "convex:dev:once": "convex dev --once",
-      }
-    : {
-        ...baseScripts,
-        "db:generate": "turbo run db:generate",
-        "db:migrate": "turbo run db:migrate",
-        "db:push": "turbo run db:push",
-      };
+  const scripts: Record<string, string> = { ...baseScripts };
+  if (isConvex) {
+    Object.assign(scripts, {
+      "convex:dev": "convex dev",
+      "convex:deploy": "convex deploy",
+      "convex:codegen": "convex codegen",
+      "convex:dev:once": "convex dev --once",
+    });
+  } else if (database !== "none") {
+    Object.assign(scripts, {
+      "db:generate": "turbo run db:generate",
+      "db:migrate": "turbo run db:migrate",
+      "db:push": "turbo run db:push",
+    });
+  }
   if (isCloudflare && isConvex) {
     scripts["convex:bootstrap"] = "bun scripts/cloudflare-convex.mjs bootstrap";
     scripts["convex:dev"] = "bun scripts/cloudflare-convex.mjs dev";
@@ -172,7 +171,9 @@ export function rootPackageJson(
     devDependencies: {
       "bun-types": `^${v.runtime.bun}`,
       ...(isCloudflare ? { dotenv: `^${v.cloudflare.dotenv}` } : {}),
-      ...(isConvex ? { convex: `^${v.convex.convex}` } : {}),
+      ...(isConvex
+        ? { convex: `^${v.convex.convex}`, "@types/node": `^${v.runtime["@types/node"]}` }
+        : {}),
       oxlint: `^${v.tooling.oxlint}`,
       oxfmt: `^${v.tooling.oxfmt}`,
       "oxc-parser": v.tooling["oxc-parser"],

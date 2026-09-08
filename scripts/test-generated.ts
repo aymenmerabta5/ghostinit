@@ -34,8 +34,10 @@ import {
 } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import { join, relative, resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { runtime } from "../packages/versions/src/index.js";
 import { runSupervisedCommand } from "../src/commands/create/installer.js";
+import { looksLikeSecret, redact } from "../src/lib/logger.js";
 import {
   assertProcessTreeExited,
   captureWindowsProcessTree,
@@ -44,6 +46,7 @@ import {
 } from "../tests/helpers/process-tree.js";
 import { createTemporaryWorkspace } from "../tests/helpers/temporary-workspace.js";
 import { stageWorkerBindingFiles } from "../tests/helpers/worker-binding-files.js";
+import { hasSelfHostedFontPolicy } from "../tests/helpers/font-csp.js";
 import { WorkerPreviewReadiness } from "./worker-preview-readiness.js";
 import {
   isPublicPosthogProjectToken,
@@ -560,11 +563,29 @@ let activeRun:
   | { readonly controller: AbortController; readonly completion: Promise<RunResult> }
   | undefined;
 const previewStops = new WeakMap<ChildProcess, Promise<void>>();
+const previewCaptures = new WeakMap<ChildProcess, Promise<WindowsProcessRecord[]>>();
 let terminationRequested = false;
 let workspaceCleanupSafe = true;
 
 export function generatedProjectName(cornerId: string): string {
   return `generated-${cornerId}`;
+}
+
+export function captureWorkerPreviewOwnership(
+  child: ChildProcess,
+): Promise<WindowsProcessRecord[]> {
+  const existing = previewCaptures.get(child);
+  if (existing) return existing;
+  const capture = captureWindowsProcessTree(child);
+  previewCaptures.set(child, capture);
+  return capture;
+}
+
+export function releaseWorkerPreviewHandles(child: ChildProcess): void {
+  child.stdin?.destroy();
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  child.unref();
 }
 
 export function stopWorkerPreview(child: ChildProcess, timeoutMs = 45_000): Promise<void> {
@@ -573,9 +594,16 @@ export function stopWorkerPreview(child: ChildProcess, timeoutMs = 45_000): Prom
   const promise = (async () => {
     let captured: WindowsProcessRecord[] = [];
     try {
+      captured = await (previewCaptures.get(child) ?? Promise.resolve([]));
+      // An early snapshot can authorize cleanup of known identities, but cannot
+      // certify later descendants or a lease released after an unexpected exit.
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error("Worker preview root exited before graceful shutdown began");
+      }
       // Capture before EOF: Windows cannot authorize descendant discovery using
       // the reusable PID of an already-exited bun run wrapper.
-      captured = await captureWindowsProcessTree(child);
+      const current = await captureWindowsProcessTree(child);
+      captured = [...captured, ...current];
       if (!child.stdin || child.stdin.destroyed) {
         throw new Error("Worker preview automation input is unavailable");
       }
@@ -616,8 +644,9 @@ export function stopWorkerPreview(child: ChildProcess, timeoutMs = 45_000): Prom
       // lease. Retain the workspace/recovery evidence even if the tree is gone.
       try {
         await terminateProcessTree(child, captured);
-      } catch {
-        throw new Error(
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
           "Worker preview graceful shutdown failed and forced process-tree cleanup could not be verified",
         );
       }
@@ -675,6 +704,40 @@ function redactOutput(output: string, values: readonly string[]): string {
     if (value.length > 0) redacted = redacted.replaceAll(value, "[REDACTED]");
   }
   return redacted;
+}
+
+export function workerPreviewFailureDetail(
+  error: unknown,
+  output: string,
+  privateValues: readonly string[],
+): string {
+  const seen = new Set<unknown>();
+  const messages = (failure: unknown, depth = 0): string[] => {
+    if (seen.has(failure) || depth > 4) return [];
+    seen.add(failure);
+    if (!(failure instanceof Error)) return [String(failure)];
+    return [
+      failure.message,
+      ...(failure instanceof AggregateError
+        ? failure.errors.slice(0, 6).flatMap((nested) => messages(nested, depth + 1))
+        : []),
+      ...(failure.cause === undefined ? [] : messages(failure.cause, depth + 1)),
+    ];
+  };
+  const variants = [
+    ...new Set(
+      privateValues.flatMap((value) => [
+        value,
+        JSON.stringify(value).slice(1, -1),
+        encodeURIComponent(value.toWellFormed()),
+        Buffer.from(value).toString("base64"),
+      ]),
+    ),
+  ].sort((left, right) => right.length - left.length);
+  const safe = (value: string): string =>
+    String(redact(redactOutput(stripVTControlCharacters(value), variants)));
+  const primary = safe(messages(error).join("\n")).slice(0, 4096);
+  return output ? `${primary}\nWorker preview output:\n${safe(output).slice(-12_000)}` : primary;
 }
 
 export function run(
@@ -1633,8 +1696,7 @@ export async function hasValidWorkerResponse(
       csp.includes("frame-ancestors 'none'"));
   const hasProductionCsp =
     !csp.includes("'unsafe-eval'") &&
-    csp.includes("https://fonts.googleapis.com") &&
-    csp.includes("https://fonts.gstatic.com") &&
+    hasSelfHostedFontPolicy(csp) &&
     !csp.includes("*.convex.") &&
     (worker.expectedCspSources ?? []).every((source) => csp.includes(source));
   const hasWorkerHeaders =
@@ -1673,6 +1735,8 @@ async function verifyWorkerRuntime(
   let cleanupVerified = true;
   let ok = false;
   let detail = "Worker runtime smoke did not complete.";
+  let runtimeOutput = "";
+  let privateValues: string[] = [];
   try {
     const port = await reserveLoopbackPort();
     await assertLoopbackPortUnowned(port);
@@ -1680,6 +1744,15 @@ async function verifyWorkerRuntime(
       throw new Error("Worker runtime was interrupted before preview startup.");
     const origin = `http://127.0.0.1:${port}`;
     const previewVariables = parseGeneratedDevVars(resolve(appRoot, ".dev.vars"));
+    const hostEnvironment = credentialSafeHostEnvironment();
+    privateValues = Object.entries(previewVariables)
+      .filter(([key, value]) => looksLikeSecret(key) || value.length >= 8)
+      .flatMap(([, value]) => credentialUrlSensitiveValues(value));
+    for (const [key, value] of Object.entries(hostEnvironment)) {
+      if (/^(?:HTTPS?|ALL)_PROXY$/i.test(key) && value) {
+        privateValues.push(...credentialUrlSensitiveValues(value));
+      }
+    }
     child = spawn(
       BUN_EXECUTABLE,
       [
@@ -1696,7 +1769,7 @@ async function verifyWorkerRuntime(
         cwd: appRoot,
         detached: process.platform !== "win32",
         env: {
-          ...credentialSafeHostEnvironment(),
+          ...hostEnvironment,
           ...previewVariables,
           WRANGLER_SEND_METRICS: "false",
         },
@@ -1707,14 +1780,12 @@ async function verifyWorkerRuntime(
     );
     activeChild = child;
     let startupError: Error | undefined;
-    let runtimeOutput = "";
     const previewReadiness = new WorkerPreviewReadiness(port);
     child.once("error", (error) => {
       startupError = error;
     });
-    // Exercise the generated OpenNext/Vite preview path rather than bypassing
-    // it with raw Wrangler. Keep output private: preview loads .dev.vars, and a
-    // failing third-party adapter must not be trusted to redact those values.
+    // Preview loads .dev.vars; capture privately and redact only after all
+    // streams and cleanup diagnostics have been collected.
     child.stdout?.on("data", (data: Buffer) => {
       runtimeOutput = appendTail(runtimeOutput, data.toString("utf8"));
       previewReadiness.consume("stdout", data);
@@ -1727,6 +1798,7 @@ async function verifyWorkerRuntime(
     child.stderr?.once("end", () => previewReadiness.finish("stderr"));
 
     const deadline = Date.now() + WORKER_RUNTIME_TIMEOUT_MS;
+    await captureWorkerPreviewOwnership(child);
     const smokePaths = worker.smokePaths ?? ["/", "/api/health"];
     for (const path of smokePaths) {
       let lastStatus: number | undefined;
@@ -1808,17 +1880,21 @@ async function verifyWorkerRuntime(
     ok = true;
     detail = `Worker runtime passed ${smokePaths.join(", ")} acceptance.`;
   } catch (error) {
-    detail = error instanceof Error ? error.message : String(error);
+    detail = workerPreviewFailureDetail(error, "", privateValues);
   } finally {
     if (child) {
       try {
         await stopWorkerPreview(child);
       } catch (error) {
         cleanupVerified = false;
-        detail = `${detail}\nWorker runtime process-tree cleanup could not be verified: ${error instanceof Error ? error.message : String(error)}`;
+        detail = `${detail}\nWorker runtime process-tree cleanup could not be verified: ${workerPreviewFailureDetail(error, "", privateValues)}`;
+        releaseWorkerPreviewHandles(child);
       }
       if (activeChild === child) activeChild = undefined;
     }
+  }
+  if (!ok || !cleanupVerified) {
+    detail = workerPreviewFailureDetail(new Error(detail), runtimeOutput, privateValues);
   }
   return { ok: ok && cleanupVerified, detail, cleanupVerified };
 }
@@ -2214,7 +2290,7 @@ async function main(): Promise<void> {
             if (terminationRequested) return;
             console.log(`   ${"worker-runtime".padEnd(20)} ${workerRuntime.ok ? "ok" : "FAIL"}`);
             if (!workerRuntime.ok) {
-              console.error(firstErrors(workerRuntime.detail));
+              console.error(workerRuntime.detail);
               results.push({
                 id: corner.id,
                 step: "worker-runtime",

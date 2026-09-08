@@ -1,6 +1,5 @@
 import { describe, it, expect } from "bun:test";
 import { billingFiles } from "../../src/templates/billing-generator";
-import { backendFiles } from "../../src/templates/backend/elysia";
 import { rootFiles } from "../../src/templates/root";
 import type { RootSecrets } from "../../src/templates/root";
 
@@ -21,7 +20,7 @@ const secrets: RootSecrets = {
   polarOrgId: "polar_org_test_placeholder_32_long_abc",
 };
 
-describe("billing webhooks — raw body Buffer critical fix + idempotent dedup + Context7 verified", () => {
+describe("billing webhooks preserve raw bytes and deduplicate deliveries", () => {
   const allProviders = {
     stripe: { inUse: true },
     chargily: { inUse: true },
@@ -185,96 +184,6 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
     }
   });
 
-  describe("Elysia must backend: apps/api/src/routes/webhooks/<provider>.ts all must use Buffer.from(await request.arrayBuffer()) native arrayBuffer() same", () => {
-    const files = backendFiles("testapp", "bun", {
-      stripe: { inUse: true },
-      chargily: { inUse: true },
-      paddle: { inUse: true },
-      polar: { inUse: true },
-      billing: { inUse: true },
-    });
-
-    const providers = ["stripe", "chargily", "paddle", "polar"] as const;
-
-    // Legacy backendFiles now returns [] (oRPC replacement). Skip if empty.
-    const isLegacyEmpty = files.length === 0;
-
-    for (const provider of providers) {
-      it(`elysia ${provider} webhook contains arrayBuffer — native arrayBuffer() same as Next.js`, () => {
-        if (isLegacyEmpty) return;
-        const path = `apps/api/src/routes/webhooks/${provider}.ts`;
-        const f = files.find((x: any) => x.path === path);
-        expect(f, `missing elysia ${path}`).toBeDefined();
-        expect(f!.content).toContain("arrayBuffer");
-        expect(f!.content).toContain("Buffer.from");
-      });
-    }
-
-    it("elysia stripe: header stripe-signature missing 400, constructEventAsync raw Buffer sig secret try catch 400 Webhook Error, idempotent dedup", () => {
-      if (isLegacyEmpty) return;
-      const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks/stripe.ts");
-      expect(f).toBeDefined();
-      const c = f!.content;
-      expect(c).toContain("stripe-signature");
-      expect(c).toContain("400");
-      expect(c).toContain("constructEventAsync");
-      expect(c).toContain("Webhook Error");
-      expect(c).toContain("webhook_events");
-      expect(c.includes("already processed") || c.includes("alreadyProcessed")).toBe(true);
-      expect(c).toContain("onConflictDoNothing");
-      expect(c).toContain("checkout.session.completed");
-      expect(c).toContain("invoice.paid");
-      expect(c).toContain("customer.subscription.updated");
-    });
-
-    it("elysia chargily: header signature, verifySignature buf sig secret, 400 403 200 server-only", () => {
-      if (isLegacyEmpty) return;
-      const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks/chargily.ts");
-      expect(f).toBeDefined();
-      const c = f!.content;
-      expect(c).toContain("signature");
-      expect(c).toContain("verifySignature");
-      expect(c).toContain("arrayBuffer");
-      expect(c).toContain("400");
-      expect(c).toContain("403");
-      expect(c).toContain("server-only");
-    });
-
-    it("elysia paddle: unmarshal buf.toString() secret sig EventName.TransactionCompleted", () => {
-      if (isLegacyEmpty) return;
-      const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks/paddle.ts");
-      expect(f).toBeDefined();
-      const c = f!.content;
-      expect(c).toContain("paddle-signature");
-      expect(c).toContain("unmarshal");
-      expect(c).toContain("toString");
-      expect(c).toContain("arrayBuffer");
-      expect(c).toContain("TransactionCompleted");
-    });
-
-    it("elysia polar: verification raw body validateEvent or Webhooks helper, idempotent dedup", () => {
-      if (isLegacyEmpty) return;
-      const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks/polar.ts");
-      expect(f).toBeDefined();
-      const c = f!.content;
-      expect(c).toContain("arrayBuffer");
-      expect(c).toContain("POLAR_WEBHOOK_SECRET");
-      expect(c).toContain("webhook_events");
-      expect(c.includes("already processed") || c.includes("alreadyProcessed")).toBe(true);
-    });
-
-    it("elysia barrel apps/api/src/routes/webhooks.ts aggregates per-provider + mentions raw body Buffer critical", () => {
-      if (isLegacyEmpty) return;
-      const f = files.find((x: any) => x.path === "apps/api/src/routes/webhooks.ts");
-      expect(f).toBeDefined();
-      expect(f!.content).toContain("stripe");
-      expect(f!.content).toContain("chargily");
-      expect(f!.content).toContain("paddle");
-      expect(f!.content).toContain("polar");
-      expect(f!.content).toContain("arrayBuffer");
-    });
-  });
-
   describe(".env.example placeholders for webhook secrets, .env.local real", () => {
     it("contains placeholders for all 4 webhook secrets + server-only validation", () => {
       const files = rootFiles("demo", secrets, { dryRun: true });
@@ -308,23 +217,6 @@ describe("billing webhooks — raw body Buffer critical fix + idempotent dedup +
       expect(gitignore).toContain(".env.*\n");
       expect(gitignore).toContain("!.env.example\n");
       expect(gitignore).toContain("!.env.*.example\n");
-    });
-
-    it("api .env.example also contains placeholders", () => {
-      const apiFiles = backendFiles("testapp", "bun", {
-        stripe: { inUse: true },
-        chargily: { inUse: true },
-        paddle: { inUse: true },
-        polar: { inUse: true },
-        billing: { inUse: true },
-      });
-      if (apiFiles.length === 0) return; // legacy empty
-      const envExample =
-        apiFiles.find((f: any) => f.path === "apps/api/.env.example")?.content ?? "";
-      expect(envExample).toContain("REPLACE_WITH_STRIPE_WEBHOOK_SECRET");
-      expect(envExample).toContain("REPLACE_WITH_CHARGILY_SECRET_KEY");
-      expect(envExample).toContain("REPLACE_WITH_PADDLE_WEBHOOK_SECRET");
-      expect(envExample).toContain("REPLACE_WITH_POLAR_WEBHOOK_SECRET");
     });
   });
 

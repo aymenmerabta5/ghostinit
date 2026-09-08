@@ -63,12 +63,7 @@ describe("optional shadcn and Base UI surface composition", () => {
           read(files, "apps/web/src/features/storage/page.tsx"),
           read(files, "apps/web/src/features/feature-flags/page.tsx"),
           read(files, "apps/web/src/features/jobs/page.tsx"),
-          read(
-            files,
-            framework === "nextjs"
-              ? "apps/web/src/app/pdf/page.tsx"
-              : "apps/web/src/routes/pdf.tsx",
-          ),
+          read(files, "apps/web/src/features/pdf/pdf-workspace.tsx"),
           webMessages,
         ].join("\n");
         const desktop = [

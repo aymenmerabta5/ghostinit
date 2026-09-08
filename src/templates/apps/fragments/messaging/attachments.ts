@@ -77,7 +77,7 @@ function declaredBodyTooLarge(request: Request): boolean {
  * cancel it as soon as the multipart envelope crosses the file limit plus a
  * small metadata allowance, then parse only the bounded copy.
  */
-export async function readBoundedMultipartFormData(request: Request): Promise<FormData> {
+async function readBoundedMultipartFormData(request: Request): Promise<FormData> {
   const contentType = request.headers.get("content-type");
   if (!contentType?.toLowerCase().startsWith("multipart/form-data;")) {
     throw new TypeError("Expected multipart/form-data");
@@ -164,7 +164,7 @@ function uploadHandler(mode: MessagingMode, response: "next" | "web"): string {
   const nextImport = response === "next" ? 'import { NextResponse } from "next/server";\n' : "";
   return `${nextImport}${sharedHelpers(mode, "upload")}
 
-export async function uploadAttachment(request: Request): Promise<Response> {
+async function uploadAttachment(request: Request): Promise<Response> {
   const user = await sessionUser(request);
   if (!user) return ${json}({ error: "Unauthorized" }, { status: 401 });
   const conversationId = request.headers.get("x-ghostinit-conversation-id")?.trim();
@@ -243,7 +243,7 @@ export async function uploadAttachment(request: Request): Promise<Response> {
 function downloadHandler(mode: MessagingMode): string {
   return `${sharedHelpers(mode, "download")}
 
-export async function downloadAttachment(request: Request, attachmentId: string): Promise<Response> {
+async function downloadAttachment(request: Request, attachmentId: string): Promise<Response> {
   const user = await sessionUser(request);
   if (!user) return new Response("Unauthorized", { status: 401 });
   const now = new Date();
@@ -319,12 +319,16 @@ function tanstackFiles(mode: MessagingMode): TemplateFile[] {
     file(
       `${root}src/server/http/messaging/attachments-upload.server.ts`,
       `import "server-only";
-${uploadHandler(mode, "web")}`,
+${uploadHandler(mode, "web")}
+export { uploadAttachment };
+`,
     ),
     file(
       `${root}src/server/http/messaging/attachments-download.server.ts`,
       `import "server-only";
-${downloadHandler(mode)}`,
+${downloadHandler(mode)}
+export { downloadAttachment };
+`,
     ),
     file(
       `${root}src/routes/api/messaging/attachments.ts`,

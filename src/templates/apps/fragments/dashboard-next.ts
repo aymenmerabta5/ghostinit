@@ -8,8 +8,11 @@ function nextLinkContent(content: string): string {
 }
 
 /** Dashboard presentation is identical across routers; only Link composition differs. */
-export function nextDashboardFeatureFiles(hasBilling = true): TemplateFile[] {
-  return tanstackDashboardFeatureFiles(hasBilling).map((entry) => ({
+export function nextDashboardFeatureFiles(
+  hasBilling = true,
+  hasAdminNavigation = true,
+): TemplateFile[] {
+  return tanstackDashboardFeatureFiles(hasBilling, hasAdminNavigation).map((entry) => ({
     ...entry,
     content: nextLinkContent(entry.content),
   }));
@@ -24,7 +27,7 @@ import { getRequestUser } from "@repo/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardView } from "@/features/dashboard/dashboard-view";
 
-export const getCachedSession = cache(async () => {
+const getCachedSession = cache(async () => {
   const user = await getRequestUser(${isConvex ? "" : "await headers()"});
   return user ? { user } : null;
 });
@@ -40,14 +43,14 @@ async function DashboardContent(): Promise<React.JSX.Element> {
 }
 
 function DashboardSkeleton(): React.JSX.Element {
-  return <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6 md:p-8">
+  return <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
     <Skeleton className="h-8 w-48" />
     <Skeleton className="h-64 w-full" />
   </div>;
 }
 
 export default function DashboardPage(): React.JSX.Element {
-  return <main className="min-h-screen bg-background text-foreground">
+  return <main className="min-h-[calc(100dvh-4rem)] bg-background text-foreground">
     <Suspense fallback={<DashboardSkeleton />}><DashboardContent /></Suspense>
   </main>;
 }

@@ -23,6 +23,29 @@ interface SessionListProps {
   onRevoke: (sessionId: string) => void;
 }
 
+const SESSION_BROWSERS = [
+  ["Edge", ["edg/", "edge/", "edga/", "edgios/"]],
+  ["Opera", ["opr/", "opios/", "opera/"]],
+  ["Samsung Internet", ["samsungbrowser/"]],
+  ["Firefox", ["firefox/", "fxios/"]],
+  ["Chrome", ["chrome/", "chromium/", "crios/"]],
+  ["Safari", ["safari/"]],
+] as const;
+const SESSION_PLATFORMS = [
+  ["Android", ["android"]], ["iOS", ["iphone", "ipad", "ipod"]],
+  ["Windows", ["windows"]], ["ChromeOS", ["cros"]],
+  ["macOS", ["macintosh", "mac os x"]], ["Linux", ["linux"]],
+] as const;
+
+export function sessionDevice(userAgent: string | null | undefined) {
+  const value = (userAgent ?? "").toLowerCase();
+  // User-agent labels are display hints; session admission never depends on them.
+  return {
+    browser: SESSION_BROWSERS.find(([, tokens]) => tokens.some((token) => value.includes(token)))?.[0] ?? null,
+    platform: SESSION_PLATFORMS.find(([, tokens]) => tokens.some((token) => value.includes(token)))?.[0] ?? null,
+  };
+}
+
 export function SessionList({
   currentSessionId,
   isLoading,
@@ -36,19 +59,24 @@ export function SessionList({
     () => new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }),
     [locale],
   );
-  if (isLoading) return <div className="flex flex-col gap-2" aria-busy="true" aria-label={t("sessions.loading")}>
-    {Array.from({ length: 3 }).map((_, index) => <div key={index} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2"><Skeleton className="h-3.5 w-40" /><Skeleton className="h-3.5 w-16" /></div>)}
+  if (isLoading) return <div className="divide-y rounded-lg border" aria-busy="true" aria-label={t("sessions.loading")}>
+    {Array.from({ length: 3 }).map((_, index) => <div key={index} className="flex items-center justify-between gap-4 p-4"><Skeleton className="h-4 w-40" /><Skeleton className="h-8 w-20" /></div>)}
   </div>;
   if (sessions.length === 0) return <p className="text-sm text-muted-foreground">{t("sessions.empty")}</p>;
-  return <div className="flex flex-col gap-2">{sessions.map((session) => {
+  return <div className="divide-y rounded-lg border">{sessions.map((session) => {
     const isCurrent = session.id === currentSessionId;
     const isRevoking = pendingSessionId === session.id;
-    return <div key={session.id} className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2">
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="truncate font-mono text-xs">{session.id.slice(0, 8)}…{session.userAgent ?? t("sessions.unknownDevice")}</span>
-        <span className="text-xs text-muted-foreground">{session.ipAddress ?? t("sessions.unknownIp")} • {t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
+    const device = sessionDevice(session.userAgent);
+    const ipAddress = session.ipAddress?.trim();
+    const deviceLabel = device.browser && device.platform
+      ? t("sessions.deviceSummary", { browser: device.browser, platform: device.platform })
+      : device.browser ?? device.platform ?? t("sessions.unknownDevice");
+    return <div key={session.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className="truncate text-sm font-medium"><bdi>{deviceLabel}</bdi></span>
+        <span className="text-xs leading-5 text-muted-foreground">{ipAddress ? <><bdi>{ipAddress}</bdi>{" • "}</> : null}{t("sessions.expiresAt", { date: dateFormatter.format(new Date(session.expiresAt)) })}</span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
         {isCurrent ? <Badge variant="secondary">{t("sessions.current")}</Badge> : null}
         <Button size="sm" variant="outline" disabled={isCurrent || isRevoking} onClick={() => onRevoke(session.id)}>{isRevoking ? t("sessions.revoking") : t("sessions.revoke")}</Button>
       </div>
@@ -58,96 +86,38 @@ export function SessionList({
 `;
 }
 
-export function settingsSessionsCardContent(useServerActions = false): string {
-  const actionImport = useServerActions
-    ? 'import { revokeIdentitySessionAction, revokeOtherIdentitySessionsAction } from "../actions";'
-    : "";
-  const revokeSessionOptions = useServerActions
-    ? `return { mutationFn: async (input: { sessionId: string }) => {
-    const result = await revokeIdentitySessionAction(input);
-    if (!result.ok) throw new Error(result.error);
-    return result;
-  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
-    : `return orpc.identity.sessions.revoke.mutationOptions({
-    onSuccess: async () => invalidateIdentitySessions(queryClient),
-  });`;
-  const revokeOthersOptions = useServerActions
-    ? `return { mutationFn: async (_input: Record<string, never>) => {
-    const result = await revokeOtherIdentitySessionsAction();
-    if (!result.ok) throw new Error(result.error);
-    return result;
-  }, onSuccess: async () => invalidateIdentitySessions(queryClient) };`
-    : `return orpc.identity.sessions.revokeOthers.mutationOptions({
-    onSuccess: async () => invalidateIdentitySessions(queryClient),
-  });`;
+export function settingsSessionsCardContent(): string {
   return `"use client";
 import type * as React from "react";
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { identityClient } from "@/lib/auth-client";
-import { orpc } from "@/lib/orpc";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { SessionList } from "./session-list";
-${actionImport}
+import { useIdentitySessions, type IdentitySessionsInitialState } from "../sessions";
 
-export interface IdentitySessionInitialData {
-  id: string; userId: string; createdAt: string; authenticatedAt: string; expiresAt: string;
-  revokedAt: string | null; activeOrganizationId?: string | null; activeTeamId?: string | null;
-  ipAddress?: string | null; userAgent?: string | null;
-}
-
-export function identitySessionsQueryOptions(initialData?: IdentitySessionInitialData[]) {
-  return orpc.identity.sessions.list.queryOptions({ input: {}, initialData });
-}
-
-export function identitySessionsQueryKey() {
-  return orpc.identity.sessions.list.key({ type: "query" });
-}
-
-async function invalidateIdentitySessions(queryClient: QueryClient): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey() });
-}
-
-export function revokeIdentitySessionMutationOptions(queryClient: QueryClient) {
-  ${revokeSessionOptions}
-}
-
-export function revokeOtherIdentitySessionsMutationOptions(queryClient: QueryClient) {
-  ${revokeOthersOptions}
-}
-
-export function SessionsCard({ initialSessions }: { initialSessions?: IdentitySessionInitialData[] }): React.JSX.Element {
+export function SessionsCard(initialState: IdentitySessionsInitialState): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
-  const queryClient = useQueryClient();
-  const sessionsQuery = useQuery(identitySessionsQueryOptions(initialSessions));
-  const revokeSession = useMutation(revokeIdentitySessionMutationOptions(queryClient));
-  const revokeOthers = useMutation(revokeOtherIdentitySessionsMutationOptions(queryClient));
-  const { data: currentSession } = identityClient.useSession();
-  const sessions = (sessionsQuery.data ?? []).filter((session) => session.revokedAt === null);
-  const operationError = sessionsQuery.error ?? revokeSession.error ?? revokeOthers.error;
+  const state = useIdentitySessions(initialState);
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{t("sessions.title")}</CardTitle><Badge variant="secondary">{sessions.length}</Badge></div>
+        <div className="flex flex-wrap items-center justify-between gap-3"><CardTitle as="h2">{t("sessions.title")}</CardTitle><Badge variant="secondary">{state.sessions.length}</Badge></div>
         <CardDescription className="max-w-[60ch]">{t("sessions.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {operationError ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{operationError instanceof Error ? operationError.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void sessionsQuery.refetch()} disabled={sessionsQuery.isFetching}>{sessionsQuery.isFetching ? t("sessions.loading") : t("sessions.refresh")}</Button>
-          <Button size="sm" variant="destructive" onClick={() => revokeOthers.mutate({})} disabled={sessions.length <= 1 || revokeOthers.isPending}>{revokeOthers.isPending ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
+        {state.error ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{state.error instanceof Error ? state.error.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={state.refresh} disabled={state.isRefreshing}>{state.isRefreshing ? t("sessions.loading") : t("sessions.refresh")}</Button>
+          <Button size="sm" variant="destructive" onClick={state.revokeOtherSessions} disabled={state.sessions.length <= 1 || state.isRevokingOthers}>{state.isRevokingOthers ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
         </div>
-        <Separator />
         <SessionList
-          currentSessionId={currentSession?.session.id}
-          isLoading={sessionsQuery.isPending}
-          pendingSessionId={revokeSession.isPending ? revokeSession.variables?.sessionId : undefined}
-          sessions={sessions}
-          onRevoke={(sessionId) => revokeSession.mutate({ sessionId })}
+          currentSessionId={state.currentSessionId}
+          isLoading={state.isLoading}
+          pendingSessionId={state.pendingSessionId}
+          sessions={state.sessions}
+          onRevoke={state.revokeSession}
         />
       </CardContent>
     </Card>
@@ -156,10 +126,10 @@ export function SessionsCard({ initialSessions }: { initialSessions?: IdentitySe
 `;
 }
 
-export function settingsSessionsCard(useServerActions = false): TemplateFile {
+export function settingsSessionsCard(): TemplateFile {
   return file(
     "apps/web/src/app/settings/components/sessions-card.tsx",
-    settingsSessionsCardContent(useServerActions),
+    settingsSessionsCardContent(),
   );
 }
 

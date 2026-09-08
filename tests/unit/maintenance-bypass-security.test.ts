@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseSync } from "oxc-parser";
 import { proxyFiles } from "../../src/templates/proxy.js";
+import { elements, generatedFormHarness, textContent } from "../helpers/generated-form-harness.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -15,6 +16,47 @@ afterEach(() => {
 });
 
 describe("maintenance bypass exchange", () => {
+  test("administrator disclosure starts closed and retains the native bounded POST form", async () => {
+    const page = proxyFiles("single", false, true).find(({ path }) =>
+      path.endsWith("/maintenance/page.tsx"),
+    );
+    if (!page) throw new Error("Missing maintenance page");
+    const ui = generatedFormHarness(page.content, ["MaintenanceContent"], {
+      getSurfaceTranslations: async () => (key: string) => key,
+      Field: "Field",
+      FieldGroup: "FieldGroup",
+      FieldLabel: "FieldLabel",
+      Input: "Input",
+    });
+    const tree = await ui.module.MaintenanceContent!();
+    const disclosure = elements(tree).find((node) => node.type === "details");
+    expect(disclosure).toBeDefined();
+    expect(disclosure!.props).not.toHaveProperty("open");
+    expect(textContent(elements(disclosure).find((node) => node.type === "summary"))).toBe(
+      "maintenance.administratorAccess",
+    );
+    const form = elements(disclosure).find((node) => node.type === "form");
+    expect(form?.props).toMatchObject({
+      action: "/maintenance/access",
+      method: "post",
+      rel: "noreferrer",
+    });
+    const input = elements(form).find((node) => node.type === "Input");
+    expect(input?.props).toMatchObject({
+      id: "maintenance-token",
+      name: "token",
+      type: "password",
+      required: true,
+      minLength: 32,
+      maxLength: 512,
+      autoComplete: "off",
+    });
+    expect(elements(form).find((node) => node.type === "FieldLabel")?.props.htmlFor).toBe(
+      "maintenance-token",
+    );
+    expect(elements(form).find((node) => node.type === "Button")?.props.type).toBe("submit");
+  });
+
   test("uses a bounded same-origin POST and never puts the master token in a URL or cookie", async () => {
     const files = proxyFiles("monorepo", false, true);
     const access = files.find(({ path }) => path.endsWith("/lib/maintenance-access.ts"));

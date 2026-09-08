@@ -5,7 +5,7 @@
 import { codeScripts, file, packageJson, type TemplateFile } from "../shared.js";
 import * as v from "../versions.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
-import { hasAddon, isAddonInstallerMap } from "../../lib/addons.js";
+import { BILLING_PROVIDERS, hasAddon, isAddonInstallerMap } from "../../lib/addons.js";
 import { globalCssContent } from "./fragments/css.js";
 import {
   cacheComponentsConfigBlock,
@@ -17,6 +17,9 @@ import {
 import { webUiFiles } from "./fragments/web-ui/index.js";
 import { webLibFiles } from "./fragments/web-lib.js";
 import { webhookRuntimeDeps } from "./fragments/webhook-deps.js";
+import { customNextServerCommand, nextRuntimeCommand } from "../root/next-server-runtime.js";
+import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../tooling/next-memory.js";
+import { nextServerExternalPackagesBlock, type NextConfigOptions } from "../tooling/next-config.js";
 
 type FeatureInput =
   | boolean
@@ -40,14 +43,8 @@ function resolveHasI18n(input: FeatureInput = false): boolean {
   return resolveHasFeature(input, "i18n");
 }
 
-function nextRuntimeCommand(runtime: "node" | "bun", command: "dev" | "build" | "start"): string {
-  return runtime === "bun" ? `bun ./node_modules/next/dist/bin/next ${command}` : `next ${command}`;
-}
-
 function nextCustomServerDevCommand(runtime: "node" | "bun"): string {
-  return runtime === "bun"
-    ? "bun --conditions=react-server server.ts"
-    : "node --import ../../scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts";
+  return customNextServerCommand(runtime, "dev", "../..");
 }
 
 function resolveAddonMap(
@@ -75,14 +72,16 @@ export function coreFiles(
   const hasConvex = addonMap ? hasAddon(addonMap, "convex") : false;
   return [
     webPackage(runtime, hasEve, effectiveHasI18n, addonMap, hasEmail),
-    nextConfig(
+    nextConfig({
       hasEve,
-      effectiveHasI18n,
+      hasI18n: effectiveHasI18n,
       hasPdf,
       hasCloudflare,
       hasConvex,
-      Boolean(addonMap && hasAddon(addonMap, "paddle")),
-    ),
+      billingProviders: addonMap
+        ? BILLING_PROVIDERS.filter((provider) => hasAddon(addonMap, provider))
+        : [],
+    }),
     postcssConfig(),
     globalCss(runtime),
     ...webUiFiles(),
@@ -102,27 +101,43 @@ function webPackage(
     addonMap && hasAddon(addonMap, "messaging") && !hasAddon(addonMap, "convex"),
   );
   const hasCloudflare = Boolean(addonMap && hasAddon(addonMap, "cloudflare"));
+  const hasPdf = Boolean(addonMap && hasAddon(addonMap, "pdf"));
+  const directDevelopmentCommand = hasWebSocketMessaging
+    ? nextCustomServerDevCommand(runtime)
+    : nextRuntimeCommand(runtime, "dev", hasPdf);
   return file(
     "apps/web/package.json",
     packageJson({
       name: "web",
       packageManager: `bun@${v.runtime.bun}`,
+      ...(hasEve ? { engines: { node: v.runtime.node } } : {}),
       scripts: {
         // The stock Next dev server cannot accept the generated oRPC websocket
         // upgrade. Keep the ordinary `bun run dev` path on the same custom
         // server used in production whenever Postgres messaging is selected.
         dev: hasCloudflare
           ? "bun --env-file=.dev.vars scripts/cloudflare.mjs dev"
-          : hasWebSocketMessaging
-            ? nextCustomServerDevCommand(runtime)
-            : nextRuntimeCommand(runtime, "dev"),
+          : hasEve
+            ? "bun scripts/start-development.mjs"
+            : directDevelopmentCommand,
+        ...(hasEve
+          ? {
+              "dev:web": directDevelopmentCommand,
+              "eve:dev": "node ../../scripts/eve-dev.mjs",
+            }
+          : {}),
         // A Worker build must always pass through the generated environment
         // isolation, dry-run packaging, and secret scanner. OpenNext receives
         // its raw Next command from open-next.config.ts to avoid recursion.
         build: hasCloudflare
           ? "bun scripts/cloudflare.mjs build"
-          : nextRuntimeCommand(runtime, "build"),
-        start: hasCloudflare ? "bun run preview" : nextRuntimeCommand(runtime, "start"),
+          : hasWebSocketMessaging
+            ? `bun run build:server && ${nextRuntimeCommand(runtime, "build", hasPdf)}`
+            : nextRuntimeCommand(runtime, "build", hasPdf),
+        ...(hasWebSocketMessaging
+          ? { "build:server": customNextServerCommand(runtime, "build", "../..") }
+          : {}),
+        start: hasCloudflare ? "bun run preview" : nextRuntimeCommand(runtime, "start", hasPdf),
         ...(hasCloudflare
           ? {
               // OpenNext invokes this only from inside cloudflare.mjs after the
@@ -231,9 +246,8 @@ function webPackage(
         "@tailwindcss/postcss": `^${v.styling["@tailwindcss/postcss"]}`,
         postcss: `^${v.styling.postcss}`,
         tailwindcss: `^${v.styling.tailwindcss}`,
-        // Next 16.3 runs the project-local tsc CLI, so the web app can use TS7
-        // while shared compiler-API tooling remains on the TS6 catalog line.
-        typescript: `^${v.typescript.typescriptNext}`,
+        // Next 16.3 uses the project-local native tsc CLI by default.
+        typescript: `^${v.typescript.typescript}`,
         ...(hasCloudflare
           ? {
               "@opennextjs/cloudflare": `^${v.cloudflare["@opennextjs/cloudflare"]}`,
@@ -246,17 +260,19 @@ function webPackage(
   );
 }
 
-function nextConfig(
+function nextConfig({
   hasEve = false,
   hasI18n = false,
   hasPdf = false,
   hasCloudflare = false,
   hasConvex = false,
-  hasPaddle = false,
-): TemplateFile {
+  billingProviders = [],
+}: NextConfigOptions = {}): TemplateFile {
+  const hasPaddle = billingProviders.includes("paddle");
   const baseHeaders = nextConfigHeadersFunction(hasConvex, hasPaddle);
   const transpile = transpilePackagesList;
   const rewritesBlock = posthogRewritesBlock();
+  const serverPackagesBlock = nextServerExternalPackagesBlock(billingProviders, hasCloudflare);
   const imagesBlock = `  images: {
     remotePatterns: [],
   },`;
@@ -280,6 +296,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -318,6 +336,8 @@ import { withEve, type EveNextConfigFunction } from "eve/next";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -354,6 +374,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}
@@ -376,6 +398,8 @@ export default withNextIntl(config);
 ${hasCloudflare ? 'if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();\n\n' : ""}
 const config: NextConfig = {
 ${cacheComponentsConfigBlock(hasCloudflare)}
+${NEXT_DEVELOPMENT_MEMORY_CONFIG}
+${serverPackagesBlock}
   reactStrictMode: true,
   poweredByHeader: false,
 ${baseHeaders}

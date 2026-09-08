@@ -35,12 +35,14 @@ export function AdminUserFilters({
     <form.AppForm>
       <Form
         form={form}
-        className="flex w-full flex-col gap-3 sm:flex-row sm:items-end"
+        className="w-full"
       >
-        <FieldGroup className="w-full sm:max-w-sm">
+        <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,24rem)_1fr]">
+        <FieldGroup className="contents">
           <form.AppField name="search">
             {(field) => (
               <field.TextField
+                className="row-span-3 grid grid-rows-subgrid has-[[data-slot=field-error]]:row-span-4"
                 type="search"
                 label={translate("filters.label")}
                 description={translate("filters.description")}
@@ -50,7 +52,7 @@ export function AdminUserFilters({
             )}
           </form.AppField>
         </FieldGroup>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:col-start-2 sm:row-start-2 sm:self-start">
           <form.SubmitButton variant="outline" pendingLabel={translate("filters.searching")}>
             {translate("filters.search")}
           </form.SubmitButton>
@@ -69,6 +71,7 @@ export function AdminUserFilters({
           <span className="sr-only" role="status" aria-live="polite">
             {isFetching ? translate("filters.updating") : ""}
           </span>
+        </div>
         </div>
       </Form>
     </form.AppForm>
@@ -95,7 +98,7 @@ export function AdminUsersPagination({
   const translate = useAdminUsersTranslations();
   const canGoNext = page < totalPages || hasMore;
   return (
-    <nav className="flex items-center justify-between gap-4" aria-label={translate("pagination.label")}>
+    <nav className="flex flex-wrap items-center justify-between gap-4" aria-label={translate("pagination.label")}>
       <p className="text-xs text-muted-foreground">
         {translate("pagination.position", { page, totalPages })}
       </p>

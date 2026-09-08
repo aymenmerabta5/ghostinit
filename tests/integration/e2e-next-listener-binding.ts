@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FsTransaction } from "../../src/lib/fs.js";
 
-const DIRECT_NEXT_START = new Set(["next start", "bun ./node_modules/next/dist/bin/next start"]);
+const DIRECT_NEXT_START = new Set([
+  "next start",
+  "bun ./node_modules/next/dist/bin/next start",
+  "bun --preload @react-pdf/renderer ./node_modules/next/dist/bin/next start",
+]);
 const WORKSPACE_START = "bun run --cwd apps/web start";
 const SUPERVISED_START = "bun --env-file=.env.local run start:production";
 const PRODUCTION_START = "bun scripts/start-production.mjs";

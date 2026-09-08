@@ -23,10 +23,9 @@ import { env } from "@/lib/env/${framework === "tanstack" ? "vite" : "next"}";`
     framework === "tanstack" && hasI18n
       ? `import { I18nProvider, type Locale } from "@/lib/i18n";`
       : "";
-  const queryAuthBoundaryImport =
-    framework === "tanstack" && hasAuth
-      ? `import { QueryAuthCacheBoundary } from "@/components/query-auth-boundary";`
-      : "";
+  const queryAuthBoundaryImport = hasAuth
+    ? `import { QueryAuthCacheBoundary } from "@/components/query-auth-boundary";`
+    : "";
   const convexSetup = isConvex
     ? `const convexUrl = env.${
         framework === "tanstack" ? "VITE_CONVEX_URL" : "NEXT_PUBLIC_CONVEX_URL"
@@ -53,9 +52,8 @@ ${hasAuth ? convexAuthBridgeContent() : ""}`
   const initialLocaleProperty =
     framework === "tanstack" && hasI18n ? "  initialLocale: Locale;\n" : "";
   const initialLocaleParameter = framework === "tanstack" && hasI18n ? ", initialLocale" : "";
-  const queryAuthOpen =
-    framework === "tanstack" && hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
-  const queryAuthClose = framework === "tanstack" && hasAuth ? `</QueryAuthCacheBoundary>` : "";
+  const queryAuthOpen = hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
+  const queryAuthClose = hasAuth ? `</QueryAuthCacheBoundary>` : "";
   const pageView = hasAnalytics
     ? `<React.Suspense fallback={null}>
               <PostHogPageView />
@@ -85,19 +83,19 @@ export function AppProviders({ children, queryClient${initialLocaleParameter} }:
   const client = queryClient ?? getQueryClient();
   return (
     <QueryClientProvider client={client}>
-      ${queryAuthOpen}
         ${i18nOpen}
           ${convexOpen}
-            <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+            <ThemeProvider>
+              ${queryAuthOpen}
               ${analyticsOpen}
                 ${pageView}
                 {children}
                 <Toaster richColors position="bottom-right" />
               ${analyticsClose}
+              ${queryAuthClose}
             </ThemeProvider>
           ${convexClose}
         ${i18nClose}
-      ${queryAuthClose}
     </QueryClientProvider>
   );
 }
@@ -106,12 +104,16 @@ export const Providers = AppProviders;
 `;
 }
 
-export function providersSingleContent(hasAnalytics = true, hasI18n = false): string {
+export function providersSingleContent(
+  hasAnalytics = true,
+  hasI18n = false,
+  hasAuth = true,
+): string {
   return providerContent({
     framework: "next",
     hasAnalytics,
     isConvex: false,
-    hasAuth: false,
+    hasAuth,
     hasI18n,
   });
 }

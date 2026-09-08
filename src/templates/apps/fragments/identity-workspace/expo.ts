@@ -38,6 +38,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { orpc } from "@/lib/orpc";
+import { requestQueryAuthScopeRefresh } from "@/lib/query-client";
 ${i18n.importLine}
 
 type OrganizationRole = "owner" | "admin" | "member";
@@ -79,16 +80,16 @@ ${localizedHelpers}
   }
 
   const createOrganization = useMutation(orpc.identity.organizations.create.mutationOptions({ onSuccess: async ({ organization }) => { setOrganizationId(organization.id); setOrganizationName(""); setOrganizationSlug(""); await invalidateWorkspace(); } }));
-  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const createTeam = useMutation(orpc.identity.teams.create.mutationOptions({ onSuccess: async ({ team }) => { setTeamId(team.id); setTeamName(""); await invalidateWorkspace(); } }));
-  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const invite = useMutation(orpc.identity.invitations.create.mutationOptions({ onSuccess: async () => { setInviteEmail(""); await invalidateWorkspace(); } }));
   const cancelInvitation = useMutation(orpc.identity.invitations.cancel.mutationOptions({ onSuccess: invalidateWorkspace }));
   const acceptInvitation = useMutation(orpc.identity.invitations.accept.mutationOptions({ onSuccess: invalidateWorkspace }));
   const changeRole = useMutation(orpc.identity.organizations.changeMemberRole.mutationOptions({ onSuccess: invalidateWorkspace }));
-  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const addTeamMember = useMutation(orpc.identity.teams.addMember.mutationOptions({ onSuccess: async () => { setTeamMemberId(""); await invalidateWorkspace(); } }));
-  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const pending = [createOrganization, setActiveOrganization, createTeam, setActiveTeam, invite, cancelInvitation, acceptInvitation, changeRole, removeMember, addTeamMember, removeTeamMember].some((mutation) => mutation.isPending);
 
   if (organizations.isPending) return <View className="flex-1 items-center justify-center bg-background"><ActivityIndicator /></View>;

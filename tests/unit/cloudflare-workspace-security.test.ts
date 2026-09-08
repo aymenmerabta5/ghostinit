@@ -53,7 +53,7 @@ function fixture(): { root: string; script: string } {
   write(
     root,
     "vendor/turbo/index.mjs",
-    'import { writeFileSync } from "node:fs"; writeFileSync("turbo-ran", "yes\\n");\n',
+    '#!/usr/bin/env bun\nimport { writeFileSync } from "node:fs"; writeFileSync("turbo-ran", "yes\\n");\n',
   );
   write(
     root,

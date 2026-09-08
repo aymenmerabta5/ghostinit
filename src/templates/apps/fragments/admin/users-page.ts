@@ -5,7 +5,6 @@ function featureIndexContent(): string {
   return `"use client";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { CreateUserForm } from "./components/create-user-form";
 import { AdminUserFilters } from "./components/filters";
 import { AdminUsersResults } from "./components/user-results";
@@ -27,15 +26,15 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
   const admin = useAdminUsers(initialData);
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{translate("list.title")}</h1>
-          <p className="max-w-[65ch] text-sm text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">{translate("list.title")}</h1>
+          <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">
             {translate("list.description")} {formatAdminUsersAccountCount(translate, admin.total, admin.totalIsExact)}
           </p>
         </div>
-        <Button render={<a href="/admin/users/create" />} nativeButton={false}>
+        <Button className="w-auto self-start" render={<a href="/admin/users/create" />} nativeButton={false}>
           {translate("list.create")}
         </Button>
       </header>
@@ -46,7 +45,6 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
         onApply={admin.applyFilters}
         onClear={admin.clearFilters}
       />
-      <Separator />
       <AdminUsersResults admin={admin} translate={translate} />
     </main>
   );
@@ -181,22 +179,29 @@ function nextPageContent(options: AdminTemplateOptions): string {
     options.mode === "monorepo" ? "@repo/services/application" : "@/server/services/application";
   return `import type * as React from "react";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createRequestApplicationForRequest } from "${applicationModule}";
-import { AdminUsersFeature, DEFAULT_ADMIN_USERS_FILTERS } from "@/features/admin-users";
+import { AdminUsersFeature } from "@/features/admin-users";
+import { DEFAULT_ADMIN_USERS_FILTERS } from "@/features/admin-users/types";
+import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
+import { QueryAuthStatus } from "@/components/query-auth-boundary";
 
 async function AdminUsersData(): Promise<React.JSX.Element> {
   const application = await createRequestApplicationForRequest(new Headers(await headers()));
+  const principal = application.principal;
+  if (!principal) redirect("/sign-in");
+  const scope = { userId: principal.identityUserId, sessionId: principal.sessionId, tenantId: principal.activeOrganizationId, teamId: principal.activeTeamId };
   const data = await application.admin.listUsers(DEFAULT_ADMIN_USERS_FILTERS);
   const initialData = {
     total: data.total,
     users: data.users.map((user) => ({ ...user, identityId: user.id })),
   };
-  return <AdminUsersFeature initialData={initialData} />;
+  return <RequestOwnedSnapshot scope={scope}><AdminUsersFeature initialData={initialData} /></RequestOwnedSnapshot>;
 }
 
 export default function AdminUsersPage(): React.JSX.Element {
-  return <Suspense fallback={<div className="min-h-48" aria-busy="true" />}><AdminUsersData /></Suspense>;
+  return <Suspense fallback={<QueryAuthStatus />}><AdminUsersData /></Suspense>;
 }
 `;
 }
@@ -212,14 +217,4 @@ export function adminUserResultsFile(options: AdminTemplateOptions): TemplateFil
 export function nextAdminUsersPage(options: AdminTemplateOptions): TemplateFile {
   const appRoot = options.sourceRoot === "src" ? "src/app" : "apps/web/src/app";
   return file(`${appRoot}/admin/users/page.tsx`, nextPageContent(options));
-}
-
-/** @deprecated Use nextAdminUsersPage with explicit template options. */
-export function adminUsersPage(): TemplateFile {
-  return nextAdminUsersPage({
-    database: "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
 }

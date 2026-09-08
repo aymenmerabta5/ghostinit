@@ -28,7 +28,7 @@ Global options:
   --yes                  Accept defaults without prompts
   --ci                   CI / non-interactive mode (disables TTY prompts)
   --dry-run              Preview without locks, writes, cleanup, install, or secret minting
-  --force                Bypass dirty-tree and drift checks
+  --force                Use command-specific force behavior; managed-file conflicts still block writes
   --no-install           Skip installation during create
   --runtime node|bun     Runtime preference
   --quiet                Suppress stderr logs

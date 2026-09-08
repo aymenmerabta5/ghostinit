@@ -1,11 +1,9 @@
-/**
- * convex/auth.ts — Better Auth component wiring and required-env guards.
- *
- * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
- */
-
 import type { ProjectMode } from "../../../lib/addons.js";
 import { authNetworkSecurityHelpers, durableAuthRateLimitConfig } from "../../auth-security.js";
+import {
+  profileUpdateValidationContent,
+  profileUpdateValidationImports,
+} from "../../auth-profile.js";
 
 export function convexAuthContent(
   mode: ProjectMode,
@@ -61,6 +59,7 @@ export function convexAuthContent(
     'import { components, internal } from "./_generated/api";',
     'import type { DataModel } from "./_generated/dataModel";',
     'import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";',
+    ...profileUpdateValidationImports.split("\n"),
     'import { twoFactor } from "better-auth/plugins/two-factor";',
     ...(hasMobile ? ['import { expo } from "@better-auth/expo";'] : []),
     ...(hasEmail ? ['import { magicLink } from "better-auth/plugins/magic-link";'] : []),
@@ -68,9 +67,7 @@ export function convexAuthContent(
     'import authConfig from "./auth.config";',
     'import { query } from "./_generated/server";',
     "",
-    "// ------------------------------------------------------------------",
     "// Env validation — no insecure https://example.com fallback, require SITE_URL",
-    "// ------------------------------------------------------------------",
     "function requireEnv(name: string): string {",
     "  const value = process.env[name];",
     '  if (!value || value.startsWith("REPLACE_WITH") || value.trim() === "") {',
@@ -123,6 +120,7 @@ export function convexAuthContent(
     "const siteUrl = resolveSiteUrl();",
     "",
     ...authNetworkSecurityHelpers.split("\n"),
+    ...profileUpdateValidationContent().split("\n"),
     "",
     "// The installed Convex component has a static schema. Only advertise the plugin it contains.",
     'export const selectedIdentityPlugins = ["two-factor"] as const;',
@@ -287,6 +285,7 @@ export function convexAuthContent(
     "      ipAddress: authNetworkSecurity.ipAddress,",
     "    },",
     "    plugins: [",
+    "      profileUpdateValidation(),",
     ...(hasMobile ? ["      expo(),"] : []),
     "      // The stock component lacks account-lockout columns, so keep its schema-safe",
     "      // five-attempt signed-challenge lockout plus database-backed /two-factor rate limits.",
@@ -309,9 +308,7 @@ export function convexAuthContent(
     "",
     "export const createAuth = (ctx: GenericCtx<DataModel>) => betterAuth(createAuthOptions(ctx));",
     "",
-    "// ------------------------------------------------------------------",
     "// Identity-only queries. Application features authorize through users.me/lib/auth.",
-    "// ------------------------------------------------------------------",
     "export const getCurrentUser = query({",
     "  args: {},",
     "  handler: async (ctx) => {",
@@ -329,7 +326,6 @@ export function convexAuthContent(
     "  },",
     "});",
     "",
-    "// Helper for use in other files when GenericCtx available",
     "export async function getAuthUser(ctx: GenericCtx<DataModel>) {",
     "  return await authComponent.getAuthUser(ctx);",
     "}",

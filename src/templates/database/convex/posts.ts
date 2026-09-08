@@ -1,9 +1,3 @@
-/**
- * convex/posts.ts — posts queries and mutations.
- *
- * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
- */
-
 export function convexPostsContent(): string {
   return [
     'import { v } from "convex/values";',
@@ -13,7 +7,6 @@ export function convexPostsContent(): string {
     'import { ConvexError } from "convex/values";',
     'import { requireActor } from "./lib/auth";',
     "",
-    "// CRUD with auth guard throwing UNAUTHENTICATED + pagination via by_userId_createdAt index",
     "export const list = query({",
     "  args: {",
     "    paginationOpts: paginationOptsValidator,",

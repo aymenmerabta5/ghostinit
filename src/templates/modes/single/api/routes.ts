@@ -3,6 +3,7 @@ import { standardApiRequestCode } from "../../../apps/fragments/api/http-request
 import { nextOpenApiOperationsRouteContent } from "../../../apps/fragments/api/openapi.js";
 import { orpcRequestSecurityContent } from "../../../api/request-security.js";
 import { MAX_ORPC_BODY_BYTES } from "../../../api/body-limits.js";
+import { currentRequestSchemaContent } from "../../../api/current-request-schema.js";
 
 export function singleOrpcRequestSecurityContent(): string {
   return orpcRequestSecurityContent();
@@ -158,7 +159,6 @@ export function singleHealthRouteContent(): string {
     "  await connection();",
     "  const response = NextResponse.json({",
     '    status: "ok",',
-    "    ok: true,",
     "    time: new Date().toISOString(),",
     "  });",
     '  response.headers.set("X-Content-Type-Options", "nosniff");',
@@ -547,20 +547,7 @@ export function singleApiMeProcedureContent(): string {
     "  me: oc",
     '    .route({ method: "GET", path: "/me" })',
     "    .output(",
-    "      z.object({",
-    "        user: z",
-    "          .object({",
-    "            id: z.string(),",
-    "            email: z.string(),",
-    "            name: z.string().nullable(),",
-    "            role: z.string().nullable(),",
-    "            banned: z.boolean(),",
-    "          })",
-    "          .nullable(),",
-    "        sessionId: z.string().nullable(),",
-    "        activeOrganizationId: z.string().nullable(),",
-    "        activeTeamId: z.string().nullable(),",
-    "      }),",
+    ...`${currentRequestSchemaContent(6)},`.split("\n"),
     "    ),",
     "};",
     "",

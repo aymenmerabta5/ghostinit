@@ -1,0 +1,56 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "account-deletion-feedback",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/auth-deletion.ts",
+    "src/templates/auth.ts",
+    "src/templates/modes/single/server/auth.ts",
+    "src/templates/apps/fragments/settings/actions.ts",
+    "src/templates/apps/fragments/settings/danger-card.ts",
+    "src/templates/apps/fragments/settings/index.ts",
+    "src/templates/apps/fragments/settings/tanstack-feature.ts",
+    "src/templates/modes/single/composers/next.ts",
+    "src/templates/modes/single/pages/settings.ts",
+    "src/templates/i18n/messages/en.ts",
+    "src/templates/i18n/messages/fr.ts",
+    "src/templates/i18n/messages/ar.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend", "better-auth-best-practices"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "e3ce9d58f298c29df00b648b1f788724e4c171d7e797c9ff2e133a86a064b32e"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#read-and-mutation-states"],
+    "evidence": [
+      "tests/unit/account-deletion-policy.test.ts",
+      "tests/unit/settings-delete-dialog.test.ts",
+      "tests/unit/settings-delete-client.test.ts",
+      "tests/integration/account-deletion-retention.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "mutation.preserve-input",
+    "mutation.atomic-deletion",
+    "feedback.action-local",
+    "feedback.retention-guidance",
+    "authentication.recent-session",
+    "authentication.client-session-notification",
+    "authentication.retire-private-cache-before-navigation",
+    "feedback.safe-provider-errors",
+    "design.preserve-existing-system"
+  ],
+  "selectedComponentIds": ["overlay.dialog", "feedback.alert", "form.input", "action.button"],
+  "exceptionIds": []
+}

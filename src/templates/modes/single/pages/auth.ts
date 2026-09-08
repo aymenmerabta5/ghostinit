@@ -5,9 +5,18 @@ import {
   signInPageContent,
   signUpFormContent,
   signUpPageContent,
+  twoFactorFormContent,
 } from "../../../apps/fragments/auth/index.js";
 
-export { forgotPasswordPageSingle, resetPasswordPageSingle } from "./password.js";
+export {
+  forgotPasswordPageSingle,
+  resetPasswordPageSingle,
+  resetPasswordFormSingleContent,
+} from "./password.js";
+
+export function singleTwoFactorFormContent(): string {
+  return twoFactorFormContent("next");
+}
 
 export function signInPageSingle(hasEmail = true): string {
   return signInPageContent("next", hasEmail);

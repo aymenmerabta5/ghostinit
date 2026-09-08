@@ -10,6 +10,7 @@ import { desktopCoreFiles } from "../../apps/desktop/index.js";
 import type { AddonInstallerMap, AppName, FrameworkName } from "../../../lib/addons.js";
 import { hasAddon } from "../../../lib/addons.js";
 import { integrateDesignSystemApplications, resolveDesignSystemApps } from "../../ui/index.js";
+import { NEXT_COMPILER_OPTIONS, NEXT_TYPE_INCLUDES } from "../../tooling/next-typescript.js";
 
 function appFilesForFramework(
   runtime: "node" | "bun",
@@ -179,11 +180,10 @@ function typescriptConfigWithAliases(
         {
           extends: "./base.json",
           compilerOptions: {
-            jsx: "preserve",
+            ...NEXT_COMPILER_OPTIONS,
             lib: ["ES2024", "DOM", "DOM.Iterable"],
             incremental: true,
             composite: false,
-            noEmit: true,
             types: ["bun-types", "node"],
             paths: fromConfigPackage(explicitNextPaths),
           },
@@ -349,8 +349,8 @@ function typescriptConfigWithAliases(
               noEmit: true,
               incremental: true,
             },
-            include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-            exclude: ["node_modules", ".next", "dist"],
+            include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ...NEXT_TYPE_INCLUDES],
+            exclude: ["node_modules", ".ghostinit", "dist"],
           },
           null,
           2,

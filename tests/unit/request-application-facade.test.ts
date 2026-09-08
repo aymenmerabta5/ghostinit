@@ -202,6 +202,42 @@ describe("generated request application facade", () => {
     }
   });
 
+  test("omits the unused request facade when its application capability is not selected", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        for (const database of ["postgres", "convex"] as const) {
+          const files = generate(mode, database, {
+            framework,
+            api: false,
+            billing: [],
+            notifications: false,
+            email: false,
+          });
+          const root =
+            mode === "monorepo"
+              ? "packages/services/src/application"
+              : "src/server/services/application";
+          expect(
+            files.filter(({ path }) => path.startsWith(`${root}/`)).map(({ path }) => path),
+            `${mode}/${framework}/${database}`,
+          ).toEqual([]);
+          for (const { path, content } of files) {
+            if (!/\.[cm]?[jt]sx?$/.test(path)) continue;
+            expect(content, path).not.toMatch(
+              /(?:from\s*|import\s*\()\s*["'](?:@repo\/services\/application|@\/server\/services\/application)["']/,
+            );
+          }
+          if (mode === "monorepo") {
+            const manifest = JSON.parse(read(files, "packages/services/package.json")) as {
+              exports: Record<string, string>;
+            };
+            expect(manifest.exports["./application"]).toBeUndefined();
+          }
+        }
+      }
+    }
+  });
+
   test("keeps optional facade output lint-safe and request context variables authoritative", () => {
     for (const mode of ["monorepo", "single"] as const) {
       const noBilling = generate(mode, "postgres", { billing: [] });
@@ -333,7 +369,7 @@ describe("generated request application facade", () => {
   test("redirects anonymous settings requests before invoking protected identity services", () => {
     const settings = read(generate("monorepo", "postgres"), "apps/web/src/app/settings/page.tsx");
     const me = settings.indexOf("const me = await application.me()");
-    const redirect = settings.indexOf('if (!me.user) redirect("/sign-in")');
+    const redirect = settings.indexOf('if (!me.user || !principal) redirect("/sign-in")');
     const sessions = settings.indexOf("await application.identity.sessions.list()");
     expect(me).toBeGreaterThanOrEqual(0);
     expect(redirect).toBeGreaterThan(me);

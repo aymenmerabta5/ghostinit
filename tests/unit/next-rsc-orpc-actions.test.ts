@@ -138,7 +138,7 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         }
       });
 
-      test(`${mode}/${database} routes authenticated UI mutations through validated actions`, () => {
+      test(`${mode}/${database} uses application actions and the auth client for rotating credentials`, () => {
         const files = generated(mode, database);
         const root = prefix(mode);
         const actions = [
@@ -162,24 +162,21 @@ describe("Next RSC-first application and Server Action boundaries", () => {
           content(files, `${root}src/app/settings/components/password-card.tsx`),
           content(files, `${root}src/app/settings/components/danger-zone-card.tsx`),
         ].join("\n");
-        if (database === "convex") {
-          expect(settingsActions).not.toContain("auth.api");
-          expect(settingsActions).not.toContain("import { auth }");
-          expect(settingsActions).toContain("revokeIdentitySessionAction");
-          expect(settingsClients).toContain("identityClient.updateProfile");
-          expect(settingsClients).toContain("identityClient.changePassword");
-          expect(settingsClients).toContain("identityClient.deleteAccount");
-          expect(settingsClients).not.toMatch(
-            /updateProfileAction|changePasswordAction|deleteAccountAction/,
-          );
-        } else {
-          expect(settingsActions).toContain("auth.api.updateUser");
-          expect(settingsActions).toContain("auth.api.changePassword");
-          expect(settingsActions).toContain("auth.api.deleteUser");
-          expect(settingsClients).toContain("updateProfileAction");
-          expect(settingsClients).toContain("changePasswordAction");
-          expect(settingsClients).toContain("deleteAccountAction");
-        }
+        expect(settingsActions).not.toContain("auth.api.changePassword");
+        expect(settingsActions).not.toContain("auth.api.deleteUser");
+        expect(settingsClients).not.toContain("changePasswordAction");
+        expect(settingsClients).not.toContain("deleteAccountAction");
+        expect(settingsClients).toContain("identityClient.changePassword");
+        expect(settingsClients).toContain("identityClient.deleteAccount");
+        expect(settingsClients).toContain("transitionQueryAuthScope(getQueryClient(), null)");
+        expect(settingsActions).not.toContain("auth.api");
+        expect(settingsActions).not.toContain("import { auth }");
+        expect(settingsActions).toContain("revokeIdentitySessionAction");
+        expect(settingsClients).toContain("identityClient.updateProfile");
+        expect(settingsClients).toContain("requestQueryAuthScopeRefresh(getQueryClient())");
+        expect(settingsClients).not.toMatch(
+          /updateProfileAction|changePasswordAction|deleteAccountAction/,
+        );
         expect(content(files, `${root}src/features/admin-users/mutations.ts`)).toContain(
           "createAdminUserAction",
         );

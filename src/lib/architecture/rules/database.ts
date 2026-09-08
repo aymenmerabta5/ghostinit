@@ -5,6 +5,8 @@
 import type { ArchitectureFinding } from "../types.js";
 import { DATABASE_PACKAGES } from "../constants.js";
 import { getBasePackage } from "../utils.js";
+import { moduleFromPath } from "./module-path.js";
+import { getLayerFromFilePath } from "./layer-policy.js";
 
 export function checkDatabaseIsolation(
   findings: ArchitectureFinding[],
@@ -12,11 +14,10 @@ export function checkDatabaseIsolation(
   imp: string,
   resolvedTarget?: string,
 ): void {
-  const moduleMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(file);
-  if (!moduleMatch) return;
-  const moduleName = moduleMatch[1];
-  const databaseDirPattern = new RegExp(`/modules/src/${moduleName}/infrastructure/database/`);
-  if (databaseDirPattern.test(file)) return;
+  const module = moduleFromPath(file);
+  const isDomain = getLayerFromFilePath(file)?.name === "Domain";
+  if (!module && !isDomain) return;
+  if (!isDomain && module?.relativePath.startsWith("infrastructure/database/")) return;
   const target = resolvedTarget?.replace(/\\/g, "/") ?? "";
   if (
     DATABASE_PACKAGES.has(imp) ||
@@ -27,7 +28,9 @@ export function checkDatabaseIsolation(
     findings.push({
       id: "database-import-outside-infrastructure",
       severity: "HIGH",
-      message: `Module ${moduleName} imports database package outside infrastructure/database: ${imp}`,
+      message: isDomain
+        ? `Domain code must not depend on persistence implementations: ${imp}`
+        : `Module ${module!.name} imports database package outside infrastructure/database: ${imp}`,
       file,
       rule: "database-isolation",
     });

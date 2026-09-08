@@ -74,7 +74,6 @@ export function serverDbIndexSingleConvex(): string {
     "const url = resolveConvexUrl();",
     "export const convexClient = new ConvexHttpClient(url);",
     "export function getConvexClient(): ConvexHttpClient { return convexClient; }",
-    "// Back-compat alias: some legacy code imports db, prefer convexClient directly",
     "export const db = convexClient;",
     "",
   ].join("\n");
@@ -138,7 +137,6 @@ export function serverDrizzleConfigSingle(): string {
 
 export function serverObservabilitySingle(): string {
   return [
-    "/* Secret-safe logger — single mode flat, mirrors @repo/observability */",
     'export type LogLevel = "debug" | "info" | "warn" | "error";',
     "",
     "export interface Logger {",
@@ -262,15 +260,6 @@ export function serverObservabilitySingle(): string {
     '  warn: (msg, meta) => defaultLog("warn", msg, meta),',
     '  error: (msg, meta) => defaultLog("error", msg, meta),',
     "};",
-    "",
-  ].join("\n");
-}
-
-export function libUtils(): string {
-  return [
-    "import { clsx, type ClassValue } from 'clsx';",
-    "import { twMerge } from 'tailwind-merge';",
-    "export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }",
     "",
   ].join("\n");
 }

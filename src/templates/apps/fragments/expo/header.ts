@@ -12,7 +12,7 @@ import { useRouter, Link } from "expo-router";
 import { authClient } from "@/lib/auth-client";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { BrandWordmark } from "@/components/brand-wordmark";
 import { Skeleton } from "@/components/ui/skeleton";
 ${i18nImport}
 
@@ -38,9 +38,8 @@ ${i18nHook}  const router = useRouter();
       <View className="min-h-14 flex-row items-center justify-between px-4">
         <View className="flex-row items-center gap-3">
           <Link href="/" asChild>
-            <Button variant="ghost" size="sm" accessibilityLabel={${hasI18n ? 't("home")' : '"GhostInit home"'}}><Text className="text-sm font-bold tracking-tight">${label("productName", "GhostInit")}</Text></Button>
+            <Button variant="ghost" size="sm" accessibilityLabel={${hasI18n ? 't("home")' : '"GhostInit home"'}}><BrandWordmark /></Button>
           </Link>
-          <Badge><Text className="text-[10px]">${label("productBadge", "mobile")}</Text></Badge>
         </View>
         <View className="flex-row items-center gap-2">
           ${hasI18n ? "<LocaleSwitcher />" : ""}

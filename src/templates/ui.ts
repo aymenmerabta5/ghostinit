@@ -1,14 +1,8 @@
 // GhostInit's primitives/forms/overlays/layout/feedback components live at
 // src/templates/apps/fragments/web-ui/. This module owns the mode-resolved,
 // machine-defined design contract, registry, styles and package surface.
-/**
- * Compat shim — original god file split into src/templates/ui/ modular folder.
- * See top-level note about tokens-only vs components split.
- */
-
 export { uiPackage } from "./ui/index.js";
 
-// Explicit named re-exports — no `export *` (tree-shaking safety convention).
 export {
   uiPackage as uiFiles,
   uiPackage as uiTemplateFiles,

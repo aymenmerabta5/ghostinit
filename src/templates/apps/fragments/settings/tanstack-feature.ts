@@ -1,6 +1,11 @@
 // @allow-long 640: typed settings adapters and prop-driven component renderers share one feature contract
 import { file, type TemplateFile } from "../../../shared.js";
-import { settingsPasskeyCardContent, settingsPasskeyListContent } from "./passkey-card.js";
+import {
+  settingsPasskeyCardContent,
+  settingsPasskeyListContent,
+  settingsPasskeyManagementContent,
+} from "./passkey-card.js";
+import { passkeyQueryHelpersContent, passkeyQueryImports } from "./passkey-data.js";
 import { settingsSessionsListContent } from "./sessions-card.js";
 
 function settingsTypesContent(): string {
@@ -70,11 +75,18 @@ export function createTotpSchema(codeSixDigits: string) {
 }
 
 function settingsQueriesContent(hasIdentityTransport: boolean, hasPasskey: boolean): string {
-  const imports = hasIdentityTransport
-    ? `import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope, type QueryAuthScope } from "@/lib/query-client";`
-    : "";
+  const imports = [
+    hasIdentityTransport || hasPasskey
+      ? 'import { useQuery, useQueryClient } from "@tanstack/react-query";'
+      : "",
+    hasIdentityTransport ? 'import { orpc } from "@/lib/orpc";' : "",
+    hasIdentityTransport || hasPasskey
+      ? `import { authScopedQueryKey${hasIdentityTransport ? ", currentQueryAuthScope, type QueryAuthScope" : ""}${hasPasskey ? ", currentQueryAuthGeneration, queryAuthIdentityFromSession, queryAuthIdentitySignature, type QueryAuthIdentity" : ""} } from "@/lib/query-client";`
+      : "",
+    hasPasskey ? passkeyQueryImports : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const helpers = hasIdentityTransport
     ? `export function identitySessionsQueryOptions(scope: QueryAuthScope | null) {
   const options = orpc.identity.sessions.list.queryOptions({ input: {} });
@@ -89,11 +101,7 @@ export function identitySessionsQueryKey(scope: QueryAuthScope) {
   return authScopedQueryKey(scope, orpc.identity.sessions.list.key({ type: "query" }));
 }`
     : "";
-  const passkeyHelper = hasPasskey
-    ? `export function usePasskeyListQuery() {
-  return identityPasskeyClient.useList();
-}`
-    : "";
+  const passkeyHelper = hasPasskey ? passkeyQueryHelpersContent() : "";
   const query = hasIdentityTransport
     ? `  const queryClient = useQueryClient();
   const queryScope = currentQueryAuthScope(queryClient);
@@ -201,41 +209,48 @@ function actionResult(error: { code?: string; message?: string } | null | undefi
   return error ? { ok: false, code: error.code } : { ok: true };
 }
 
+async function recoverSettingsAction<Result extends SettingsActionResult>(
+  operation: () => Promise<Result>,
+): Promise<Result | SettingsActionResult> {
+  try { return await operation(); }
+  catch { return { ok: false, code: "REQUEST_FAILED" }; }
+}
+
 ${invalidateHelper}
 ${passkeyHelpers}
 
 export function useSettingsMutations() {
 ${transport}
   return {
-    updateProfile: async (name: string) => {
+    updateProfile: (name: string) => recoverSettingsAction(async () => {
       const result = await identityClient.updateProfile({ name });
       return actionResult(result.error);
-    },
-    changePassword: async (currentPassword: string, newPassword: string) => {
+    }),
+    changePassword: (currentPassword: string, newPassword: string) => recoverSettingsAction(async () => {
       const result = await identityClient.changePassword({
         currentPassword,
         newPassword,
         revokeOtherSessions: true,
       });
       return actionResult(result.error);
-    },
-    enableTwoFactor: async (password: string): Promise<EnableTwoFactorResult> => {
+    }),
+    enableTwoFactor: (password: string): Promise<EnableTwoFactorResult> => recoverSettingsAction(async () => {
       const result = await identityClient.enableTwoFactor({ password });
       if (result.error || !result.data) return { ok: false, code: result.error?.code };
       return { ok: true, totpUri: result.data.totpURI, backupCodes: result.data.backupCodes };
-    },
-    verifyTwoFactor: async (code: string) => {
-      const result = await identityClient.verifyTwoFactor({ code, trustDevice: true });
+    }),
+    verifyTwoFactor: (code: string) => recoverSettingsAction(async () => {
+      const result = await identityClient.verifyTwoFactor({ code, trustDevice: false });
       return actionResult(result.error);
-    },
-    disableTwoFactor: async (password: string) => {
+    }),
+    disableTwoFactor: (password: string) => recoverSettingsAction(async () => {
       const result = await identityClient.disableTwoFactor({ password });
       return actionResult(result.error);
-    },
-    deleteAccount: async (password: string) => {
+    }),
+    deleteAccount: (password: string) => recoverSettingsAction(async () => {
       const result = await identityClient.deleteAccount({ password });
       return actionResult(result.error);
-    },
+    }),
 ${transportResult}
   };
 }
@@ -246,11 +261,13 @@ function profileCardContent(): string {
   return `"use client";
 import type * as React from "react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
 import { createProfileSchema } from "./schema";
+import { getQueryClient, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult, SettingsProfile } from "./types";
 
@@ -260,7 +277,6 @@ export function ProfileCard({ profile, updateProfile }: {
 }): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const form = useAppForm({
     defaultValues: { name: profile.initialName },
     validators: { onSubmit: createProfileSchema({
@@ -269,21 +285,23 @@ export function ProfileCard({ profile, updateProfile }: {
       nameTooLong: t("validation.nameTooLong"),
     }) },
     onSubmit: async ({ value }) => {
-      setError(null); setSuccess(false);
-      const result = await updateProfile(value.name);
-      if (!result.ok) setError(result.message ?? t("errors.profileUpdate"));
-      else setSuccess(true);
+      setError(null);
+      try {
+        const result = await updateProfile(value.name);
+        if (!result.ok) { setError(t("errors.profileUpdate")); return; }
+        toast.success(t("profile.successTitle"), { description: t("profile.successMessage") });
+        requestQueryAuthScopeRefresh(getQueryClient());
+      } catch { setError(t("errors.profileUpdate")); }
     },
   });
-  return <Card><CardHeader>
-    <CardTitle className="text-base">{t("profile.title")}</CardTitle>
-    <CardDescription className="max-w-[60ch]">{t("profile.description", { email: profile.email, role: profile.role })}</CardDescription>
-  </CardHeader><CardContent className="flex flex-col gap-4">
+  return <Card className="grid gap-0 overflow-hidden xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"><CardHeader className="border-b border-border/70 bg-muted/20 xl:border-b-0 xl:border-e">
+    <CardTitle as="h2">{t("profile.title")}</CardTitle>
+    <CardDescription className="max-w-[44ch] break-words">{t("profile.description", { email: profile.email, role: profile.role })}</CardDescription>
+  </CardHeader><CardContent className="flex min-w-0 flex-col gap-5 p-5 sm:p-6">
     {error ? <Alert variant="destructive"><AlertTitle>{t("profile.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {success ? <Alert><AlertTitle>{t("profile.successTitle")}</AlertTitle><AlertDescription>{t("profile.successMessage")}</AlertDescription></Alert> : null}
-    <form.AppForm><Form form={form} className="flex flex-col gap-4"><FieldGroup>
+    <form.AppForm><Form form={form} className="flex max-w-xl flex-col gap-5"><FieldGroup>
       <form.AppField name="name">{(field) => <field.TextField label={t("profile.nameLabel")} description={t("profile.nameDescription")} placeholder={t("profile.namePlaceholder")} autoComplete="name" required maxLength={50} />}</form.AppField>
-    </FieldGroup><form.SubmitButton pendingLabel={t("profile.submitting")}>{t("profile.submit")}</form.SubmitButton></Form></form.AppForm>
+    </FieldGroup><form.SubmitButton className="w-auto self-start" pendingLabel={t("profile.submitting")}>{t("profile.submit")}</form.SubmitButton></Form></form.AppForm>
   </CardContent></Card>;
 }
 `;
@@ -322,13 +340,13 @@ export function PasswordCard({ changePassword }: {
       else { setSuccess(true); form.reset(); }
     },
   });
-  return <Card><CardHeader><CardTitle className="text-base">{t("password.title")}</CardTitle><CardDescription>{t("password.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
+  return <Card><CardHeader><CardTitle as="h2">{t("password.title")}</CardTitle><CardDescription>{t("password.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-5">
     {error ? <Alert variant="destructive"><AlertTitle>{t("password.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     {success ? <Alert><AlertTitle>{t("password.successTitle")}</AlertTitle><AlertDescription>{t("password.successMessage")}</AlertDescription></Alert> : null}
     <form.AppForm><Form form={form} className="flex flex-col gap-4"><FieldGroup>
       <form.AppField name="currentPassword">{(field) => <field.PasswordField label={t("password.currentPasswordLabel")} autoComplete="current-password" required />}</form.AppField>
       <form.AppField name="newPassword">{(field) => <field.PasswordField label={t("password.newPasswordLabel")} description={t("password.newPasswordDescription")} autoComplete="new-password" required minLength={8} maxLength={64} />}</form.AppField>
-    </FieldGroup><form.SubmitButton pendingLabel={t("password.submitting")}>{t("password.submit")}</form.SubmitButton></Form></form.AppForm>
+    </FieldGroup><form.SubmitButton className="w-auto self-start" pendingLabel={t("password.submitting")}>{t("password.submit")}</form.SubmitButton></Form></form.AppForm>
   </CardContent></Card>;
 }
 `;
@@ -409,18 +427,18 @@ export function TwoFactorCard(props: TwoFactorCardProps): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   const state = useTwoFactorSettings(props.serverEnabled, props);
   const { backupCodes, disableForm, enabled, enableForm, error, totpUri, verifyForm } = state;
-  return <Card><CardHeader><div className="flex items-center justify-between gap-3">
-    <CardTitle className="text-base">{t("twoFactor.title")}</CardTitle><Badge variant={enabled ? "secondary" : "outline"}>{enabled ? t("twoFactor.enabled") : t("twoFactor.disabled")}</Badge>
+  return <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-3">
+    <CardTitle as="h2">{t("twoFactor.title")}</CardTitle><Badge variant={enabled ? "secondary" : "outline"}>{enabled ? t("twoFactor.enabled") : t("twoFactor.disabled")}</Badge>
   </div><CardDescription>{t("twoFactor.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
     {error ? <Alert variant="destructive"><AlertTitle>{t("twoFactor.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
     {enabled ? <disableForm.AppForm><Form form={disableForm} className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{t("twoFactor.enabledDescription")}</p><FieldGroup><disableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</disableForm.AppField></FieldGroup><disableForm.SubmitButton variant="outline" pendingLabel={t("twoFactor.disabling")}>{t("twoFactor.disable")}</disableForm.SubmitButton>
+      <p className="text-sm text-muted-foreground">{t("twoFactor.enabledDescription")}</p><FieldGroup><disableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</disableForm.AppField></FieldGroup><disableForm.SubmitButton className="w-auto self-start" variant="outline" pendingLabel={t("twoFactor.disabling")}>{t("twoFactor.disable")}</disableForm.SubmitButton>
     </Form></disableForm.AppForm> : !totpUri ? <enableForm.AppForm><Form form={enableForm} className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{t("twoFactor.enableDescription")}</p><FieldGroup><enableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</enableForm.AppField></FieldGroup><enableForm.SubmitButton pendingLabel={t("twoFactor.preparing")}>{t("twoFactor.enable")}</enableForm.SubmitButton>
+      <p className="text-sm text-muted-foreground">{t("twoFactor.enableDescription")}</p><FieldGroup><enableForm.AppField name="password">{(field) => <field.PasswordField label={t("twoFactor.passwordLabel")} autoComplete="current-password" required />}</enableForm.AppField></FieldGroup><enableForm.SubmitButton className="w-auto self-start" pendingLabel={t("twoFactor.preparing")}>{t("twoFactor.enable")}</enableForm.SubmitButton>
     </Form></enableForm.AppForm> : <verifyForm.AppForm><Form form={verifyForm} className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{t("twoFactor.scanDescription")}</p><div className="break-all rounded-md border p-3 font-mono text-xs">{totpUri}</div>
       {backupCodes ? <pre className="whitespace-pre-wrap rounded-md border p-3 font-mono text-xs">{backupCodes.join("\\n")}</pre> : null}
-      <FieldGroup><verifyForm.AppField name="code">{(field) => <field.OtpField label={t("twoFactor.codeLabel")} description={t("twoFactor.codeDescription")} placeholder="000000" required length={6} />}</verifyForm.AppField></FieldGroup><verifyForm.SubmitButton pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.verify")}</verifyForm.SubmitButton>
+      <FieldGroup><verifyForm.AppField name="code">{(field) => <field.OtpField label={t("twoFactor.codeLabel")} description={t("twoFactor.codeDescription")} placeholder="000000" required length={6} />}</verifyForm.AppField></FieldGroup><verifyForm.SubmitButton className="w-auto self-start" pendingLabel={t("twoFactor.verifying")}>{t("twoFactor.verify")}</verifyForm.SubmitButton>
     </Form></verifyForm.AppForm>}
   </CardContent></Card>;
 }
@@ -434,7 +452,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { SessionList } from "./session-list";
 import type { SettingsSession } from "./types";
@@ -455,13 +472,13 @@ interface SessionsCardProps {
 export function SessionsCard(props: SessionsCardProps): React.JSX.Element {
   const t = useSurfaceTranslations("settings");
   return <Card><CardHeader><div className="flex items-center justify-between gap-2">
-    <CardTitle className="text-base">{t("sessions.title")}</CardTitle><Badge variant="secondary">{props.sessions.length}</Badge>
+    <CardTitle as="h2">{t("sessions.title")}</CardTitle><Badge variant="secondary">{props.sessions.length}</Badge>
   </div><CardDescription>{t("sessions.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-4">
     {props.error ? <Alert variant="destructive"><AlertTitle>{t("sessions.errorTitle")}</AlertTitle><AlertDescription>{props.error instanceof Error ? props.error.message : t("sessions.genericError")}</AlertDescription></Alert> : null}
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="outline" onClick={() => void props.refresh()} disabled={props.isFetching}>{props.isFetching ? t("sessions.loading") : t("sessions.refresh")}</Button>
       <Button size="sm" variant="destructive" onClick={props.revokeOthers} disabled={props.sessions.length <= 1 || props.revokingOthers}>{props.revokingOthers ? t("sessions.revokingOthers") : t("sessions.revokeOthers")}</Button>
-    </div><Separator /><SessionList currentSessionId={props.currentSessionId} isLoading={props.loading} pendingSessionId={props.pendingSessionId} sessions={props.sessions} onRevoke={props.revoke} />
+    </div><SessionList currentSessionId={props.currentSessionId} isLoading={props.loading} pendingSessionId={props.pendingSessionId} sessions={props.sessions} onRevoke={props.revoke} />
   </CardContent></Card>;
 }
 `;
@@ -476,6 +493,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getQueryClient, transitionQueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult } from "./types";
 
@@ -488,14 +506,15 @@ export function DangerZoneSection({ deleteAccount }: {
     setError(null); setPending(true);
     try {
       const result = await deleteAccount();
-      if (!result.ok) { setError(result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : t("danger.genericError")); return; }
+      if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : t("danger.genericError")); return; }
+      transitionQueryAuthScope(getQueryClient(), null);
       await navigate({ to: "/" });
     } catch { setError(t("danger.genericError")); }
     finally { setPending(false); }
   }
-  return <Card className="border-destructive/30"><CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.oauthDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
+  return <Card className="border-destructive/20 shadow-none"><CardHeader><CardTitle as="h2" className="text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.oauthDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
     {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-    <Button variant="destructive" disabled={pending} onClick={() => void remove()}>{pending ? t("danger.deleting") : t("danger.delete")}</Button>
+    <Button className="w-auto self-start" variant="destructive" disabled={pending} onClick={() => void remove()}>{pending ? t("danger.deleting") : t("danger.delete")}</Button>
   </CardContent></Card>;
 }
 `;
@@ -511,6 +530,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FieldGroup } from "@/components/ui/field";
 import { Form, useAppForm } from "@/components/ui/form";
 import { createRequiredPasswordSchema } from "./schema";
+import { getQueryClient, transitionQueryAuthScope } from "@/lib/query-client";
 import { useSurfaceTranslations } from "@/lib/translations";
 import type { SettingsActionResult } from "./types";
 
@@ -523,15 +543,19 @@ export function DangerZoneSection({ deleteAccount }: {
     defaultValues: { password: "" },
     validators: { onSubmit: createRequiredPasswordSchema(t("validation.passwordRequired")) },
     onSubmit: async ({ value }) => {
-      setError(null); const result = await deleteAccount(value.password);
-      if (!result.ok) { setError(result.message ?? t("errors.deleteAccount")); return; }
-      setOpen(false); void navigate({ to: "/" });
+      setError(null);
+      try {
+        const result = await deleteAccount(value.password);
+        if (!result.ok) { setError(result.code === "ACCOUNT_DELETION_RESTRICTED" ? t("danger.retainedRecordError") : result.code === "SESSION_EXPIRED" || result.code === "SESSION_NOT_FRESH" ? t("danger.reauthenticate") : result.code === "INVALID_PASSWORD" ? t("danger.invalidPassword") : t("danger.genericError")); return; }
+        transitionQueryAuthScope(getQueryClient(), null);
+        setOpen(false); await navigate({ to: "/" });
+      } catch { setError(t("danger.genericError")); }
     },
   });
-  return <Card className="border-destructive/30"><CardHeader><CardTitle className="text-base text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.description")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-    {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+  return <Card className="flex flex-col gap-0 border-destructive/20 shadow-none md:flex-row md:items-center md:justify-between"><CardHeader><CardTitle as="h2" className="text-destructive">{t("danger.title")}</CardTitle><CardDescription>{t("danger.description")}</CardDescription></CardHeader><CardContent className="shrink-0 pt-0 md:pt-6">
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) form.reset(); }}><DialogTrigger render={<Button variant="destructive" />}>{t("danger.delete")}</DialogTrigger><DialogContent><DialogHeader><DialogTitle>{t("danger.dialogTitle")}</DialogTitle><DialogDescription>{t("danger.dialogDescription")}</DialogDescription></DialogHeader>
-      <form.AppForm><Form form={form} className="flex flex-col gap-3"><FieldGroup><form.AppField name="password">{(field) => <field.PasswordField label={t("danger.passwordLabel")} description={t("danger.passwordDescription")} placeholder={t("danger.passwordPlaceholder")} autoComplete="current-password" required />}</form.AppField></FieldGroup><DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("danger.cancel")}</Button><form.SubmitButton variant="destructive" pendingLabel={t("danger.deleting")}>{t("danger.confirm")}</form.SubmitButton></DialogFooter></Form></form.AppForm>
+      {error ? <Alert variant="destructive"><AlertTitle>{t("danger.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
+      <form.AppForm><Form form={form} className="flex flex-col gap-3"><FieldGroup><form.AppField name="password">{(field) => <field.PasswordField label={t("danger.passwordLabel")} description={t("danger.passwordDescription")} placeholder={t("danger.passwordPlaceholder")} autoComplete="current-password" required />}</form.AppField></FieldGroup><DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("danger.cancel")}</Button><form.SubmitButton className="w-auto" variant="destructive" pendingLabel={t("danger.deleting")}>{t("danger.confirm")}</form.SubmitButton></DialogFooter></Form></form.AppForm>
     </DialogContent></Dialog>
   </CardContent></Card>;
 }
@@ -565,8 +589,8 @@ function controllerContent(
 import { TwoFactorCard } from "./two-factor-card";`
     : "";
   const passwordCards = hasEmail
-    ? `    <PasswordCard changePassword={mutations.changePassword} />
-    <TwoFactorCard serverEnabled={queries.serverTwoFactorEnabled} enable={mutations.enableTwoFactor} verify={mutations.verifyTwoFactor} disable={mutations.disableTwoFactor} />`
+    ? `    <div className="grid items-start gap-6 xl:grid-cols-2"><PasswordCard changePassword={mutations.changePassword} />
+    <TwoFactorCard serverEnabled={queries.serverTwoFactorEnabled} enable={mutations.enableTwoFactor} verify={mutations.verifyTwoFactor} disable={mutations.disableTwoFactor} /></div>`
     : "";
   const passkeyImport = hasPasskey ? `import { PasskeyCard } from "./passkey-card";` : "";
   const passkeyCard = hasPasskey ? "    <PasskeyCard />" : "";
@@ -587,14 +611,14 @@ import { useSettingsQueries } from "./queries";
 export function SettingsController(): React.JSX.Element {
   const queries = useSettingsQueries();
   const mutations = useSettingsMutations();
-  return <>
+  return <div className="flex min-w-0 flex-col gap-6">
     <ProfileCard key={queries.profile.key} profile={queries.profile} updateProfile={mutations.updateProfile} />
 ${passwordCards}
 ${passkeyCard}
 ${sessions}
     <SecurityNavigationSection />
     ${dangerSection}
-  </>;
+  </div>;
 }
 `;
 }
@@ -625,8 +649,12 @@ export function tanstackSettingsDataFeatureFiles(
       : []),
     ...(hasPasskey
       ? [
-          file(`${root}/passkey-card.tsx`, settingsPasskeyCardContent("feature-adapter")),
+          file(`${root}/passkey-card.tsx`, settingsPasskeyCardContent()),
           file(`${root}/passkey-list.tsx`, settingsPasskeyListContent()),
+          file(
+            `${root}/use-passkey-management.ts`,
+            settingsPasskeyManagementContent("feature-adapter"),
+          ),
         ]
       : []),
     ...(hasIdentityTransport

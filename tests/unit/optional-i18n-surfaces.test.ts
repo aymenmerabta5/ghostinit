@@ -75,18 +75,14 @@ describe("optional web surface localization", () => {
           const storage = read(files, `${sourceRoot}/features/storage/page.tsx`);
           const flags = read(files, `${sourceRoot}/features/feature-flags/page.tsx`);
           const jobs = read(files, `${sourceRoot}/features/jobs/page.tsx`);
-          const pdf = read(
-            files,
-            framework === "nextjs"
-              ? `${sourceRoot}/app/pdf/page.tsx`
-              : `${sourceRoot}/routes/pdf.tsx`,
-          );
-          const agent = read(
-            files,
-            framework === "nextjs"
-              ? `${sourceRoot}/app/agent/page.tsx`
-              : `${sourceRoot}/routes/agent.tsx`,
-          );
+          const pdf = read(files, `${sourceRoot}/features/pdf/pdf-workspace.tsx`);
+          const agent =
+            read(
+              files,
+              framework === "nextjs"
+                ? `${sourceRoot}/app/agent/page.tsx`
+                : `${sourceRoot}/routes/agent.tsx`,
+            ) + matchingSource(files, new RegExp(`^${sourceRoot}/features/agent/`));
           const messages = matchingSource(
             files,
             new RegExp(
@@ -197,10 +193,7 @@ describe("optional web surface localization", () => {
         }),
         { dryRun: true, validate: true },
       );
-      const web = read(
-        files,
-        framework === "nextjs" ? "apps/web/src/app/pdf/page.tsx" : "apps/web/src/routes/pdf.tsx",
-      );
+      const web = read(files, "apps/web/src/features/pdf/pdf-workspace.tsx");
       const mobile = read(files, "apps/mobile/app/pdf.tsx");
       const mobileClient = read(files, "apps/mobile/src/hooks/usePdf.ts");
       const desktop = read(files, "apps/desktop/src/renderer/routes/pdf.tsx");

@@ -9,10 +9,6 @@ import * as v from "./versions.js";
 
 export type TemplateRuntime = "node" | "bun";
 
-/* ------------------------------------------------------------------ */
-/* normalizeArgs — shared across email, billing-generator, services  */
-/* ------------------------------------------------------------------ */
-
 function isProjectMode(value: unknown): value is ProjectMode {
   return value === "monorepo" || value === "single";
 }
@@ -75,9 +71,6 @@ export function normalizeTemplateArgs(
 
   return { mode, runtime, framework, addons };
 }
-
-/** Backwards compat alias — some generators used `normalizeArgs` name */
-export const normalizeArgs = normalizeTemplateArgs;
 
 export interface TemplateFile {
   path: string;

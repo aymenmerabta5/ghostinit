@@ -42,7 +42,6 @@ export function databaseComposerFiles(
     ];
     if (!hasMessaging) return base;
     const extra = convexMessagingFiles();
-    // Patch convex/schema.ts to include messaging tables + typingIndicators
     const schemaIdx = base.findIndex((f) => f.path === "convex/schema.ts");
     if (schemaIdx !== -1) {
       const orig = base[schemaIdx].content;
@@ -103,7 +102,6 @@ export function databaseComposerFiles(
         '  }).index("by_conversation", ["conversationId"]).index("by_conversation_user", ["conversationId", "userId"]),',
         "",
       ].join("\n");
-      // Insert before final posts block closing: find "  posts: defineTable" and insert patch before it
       let newContent: string;
       if (orig.includes("  posts: defineTable")) {
         newContent = orig.replace("  posts: defineTable", `${patch}  posts: defineTable`);
@@ -118,13 +116,8 @@ export function databaseComposerFiles(
   }
 
   if (database === "none") {
-    // Database disabled — emit a stub @repo/database so @repo/auth and other
-    // consumers still typecheck. The stub exports the same symbols (db, users,
-    // etc.) but throws at runtime with a clear message guiding to --database
-    // postgres|convex. Without this, `import { db } from "@repo/database"` in
-    // packages/auth/src/index.ts is TS2307 and the whole project fails to
-    // typecheck (generation-matrix invariant).
-    return databaseStubPackage(runtime);
+    // Keep shared imports resolvable while denying persistence operations.
+    return databaseStubPackage();
   }
 
   const base = [
@@ -311,8 +304,7 @@ function convexMessagingFiles(): TemplateFile[] {
   return convexMessagingDatabaseFiles();
 }
 
-function databaseStubPackage(runtime: Runtime): TemplateFile[] {
-  const executor = runtime === "bun" ? "bun" : "node";
+function databaseStubPackage(): TemplateFile[] {
   return [
     file(
       "packages/database/package.json",
@@ -322,12 +314,7 @@ function databaseStubPackage(runtime: Runtime): TemplateFile[] {
           ".": "./src/index.ts",
           "./schema": "./src/schema/index.ts",
         },
-        scripts: {
-          ...codeScripts(),
-          "db:generate": `${executor} --env-file=../../.env.local drizzle-kit generate`,
-          "db:migrate": `${executor} --env-file=../../.env.local drizzle-kit migrate`,
-          "db:push": `${executor} --env-file=../../.env.local drizzle-kit push`,
-        },
+        scripts: codeScripts(),
         dependencies: {
           "@repo/config": "workspace:*",
         },
@@ -378,11 +365,7 @@ export function disabledDatabaseValue(label: string): DisabledDatabaseValue {
     ),
     file(
       "packages/database/src/index.ts",
-      `// database=none stub — no real DB configured.
-// This file exists so imports like \`import { db, users } from "@repo/database"\`
-// still resolve when --database none. Any actual DB call will throw with a
-// clear message guiding to enable postgres or convex.
-import { disabledDatabaseValue } from "./disabled.js";
+      `import { disabledDatabaseValue } from "./disabled.js";
 
 export const db = disabledDatabaseValue("db");
 export const pool = db;

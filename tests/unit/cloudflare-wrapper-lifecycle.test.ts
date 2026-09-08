@@ -11,9 +11,13 @@ import {
   generatedContent,
   runFixture,
   testEnvironment,
+  withFailureDiagnostics,
   type RuntimeFixture,
 } from "../helpers/cloudflare-runtime-fixture.js";
-import { resolveWindowsSystemExecutable } from "../helpers/process-tree.js";
+import {
+  resolveWindowsSystemExecutable,
+  terminateProcessTree as terminateVerifiedProcessTree,
+} from "../helpers/process-tree.js";
 
 const fixtures: RuntimeFixture[] = [];
 const track = (fixture: RuntimeFixture): RuntimeFixture => (fixtures.push(fixture), fixture);
@@ -105,26 +109,55 @@ ${boundary}`,
 
 async function stopFixtureProcesses(fixture: RuntimeFixture, wrapper: ChildProcess) {
   const cwd = fixture.cwd ?? fixture.root;
-  for (const name of [".runtime-pid", ".descendant-pid"]) {
-    const path = join(cwd, name);
-    if (!existsSync(path)) continue;
-    const pid = Number(readFileSync(path, "utf8"));
-    if (!Number.isSafeInteger(pid) || pid <= 1 || !processIsLive(pid)) continue;
-    if (process.platform === "win32") {
-      spawnSync(resolveWindowsSystemExecutable("taskkill"), ["/PID", String(pid), "/T", "/F"], {
-        stdio: "ignore",
-        windowsHide: true,
-      });
-    } else {
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  let verified = false;
+  try {
+    if (process.platform === "win32" && wrapper.exitCode === null && wrapper.signalCode === null) {
+      // Include the wrapper's inspection subprocesses before deleting their working directory.
+      await terminateVerifiedProcessTree(wrapper);
+    }
+    for (const name of [".runtime-pid", ".descendant-pid"]) {
+      const path = join(cwd, name);
+      if (!existsSync(path)) continue;
+      const pid = Number(readFileSync(path, "utf8"));
+      if (!Number.isSafeInteger(pid) || pid <= 1 || !processIsLive(pid)) continue;
+      if (process.platform === "win32") {
+        const result = spawnSync(
+          resolveWindowsSystemExecutable("taskkill"),
+          ["/PID", String(pid), "/T", "/F"],
+          {
+            stdio: ["ignore", "pipe", "pipe"],
+            timeout: 10_000,
+            windowsHide: true,
+          },
+        );
+        if (
+          result.error ||
+          result.signal !== null ||
+          result.status === null ||
+          (result.status !== 0 && processIsLive(pid))
+        ) {
+          throw new Error("Fixture process termination could not be verified for PID " + pid);
+        }
+        await waitUntil(() => !processIsLive(pid), 5_000);
+      } else {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
       }
     }
+    if (wrapper.exitCode === null && wrapper.signalCode === null) wrapper.kill("SIGKILL");
+    await waitUntil(() => wrapper.exitCode !== null || wrapper.signalCode !== null, 5_000);
+    verified = true;
+  } finally {
+    if (!verified) {
+      for (let index = fixtures.length - 1; index >= 0; index--) {
+        if (fixtures[index]?.root === fixture.root) fixtures.splice(index, 1);
+      }
+      console.error("Retained fixture after unverified process cleanup: " + fixture.root);
+    }
   }
-  if (wrapper.exitCode === null && wrapper.signalCode === null) wrapper.kill("SIGKILL");
-  await Bun.sleep(75);
 }
 
 describe("generated Worker process supervision", () => {
@@ -158,7 +191,9 @@ describe("generated Worker process supervision", () => {
     test.skipIf(process.platform === "win32")(
       `a parent-targeted SIGTERM stops the ${action} process group before releasing the lock`,
       async () => {
-        const fixture = track(createWorkerFixture({ framework: "tanstack-start" }));
+        const fixture = track(
+          withFailureDiagnostics(createWorkerFixture({ framework: "tanstack-start" })),
+        );
         installDescendantAdapter(fixture, "vite");
         const wrapper = startWrapper(fixture, action);
         const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
@@ -196,6 +231,7 @@ describe("generated Worker process supervision", () => {
       const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
       try {
         await waitUntil(() => existsSync(join(fixture.root, ".descendant-heartbeat")));
+        await waitUntil(() => Boolean(JSON.parse(readFileSync(lockPath, "utf8")).child?.createdAt));
         // Windows TerminateProcess bypasses JS handlers; no graceful cleanup is claimed.
         wrapper.child.kill("SIGTERM");
         await wrapper.exited;
@@ -392,7 +428,9 @@ setInterval(() => {
       '  throw new Error("injected recovery-marker write failure");',
     );
     expect(instrumented).not.toBe(generated);
-    const fixture = track(createConvexFixture(instrumented, "NEXT_PUBLIC_CONVEX_URL"));
+    const fixture = track(
+      withFailureDiagnostics(createConvexFixture(instrumented, "NEXT_PUBLIC_CONVEX_URL")),
+    );
     installDescendantAdapter(fixture, "convex");
     writeFileSync(
       join(fixture.root, ".dev.vars"),
@@ -403,7 +441,10 @@ setInterval(() => {
       await waitUntil(() => wrapper.child.exitCode !== null);
       expect(await wrapper.exited).not.toBe(0);
       expect(wrapper.output()).toContain("injected recovery-marker write failure");
-      expect(existsSync(join(fixture.root, ".dev.vars.ghostinit-build-lock"))).toBe(false);
+      expect(
+        existsSync(join(fixture.root, ".dev.vars.ghostinit-build-lock")),
+        wrapper.output(),
+      ).toBe(false);
       const heartbeat = readFileSync(join(fixture.root, ".descendant-heartbeat"), "utf8");
       await Bun.sleep(100);
       expect(readFileSync(join(fixture.root, ".descendant-heartbeat"), "utf8")).toBe(heartbeat);

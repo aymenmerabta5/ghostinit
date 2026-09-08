@@ -15,6 +15,7 @@ import {
   headerActionsContent,
   headerFileContent,
   headerUserMenuContent,
+  workspaceShellFiles,
   signOutButtonContent,
   type HeaderNavigationCapabilities,
 } from "./fragments/header.js";
@@ -28,6 +29,8 @@ import {
 import type { AddonInstallerMap } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
 import { surfaceTranslationFiles } from "../i18n/surface.js";
+import { canonicalQueryAuthHookFile, queryAuthBoundaryFile } from "./fragments/query-auth.js";
+import { requestOwnedSnapshotFile } from "./fragments/request-owned-snapshot.js";
 
 type AddonMapInput = AddonInstallerMap | Record<string, { inUse: boolean }> | undefined;
 
@@ -77,19 +80,21 @@ export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
       framework: "next",
       sourceRoot: "apps/web/src",
     }),
-    providersComponent(convex, analytics, i18n),
+    providersComponent(convex, analytics, i18n, auth),
+    ...(auth ? [queryAuthBoundaryFile("apps/web/src", api)] : []),
+    ...(auth && api ? [canonicalQueryAuthHookFile(), requestOwnedSnapshotFile()] : []),
     themeProviderComponent(),
     themeToggleComponent(),
-    headerComponent(
-      i18n,
-      auth,
-      billing,
-      hasTypedAdminNavigation,
-      convex && hasTypedAdminNavigation ? "../../../../convex/_generated/api" : undefined,
-      pdf,
-      messaging,
+    headerComponent(i18n, auth),
+    ...workspaceShellFiles("next", {
+      sourceRoot: "apps/web/src",
+      hasAuth: auth,
+      hasBilling: billing,
+      hasAdminNavigation: hasTypedAdminNavigation,
+      hasPdf: pdf,
+      hasMessaging: messaging,
       navigation,
-    ),
+    }),
     ...(auth
       ? headerSupportComponents(i18n, billing, hasTypedAdminNavigation, messaging, pdf, navigation)
       : []),
@@ -114,10 +119,15 @@ function themeToggleComponent(): TemplateFile {
   return file("apps/web/src/components/theme-toggle.tsx", themeToggleFileContent());
 }
 
-function providersComponent(isConvex = false, hasAnalytics = true, hasI18n = false): TemplateFile {
+function providersComponent(
+  isConvex = false,
+  hasAnalytics = true,
+  hasI18n = false,
+  hasAuth = true,
+): TemplateFile {
   return file(
     "apps/web/src/components/providers.tsx",
-    providersFileContent("next", isConvex, hasAnalytics, hasI18n),
+    providersFileContent("next", isConvex, hasAnalytics, hasI18n, hasAuth),
   );
 }
 
@@ -128,30 +138,8 @@ function convexClientProviderComponent(hasAuth: boolean): TemplateFile {
   );
 }
 
-function headerComponent(
-  hasI18n = false,
-  hasAuth = true,
-  hasBilling = true,
-  hasAdminNavigation = true,
-  convexApiImport?: string,
-  hasPdf = false,
-  hasMessaging = false,
-  navigation: HeaderNavigationCapabilities = {},
-): TemplateFile {
-  return file(
-    "apps/web/src/components/header.tsx",
-    headerFileContent(
-      "next",
-      hasI18n,
-      hasAuth,
-      hasBilling,
-      hasAdminNavigation,
-      convexApiImport,
-      hasPdf,
-      hasMessaging,
-      navigation,
-    ),
-  );
+function headerComponent(hasI18n = false, hasAuth = true): TemplateFile {
+  return file("apps/web/src/components/header.tsx", headerFileContent("next", hasI18n, hasAuth));
 }
 
 function headerSupportComponents(

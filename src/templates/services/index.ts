@@ -24,7 +24,7 @@ import { requestApplicationServerContent } from "./application-server.js";
 import { hasBillingAddon } from "./shared.js";
 
 export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFile[] {
-  const { mode, framework, addons } = normalizeTemplateArgs(
+  const { mode, addons } = normalizeTemplateArgs(
     a as ProjectMode | string | Record<string, unknown> | undefined,
     b as string | AddonInstallerMap | Record<string, unknown> | undefined,
     c as AddonInstallerMap | Record<string, unknown> | undefined,
@@ -35,6 +35,7 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
   const withBilling = hasBillingAddon(addons);
   const withEmail = addons ? hasAddon(addons as AddonInstallerMap, "email") : true;
   const withAuth = addons ? hasAddon(addons as AddonInstallerMap, "auth") : true;
+  const withApi = addons ? hasAddon(addons as AddonInstallerMap, "api") : true;
   const withMessaging = addons ? hasAddon(addons as AddonInstallerMap, "messaging") : false;
   const withStorage = addons
     ? hasAddon(addons as AddonInstallerMap, "storage") || withMessaging
@@ -51,7 +52,7 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
       : addons && hasAddon(addons as AddonInstallerMap, "database:none")
         ? "none"
         : "postgres";
-  const withRequestApplication = withAuth && database !== "none";
+  const withRequestApplication = withApi && withAuth && database !== "none";
   const requestApplicationSelection = {
     admin: withRequestApplication,
     billing: withRequestApplication && withBilling,
@@ -61,9 +62,6 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
     notifications: withRequestApplication && withNotifications,
   } as const;
 
-  // Single mode has no @repo/kernel package, and the service files import
-  // `@/server/kernel/result.js`. Emit the module so those imports resolve —
-  // without it every single-mode project failed to typecheck with TS2307.
   if (!isMonorepo) {
     files.push(
       file(
@@ -196,8 +194,8 @@ export function err<E = Error>(error: E): Result<never, E> {
   if (withNotifications) files.push(...notificationsServiceFiles(mode as ProjectMode));
   if (withFeatureFlags) files.push(...featureFlagsServiceFiles(mode as ProjectMode));
   if (withJobs) files.push(...jobsServiceFiles(mode as ProjectMode));
-  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode, framework));
-  files.push(...invoiceServiceFiles(mode as ProjectMode, framework));
+  if (withEmail) files.push(...emailServiceFiles(mode as ProjectMode));
+  files.push(...invoiceServiceFiles(mode as ProjectMode));
   if (withRequestApplication) {
     files.push(
       ...requestApplicationFiles(

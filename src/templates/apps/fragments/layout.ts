@@ -1,31 +1,25 @@
 // @allow-long 481: shared layout fragments deduplicated Next/TanStack
-/**
- * Shared layout fragments: layout.tsx metadata html suppressHydrationWarning, not-found, error use client, loading Skeleton
- * Deduplicates 70-80% between Next and TanStack root/not-found/error/loading
- */
-
 export type RouterType = "next" | "tanstack";
 
 export const sharedNotFoundInner = {
   title: "Page not found",
   description: "The page you are looking for does not exist or was moved.",
-  cardClass: "w-full max-w-[420px] shadow-sm",
-  mainClass: "min-h-screen bg-background flex items-center justify-center p-6",
+  cardClass: "w-full max-w-[440px] border-0 bg-transparent shadow-none",
+  mainClass:
+    "flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-background px-5 py-10 sm:px-8",
 };
 
 export const sharedErrorInner = {
   title: "Something went wrong",
   description: "An unexpected error occurred. You can try again.",
-  cardClass: "w-full max-w-[480px]",
+  cardClass: "w-full max-w-[440px] border-0 bg-transparent shadow-none",
 };
 
-export const sharedLoadingSkeletons = `<div className="mx-auto flex max-w-5xl flex-col gap-8 p-6 md:p-8">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-64 w-full" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+export const sharedLoadingSkeletons = `<div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <div className="space-y-3"><Skeleton className="h-9 w-48" /><Skeleton className="h-5 w-64 max-w-full" /></div>
+        <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+          <Skeleton className="h-64 rounded-lg" />
+          <Skeleton className="h-64 rounded-lg" />
         </div>
       </div>`;
 
@@ -49,7 +43,7 @@ async function LocalizedApp({ children }: Readonly<{ children: React.ReactNode }
   return <>
     <script id="locale-request" dangerouslySetInnerHTML={{ __html: localeDocumentScript }} />
     <NextIntlClientProvider locale={locale} messages={messages}>
-      <AppProviders><Header />{children}</AppProviders>
+      <AppProviders><AppShell>{children}</AppShell></AppProviders>
     </NextIntlClientProvider>
   </>;
 }`
@@ -61,7 +55,7 @@ async function LocalizedApp({ children }: Readonly<{ children: React.ReactNode }
     ? `<React.Suspense fallback={<StandaloneLocaleLoadingFallback />}>
           <LocalizedApp>{children}</LocalizedApp>
         </React.Suspense>`
-    : `<AppProviders><Header />{children}</AppProviders>`;
+    : `<AppProviders><AppShell>{children}</AppShell></AppProviders>`;
   const metadataDeclaration = hasI18n
     ? `export async function generateMetadata(): Promise<Metadata> {
   const t = await getSurfaceTranslations("metadata");
@@ -69,30 +63,15 @@ async function LocalizedApp({ children }: Readonly<{ children: React.ReactNode }
 }`
     : `export const metadata: Metadata = {
   title: "GhostInit App",
-  description: "Your opinionated modular monolith with dark mode",
+  description: "A clear foundation for your next application.",
 };`;
 
   return `import * as React from "react";
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { AppProviders } from "../components/providers.js";
-import { Header } from "../components/header.js";
+import { AppShell } from "../components/app-shell.js";
 ${i18nImports}
 import "./globals.css";
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 ${metadataDeclaration}
 
@@ -104,7 +83,7 @@ export default function RootLayout({
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
       ${documentHead}
-      <body className={\`\${dmSans.variable} \${jetbrainsMono.variable} antialiased bg-background text-foreground\`}>
+      <body className="antialiased bg-background text-foreground">
         ${providers}
       </body>
     </html>
@@ -158,7 +137,7 @@ import {
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { AppProviders } from '../components/providers.js'
-import { Header } from '../components/header.js'
+import { AppShell } from '../components/app-shell.js'
 import {
   useStandaloneSurfaceLocale,
   useStandaloneSurfaceTranslations,
@@ -178,12 +157,6 @@ ${localeLoader}${headDeclaration}
 ${headMetadata}
     ],
     links: [
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap',
-      },
       { rel: 'manifest', href: '/manifest.webmanifest' },
       { rel: 'stylesheet', href: appCss },
     ],
@@ -200,9 +173,9 @@ function RootErrorComponent({ error }: { error: unknown }): React.JSX.Element {
   React.useEffect(() => { console.error(error) }, [error])
   return (
 ${fallbackDocumentOpen}
-      <main className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="rounded-xl border bg-card p-6 shadow-sm max-w-[480px] w-full">
-          <h1 className="text-lg font-semibold tracking-tight">{t("unexpected.title")}</h1>
+      <main className="${sharedNotFoundInner.mainClass}">
+        <div className="w-full max-w-[440px] space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight">{t("unexpected.title")}</h1>
           <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{t("unexpected.description")}</p>
         </div>
       </main>
@@ -217,8 +190,8 @@ function RootNotFoundComponent(): React.JSX.Element {
   return (
 ${fallbackDocumentOpen}
       <main className="${sharedNotFoundInner.mainClass}">
-        <div className="rounded-xl border bg-card p-6 shadow-sm max-w-[420px] w-full">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("notFound.title")}</h1>
+        <div className="w-full max-w-[440px] space-y-3">
+          <h1 className="text-3xl font-semibold tracking-tight">{t("notFound.title")}</h1>
           <p className="text-sm text-muted-foreground max-w-[60ch] mt-2">{t("notFound.shortDescription")}</p>
         </div>
       </main>
@@ -231,8 +204,7 @@ function RootComponent() {
 ${localeRead}  return (
 ${rootDocumentOpen}
 ${providersOpen}
-        <Header />
-        <Outlet />
+        <AppShell><Outlet /></AppShell>
       </AppProviders>
     </RootDocument>
   )
@@ -272,10 +244,10 @@ function NotFoundPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("notFound.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link to="/" />} nativeButton={false} aria-label={t("notFound.backHome")}>{t("notFound.backHome")}</Button>
         </CardContent>
       </Card>
@@ -296,10 +268,10 @@ async function NotFoundContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("notFound.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("notFound.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link href="/" />} nativeButton={false} aria-label={t("notFound.backHome")}>
             {t("notFound.backHome")}
           </Button>
@@ -325,7 +297,6 @@ import * as React from "react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export default function Error({
@@ -341,17 +312,13 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-6">
+    <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedErrorInner.cardClass}">
         <CardHeader>
-          <CardTitle>{t("unexpected.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unexpected.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unexpected.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Alert variant="destructive">
-            <AlertTitle>{t("unexpected.alertTitle")}</AlertTitle>
-            <AlertDescription className="truncate max-w-[65ch]">{error.message}</AlertDescription>
-          </Alert>
+        <CardContent className="flex flex-wrap gap-4">
           <Button onClick={() => reset()}>{t("unexpected.retry")}</Button>
         </CardContent>
       </Card>
@@ -371,6 +338,7 @@ import {
   useStandaloneSurfaceLocale,
   useStandaloneSurfaceTranslations,
 } from "@/lib/translations.standalone";
+import "./globals.css";
 
 export default function GlobalError({
   error,
@@ -388,11 +356,10 @@ export default function GlobalError({
   return (
     <html lang={locale} dir={standaloneSurfaceDirection(locale)} suppressHydrationWarning>
       <body className="antialiased bg-background text-foreground">
-        <main className="min-h-screen bg-background flex items-center justify-center p-6">
-          <div className="rounded-xl border bg-card p-6 shadow-sm max-w-[480px] w-full">
-            <h1 className="text-lg font-semibold tracking-tight">{t("global.title")}</h1>
+        <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10 sm:px-8">
+          <div className="w-full max-w-[440px] space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight">{t("global.title")}</h1>
             <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{t("global.description")}</p>
-            <p className="text-xs text-muted-foreground truncate mt-4">{error.message}</p>
             <Button onClick={() => reset()} className="mt-6">
               {t("global.retry")}
             </Button>
@@ -423,10 +390,10 @@ function UnauthorizedPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unauthorized.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link to="/sign-in" />} nativeButton={false} aria-label={t("unauthorized.signIn")}>{t("unauthorized.signIn")}</Button>
         </CardContent>
       </Card>
@@ -447,10 +414,10 @@ async function UnauthorizedContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("unauthorized.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unauthorized.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link href="/sign-in" />} nativeButton={false} aria-label={t("unauthorized.signIn")}>
             {t("unauthorized.signIn")}
           </Button>
@@ -483,10 +450,10 @@ function ForbiddenPage(): React.JSX.Element {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("forbidden.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link to="/" />} nativeButton={false} aria-label={t("forbidden.backHome")}>{t("forbidden.backHome")}</Button>
         </CardContent>
       </Card>
@@ -507,10 +474,10 @@ async function ForbiddenContent(): Promise<React.JSX.Element> {
     <main className="${sharedNotFoundInner.mainClass}">
       <Card className="${sharedNotFoundInner.cardClass}">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">{t("forbidden.title")}</CardTitle>
+          <CardTitle as="h1" className="text-3xl tracking-tight">{t("forbidden.title")}</CardTitle>
           <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-wrap gap-3">
           <Button render={<Link href="/" />} nativeButton={false} aria-label={t("forbidden.backHome")}>
             {t("forbidden.backHome")}
           </Button>
@@ -531,7 +498,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading(): React.JSX.Element {
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-[calc(100dvh-4rem)] bg-background" aria-busy="true">
       ${sharedLoadingSkeletons}
     </main>
   );

@@ -187,12 +187,9 @@ describe("generated agent instructions tell the truth", () => {
           ]
             .map((match) => match[1] ?? match[2])
             .filter(Boolean);
-          const nextWeb = config.apps.includes("web") && config.framework === "nextjs";
-          const expected =
-            nextWeb && config.mode === "monorepo"
-              ? new Set([v.typescript.typescriptNext, v.typescript.typescript])
-              : new Set([nextWeb ? v.typescript.typescriptNext : v.typescript.typescript]);
-          expect(new Set(claims), `agent doc TypeScript claims`).toEqual(expected);
+          expect(new Set(claims), `agent doc TypeScript claims`).toEqual(
+            new Set([v.typescript.typescript]),
+          );
         }
       });
 
@@ -298,17 +295,16 @@ describe("generated agent instructions tell the truth", () => {
             config.database === "postgres" &&
             config.messaging === true &&
             config.apps.includes("web");
-          const expectedDev = hasCustomNextServer
-            ? config.runtime === "bun"
-              ? "bun --conditions=react-server server.ts"
-              : config.mode === "single"
-                ? "node --import ./scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts"
-                : "node --import ../../scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts"
-            : config.runtime === "bun"
-              ? "bun ./node_modules/next/dist/bin/next dev"
-              : "next dev";
-          const expectedBuild =
-            config.runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build";
+          const hasEve = config.eve === true || (config.features ?? []).includes("eve");
+          const bunNext = `bun${config.pdf ? " --preload @react-pdf/renderer" : ""} ./node_modules/next/dist/bin/next`;
+          const expectedDev = hasEve
+            ? "bun scripts/start-development.mjs"
+            : hasCustomNextServer
+              ? `bun ${config.mode === "single" ? "." : "../.."}/scripts/start-next-server.mjs ${config.runtime} dev`
+              : config.runtime === "bun"
+                ? `${bunNext} dev --webpack`
+                : "next dev";
+          const expectedBuild = `${hasCustomNextServer ? "bun run build:server && " : ""}${config.runtime === "bun" ? `${bunNext} build --webpack` : "next build"}`;
           expect(scripts.dev).toBe(expectedDev);
           expect(scripts.build).toBe(
             hasIntegratedSingleEve ? "bun scripts/build-with-eve.mjs" : expectedBuild,
@@ -392,11 +388,14 @@ describe("generated agent instructions tell the truth", () => {
       const ordinaryDoc = ordinary.find(({ path }) => path === "AGENTS.md")?.content ?? "";
       const messagingDoc = messaging.find(({ path }) => path === "AGENTS.md")?.content ?? "";
 
-      expect(ordinaryManifest.scripts?.dev).toBe("bun ./node_modules/next/dist/bin/next dev");
-      expect(ordinaryDoc).toContain("bun ./node_modules/next/dist/bin/next dev");
+      expect(ordinaryManifest.scripts?.dev).toBe(
+        "bun ./node_modules/next/dist/bin/next dev --webpack",
+      );
+      expect(ordinaryDoc).toContain("bun ./node_modules/next/dist/bin/next dev --webpack");
       expect(ordinaryDoc).not.toContain("oRPC WebSocket upgrade");
-      expect(messagingManifest.scripts?.dev).toBe("bun --conditions=react-server server.ts");
-      expect(messagingDoc).toContain("bun --conditions=react-server server.ts");
+      const nextCommand = `bun ${mode === "single" ? "." : "../.."}/scripts/start-next-server.mjs bun dev`;
+      expect(messagingManifest.scripts?.dev).toBe(nextCommand);
+      expect(messagingDoc).toContain(nextCommand);
       expect(messagingDoc).toContain("oRPC WebSocket upgrade");
     }
   });

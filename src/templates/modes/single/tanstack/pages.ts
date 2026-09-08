@@ -1,7 +1,3 @@
-/**
- * TanStack pages orchestrator — re-exports all route content generators.
- * Keeps <300 LOC by delegating to pages/* submodules.
- */
 export {
   singleMarketingClosingTanstackContent,
   singleMarketingFeaturesTanstackContent,
@@ -16,7 +12,9 @@ export {
   singleSignUpRouteTanstackContent,
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
+  singleResetPasswordFormTanstackContent,
   singleTwoFactorRouteTanstackContent,
+  singleTwoFactorFormTanstackContent,
 } from "./pages/auth.js";
 export {
   singleDashboardRouteTanstackContent,

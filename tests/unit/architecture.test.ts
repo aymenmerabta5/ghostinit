@@ -457,14 +457,13 @@ describe("architecture checker fixtures", () => {
     expect(layered[0]?.file).toContain("packages/database/src/__root.tsx");
   });
 
-  it("skips intra-module same BC domain<-application for layered check", async () => {
+  it("allows application code to consume its module domain", async () => {
     pkg("modules");
 
     fixture(
       "packages/modules/src/identity/domain/types.ts",
       `export interface User { id: string; }`,
     );
-    // Same bounded context identity: application importing ../domain/types should be allowed for layered
     fixture(
       "packages/modules/src/identity/application/get-user.ts",
       `import { User } from "../domain/types";\nexport function getUser(): User { return { id: "1" } as any; }`,
@@ -473,7 +472,6 @@ describe("architecture checker fixtures", () => {
     const findings = await analyzeProject(root);
     const layered = findings.filter((f) => f.id === "layered-dependency-violation");
     const crossModule = findings.filter((f) => f.id === "module-to-module-import");
-    // Intra-module same BC should not flag layered nor module-to-module
     expect(layered).toEqual([]);
     expect(crossModule).toEqual([]);
   });

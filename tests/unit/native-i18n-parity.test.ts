@@ -109,7 +109,7 @@ const englishFallbacks: Readonly<Record<Mode, Record<NativeTarget, readonly stri
     desktop: ["GhostInit desktop", "Sign in", "Dashboard", "Billing", "Messages"],
   },
   single: {
-    mobile: ["Not found", "Opinionated modular monolith that scales with you"],
+    mobile: ["Not found", "Your next idea,", "with a head start."],
     desktop: ["GhostInit desktop", "Frontend-only workspace"],
   },
 };

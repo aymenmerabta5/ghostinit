@@ -10,12 +10,3 @@ export default function AdminDashboardPage(): never { redirect("/admin/users"); 
 `,
   );
 }
-
-export function adminDashboardPage(): TemplateFile {
-  return adminDashboardFile({
-    database: "postgres",
-    framework: "next",
-    mode: "monorepo",
-    sourceRoot: "apps/web/src",
-  });
-}

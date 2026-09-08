@@ -1,10 +1,10 @@
 import { file, type TemplateFile } from "../shared.js";
 import type { ProjectMode } from "../../lib/addons.js";
-import { resultImportForMode } from "./shared.js";
+import { resultImportForMode, resultModuleForMode } from "./shared.js";
 import { billingProvidersForClientOperation } from "../../domain/capabilities/billing-provider-operations.js";
 
 function billingIndexContent(mode: ProjectMode): string {
-  const resultModule = mode === "monorepo" ? "@repo/kernel" : "@/server/kernel/result.js";
+  const resultModule = resultModuleForMode(mode);
   return `import "server-only";
 export { createCheckoutService } from "./create-checkout.service.js";
 export { listSubscriptionsService } from "./list-subscriptions.service.js";
@@ -397,7 +397,7 @@ export function validateBillingRedirectUrl(
 }
 
 function portalServiceContent(mode: ProjectMode): string {
-  const resultModule = mode === "monorepo" ? "@repo/kernel" : "@/server/kernel/result.js";
+  const resultModule = resultModuleForMode(mode);
   const resultImport = `import type { Result } from "${resultModule}";\nimport { err } from "${resultModule}";`;
   return `import "server-only";\n${resultImport}
 import { ServiceError } from "../errors.js";

@@ -64,6 +64,7 @@ describe("generated email capability", () => {
             ? "src/app/forgot-password/page.tsx"
             : "src/routes/forgot-password.tsx";
       const resetPath = forgotPath.replace("forgot-password", "reset-password");
+      const authFormRoot = corner.mode === "monorepo" ? "apps/web/src" : "src";
       const signInPath =
         corner.mode === "monorepo"
           ? corner.framework === "nextjs"
@@ -128,6 +129,8 @@ describe("generated email capability", () => {
         expect(auth).toContain("sendVerificationEmail");
         expect(read(forgotPath)).not.toBe("");
         expect(read(resetPath)).not.toBe("");
+        expect(read(`${authFormRoot}/components/auth/reset-password-form.tsx`)).not.toBe("");
+        expect(read(`${authFormRoot}/components/auth/two-factor-form.tsx`)).not.toBe("");
         expect(signInFeature).toContain("/forgot-password");
         expect(envExample).toContain("RESEND_API_KEY=");
         expect(envLocal).toContain("RESEND_API_KEY=");
@@ -191,6 +194,8 @@ describe("generated email capability", () => {
         expect(auth).not.toContain("magicLink(");
         expect(read(forgotPath)).toBe("");
         expect(read(resetPath)).toBe("");
+        expect(read(`${authFormRoot}/components/auth/reset-password-form.tsx`)).toBe("");
+        expect(read(`${authFormRoot}/components/auth/two-factor-form.tsx`)).toBe("");
         expect(signInFeature).not.toContain("/forgot-password");
         expect(envExample).not.toContain("RESEND_API_KEY");
         expect(envLocal).not.toContain("RESEND_API_KEY");

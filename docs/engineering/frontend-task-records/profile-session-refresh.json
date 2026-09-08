@@ -1,0 +1,53 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "profile-session-refresh",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/auth-profile.ts",
+    "src/templates/auth.ts",
+    "src/templates/modes/single/server/auth.ts",
+    "src/templates/database/convex/auth.ts",
+    "src/templates/apps/fragments/settings/actions.ts",
+    "src/templates/apps/fragments/settings/profile-card.ts",
+    "src/templates/apps/fragments/settings/tanstack-feature.ts",
+    "src/templates/apps/fragments/settings/index.ts",
+    "src/templates/modes/single/pages/settings.ts",
+    "src/templates/modes/single/composers/next.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend", "better-auth-best-practices"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "e3ce9d58f298c29df00b648b1f788724e4c171d7e797c9ff2e133a86a064b32e"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#read-and-mutation-states"],
+    "evidence": [
+      "tests/unit/profile-update-policy.test.ts",
+      "tests/unit/settings-profile-refresh.test.ts",
+      "tests/unit/generated-form-recovery.test.ts",
+      "tests/unit/auth-hardening-matrix.test.ts",
+      "tests/unit/next-rsc-orpc-actions.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "mutation.preserve-input",
+    "authentication.client-session-notification",
+    "authentication.canonical-profile-refresh",
+    "validation.server-name-contract",
+    "feedback.survive-auth-remount",
+    "feedback.safe-provider-errors",
+    "design.preserve-existing-system"
+  ],
+  "selectedComponentIds": ["feedback.alert", "feedback.toast", "form.input", "action.button"],
+  "exceptionIds": []
+}

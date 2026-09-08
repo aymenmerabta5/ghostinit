@@ -133,13 +133,13 @@ describe("Convex Better Auth email ownership", () => {
         expect(client).not.toContain("magicLinkClient");
         expect(files.some(({ path }) => path === "convex/authEmail.ts")).toBe(false);
 
-        expect(signIn).toContain("Email/password sign-in is disabled");
+        expect(signIn).toContain('t("signIn.emailDisabled")');
         expect(signIn).toContain("<SignInMethods />");
         expect(signIn).not.toContain("identityClient.signInWithOAuth");
         expect(signInMethods).toContain("identityClient.signInWithOAuth");
         expect(signInMethods).not.toContain("identityClient.signInWithEmail");
         expect(signIn).not.toContain("identityClient.signInWithEmail");
-        expect(signUp).toContain("Password signup is disabled");
+        expect(signUp).toContain('t("signUp.emailDisabled")');
         expect(signUp).toContain("identityClient.signInWithOAuth");
         expect(signUp).not.toContain("identityClient.signUpWithEmail");
 

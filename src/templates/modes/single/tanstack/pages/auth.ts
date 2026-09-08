@@ -6,10 +6,12 @@ import {
   signUpFormContent,
   signUpPageContent,
   twoFactorPageContent,
+  twoFactorFormContent,
 } from "../../../../apps/fragments/auth/index.js";
 import {
   forgotPasswordPageContent,
   resetPasswordPageContent,
+  resetPasswordFormContent,
 } from "../../../../apps/fragments/recovery/index.js";
 
 export function singleSignInRouteTanstackContent(hasEmail = true): string {
@@ -44,6 +46,14 @@ export function singleResetPasswordRouteTanstackContent(): string {
   return resetPasswordPageContent("tanstack");
 }
 
+export function singleResetPasswordFormTanstackContent(): string {
+  return resetPasswordFormContent("tanstack");
+}
+
 export function singleTwoFactorRouteTanstackContent(): string {
   return twoFactorPageContent("tanstack");
+}
+
+export function singleTwoFactorFormTanstackContent(): string {
+  return twoFactorFormContent("tanstack");
 }

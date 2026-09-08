@@ -12,6 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
+import {
+  createReviewedImageSizeAuditFixture,
+  reviewedImageSizeFixtureRoot,
+} from "../helpers/reviewed-image-size-fixture.js";
 import { projectConfigSchema } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import {
@@ -90,13 +94,18 @@ function dependencyAuditWithMockedBunAudit(
   );
 }
 
-function runFixtureAuditWithMockedBunAudit(spawnResultExpression: string) {
+function runFixtureAuditWithMockedBunAudit(
+  spawnResultExpression: string,
+  changeInstalledPackage?: (installedRoot: string) => void,
+) {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "ghostinit-audit-advisory-"));
   try {
+    const installedRoot = createReviewedImageSizeAuditFixture(temporaryRoot);
+    changeInstalledPackage?.(installedRoot);
     const script = resolve(temporaryRoot, "audit-dependencies.ts");
     writeFileSync(script, dependencyAuditWithMockedBunAudit(true, spawnResultExpression));
     return spawnSync(process.execPath, [script], {
-      cwd: fixtureRoot,
+      cwd: temporaryRoot,
       encoding: "utf8",
       timeout: 30_000,
       windowsHide: true,
@@ -127,6 +136,12 @@ describe("reviewed image-size advisory containment", () => {
     const audit = dependencyAuditScriptContent(true);
     for (const installedDigest of reviewedInstalledDigests)
       expect(audit).toContain(installedDigest);
+    for (const [index, fixtureName] of ["icns.js.fixture", "utils.js.fixture"].entries()) {
+      const bytes = readFileSync(resolve(reviewedImageSizeFixtureRoot, fixtureName));
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+        reviewedInstalledDigests[index],
+      );
+    }
   });
 
   test("accepts both Bun 1.4 text-lock versions and rejects unreviewed versions", () => {
@@ -274,6 +289,28 @@ describe("reviewed image-size advisory containment", () => {
     expect(`${emptyFailure.stdout}\n${emptyFailure.stderr}`).toContain(
       "bun audit failed after 3 attempts: returned an invalid advisory report",
     );
+  });
+
+  test("rejects missing and tampered reviewed bytes before accepting an advisory pass", () => {
+    for (const file of ["icns.js", "utils.js"]) {
+      const missing = runFixtureAuditWithMockedBunAudit(mockedAdvisoryResult({}, 0), (root) => {
+        rmSync(resolve(root, "dist/types", file));
+      });
+      expect(missing.status).toBe(1);
+      expect(`${missing.stdout}\n${missing.stderr}`).toContain(
+        `installed image-size file dist/types/${file}`,
+      );
+      expect(`${missing.stdout}\n${missing.stderr}`).not.toContain("Dependency audit passed");
+
+      const tampered = runFixtureAuditWithMockedBunAudit(mockedAdvisoryResult({}, 0), (root) => {
+        writeFileSync(resolve(root, "dist/types", file), "// tampered fixture\n");
+      });
+      expect(tampered.status).toBe(1);
+      expect(`${tampered.stdout}\n${tampered.stderr}`).toContain(
+        `the installed image-size patch was not applied exactly: dist/types/${file}`,
+      );
+      expect(`${tampered.stdout}\n${tampered.stderr}`).not.toContain("Dependency audit passed");
+    }
   });
 
   test("bootstraps a fresh lock without lifecycle scripts, then enforces evidence before lifecycle", () => {

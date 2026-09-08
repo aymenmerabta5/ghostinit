@@ -2,7 +2,7 @@ import { file, type TemplateFile } from "../shared.js";
 import { checkServerOnlyContent } from "./server-only-lint.js";
 import { testEnvironmentFile } from "./test-env.js";
 
-// @allow-long 500: seven generated checks and their shared parser boundary remain auditable together
+// @allow-long 550: seven generated checks and their shared parser boundary remain auditable together
 // Stagio-inspired quality gates — adapted for ghostinit monorepo/single + nextjs/tanstack/expo/desktop
 
 function oxcContent(): string {
@@ -311,7 +311,7 @@ try { main(); } catch (error) {
 function checkNavigationImportsContent(): string {
   return `#!/usr/bin/env bun
 const fs=require("node:fs"), path=require("node:path");
-const {parseOwned}=require("./lib/oxc.cjs");
+const {parseOwned,jsxOpenings,jsxName,jsxAttributeString}=require("./lib/oxc.cjs");
 function roots(){ return [path.join(process.cwd(),"src"),path.join(process.cwd(),"apps","web","src")].filter(fs.existsSync); }
 function list(dir,out=[]){ for(const e of fs.readdirSync(dir,{withFileTypes:true})){ const p=path.join(dir,e.name); if(e.isDirectory()) list(p,out); else if(e.isFile()&&(p.endsWith(".ts")||p.endsWith(".tsx"))) out.push(p); } return out; }
 function read(file){ return fs.existsSync(file)?fs.readFileSync(file,"utf8"):""; }
@@ -322,8 +322,50 @@ function flatten(value,prefix="",out={}){ if(!value||typeof value!=="object") re
 function placeholders(message){ return [...message.matchAll(/[{]([A-Za-z_][A-Za-z0-9_]*)[}]/g)].map(match=>match[1]).sort(); }
 function checkCatalogs(root,violations){ const dir=catalogDir(root); if(!dir){ violations.push("missing en/fr/ar message catalogs under "+root); return; } const catalogs=Object.fromEntries(["en","fr","ar"].map(locale=>[locale,JSON.parse(read(path.join(dir,locale+".json")))])); const expected=leaves(catalogs.en); const flat=Object.fromEntries(Object.entries(catalogs).map(([locale,catalog])=>[locale,flatten(catalog)])); if(!expected.some(key=>key.startsWith("adminUsers."))) violations.push("English catalog is missing adminUsers keys"); for(const locale of ["fr","ar"]){ if(JSON.stringify(leaves(catalogs[locale]))!==JSON.stringify(expected)) violations.push(locale+" catalog keys differ from English"); for(const key of expected){ if(JSON.stringify(placeholders(flat[locale][key]||""))!==JSON.stringify(placeholders(flat.en[key]||""))) violations.push(locale+" catalog placeholders differ for "+key); } } }
 function requireText(source,token,label,violations){ if(!source.includes(token)) violations.push(label+" is missing "+token); }
-  function headerParts(root){ return { root:read(path.join(root,"components","header.tsx")), actions:read(path.join(root,"components","header-actions.tsx")), menu:read(path.join(root,"components","header-user-menu.tsx")) }; }
-  function checkHeader(parts,violations){ const header=[parts.root,parts.actions,parts.menu].join("\\n"); requireText(header,'from "@/lib/translations"',"Translated header",violations); requireText(header,"<LocaleSwitcher","Translated header",violations); requireText(header,'t("productBadge")',"Translated header",violations); if(parts.actions){ requireText(parts.root,"<HeaderActions","Translated header composition",violations); requireText(parts.actions,"<HeaderUserMenu","Translated header composition",violations); } if(header.includes('<LocaleSwitcher className="hidden')) violations.push("Locale switcher must remain reachable on mobile"); if(header.includes("useAuth")){ for(const key of ["dashboard","settings","admin","users","signIn","signUp","signOut"]) requireText(header,'t("'+key+'")',"Translated header",violations); } }
+function headerParts(root){ return Object.fromEntries(Object.entries({root:"header.tsx",shell:"app-shell.tsx",actions:"header-actions.tsx",menu:"header-user-menu.tsx",navigation:"workspace-navigation.tsx",sidebar:"workspace-sidebar.tsx",trigger:"workspace-navigation-trigger.tsx",identity:"workspace-identity.ts",status:"workspace-identity-status.tsx"}).map(([name,file])=>[name,read(path.join(root,"components",file))])); }
+function openings(source){ return jsxOpenings(parseOwned("header-part.tsx",source)); }
+function requireMount(source,tag,label,violations){ if(openings(source).filter(opening=>jsxName(opening.name)===tag).length!==1) violations.push(label+" must mount "+tag+" exactly once"); }
+function checkHeader(parts,root,layout,violations){
+  const header=Object.values(parts).join("\\n");
+  requireText(header,'from "@/lib/translations"',"Translated header",violations);
+  requireMount(layout,"AppShell","Root layout",violations);
+  requireMount(parts.shell,"Header","AppShell",violations);
+  requireMount(parts.root,"header","Header",violations);
+  const controls=[...openings(parts.root),...openings(parts.actions)].filter(opening=>jsxName(opening.name)==="LocaleSwitcher");
+  if(controls.length!==1) violations.push("Translated header must mount LocaleSwitcher exactly once");
+  for(const control of controls){ if((jsxAttributeString(control,"className")||"").split(/\\s+/).includes("hidden")) violations.push("Locale switcher must remain reachable on mobile"); }
+  const authenticated=Boolean(parts.actions||parts.menu||parts.navigation||parts.shell.includes("useAuth"));
+  if(authenticated){
+    for(const [source,tag,label] of [[parts.shell,"HeaderActions","AppShell"],[parts.shell,"WorkspaceSidebar","AppShell"],[parts.shell,"WorkspaceNavigationTrigger","AppShell"],[parts.actions,"HeaderUserMenu","Header actions"],[parts.sidebar,"WorkspaceNavigation","Workspace sidebar"],[parts.trigger,"WorkspaceNavigation","Workspace trigger"],[parts.navigation,"WorkspaceIdentityStatus","Workspace navigation"],[parts.trigger,"Sheet","Workspace trigger"],[parts.trigger,"SheetTrigger","Workspace trigger"],[parts.trigger,"SheetContent","Workspace trigger"]]) requireMount(source,tag,label,violations);
+    for(const token of ["useQueryAuthSession()","canonical?.hasCanonicalApi","canonical.currentRequest?.user","canonical?.retry","identity={identity}"]) requireText(parts.shell,token,"Canonical workspace identity",violations);
+    const compactShell=parts.shell.replace(/\\s+/g,"");
+    for(const token of ["resolveWorkspaceIdentity({","currentUser??null"]) requireText(compactShell,token,"Canonical workspace identity",violations);
+    const identity=parts.identity.replace(/\\s+/g,"");
+    for(const token of ["if(input.pending)","if(input.error)","if(input.user)",'status:"pending"','status:"error",retry:input.retry','status:"authenticated",user:input.user','status:"anonymous"']) requireText(identity,token,"Workspace identity states",violations);
+    if(identity.indexOf("if(input.pending)")>identity.indexOf("if(input.error)")||identity.indexOf("if(input.error)")>identity.indexOf("if(input.user)")) violations.push("Workspace identity must settle pending and error before exposing its user");
+    requireText(parts.navigation,'identity.status !== "authenticated"',"Private workspace navigation",violations);
+    requireText(parts.actions,'identity.status === "authenticated"',"Private account controls",violations);
+    for(const source of [parts.sidebar,parts.trigger]) requireText(source,"identity={identity}","Workspace identity handoff",violations);
+    for(const token of ['t("accountLoading")','t("accountUnavailable")','t("notSignedIn")',"onClick={identity.retry}"]) requireText(parts.status,token,"Workspace identity status",violations);
+    requireText(parts.navigation,'useSurfaceTranslations("header")',"Workspace navigation",violations);
+    requireText(parts.navigation,"{t(label)}","Workspace navigation",violations);
+    requireText(parts.trigger,'t("openNavigation")',"Workspace trigger",violations);
+    for(const key of ["dashboard","settings","signIn","signUp","signOut"]) requireText(header,'t("'+key+'")',"Translated header",violations);
+  }
+  const labels=[...parts.navigation.matchAll(/label:\\s*"([A-Za-z][A-Za-z0-9]*)"/g)].map(match=>match[1]);
+  if(authenticated){
+    for(const label of ["dashboard","settings"]) if(!labels.includes(label)) violations.push("Workspace navigation is missing "+label);
+    if(labels.includes("admin")){
+      requireText(parts.navigation,'item.label !== "admin" || isAdmin',"Workspace admin admission",violations);
+      requireText(parts.navigation,'identity.user.role === "admin"',"Workspace admin admission",violations);
+      requireText(parts.menu,'t("users")',"Translated admin menu",violations);
+    }
+    if(labels.includes("billing")&&!/path:\\s*"\\/billing"[^}]*match:\\s*"exact"/.test(parts.navigation)) violations.push("Billing navigation must preserve public checkout return pages");
+  }
+  const keys=new Set([...labels,...[...header.matchAll(/\\bt\\("([A-Za-z][A-Za-z0-9]*)"\\)/g)].map(match=>match[1])]);
+  const dir=catalogDir(root);
+  if(dir) for(const locale of ["en","fr","ar"]){ const catalog=JSON.parse(read(path.join(dir,locale+".json"))); for(const key of keys){ const value=catalog.header?.[key]; if(typeof value!=="string"||!value.trim()) violations.push(locale+" header catalog is missing "+key); } }
+}
 function main(){
   const sourceRoots=roots(); if(sourceRoots.length===0){ console.log("I18n runtime check passed (no src)."); return; }
   const violations=[];
@@ -344,7 +386,7 @@ function main(){
       for(const token of ["localeCookieName","accept-language","cookies()","headers()"]) requireText(request,token,"Next request config",violations);
       requireText(routing,'localePrefix: "never"',"Next routing config",violations);
       for(const token of ["localeCookieName","router.refresh","<Select","<SelectGroup>"]) requireText(switcher,token,"Next locale switcher",violations);
-      checkHeader(header,violations);
+      checkHeader(header,root,layout,violations);
       if(proxy.includes("next-intl/middleware")||proxy.includes("[locale]")) violations.push("Next proxy must keep non-prefixed routes and avoid locale middleware");
       requireText(proxy,'new URL("/sign-in", request.url)',"Next proxy",violations);
       if(combined.includes('from "@/lib/i18n"')) violations.push("Next source imports the TanStack i18n runtime");
@@ -360,7 +402,7 @@ function main(){
       for(const token of ["getLocaleFromHeaders","Route.useLoaderData()",'lang={locale} dir={localeDirection[locale]}',"initialLocale={locale}"]) requireText(rootRoute,token,"TanStack root locale handoff",violations);
       for(const token of ["document.documentElement.lang","document.documentElement.dir","localeCookieName"]) requireText(runtime,token,"TanStack i18n runtime",violations);
       for(const token of ["<Select","<SelectGroup>"]) requireText(switcher,token,"TanStack locale switcher",violations);
-      checkHeader(header,violations);
+      checkHeader(header,root,rootRoute,violations);
       if(combined.includes("next-intl")) violations.push("TanStack source must never import next-intl");
       checkCatalogs(root,violations);
     } else if(combined.includes('from "next-intl')||combined.includes('from "@/lib/i18n"')){

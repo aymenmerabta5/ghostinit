@@ -16,17 +16,17 @@ export type ArchitectureLayer =
   | "Vendors"
   | "Supporting";
 
-export const ARCHITECTURE_POLICY_VERSION = 2;
+export const ARCHITECTURE_POLICY_VERSION = 3;
 
-/** Explicit form of GhostInit's downward-only six-layer policy. */
+/** Domain contracts are owned inward; application and provider adapters consume them. */
 export const ALLOWED_LAYER_EDGES: Readonly<
   Record<ArchitectureLayer, ReadonlySet<ArchitectureLayer>>
 > = {
   UI: new Set(["UI", "Transport", "Domain", "Application", "Vendors", "Supporting"]),
   Transport: new Set(["Transport", "Domain", "Application", "Vendors", "Supporting"]),
-  Domain: new Set(["Domain", "Application", "Vendors", "Supporting"]),
-  Application: new Set(["Application", "Vendors", "Supporting"]),
-  Vendors: new Set(["Vendors", "Supporting"]),
+  Domain: new Set(["Domain", "Supporting"]),
+  Application: new Set(["Domain", "Application", "Vendors", "Supporting"]),
+  Vendors: new Set(["Domain", "Vendors", "Supporting"]),
   Supporting: new Set(["Supporting"]),
 };
 
@@ -127,7 +127,7 @@ export function getLayerFromFilePath(path: string): LayerInfo | null {
     /\/application\//.test(file) ||
     /\/adapters\//.test(file) ||
     /\/packages\/(?:services|modules|billing|email|auth)\//.test(file) ||
-    /\/src\/server\/(?:services|billing|auth)\//.test(file) ||
+    /\/src\/server\/(?:services|modules|billing|auth)\//.test(file) ||
     /\/apps\/eve\/(?:agent|src)\//.test(file) ||
     file.startsWith("/agent/")
   ) {

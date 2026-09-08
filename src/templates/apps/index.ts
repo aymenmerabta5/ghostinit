@@ -14,6 +14,7 @@ import type { TemplateFile } from "../shared.js";
 import type { AddonInstallerMap, BillingProviderName } from "../../lib/addons.js";
 import { hasAddon } from "../../lib/addons.js";
 import { BILLING_PROVIDERS } from "../../lib/constants.js";
+import { resolveHasEve } from "./fragments/features.js";
 
 type EveAndBillingInput =
   | boolean
@@ -91,6 +92,7 @@ export function tanstackStartFiles(
       hasI18n,
       hasBilling,
       selectedBilling,
+      resolveHasEve(addonsOrHasEve),
     ),
     ...(hasApi ? tanstackApiFiles(addonsOrHasEve as AddonInstallerMap) : []),
     ...tanstackComponentFiles(addonsOrHasEve as AddonInstallerMap),

@@ -150,7 +150,13 @@ describe("cache-enabled production E2E configuration", () => {
     );
     const url = harness.match(/UPSTASH_REDIS_REST_URL: "([^"]+)"/)?.[1] ?? "";
     const token = harness.match(/UPSTASH_REDIS_REST_TOKEN: "([^"]+)"/)?.[1] ?? "";
-    const customHeavy = harness.slice(harness.indexOf('createProject("custom-heavy"'));
+    const scenario = (name: string): string => {
+      const start = harness.indexOf(`createProject("${name}"`);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const end = harness.indexOf("\n  it(", start);
+      return harness.slice(start, end < 0 ? harness.length : end);
+    };
+    const customHeavy = scenario("custom-heavy");
 
     expect(z.string().url().safeParse(url).success).toBe(true);
     expect(new URL(url).hostname.endsWith(".invalid")).toBe(true);
@@ -164,7 +170,12 @@ describe("cache-enabled production E2E configuration", () => {
     expect(harness).toContain("await expectPostgresAuthenticationFailureIsFatal");
     expect(harness).toContain("await isolatedPostgres?.close()");
     expect(harness).toContain("...options.environmentOverrides");
-    expect(harness.match(/stockNextLoopback: true/g)).toHaveLength(4);
+    for (const name of ["smoke", "billall", "multi-app"]) {
+      expect(scenario(name)).toContain("stockNextLoopback: true");
+    }
+    expect(harness.match(/stockNextLoopback: true/g)).toHaveLength(3);
+    expect(customHeavy).toContain("messagingBoundary: true");
+    expect(customHeavy).not.toContain("stockNextLoopback: true");
     const bindIndex = harness.indexOf("await configureNextLoopbackStart(projectRoot)");
     const installIndex = harness.indexOf("const install = await runCommand(");
     expect(bindIndex).toBeGreaterThanOrEqual(0);

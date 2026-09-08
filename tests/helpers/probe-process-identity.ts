@@ -6,10 +6,7 @@ export interface ProbeProcessIdentity {
   readonly started?: string;
 }
 
-/** Linux PIDs are local to a namespace; keep the namespace and kernel birth tick. */
-export function captureProbeProcessIdentity(pid = process.pid): ProbeProcessIdentity {
-  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error("Invalid probe process PID");
-  if (process.platform !== "linux") return { pid };
+function linuxProbeCoordinates(pid: number): { pid: number; started: string } {
   const directory = `/proc/${pid}`;
   const status = readFileSync(`${directory}/status`, "utf8");
   const localPid = Number(
@@ -24,7 +21,14 @@ export function captureProbeProcessIdentity(pid = process.pid): ProbeProcessIden
   if (!Number.isSafeInteger(localPid) || localPid < 1 || !started || !/^\d+$/.test(started)) {
     throw new Error("Could not identify Linux probe process");
   }
-  return { pid: localPid, namespace: readlinkSync(`${directory}/ns/pid`), started };
+  return { pid: localPid, started };
+}
+
+/** Linux PIDs are local to a namespace; keep the namespace and kernel birth tick. */
+export function captureProbeProcessIdentity(pid = process.pid): ProbeProcessIdentity {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error("Invalid probe process PID");
+  if (process.platform !== "linux") return { pid };
+  return { ...linuxProbeCoordinates(pid), namespace: readlinkSync(`/proc/${pid}/ns/pid`) };
 }
 
 /** Resolve an identity in this observer's PID namespace, never by the recorded PID alone. */
@@ -42,15 +46,12 @@ export function findProbeProcess(identity: ProbeProcessIdentity): number | undef
   for (const entry of readdirSync("/proc", { withFileTypes: true })) {
     if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
     try {
-      // Other users cannot be our same-user probe, and their proc entries may
-      // deliberately forbid inspection. Fail closed for inaccessible own entries.
+      // A same-user non-dumpable process can deny namespace inspection. First
+      // exclude unrelated coordinates; a matching unreadable candidate still fails closed.
       if (statSync(`/proc/${entry.name}`).uid !== process.getuid!()) continue;
-      const candidate = captureProbeProcessIdentity(Number(entry.name));
-      if (
-        candidate.pid === identity.pid &&
-        candidate.namespace === identity.namespace &&
-        candidate.started === identity.started
-      ) {
+      const candidate = linuxProbeCoordinates(Number(entry.name));
+      if (candidate.pid !== identity.pid || candidate.started !== identity.started) continue;
+      if (readlinkSync(`/proc/${entry.name}/ns/pid`) === identity.namespace) {
         return Number(entry.name);
       }
     } catch (error) {

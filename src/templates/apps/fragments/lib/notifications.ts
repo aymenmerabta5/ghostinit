@@ -30,6 +30,14 @@ export function resolveNotificationDestination(value: unknown): NotificationDest
 // derived from type via humanize, with an empty extensible map for your domain.
 export function notificationsLibFiles(base = "apps/web/src"): TemplateFile[] {
   const libContent = `${notificationNavigationContent()}
+export interface NotificationItem {
+  id: string;
+  type: string;
+  payload: unknown;
+  readAt: string | Date | null;
+  createdAt: string | Date;
+}
+
 export interface FormattedNotification {
   title: string;
   message: string | null;
@@ -69,7 +77,10 @@ export function getNotificationHref(_type: string, payload: unknown): Notificati
 `;
 
   const bellComponent = `"use client";
+import * as React from "react";
 import { Bell } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -85,19 +96,16 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatNotification, getNotificationHref, type NotificationDestination } from "@/lib/notifications";
+import { formatNotification, getNotificationHref, type NotificationDestination, type NotificationItem as BellNotificationItem } from "@/lib/notifications";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-export interface NotificationItem {
-  id: string;
-  type: string;
-  payload: unknown;
-  readAt: string | Date | null;
-  createdAt: string | Date;
-}
+export type NotificationItem = BellNotificationItem;
 
-export function NotificationBell({ notifications, onMarkRead, onNavigate }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void | Promise<void>; onNavigate?: (destination: NotificationDestination) => void }) {
+export function NotificationBell({ notifications, onMarkRead, onNavigate, loading = false, loadError = false, onRetry, captureAction }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void | Promise<void>; onNavigate?: (destination: NotificationDestination) => void; loading?: boolean; loadError?: boolean; onRetry?: () => void; captureAction?: () => () => boolean }) {
   const t = useSurfaceTranslations("notifications");
+  const actionInFlight = React.useRef(false);
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState(false);
   const unread = notifications.filter((notification) => notification.readAt === null).length;
   return (
     <Popover>
@@ -116,7 +124,8 @@ export function NotificationBell({ notifications, onMarkRead, onNavigate }: { no
           <PopoverTitle>{t("title")}</PopoverTitle>
           <PopoverDescription>{t("description")}</PopoverDescription>
         </div>
-        {notifications.length === 0 ? (
+        {loadError || actionError ? <Alert variant="destructive"><AlertDescription>{t("unavailable")}{loadError && onRetry ? <Button type="button" variant="outline" size="sm" onClick={onRetry}>{t("retry")}</Button> : null}</AlertDescription></Alert> : null}
+        {loading ? <Skeleton className="mt-3 h-24 w-full" /> : notifications.length === 0 ? loadError ? null : (
           <Empty>
             <EmptyHeader>
               <EmptyTitle>{t("empty")}</EmptyTitle>
@@ -133,9 +142,20 @@ export function NotificationBell({ notifications, onMarkRead, onNavigate }: { no
                   key={notification.id}
                   type="button"
                   variant="ghost"
+                  className="data-disabled:opacity-50"
+                  disabled={pendingId !== null}
+                  focusableWhenDisabled
+                  aria-busy={pendingId === notification.id}
                   onClick={async () => {
-                    if (notification.readAt === null) await onMarkRead?.(notification.id);
-                    if (destination) onNavigate?.(destination.href);
+                    const isCurrent = captureAction?.() ?? (() => true);
+                    if (actionInFlight.current || !isCurrent()) return;
+                    actionInFlight.current = true;
+                    setPendingId(notification.id); setActionError(false);
+                    try {
+                      if (notification.readAt === null) await onMarkRead?.(notification.id);
+                      if (isCurrent() && destination) onNavigate?.(destination.href);
+                    } catch { if (isCurrent()) setActionError(true); }
+                    finally { actionInFlight.current = false; if (isCurrent()) setPendingId(null); }
                   }}
                 >
                   <span className="flex min-w-0 flex-col items-start gap-1">

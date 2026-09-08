@@ -93,7 +93,7 @@ export function buildDesignSystemContract(
   return {
     $schema: "https://ghostinit.dev/schemas/design-system-contract.schema.json",
     schemaVersion: 1,
-    contractVersion: "1.0.0",
+    contractVersion: "1.1.0",
     layout,
     layoutIdentity: `${layout.mode}:${layout.logicalModule}`,
     apps: apps.map((app) => ({ id: app.id, target: app.target, adapter: app.target })),

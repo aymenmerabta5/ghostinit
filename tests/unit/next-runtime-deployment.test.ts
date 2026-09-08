@@ -60,8 +60,8 @@ describe("Next deployment runtime commands", () => {
         expect(webPackage.scripts).toMatchObject(
           runtime === "bun"
             ? {
-                dev: "bun ./node_modules/next/dist/bin/next dev",
-                build: "bun ./node_modules/next/dist/bin/next build",
+                dev: "bun ./node_modules/next/dist/bin/next dev --webpack",
+                build: "bun ./node_modules/next/dist/bin/next build --webpack",
                 start: "bun ./node_modules/next/dist/bin/next start",
               }
             : { dev: "next dev", build: "next build", start: "next start" },
@@ -83,7 +83,7 @@ describe("Next deployment runtime commands", () => {
     }
   }
 
-  test("Bun command shape keeps Turbopack-style Node children free of --bun NODE_OPTIONS", () => {
+  test("Bun command shape keeps framework Node children free of --bun NODE_OPTIONS", () => {
     const files = generateProjectFiles({
       name: "next-command-probe",
       version: "0.1.0",
@@ -146,7 +146,7 @@ if (child.status !== 0) process.exit(child.status ?? 1);
       childStderr: string;
     };
     expect(probe).toMatchObject({
-      args: ["dev"],
+      args: ["dev", "--webpack"],
       bunVersion: toolchainRuntime.bun,
       childStatus: 0,
       childStderr: "",

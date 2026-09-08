@@ -1,17 +1,3 @@
-/**
- * TanStack Start pages — deduplicated via fragments
- * marketing shared via fragments/marketing (90% identical sticky header h-14 max-w-6xl Badge secondary modular monolith ThemeToggle)
- * auth shared via fragments/auth (email validators, signIn/signUp logic)
- * dashboard shared via fragments/dashboard, layout via fragments/layout, theme via fragments/theme
- * recovery via fragments/recovery with RouterType (next | tanstack) — DRY, no inline 66 LOC copies
- * settings via fragments/settings with RouterType — uses the database-aware getRequestUser boundary
- * billing via fragments/billing with RouterType — new fragment, was only inline 66 LOC
- *
- * Fragment extraction trigger: When TanStack files exceed 300 LOC or third framework added,
- * extract to fragments/ with framework param branching. This file now ~60 LOC (same as pages.ts),
- * delegating to fragments for all routes (marketing, auth, recovery, settings, billing, dashboard).
- */
-
 import { file, type TemplateFile } from "../shared.js";
 import type { BillingProviderName } from "../../lib/addons.js";
 import { BILLING_PROVIDERS } from "../../lib/constants.js";
@@ -28,6 +14,7 @@ import {
   marketingHeroComponentContent,
   marketingQuickStartComponentContent,
 } from "./fragments/marketing.js";
+import type { MarketingOptions } from "./fragments/marketing/shared.js";
 import {
   authOAuthButtonsContent,
   signInFormContent,
@@ -36,6 +23,7 @@ import {
   signUpFormContent,
   signUpPageContent,
   twoFactorPageContent,
+  twoFactorFormContent,
 } from "./fragments/auth.js";
 import {
   tanstackDashboardFeatureFiles,
@@ -58,20 +46,27 @@ export function tanstackPageFiles(
   hasI18n = false,
   hasBilling = true,
   selectedBilling: readonly BillingProviderName[] = BILLING_PROVIDERS,
+  hasEve = false,
 ): TemplateFile[] {
   const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
     rootRoute(hasI18n),
-    ...marketingFiles(hasBilling),
+    ...marketingFiles({
+      hasAuth,
+      hasApi,
+      hasBilling,
+      hasEve,
+      database: isConvex ? "convex" : isPostgres ? "postgres" : "none",
+    }),
     ...(hasAuth
       ? [
           signInRoute(hasEmail),
           signUpRoute(),
           ...authFormComponents(hasEmail, isPostgres),
-          ...(hasEmail ? [twoFactorRoute()] : []),
+          ...(hasEmail ? [twoFactorRoute(), twoFactorForm()] : []),
           ...recoveryFiles("tanstack", hasEmail),
           dashboardRoute(isConvex),
-          ...tanstackDashboardFeatureFiles(hasBilling),
+          ...tanstackDashboardFeatureFiles(hasBilling, hasAdminUi),
           ...settingsFiles(
             "tanstack",
             isConvex,
@@ -87,8 +82,7 @@ export function tanstackPageFiles(
       : []),
     ...(hasBilling ? billingFiles("tanstack", isConvex, selectedBilling) : []),
     ...(hasAdminUi ? tanstackAdminFiles(isConvex, hasI18n) : []),
-    unauthorizedRoute(),
-    forbiddenRoute(),
+    ...(hasAuth ? [unauthorizedRoute(), forbiddenRoute()] : []),
     notFoundRoute(),
     sitemap(hasBilling),
     robots(),
@@ -101,13 +95,16 @@ function rootRoute(hasI18n = false): TemplateFile {
   return file("apps/web/src/routes/__root.tsx", tanstackRootDocumentContent(hasI18n));
 }
 
-function marketingFiles(hasBilling = true): TemplateFile[] {
+function marketingFiles(options: MarketingOptions): TemplateFile[] {
   return [
     file("apps/web/src/routes/index.tsx", buildMarketingPageContent("tanstack")),
-    file("apps/web/src/components/marketing/hero.tsx", marketingHeroComponentContent("tanstack")),
+    file(
+      "apps/web/src/components/marketing/hero.tsx",
+      marketingHeroComponentContent("tanstack", options),
+    ),
     file(
       "apps/web/src/components/marketing/features.tsx",
-      marketingFeaturesComponentContent("tanstack"),
+      marketingFeaturesComponentContent("tanstack", options),
     ),
     file(
       "apps/web/src/components/marketing/quick-start.tsx",
@@ -115,7 +112,7 @@ function marketingFiles(hasBilling = true): TemplateFile[] {
     ),
     file(
       "apps/web/src/components/marketing/footer.tsx",
-      marketingFooterComponentContent("tanstack", hasBilling),
+      marketingFooterComponentContent("tanstack", options.hasBilling, options),
     ),
   ];
 }
@@ -145,6 +142,9 @@ function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] 
 
 function twoFactorRoute(): TemplateFile {
   return file("apps/web/src/routes/2fa.tsx", twoFactorPageContent("tanstack"));
+}
+function twoFactorForm(): TemplateFile {
+  return file("apps/web/src/components/auth/two-factor-form.tsx", twoFactorFormContent("tanstack"));
 }
 
 function dashboardRoute(isConvex = false): TemplateFile {

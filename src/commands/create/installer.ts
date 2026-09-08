@@ -1538,8 +1538,6 @@ async function runVerification(
 export interface InstallInput {
   readonly projectName: string;
   readonly projectRoot: string;
-  /** @deprecated Compatibility input retained for callers; production decisions use resolvedConfig. */
-  readonly config: ProjectConfig;
   readonly desiredConfig: DesiredProjectConfig;
   readonly resolvedConfig: ResolvedProjectConfig;
   readonly options: GlobalOptions;

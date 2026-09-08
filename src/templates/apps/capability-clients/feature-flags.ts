@@ -83,19 +83,26 @@ import {
   evaluateAuthenticatedFeatureFlag,
 } from "${applicationModule}";
 import { FeatureFlagsPage } from "@/features/feature-flags/page";
+import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
 
 async function FeatureFlagData(): Promise<React.JSX.Element> {
   const application = await createRequestApplicationForRequest(new Headers(await headers()));
   const current = await application.me();
+  const principal = application.principal;
+  if (!current.user || current.user.banned || !principal) return <FeatureFlagsPage initialResult={null} />;
+  const scope = {
+    userId: principal.identityUserId,
+    sessionId: principal.sessionId,
+    tenantId: principal.activeOrganizationId,
+    teamId: principal.activeTeamId,
+  };
   let initialResult = null;
-  if (current.user && !current.user.banned) {
-    try {
-      initialResult = await evaluateAuthenticatedFeatureFlag(current.user, "new-dashboard");
-    } catch {
-      // Feature flags are advisory and must never make the page unavailable.
-    }
+  try {
+    initialResult = await evaluateAuthenticatedFeatureFlag(current.user, "new-dashboard");
+  } catch {
+    // Feature flags are advisory and must never make the page unavailable.
   }
-  return <FeatureFlagsPage initialResult={initialResult} />;
+  return <RequestOwnedSnapshot scope={scope}><FeatureFlagsPage initialResult={initialResult} /></RequestOwnedSnapshot>;
 }
 
 export default function Page(): React.JSX.Element {
@@ -127,6 +134,7 @@ function domPageContent(options: CapabilityClientOptions, target: "web" | "deskt
       : "";
   return `"use client";
 import * as React from "react";
+import { useAuthOwnedAction } from "@/hooks/use-auth-owned-action";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,17 +148,25 @@ ${i18n.hookLine}${initialState}
   const [key, setKey] = React.useState("new-dashboard");
   const [result, setResult] = React.useState<unknown>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const { isPending, run } = useAuthOwnedAction();
+  function evaluate(): void {
+    void run(() => evaluateRemoteFeatureFlag(key), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("error", "Flag evaluation failed")}));
+  }
+
 ${displayedResult}
-  return <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-    <header><h1 className="text-2xl font-semibold">${i18n.child("title", "Remote feature flags")}</h1><p className="text-sm text-muted-foreground">${i18n.child("description", "Resolve provider-backed flags through the typed application boundary. Flags never grant authorization.")}</p></header>
-    <Card><CardHeader><CardTitle>${i18n.child("evaluate", "Evaluate")}</CardTitle></CardHeader><CardContent>
-      <form className="flex items-end gap-2" onSubmit={async (event) => { event.preventDefault(); try { setResult(await evaluateRemoteFeatureFlag(key)); setError(null); } catch { setError(${i18n.value("error", "Flag evaluation failed")}); } }}>
-        <Field className="flex-1"><FieldLabel htmlFor="feature-flag-key">${i18n.child("keyLabel", "Flag key")}</FieldLabel><Input id="feature-flag-key" value={key} onChange={(event) => setKey(event.target.value)} maxLength={128} required /></Field>
-        <Button type="submit">${i18n.child("evaluate", "Evaluate")}</Button>
+  return <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">${i18n.child("title", "Remote feature flags")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">${i18n.child("description", "Check how a feature is configured for your account. Feature flags do not change permissions.")}</p></header>
+    {isPending ? <p role="status">${i18n.child("pending", "Working…")}</p> : null}
+    <Card className="max-w-3xl"><CardHeader><CardTitle as="h2">${i18n.child("evaluate", "Evaluate")}</CardTitle></CardHeader><CardContent>
+      <form className="flex flex-col items-start gap-3 sm:flex-row sm:items-end" onSubmit={(event) => { event.preventDefault(); evaluate(); }}>
+        <Field className="w-full min-w-0 sm:flex-1"><FieldLabel htmlFor="feature-flag-key">${i18n.child("keyLabel", "Flag key")}</FieldLabel><Input disabled={isPending} id="feature-flag-key" value={key} onChange={(event) => setKey(event.target.value)} maxLength={128} required /></Field>
+        <Button className="shrink-0" disabled={isPending} aria-busy={isPending} type="submit">${i18n.child("evaluate", "Evaluate")}</Button>
       </form>
     </CardContent></Card>
     {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {displayedResult !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Evaluation result")}</CardTitle></CardHeader><CardContent><pre className="overflow-auto rounded bg-muted p-4 text-sm">{JSON.stringify(displayedResult, null, 2)}</pre></CardContent></Card> : null}
+    {displayedResult !== null ? <Card className="max-w-3xl"><CardHeader><CardTitle as="h2">${i18n.child("result", "Evaluation result")}</CardTitle></CardHeader><CardContent><pre className="max-h-96 overflow-auto rounded-lg bg-muted/50 p-4 text-xs leading-6">{JSON.stringify(displayedResult, null, 2)}</pre></CardContent></Card> : null}
   </main>;
 }
 `;
@@ -163,6 +179,7 @@ function expoPageContent(options: CapabilityClientOptions): string {
     nativeI18nImportPath("mobile", options.mode),
   );
   return `import * as React from "react";
+import { useAuthOwnedAction } from "@/hooks/use-auth-owned-action";
 import { Text, View } from "react-native";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -176,10 +193,18 @@ ${i18n.hookLine}
   const [key, setKey] = React.useState("new-dashboard");
   const [result, setResult] = React.useState<unknown>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const { isPending, run } = useAuthOwnedAction();
+  function evaluate(): void {
+    void run(() => evaluateRemoteFeatureFlag(key), (value) => {
+      setResult(value); setError(null);
+    }, () => setError(${i18n.value("error", "Flag evaluation failed")}));
+  }
+
   return <View className="flex-1 gap-4 bg-background p-5">
     <Text className="text-2xl font-bold">${i18n.child("title", "Remote feature flags")}</Text>
     <Text className="text-muted-foreground">${i18n.child("shortDescription", "Provider-backed evaluation. Flags never grant authorization.")}</Text>
-    <Card><CardHeader><CardTitle>${i18n.child("keyLabel", "Flag key")}</CardTitle><CardDescription>${i18n.child("shortDescription", "Provider-backed evaluation. Flags never grant authorization.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input value={key} onChangeText={setKey} placeholder={${i18n.value("keyLabel", "Flag key")}} maxLength={128} /><Button onPress={async () => { try { setResult(await evaluateRemoteFeatureFlag(key)); setError(null); } ${options.i18n ? "catch {" : "catch (cause) {"} setError(${options.i18n ? i18n.value("error", "Evaluation failed") : 'cause instanceof Error ? cause.message : "Evaluation failed"'}); } }}>${i18n.child("evaluate", "Evaluate")}</Button></CardContent></Card>
+    {isPending ? <Text accessibilityLiveRegion="polite">${i18n.child("pending", "Working…")}</Text> : null}
+    <Card><CardHeader><CardTitle>${i18n.child("keyLabel", "Flag key")}</CardTitle><CardDescription>${i18n.child("shortDescription", "Provider-backed evaluation. Flags never grant authorization.")}</CardDescription></CardHeader><CardContent className="gap-3"><Input editable={!isPending} value={key} onChangeText={setKey} placeholder={${i18n.value("keyLabel", "Flag key")}} maxLength={128} /><Button disabled={isPending} accessibilityState={{ busy: isPending }} onPress={evaluate}>${i18n.child("evaluate", "Evaluate")}</Button></CardContent></Card>
     {error ? <Alert variant="destructive" accessibilityRole="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
     {result !== null ? <Card><CardHeader><CardTitle>${i18n.child("result", "Evaluation result")}</CardTitle></CardHeader><CardContent><Text className="font-mono">{JSON.stringify(result, null, 2)}</Text></CardContent></Card> : null}
   </View>;

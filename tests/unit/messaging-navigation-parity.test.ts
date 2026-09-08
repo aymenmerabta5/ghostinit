@@ -57,9 +57,9 @@ function expectParses(content: string, path: string): void {
 describe("messaging navigation discoverability", () => {
   for (const mode of ["monorepo", "single"] as const) {
     for (const framework of ["nextjs", "tanstack-start"] as const) {
-      test(`${mode}/${framework} web header links to the emitted messages route only when enabled`, () => {
+      test(`${mode}/${framework} workspace navigation links to the emitted messages route only when enabled`, () => {
         const root = mode === "monorepo" ? "apps/web/" : "";
-        const headerPath = `${root}src/components/header.tsx`;
+        const headerPath = `${root}src/components/workspace-navigation.tsx`;
         const userMenuPath = `${root}src/components/header-user-menu.tsx`;
         const routePath =
           framework === "nextjs"
@@ -69,19 +69,20 @@ describe("messaging navigation discoverability", () => {
         const off = generated(mode, "web", false, framework);
         const header = source(on, headerPath);
         const userMenu = source(on, userMenuPath);
-        const linkAttribute = framework === "nextjs" ? 'href="/messages"' : 'to="/messages"';
+        const linkAttribute = framework === "nextjs" ? "href={path}" : "to={path}";
         const menuNavigation =
           framework === "nextjs"
             ? 'router.push("/messages")'
             : 'router.navigate({ to: "/messages" })';
 
         expect(header).toContain(linkAttribute);
-        expect(header).toContain('t("messages")');
+        expect(header).toContain('path: "/messages", label: "messages"');
+        expect(header).toContain("{t(label)}");
         expect(userMenu).toContain(menuNavigation);
         expect(userMenu).toContain('t("messages")');
         expect(on.some(({ path }) => path === routePath)).toBe(true);
         expect(off.find(({ path }) => path === headerPath)?.content ?? "").not.toContain(
-          linkAttribute,
+          'path: "/messages"',
         );
         expect(off.some(({ path }) => path === routePath)).toBe(false);
         expect(off.find(({ path }) => path === userMenuPath)?.content ?? "").not.toContain(

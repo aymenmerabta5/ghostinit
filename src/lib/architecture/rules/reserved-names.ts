@@ -4,14 +4,14 @@
 
 import type { ArchitectureFinding } from "../types.js";
 import { RESERVED_NAMES } from "../constants.js";
+import { moduleFromPath } from "./module-path.js";
 
 export async function checkMalformedGeneratedModule(
   findings: ArchitectureFinding[],
   relFile: string,
 ): Promise<void> {
-  const moduleMatch = /\/modules\/src\/([a-z0-9-]+)\//.exec(relFile);
-  if (!moduleMatch) return;
-  const moduleName = moduleMatch[1];
+  const moduleName = moduleFromPath(relFile)?.name;
+  if (!moduleName) return;
   if (RESERVED_NAMES.has(moduleName)) {
     findings.push({
       id: "reserved-module-name",

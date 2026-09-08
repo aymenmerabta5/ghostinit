@@ -1,5 +1,6 @@
 // @allow-long 325: single-mode target-aware agent guidance keeps conditional path claims in one audited template
 import * as v from "../../../versions.js";
+import { customNextServerCommand, nextRuntimeCommand } from "../../../root/next-server-runtime.js";
 import type {
   AppName,
   BillingProviderName,
@@ -92,15 +93,12 @@ export function buildAgentsMdContent(
   const isTanstack = framework === "tanstack-start";
   const usesCustomNextServer =
     hasWeb && !isTanstack && database === "postgres" && options.messaging === true;
-  const nextDevCommand = usesCustomNextServer
-    ? runtime === "bun"
-      ? "bun --conditions=react-server server.ts"
-      : "node --import ./scripts/typescript-runtime-loader.mjs --conditions=react-server --experimental-strip-types server.ts"
-    : runtime === "bun"
-      ? "bun ./node_modules/next/dist/bin/next dev"
-      : "next dev";
-  const typescriptVersion =
-    hasWeb && !isTanstack ? v.typescript.typescriptNext : v.typescript.typescript;
+  const nextDevCommand = documentedEve
+    ? "bun scripts/start-development.mjs"
+    : usesCustomNextServer
+      ? customNextServerCommand(runtime, "dev")
+      : nextRuntimeCommand(runtime, "dev", options.pdf);
+  const nextBuildCommand = `${usesCustomNextServer ? "bun run build:server && " : ""}${nextRuntimeCommand(runtime, "build", options.pdf)}`;
   const frameworkLabel = isTanstack
     ? `TanStack Start ${v.tanstackStart["@tanstack/react-start"]}`
     : `Next.js ${v.nextStack.next}`;
@@ -145,7 +143,12 @@ export function buildAgentsMdContent(
     `- Web framework: ${hasWeb ? frameworkLabel : "not emitted because the web app is disabled"}.`,
     `- Database: ${isNativeOnly ? "none; single native mode does not generate a local backend adapter" : databaseDescription(database)}.`,
     `- Backend host: ${isNativeOnly ? "not generated. The CLI permits only frontend-local capabilities; external remote-backend selection is not implemented" : "this web application owns the selected server capabilities"}.`,
-    `- TypeScript: ${typescriptVersion}. React: ${v.nextStack.react}.`,
+    `- TypeScript: ${v.typescript.typescript}. React: ${v.nextStack.react}.`,
+    ...(hasWeb && !isTanstack
+      ? [
+          "- Next development and builds executed by Bun use the supported Webpack compatibility profile; Node uses Turbopack. PDF-enabled Bun commands preload the declared renderer before Next initializes.",
+        ]
+      : []),
     `- Enabled capabilities: ${capabilities.length > 0 ? capabilities.join(", ") : "foundation only"}.`,
     `- Billing providers: ${selectedBilling.length > 0 ? (isNativeOnly ? "unsupported in single native mode; this template-only configuration is not CLI-reachable" : selectedBilling.join(", ")) : hasWeb && hasAuth ? "none; the web billing UI is an empty state and provider adapters/webhooks are absent" : "none; billing UI, provider adapters, and webhooks are absent"}.`,
     "",
@@ -255,7 +258,7 @@ export function buildAgentsMdContent(
         ? `- The manifest uses the generated Cloudflare ${isTanstack ? "Vite" : "OpenNext"} adapter. Use \`build:worker\`, \`cloudflare:dry-run\`, \`preview\`, and \`deploy\`; there is no long-lived Node/Bun production process.`
         : isTanstack
           ? `- Manifest scripts use \`vite dev --port 3000\`, \`vite build\`, \`${runtime === "bun" ? "bun" : "node"} .output/server/index.mjs\`, and \`tsr generate && tsc --noEmit\`.`
-          : `- The manifest development script runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build remains \`${runtime === "bun" ? "bun ./node_modules/next/dist/bin/next build" : "next build"}\`; \`bun run start\` uses the generated custom server only when selected capabilities require it.`,
+          : `- The manifest development script runs \`${nextDevCommand}\`${usesCustomNextServer ? " so the generated oRPC WebSocket upgrade is available during ordinary development" : " through Next's stock development server"}. Build runs \`${nextBuildCommand}\`; \`bun run start\` uses the generated custom server only when selected capabilities require it.${usesCustomNextServer ? " Production start executes the existing custom server artifact without compiling or writing build output." : ""}`,
     );
   }
 

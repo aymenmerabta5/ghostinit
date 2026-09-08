@@ -7,7 +7,7 @@ import { billingProviderSupportsClientOperation } from "../../src/domain/capabil
 
 function aggInterface(files: any[]) {
   return files
-    .filter((f: any) => f.path.includes("providers/interface"))
+    .filter((f: any) => /billing\/(?:src\/)?(?:providers\/interface|domain\/)/.test(f.path))
     .map((f: any) => f.content)
     .join("\n");
 }

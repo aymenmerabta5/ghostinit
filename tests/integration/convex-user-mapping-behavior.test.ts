@@ -195,6 +195,18 @@ mock.module("@convex-dev/better-auth/auth-config", () => ({
   getAuthConfigProvider: () => ({}),
 }));
 mock.module("better-auth/minimal", () => ({ betterAuth: () => ({}) }));
+mock.module("better-auth/api", () => ({
+  APIError: class APIError extends Error {
+    readonly status: string;
+    readonly body: { code?: string; message: string };
+    constructor(status: string, body: { code?: string; message: string }) {
+      super(body.message);
+      this.status = status;
+      this.body = body;
+    }
+  },
+  createAuthMiddleware: (handler: unknown) => handler,
+}));
 mock.module("better-auth/plugins/admin", () => ({ admin: () => ({}) }));
 mock.module("better-auth/plugins/two-factor", () => ({ twoFactor: () => ({}) }));
 mock.module("convex/server", () => ({

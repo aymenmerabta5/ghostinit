@@ -41,8 +41,12 @@ interface QueryScopeRuntime {
   QueryClient: new () => RuntimeQueryClient;
   authScopedQueryKey(scope: Scope, key: readonly unknown[]): readonly unknown[];
   currentQueryAuthScope(client: RuntimeQueryClient): Scope | null;
-  queryAuthScopeFromSession(value: unknown): Scope | null;
+  queryAuthIdentityFromSession(value: unknown): Pick<Scope, "userId" | "sessionId"> | null;
   transitionQueryAuthScope(client: RuntimeQueryClient, scope: Scope | null): void;
+  createQueryAuthSessionResolver<T extends { queryScope: Scope | null }>(
+    readSession: () => Promise<T>,
+    onCommit: (client: RuntimeQueryClient, session: T) => void,
+  ): (client: RuntimeQueryClient) => Promise<{ protectedSession: T; queryScope: Scope | null }>;
 }
 
 function loadQueryScopeRuntime(): QueryScopeRuntime {
@@ -63,12 +67,65 @@ function loadQueryScopeRuntime(): QueryScopeRuntime {
     .replaceAll("export ", "");
   const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(source);
   const load = new Function(
-    `${javascript}\nreturn { QueryClient, authScopedQueryKey, currentQueryAuthScope, queryAuthScopeFromSession, transitionQueryAuthScope };`,
+    `${javascript}\nreturn { QueryClient, authScopedQueryKey, currentQueryAuthScope, queryAuthIdentityFromSession, transitionQueryAuthScope, createQueryAuthSessionResolver };`,
   ) as () => QueryScopeRuntime;
   return load();
 }
 
 describe("generated TanStack authenticated Query boundary", () => {
+  test("the emitted route seeds only the session accepted by the generation guard", async () => {
+    type Session = { queryScope: Scope | null; marker: string };
+    const runtime = loadQueryScopeRuntime();
+    const client = new runtime.QueryClient();
+    const accountA: Scope = { userId: "a", sessionId: "a", tenantId: null, teamId: null };
+    const accountB: Scope = { userId: "b", sessionId: "b", tenantId: null, teamId: null };
+    runtime.transitionQueryAuthScope(client, accountA);
+    let finishOld!: (session: Session) => void;
+    const old = new Promise<Session>((resolve) => {
+      finishOld = resolve;
+    });
+    let reads = 0;
+    const source = tanstackServerFoundationFiles("single", true, true)
+      .find(({ path }) => path.endsWith("/lib/protected-route.ts"))!
+      .content.replace(/^import[\s\S]*?;\r?\n/gm, "")
+      .replaceAll("export ", "");
+    const load = new Function(
+      "runtime",
+      "getProtectedRouteSession",
+      `
+      const { authScopedQueryKey, createQueryAuthSessionResolver } = runtime;
+      const queryOptions = (options) => options;
+      const redirect = (options) => options;
+      ${new Bun.Transpiler({ loader: "ts" }).transformSync(source)}
+      return resolveRouteAuth;
+    `,
+    ) as (
+      scopeRuntime: QueryScopeRuntime,
+      readSession: () => Promise<Session>,
+    ) => (
+      queryClient: RuntimeQueryClient,
+    ) => Promise<{ protectedSession: Session; queryScope: Scope | null }>;
+    const resolveAuth = load(runtime, () =>
+      ++reads === 1 ? old : Promise.resolve({ queryScope: accountB, marker: "current" }),
+    );
+    const pending = resolveAuth(client);
+    await Promise.resolve();
+    runtime.transitionQueryAuthScope(client, accountB);
+    client.setQueryData(["new-owner-data"], "preserved");
+    finishOld({ queryScope: accountA, marker: "obsolete" });
+    const result = await pending;
+    expect(result.protectedSession.marker).toBe("current");
+    expect(runtime.currentQueryAuthScope(client)).toEqual(accountB);
+    expect(client.getQueryData(["new-owner-data"])).toBe("preserved");
+    expect(
+      client.getQueryData(runtime.authScopedQueryKey(accountA, ["protected-route", "session"])),
+    ).toBeUndefined();
+    expect(
+      client.getQueryData(runtime.authScopedQueryKey(accountB, ["protected-route", "session"])),
+    ).toEqual({ queryScope: accountB, marker: "current" });
+    expect(reads).toBe(2);
+  });
+
   test("clears private data across users and tenant transitions while scoping keys", () => {
     const runtime = loadQueryScopeRuntime();
     const client = new runtime.QueryClient();
@@ -105,10 +162,10 @@ describe("generated TanStack authenticated Query boundary", () => {
     expect(client.clearCount).toBe(clearCountAfterA + 2);
   });
 
-  test("derives the authenticated owner from Better Auth session data", () => {
+  test("provider sessions contribute only immediate user and session identity", () => {
     const runtime = loadQueryScopeRuntime();
     expect(
-      runtime.queryAuthScopeFromSession({
+      runtime.queryAuthIdentityFromSession({
         user: { id: "user-a" },
         session: {
           id: "session-a",
@@ -119,10 +176,8 @@ describe("generated TanStack authenticated Query boundary", () => {
     ).toEqual({
       userId: "user-a",
       sessionId: "session-a",
-      tenantId: "organization-a",
-      teamId: "team-a",
     });
-    expect(runtime.queryAuthScopeFromSession({ user: { id: "user-a" } })).toBeNull();
+    expect(runtime.queryAuthIdentityFromSession({ user: { id: "user-a" } })).toBeNull();
   });
 
   test("emits an application-backed server function and hydrated loader", () => {
@@ -172,7 +227,15 @@ describe("generated TanStack authenticated Query boundary", () => {
       serverFn: () => { handler<T>(callback: () => Promise<T>): () => Promise<T> },
       server: { getRequestHeaders(): Headers },
       application: {
-        createRequestApplicationForRequest(headers: Headers): Promise<{ me(): Promise<unknown> }>;
+        createRequestApplicationForRequest(headers: Headers): Promise<{
+          principal: {
+            identityUserId: string;
+            sessionId: string;
+            activeOrganizationId: string | null;
+            activeTeamId: string | null;
+          };
+          me(): Promise<unknown>;
+        }>;
       },
     ) => () => Promise<{ user: unknown; queryScope: Scope | null }>;
     let receivedCookie: string | null = null;
@@ -183,6 +246,12 @@ describe("generated TanStack authenticated Query boundary", () => {
         async createRequestApplicationForRequest(headers) {
           receivedCookie = headers.get("cookie");
           return {
+            principal: {
+              identityUserId: "user-a",
+              sessionId: "session-a",
+              activeOrganizationId: "tenant-a",
+              activeTeamId: "team-a",
+            },
             async me() {
               return {
                 user: {
@@ -291,14 +360,14 @@ describe("generated TanStack authenticated Query boundary", () => {
     }
   });
 
-  test("mounts the auth cache owner boundary only in authenticated TanStack providers", () => {
+  test("mounts the auth cache owner boundary in authenticated web providers", () => {
     const monorepo = providersFileContent("tanstack", false, false, false, true);
     const single = singleProvidersTanstackContent(false, false, true);
     for (const provider of [monorepo, single]) {
       expect(provider).toContain("QueryAuthCacheBoundary");
       expect(provider).toContain("<QueryAuthCacheBoundary queryClient={client}>");
     }
-    expect(providersFileContent("next", false, false, false, true)).not.toContain(
+    expect(providersFileContent("next", false, false, false, true)).toContain(
       "QueryAuthCacheBoundary",
     );
     expect(singleProvidersTanstackContent(false, false, false)).not.toContain(
@@ -307,7 +376,52 @@ describe("generated TanStack authenticated Query boundary", () => {
 
     const tanstackSignOut = headerUserMenuContent("tanstack");
     expect(tanstackSignOut).toContain("transitionQueryAuthScope(getQueryClient(), null)");
-    expect(headerUserMenuContent("next")).not.toContain("transitionQueryAuthScope");
+    expect(headerUserMenuContent("next")).toContain("transitionQueryAuthScope");
+  });
+
+  test("emits Next cache ownership and matching request-scoped session data in both modes", () => {
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const database of ["postgres", "convex"] as const) {
+        const resolution = resolveCreateConfig({
+          name: `next-cache-${mode}-${database}`,
+          runtime: "bun",
+          mode,
+          framework: "nextjs",
+          billing: [],
+          features: [],
+          database,
+          databaseWasExplicit: true,
+          apps: ["web"],
+          preset: undefined,
+          cache: "none",
+          deploy: "none",
+        });
+        if (!resolution.ok) throw new Error(resolution.message);
+        const plan = buildProjectGenerationPlan(resolution.resolvedConfig, {
+          desiredConfig: resolution.desiredConfig,
+        });
+        const root = mode === "monorepo" ? "apps/web/" : "";
+        const read = (path: string) =>
+          plan.files.find(({ physicalPath }) => physicalPath === `${root}${path}`)?.content ?? "";
+        expect(read("src/components/providers.tsx")).toContain(
+          "<QueryAuthCacheBoundary queryClient={client}>",
+        );
+        expect(read("src/components/query-auth-boundary.tsx")).toContain(
+          "useCanonicalQueryAuthScope(queryClient, session.data, session.isPending, readCurrentRequest)",
+        );
+        expect(read("src/components/query-auth-boundary.tsx")).toContain(
+          "state.isPending || state.error",
+        );
+        expect(read("src/components/query-auth-boundary.tsx")).not.toContain(
+          "queryAuthScopeFromSession",
+        );
+        expect(read("src/app/settings/page.tsx")).toContain("initialScope={initialScope}");
+        expect(read("src/app/settings/sessions.ts")).toContain(
+          "queryInitialDataForScope(scope, initialScope, initialData)",
+        );
+        expect(read("tests/query-auth.test.ts")).toContain("new QueryObserver(client");
+      }
+    }
   });
 
   test("protects auth-required capability routes but leaves feature flags public", () => {
@@ -423,10 +537,24 @@ describe("generated TanStack authenticated Query boundary", () => {
     })
       .map(({ content }) => content)
       .join("\n");
-    const nextIdentity = webIdentityWorkspaceDataFiles("monorepo", "next")
-      .map(({ content }) => content)
-      .join("\n");
+    const nextIdentity = new Map(
+      webIdentityWorkspaceDataFiles("monorepo", "next").map(({ path, content }) => [path, content]),
+    );
+    const nextQueries =
+      nextIdentity.get("apps/web/src/features/identity-workspace/queries.ts") ?? "";
+    const nextMutations =
+      nextIdentity.get("apps/web/src/features/identity-workspace/mutations.ts") ?? "";
+    const nextActions = nextIdentity.get("apps/web/src/app/settings/workspace/actions.ts") ?? "";
     expect(nextAdmin).not.toContain("authScopedQueryKey");
-    expect(nextIdentity).not.toContain("authScopedQueryKey");
+    expect(nextQueries).toContain("authScopedQueryKey(scope, meOptions.queryKey)");
+    expect(nextQueries).toContain("authScopedQueryKey(scope, options.queryKey)");
+    expect(nextMutations).toContain(
+      'authScopedQueryKey(scope, orpc.identity.organizations.hasPermission.key({ type: "query" }))',
+    );
+    expect(nextMutations).toContain('from "@/app/settings/workspace/actions"');
+    expect(nextMutations).not.toContain(".mutationOptions(");
+    expect(nextActions).toContain('"use server";');
+    expect(nextActions).toContain("createRequestApplicationForRequest");
+    expect(nextActions).not.toContain("authScopedQueryKey");
   });
 });

@@ -163,7 +163,7 @@ describe("generated transactional email operation", () => {
             expect(body, label).toMatchObject({
               from: "sender@example.test",
               to: [input.to],
-              subject: "Vérifiez votre adresse e-mail — Fixture",
+              subject: "Vérifiez votre adresse e-mail - Fixture",
             });
             expect(body.text, label).toContain(input.url);
             responseStatus = 429;

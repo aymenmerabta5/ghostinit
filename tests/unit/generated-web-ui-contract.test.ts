@@ -48,10 +48,14 @@ describe("shared web UI contracts", () => {
     const markRead = source.indexOf(
       "if (notification.readAt === null) await onMarkRead?.(notification.id);",
     );
-    const navigate = source.indexOf("if (destination) onNavigate?.(destination.href);");
+    const captureOwner = source.indexOf("const isCurrent = captureAction?.() ?? (() => true);");
+    const navigate = source.indexOf(
+      "if (isCurrent() && destination) onNavigate?.(destination.href);",
+    );
     expect(format).toBeGreaterThanOrEqual(0);
     expect(destination).toBeGreaterThan(format);
-    expect(markRead).toBeGreaterThan(destination);
+    expect(captureOwner).toBeGreaterThan(destination);
+    expect(markRead).toBeGreaterThan(captureOwner);
     expect(navigate).toBeGreaterThan(markRead);
     expect(source.match(/onMarkRead\?\.\(notification\.id\)/g) ?? []).toHaveLength(1);
     expect(source).toContain('aria-label={t("title")}');

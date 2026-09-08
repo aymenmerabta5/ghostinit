@@ -3,14 +3,6 @@ import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./s
 import { billingApplicationsFiles } from "./billing/applications/billing.js";
 import * as v from "./versions.js";
 
-/**
- * The identity module is always emitted — it demonstrates Domain>Capabilities
- * with no external dependencies and is the minimal testable unit. The billing
- * module is emitted whenever billing is selected and demonstrates the full
- * 6-layer chain end-to-end (see longer comment inline). When billing is not
- * selected the `billing` directory must not be emitted, otherwise the generated
- * project would import @repo/billing which does not exist in that corner.
- */
 export function modulesPackage(
   runtime: "node" | "bun" = "bun",
   hasBilling = true,
@@ -46,11 +38,7 @@ export function modulesPackage(
         },
       }),
     ),
-    // Sorted alphabetically so the on-disk file matches what `sync` rebuilds.
-    // When billing is not selected the billing demo is omitted entirely —
-    // otherwise the generated project imports @repo/billing which does not exist
-    // in that corner and the generation-matrix fails on "every import resolves".
-    // Same for messaging (postgres DM-only, convex uses convex/messaging.ts).
+    // Match sync's entrypoint order and never reference an unselected module.
     ...(() => {
       const parts: string[] = [];
       if (hasBilling) parts.push(`export * as billing from "./billing/index";`);
@@ -94,17 +82,6 @@ ${exports}
       "packages/modules/tests/identity/get-profile.test.ts",
       `import { describe, it, expect } from "bun:test";\nimport { getProfileUseCase } from "../../src/identity/application/get-profile.js";\n\ndescribe("getProfileUseCase", () => {\n  it("returns the profile when found", async () => {\n    const profile = { id: "1", email: "a@example.com", name: "A" };\n    const result = await getProfileUseCase(\n      { userId: "1" },\n      { findById: async () => profile },\n    );\n    expect(result).toEqual(profile);\n  });\n\n  it("returns null when missing", async () => {\n    const result = await getProfileUseCase(\n      { userId: "2" },\n      { findById: async () => null },\n    );\n    expect(result).toBeNull();\n  });\n});\n`,
     ),
-    // The billing module is the reference demonstration for the 6-layer chain:
-    // app/api/rpc/** (Transport layer 2) → @repo/api oRPC procedures
-    // → @repo/modules/billing/application/*
-    // (Domain/application layer 3) → @repo/services/billing/* (Capabilities layer 4)
-    // → @repo/billing/providers/* (Vendors layer 5) → @repo/database/@repo/config
-    // (Supporting layer 6). This is what `ghostinit check` enforces with
-    // no-restricted-imports; it is non-vacuous because layers 3,4,5 all import
-    // one another directionally.
-    //
-    // Emitted only when billing is selected, otherwise the generated project
-    // imports @repo/billing which does not exist in that corner.
     ...(hasBilling
       ? [
           file(

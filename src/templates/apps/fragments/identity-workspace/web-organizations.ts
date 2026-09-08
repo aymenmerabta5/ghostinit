@@ -25,8 +25,8 @@ ${i18n.hookLine}
     setSelectedOrganizationId } = workspace;
   return <Card><CardHeader><CardTitle>${i18n.child("organizations")}</CardTitle><CardDescription>${i18n.child("organizationsDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
     {organizations.isPending ? <Skeleton className="h-16 w-full" aria-label={${i18n.value("loadingOrganizations")}} /> : (organizations.data ?? []).length === 0 ? <Empty><EmptyHeader><EmptyTitle>${i18n.child("noOrganizations")}</EmptyTitle><EmptyDescription>${i18n.child("noOrganizationsDescription")}</EmptyDescription></EmptyHeader></Empty> : null}
-    {(organizations.data ?? []).map((organization) => <Button key={organization.id} type="button" variant={organization.id === organizationId ? "secondary" : "outline"} aria-pressed={organization.id === organizationId} onClick={() => setSelectedOrganizationId(organization.id)} className="h-auto justify-start p-3 text-start">
-      <span className="block font-medium">{organization.name}</span><span className="text-xs text-muted-foreground">{organization.slug}</span>
+    {(organizations.data ?? []).map((organization) => <Button key={organization.id} type="button" variant={organization.id === organizationId ? "secondary" : "outline"} aria-pressed={organization.id === organizationId} onClick={() => setSelectedOrganizationId(organization.id)} className="h-auto min-w-0 flex-col items-start gap-1 whitespace-normal p-3 text-start">
+      <span className="max-w-full wrap-anywhere font-medium">{organization.name}</span><span className="max-w-full wrap-anywhere text-xs text-muted-foreground">{organization.slug}</span>
     </Button>)}
     <Separator />
     <FieldGroup>

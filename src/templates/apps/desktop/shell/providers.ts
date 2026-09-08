@@ -12,6 +12,9 @@ export function desktopProvidersContent(
     capabilities.hasApi
       ? `import { QueryClientProvider } from "@tanstack/react-query";\nimport { getQueryClient } from "./query-client";`
       : "",
+    capabilities.hasApi && capabilities.hasAuth
+      ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary";`
+      : "",
     hasConvexAuth
       ? `import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";\nimport { authClient } from "./auth";`
       : "",
@@ -33,7 +36,11 @@ export function desktopProvidersContent(
     .filter(Boolean)
     .join("\n");
 
-  let providerTree = `<ThemeProvider>{children}</ThemeProvider>`;
+  let providerTree = `{children}`;
+  if (capabilities.hasApi && capabilities.hasAuth) {
+    providerTree = `<QueryAuthCacheBoundary queryClient={queryClient}>${providerTree}</QueryAuthCacheBoundary>`;
+  }
+  providerTree = `<ThemeProvider>${providerTree}</ThemeProvider>`;
   if (capabilities.hasApi) {
     providerTree = `<QueryClientProvider client={queryClient}>\n        ${providerTree}\n      </QueryClientProvider>`;
   }

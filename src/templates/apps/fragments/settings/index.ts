@@ -8,6 +8,8 @@ import {
   settingsPasskeyCardContent,
   settingsPasskeyList,
   settingsPasskeyListContent,
+  settingsPasskeyManagement,
+  settingsPasskeyManagementContent,
 } from "./passkey-card.js";
 import {
   settingsTwoFactorCard,
@@ -22,6 +24,8 @@ import {
   settingsSessionsList,
   settingsSessionsListContent,
 } from "./sessions-card.js";
+import { settingsSessionsData, settingsSessionsDataContent } from "./sessions-data.js";
+import { settingsPasskeyData, settingsPasskeyDataContent } from "./passkey-data.js";
 import { settingsPage, settingsPageContent } from "./page.js";
 import { settingsActionsContent } from "./actions.js";
 import {
@@ -40,11 +44,14 @@ export {
   settingsPasswordCard,
   settingsPasskeyCard,
   settingsPasskeyList,
+  settingsPasskeyData,
+  settingsPasskeyManagement,
   settingsTwoFactorCard,
   settingsTwoFactorHook,
   settingsDangerZoneCard,
   settingsSessionsCard,
   settingsSessionsList,
+  settingsSessionsData,
   settingsPage,
   settingsPageContent,
   settingsHookContent,
@@ -52,11 +59,14 @@ export {
   settingsPasswordCardContent,
   settingsPasskeyCardContent,
   settingsPasskeyListContent,
+  settingsPasskeyDataContent,
+  settingsPasskeyManagementContent,
   settingsTwoFactorCardContent,
   settingsTwoFactorHookContent,
   settingsDangerZoneCardContent,
   settingsSessionsCardContent,
   settingsSessionsListContent,
+  settingsSessionsDataContent,
   tanstackSettingsPage,
   tanstackSettingsPageContent,
   tanstackSettingsFeatureFiles,
@@ -76,29 +86,26 @@ export function settingsFiles(
       ...tanstackSettingsFeatureFiles("monorepo", hasIdentityTransport, hasEmail, hasPasskey),
     ];
   }
-  const useBetterAuthServerActions = !isConvex;
   return [
     settingsLayout(hasBilling, hasIdentityTransport),
     useSettingsHook(),
-    ...(useBetterAuthServerActions || hasIdentityTransport
+    ...(hasIdentityTransport
+      ? [file("apps/web/src/app/settings/actions.ts", settingsActionsContent("monorepo"))]
+      : []),
+    settingsProfileCard(),
+    ...(hasEmail ? [settingsPasswordCard(), settingsTwoFactorCard(), settingsTwoFactorHook()] : []),
+    ...(hasPasskey
       ? [
-          file(
-            "apps/web/src/app/settings/actions.ts",
-            settingsActionsContent("monorepo", hasIdentityTransport, useBetterAuthServerActions),
-          ),
+          settingsPasskeyCard(),
+          settingsPasskeyList(),
+          settingsPasskeyData(),
+          settingsPasskeyManagement(),
         ]
       : []),
-    settingsProfileCard(useBetterAuthServerActions),
-    ...(hasEmail
-      ? [
-          settingsPasswordCard(useBetterAuthServerActions),
-          settingsTwoFactorCard(),
-          settingsTwoFactorHook(),
-        ]
+    ...(hasIdentityTransport
+      ? [settingsSessionsCard(), settingsSessionsList(), settingsSessionsData(true)]
       : []),
-    ...(hasPasskey ? [settingsPasskeyCard(), settingsPasskeyList()] : []),
-    ...(hasIdentityTransport ? [settingsSessionsCard(true), settingsSessionsList()] : []),
-    settingsDangerZoneCard(hasEmail, useBetterAuthServerActions),
+    settingsDangerZoneCard(hasEmail),
     settingsPage(hasIdentityTransport, hasEmail, hasPasskey, hasIdentityTransport),
   ];
 }

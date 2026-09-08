@@ -21,7 +21,7 @@ export const Route = createFileRoute("/settings/workspace")({
 });
 
 function WorkspacePage(): React.JSX.Element {
-  return <main className="mx-auto w-full max-w-6xl p-6"><IdentityWorkspace /></main>;
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10"><IdentityWorkspace /></main>;
 }
 `;
   }
@@ -32,19 +32,23 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { createRequestApplicationForRequest } from "${applicationModule}";
+import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
+import { QueryAuthStatus } from "@/components/query-auth-boundary";
 import { IdentityWorkspace } from "@/features/identity-workspace/identity-workspace";
 import type { IdentityWorkspaceInitialData } from "@/features/identity-workspace/types";
 
 async function WorkspaceData(): Promise<React.JSX.Element> {
   const application = await createRequestApplicationForRequest(new Headers(await headers()));
   const me = await application.me();
-  if (!me.user) redirect("/sign-in");
+  const principal = application.principal;
+  if (!me.user || !principal) redirect("/sign-in");
+  const scope = { userId: principal.identityUserId, sessionId: principal.sessionId, tenantId: principal.activeOrganizationId, teamId: principal.activeTeamId };
   const initialData: IdentityWorkspaceInitialData = await application.identity.workspace.snapshot();
-  return <IdentityWorkspace initialData={initialData} />;
+  return <RequestOwnedSnapshot scope={scope}><IdentityWorkspace initialData={initialData} /></RequestOwnedSnapshot>;
 }
 
 export default function WorkspacePage(): React.JSX.Element {
-  return <Suspense fallback={<div className="min-h-64" aria-busy="true" />}><WorkspaceData /></Suspense>;
+  return <Suspense fallback={<QueryAuthStatus />}><WorkspaceData /></Suspense>;
 }
 `;
 }
@@ -60,7 +64,7 @@ export function webIdentityWorkspaceFiles(
       ? `${sourceRoot}/routes/settings.workspace.tsx`
       : `${sourceRoot}/app/settings/workspace/page.tsx`;
   return [
-    ...webIdentityWorkspaceFeatureFiles(mode, hasI18n),
+    ...webIdentityWorkspaceFeatureFiles(mode, hasI18n, router === "next" ? 2 : 1),
     ...webIdentityWorkspaceDataFiles(mode, router),
     file(routePath, webWorkspaceRouteContent(router, mode)),
   ];

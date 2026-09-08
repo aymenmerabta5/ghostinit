@@ -12,6 +12,7 @@ import {
 } from "./layout.js";
 import { designSystemModuleFiles } from "./manifest.js";
 import { designStyleFiles } from "./styles.js";
+import { brandRendererFiles } from "./brand.js";
 
 export function selectedUiAdapters(
   apps: readonly ResolvedDesignSystemApp[],
@@ -35,6 +36,7 @@ export function designSystemFiles(
 
   return dedupeFilesOrThrow([
     ...designSystemModuleFiles(layout, adapters),
+    ...brandRendererFiles(layout, resolvedApps),
     ...designStyleFiles(layout, adapters),
     ...designSystemContractFiles(layout, contract),
     componentRegistryFile(layout),

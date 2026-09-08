@@ -2,7 +2,7 @@ import { file, type TemplateFile } from "../shared.js";
 import type { BillingProviderName } from "../../lib/addons.js";
 import { evePackageJson } from "./package.js";
 import { eveGitignore, eveNitroConfig, eveReadme, eveTsconfig, eveVercelIgnore } from "./config.js";
-import { eveAgentFile, eveInstructionsFile } from "./agent/core.js";
+import { eveAgentFile, eveInstructionsFile, eveSandboxFile } from "./agent/core.js";
 import { toolScaffoldModule } from "./tools/scaffold.js";
 import { toolCheckArchitecture } from "./tools/check.js";
 import { toolSyncRegistries } from "./tools/sync.js";
@@ -13,6 +13,7 @@ import { skillModuleDesign } from "./skills/module-design.js";
 import { channelEve } from "./channels/eve-channel.js";
 import { scheduleSyncCheck, scheduleSyncCheckExample } from "./schedules/sync-check.js";
 import { scheduleBillingRenewal, scheduleBillingRenewalExample } from "./schedules/billing.js";
+import { eveSandboxRuntimeProbeFile, eveSandboxRuntimeTestFile } from "./sandbox-test.js";
 
 export function eveFiles(
   projectName: string,
@@ -40,6 +41,9 @@ describe("Eve agent smoke", () => {
 `,
     ),
     eveAgentFile(),
+    eveSandboxFile(),
+    eveSandboxRuntimeTestFile(),
+    eveSandboxRuntimeProbeFile(),
     eveInstructionsFile(projectName),
     toolScaffoldModule(),
     toolCheckArchitecture(),

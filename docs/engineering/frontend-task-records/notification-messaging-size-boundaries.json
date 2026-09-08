@@ -1,0 +1,38 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "notification-messaging-size-boundaries",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/apps/fragments/lib/notifications.ts",
+    "src/templates/apps/capability-clients/notifications.ts",
+    "src/templates/apps/fragments/messaging/index.ts",
+    "src/templates/apps/fragments/messaging/convex-next-data.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "77e15a5bfeb0476ccc6653c138e21a4aa5d0e51a2d7782497785941c39143065"
+      }
+    ],
+    "decisions": ["DESIGN.md#generated-notification-and-convex-message-size-boundaries"],
+    "evidence": [
+      "tests/unit/generated-notification-messaging-size.test.ts",
+      "tests/unit/generated-messaging-read-states.test.ts",
+      "tests/unit/notification-owned-effects.test.ts",
+      "tests/unit/notification-ui-consistency.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "structure.formatted-file-budget",
+    "architecture.presentation-data-boundary",
+    "state.authenticated-query-ownership"
+  ],
+  "selectedComponentIds": ["action.button", "surface.card", "form.input"],
+  "exceptionIds": []
+}

@@ -21,8 +21,36 @@ bun run test:fixtures  # runner installs and fully checks all compatibility fixt
 bun run test:generated # generate + install + format/check + architecture + typecheck + lint:all + root tests
 bun run check:versions # every pinned + generated dependency version exists on npm
 bun run test:workers   # four Cloudflare Worker build/dry-run/runtime corners
-bun run test:ci        # static + host/fixtures + 24 generated corners + oRPC WS runtime + six audited production builds
+bun run test:convex-codegen # opt-in public anonymous-local Convex root/component codegen proof
+bun run test:ci        # static + host/fixtures + Convex codegen + 24 generated corners + oRPC WS runtime + six audited production builds
 ```
+
+For local checks under a strict RAM budget, use `bun --smol test <file>` and a
+fresh guarded process per file. More frequent garbage collection reduces heap
+retention; process isolation also releases module-level fixtures. Preserve the
+complete test manifest and report interrupted files as failed verification.
+CI retains the full workload without a local machine's memory limits.
+
+Generated Next builds use two static-generation workers locally through
+`experimental.cpus`; a non-empty `CI` leaves Next's default parallelism intact.
+Every route still builds. Keep process/tree/RAM guards: worker limits are not
+memory caps, and installed production builds remain required.
+
+Native Next configurations externalize only the selected billing SDKs through
+`serverExternalPackages`, using the same provider/package map as dependency
+emission. Keep Cloudflare Worker configurations bundled. Local Turbopack cache
+eviction happens after filesystem snapshots and is not a process memory cap;
+measure complete route workloads and retain installed runtime/build checks.
+
+`test:convex-codegen` installs an isolated backend fixture with the catalog pins
+and seven-day policy, audits it, and uses public Convex `init`/`env set`/`dev --once`/`codegen`
+commands. A bounded `--start` helper retains one local backend while the explicit
+codegen checks run. It checks actual generated auth/users/posts files and a local source
+component, including deliberate type errors and restored successes. It requires
+Node.js >=20 and network access for the first local-backend download. Backend
+version/digest and process cleanup are recorded; this proves code generation and
+types, not executed application functions. The ordinary generated-project gate
+remains required independently.
 
 Manual generation smoke:
 
@@ -36,20 +64,33 @@ cd /tmp/gi-test/demo && bun run install:bootstrap && bun run typecheck && bun ru
 
 **Host vs Generated:**
 
-- Host = this CLI repo. Single publishable package (`bin: dist/cli.js`, `private:false` intentional). Internal layering: `cli.ts` → `commands/` (Application) → `lib/` (Supporting) → `templates/`+`generators/` (Vendors/composers).
+- Host = this CLI repo. Single publishable package (`bin: dist/cli.js`, `private:false` intentional). `cli.ts` parses and dispatches; `commands/` orchestrates use cases; `domain/` resolves project policy and validates immutable plans; `application/ports/` defines rendering, formatting, and secret-materialization contracts. `generation/` implements the compiler boundary over `templates/`; `lib/` supplies filesystem, state, process, and diagnostic adapters. Domain code must not depend on commands, templates, or those adapters.
 - Generated = output monorepo `apps/* + packages/* + tooling/*` with manifest-derived, capability-scoped `turbo.json` cache inputs and `bunfig.toml` hoist=true.
 
-**GhostInit Layered Architecture (pragmatic UI->Supporting)** inspired by DDD enforced by `src/lib/architecture/index.ts` via `oxc-parser` (not TS compiler):
-1 UI (`apps/web`, `src/routes`) → 2 Transport (`packages/api`, `apps/web/src/app/api`, `src/routes/api`, oRPC) → 3 Domain (`**/domain/*`, `packages/core`) → 4 Capabilities (`packages/services/*`, `packages/billing` non-provider, `**/application/*`) → 5 Vendors (`billing/providers/*`, SDKs) → 6 Supporting (`database`, `config`, `kernel`, `observability`, `tooling/*`). No upward imports.
+**Generated architecture** is enforced by `src/lib/architecture/index.ts` through `oxc-parser`. The six categories describe responsibilities, not a mandatory six-hop call chain:
+
+- UI composes presentation and invokes the appropriate server or client boundary.
+- Transport adapts HTTP, WebSocket, Server Actions, and platform IPC to application operations.
+- Application services and use cases orchestrate domain behavior and adapters.
+- Domain owns business types, policies, and provider-neutral contracts. It cannot depend on application services, vendors, or framework implementations.
+- Vendor adapters implement inward-facing contracts and may import domain types.
+- Supporting modules provide shared contracts, configuration, persistence, and tooling; additional purity, database, vendor, and client rules constrain their use.
+
+The versioned edge matrix in `src/lib/architecture/rules/layer-policy.ts` is authoritative. Application-to-domain dependencies follow the same rules in monorepo `packages/modules/src/<module>` and single `src/server/modules/<module>` layouts. Module privacy and database isolation apply to both. A passing category edge does not bypass the more specific isolation rules.
 
 **Tooling:**
 
 - Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for the supported Next.js 16 TS resolution path. Both enforce the typed seven-day `supplyChain.minimumReleaseAgeSeconds` policy with an empty exclusion list; fixtures and temporary install probes must do the same.
 - Generated dependency SSOT is `packages/versions/src/index.ts`; host and generated compiler policies are verified independently.
-- Generated Next apps use `typescriptNext` (TypeScript 7) through Next 16.3's
-  default project-local `tsc` CLI. Shared monorepo tooling, TanStack Start, and
-  Expo use the `typescript` TS6 pin while they still require JavaScript compiler
-  APIs. Never set `experimental.useTypeScriptCli` to `false` in Next config.
+- Next development/build commands executed by Bun use the documented Webpack profile because Bun 1.4 cannot reliably resolve Turbopack's newly created external-package links on a cold start. Node keeps Turbopack. PDF-enabled Bun launchers preload their declared `@react-pdf/renderer` dependency before Next installs its require hook; React module conditions remain unchanged.
+- Generated apps and shared tooling use the same `typescript` catalog pin
+  (TypeScript 7). Next 16.3 uses its default project-local `tsc` CLI; never set
+  `experimental.useTypeScriptCli` to `false`. TypeScript 7 does not provide the
+  classic JavaScript compiler API. Changes to compiler consumers require real
+  installed build/runtime gates; source inspection alone is not compatibility proof.
+- Convex checks `convex/tsconfig.json` independently of the app's root config.
+  Its generated strict config explicitly selects Node types for `process.env`,
+  and the owning root manifest declares the catalog's `@types/node` dependency.
 - Generated `turbo.json`: manifest-derived `globalEnv`, filtered to selected capabilities and app audiences — see the table below.
 
 **Env vars — 5 places (keep in sync):**
@@ -174,6 +215,10 @@ not run a production build.
 runtime, then runs six representative production-build/start lifecycles through
 `test:e2e-build`. Each lifecycle audits its installed graph at high severity,
 then explicitly runs `typecheck` before fail-closed `lint:all` and the production build. Generated
+runtime checks also require `/` and `/sign-in` to render HTML successfully; a
+healthy API endpoint alone does not prove SSR works. The custom capability-heavy
+corner combines single Next.js, Eve, and messaging to exercise their shared
+server entrypoints. Generated
 projects deliberately do not add an unpublished `ghostinit` dependency:
 prepublication gates own the local CLI path, while consumers use the released
 CLI they explicitly installed.
@@ -254,8 +299,9 @@ typechecks, and lints successfully on the final tree. `typecheck` runs
 - `src/routes/billing.tsx` / `dashboard.tsx` / `settings.tsx` use typed
   `Route.useRouteContext() as { session: { user: ... } }` with `getSessionFn` via
   `auth as unknown as { api: { getSession } }`, no `as any`.
-- `database=none` now emits a stub `packages/database` so `import { db } from "@repo/database"`
-  resolves and `packages/auth` typechecks (stub `db: any` proxy).
+- `database=none` retains an import-compatible database marker. Its members are
+  typed `never`, persistence access fails explicitly, and it exposes no database
+  generation, migration, or push commands.
 
 Do not promote a past green subset to a release claim. Record the exact
 configurations, final-tree status, commands, and exit codes for each run.

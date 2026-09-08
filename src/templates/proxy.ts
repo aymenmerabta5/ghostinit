@@ -216,7 +216,6 @@ function maintenancePageContent(): string {
   return `import * as React from "react";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -230,21 +229,19 @@ export async function generateMetadata(): Promise<{ title: string; description: 
 async function MaintenanceContent(): Promise<React.JSX.Element> {
   const t = await getSurfaceTranslations("errors");
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background px-6 text-center text-foreground">
-      <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">{t("maintenance.status")}</p>
-      <h1 className="text-2xl font-semibold tracking-tight">{t("maintenance.title")}</h1>
-      <p className="max-w-[60ch] text-sm text-muted-foreground">
+    <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg flex-col items-start gap-3 px-5 py-10 text-start sm:px-8 sm:py-14">
+      <p className="text-sm font-medium text-muted-foreground">{t("maintenance.status")}</p>
+      <h1 className="text-3xl font-semibold tracking-tight">{t("maintenance.title")}</h1>
+      <p className="max-w-[60ch] text-sm leading-6 text-muted-foreground">
         {t("maintenance.description")}
       </p>
-      <Card className="mt-5 w-full max-w-sm text-start">
-        <CardHeader>
-          <CardTitle>{t("maintenance.accessLabel")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <details className="mt-5 w-full rounded-lg border border-border/70 bg-card">
+        <summary className="cursor-pointer rounded-lg px-5 py-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{t("maintenance.administratorAccess")}</summary>
+        <div className="border-t border-border/70 p-5">
           <form action="/maintenance/access" method="post" rel="noreferrer">
             <FieldGroup>
               <Field>
-                <FieldLabel className="sr-only" htmlFor="maintenance-token">
+                <FieldLabel htmlFor="maintenance-token">
                   {t("maintenance.accessLabel")}
                 </FieldLabel>
                 <Input
@@ -257,18 +254,18 @@ async function MaintenanceContent(): Promise<React.JSX.Element> {
                   autoComplete="off"
                 />
               </Field>
-              <Button type="submit">{t("maintenance.accessAction")}</Button>
+              <Button className="w-auto self-start" type="submit">{t("maintenance.accessAction")}</Button>
             </FieldGroup>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </main>
   );
 }
 
 function MaintenanceFallback(): React.JSX.Element {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-3 px-6" aria-busy="true">
+    <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-lg flex-col gap-4 px-5 py-10 sm:px-8 sm:py-14" aria-busy="true">
       <Skeleton className="h-3 w-28" />
       <Skeleton className="h-8 w-56" />
       <Skeleton className="h-4 w-full" />

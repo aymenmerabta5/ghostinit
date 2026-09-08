@@ -24,9 +24,9 @@ describe("architecture layer policy", () => {
     const expected: Record<ArchitectureLayer, ArchitectureLayer[]> = {
       UI: layers,
       Transport: ["Transport", "Domain", "Application", "Vendors", "Supporting"],
-      Domain: ["Domain", "Application", "Vendors", "Supporting"],
-      Application: ["Application", "Vendors", "Supporting"],
-      Vendors: ["Vendors", "Supporting"],
+      Domain: ["Domain", "Supporting"],
+      Application: ["Domain", "Application", "Vendors", "Supporting"],
+      Vendors: ["Domain", "Vendors", "Supporting"],
       Supporting: ["Supporting"],
     };
     for (const source of layers) {

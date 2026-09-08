@@ -85,6 +85,9 @@ describe("generated Better Auth hardening matrix", () => {
           const server = read(files, serverPath);
 
           expect(parseSync(serverPath, server).errors, serverPath).toEqual([]);
+          expect(server).toContain("profileUpdateValidation(),");
+          expect(server).toContain('context.path === "/update-user"');
+          expect(server).toContain("name.length < 1 || name.length > 50");
           expect(server).toContain("revokeSessionsOnPasswordReset: true");
           expect(server).toContain("encryptOAuthTokens: true");
           expect(server).toContain("socialProviders: {");

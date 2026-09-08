@@ -3,6 +3,7 @@ import { parseSync } from "oxc-parser";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
+import { pdfFilesWithApps } from "../../src/templates/pdf/index.js";
 
 type Mode = "monorepo" | "single";
 type Framework = "nextjs" | "tanstack-start";
@@ -44,6 +45,34 @@ function contentAt(files: TemplateFile[], path: string): string {
 }
 
 describe("PDF application-surface parity", () => {
+  it("all formatted PDF routes, workspaces, and sample modules remain below the existing 150-line limit", () => {
+    for (const mode of ["single", "monorepo"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        const surfaces = pdfFilesWithApps(
+          mode,
+          mode === "monorepo",
+          mode === "monorepo",
+          framework,
+          true,
+          true,
+        ).filter((file) =>
+          /(?:features\/pdf\/|(?:app|routes)\/pdf(?:\/page)?\.tsx$)/.test(file.path),
+        );
+        expect(surfaces.length).toBe(mode === "single" ? 3 : 7);
+        for (const surface of surfaces) {
+          const formatted = Bun.spawnSync(
+            [process.execPath, "x", "--no-install", "oxfmt", "--stdin-filepath", surface.path],
+            { stdin: new TextEncoder().encode(surface.content), stdout: "pipe", stderr: "pipe" },
+          );
+          expect(formatted.exitCode, formatted.stderr.toString()).toBe(0);
+          expect(
+            formatted.stdout.toString().split(/\r?\n/).length,
+            `${mode}/${framework}/${surface.path}`,
+          ).toBeLessThanOrEqual(150);
+        }
+      }
+    }
+  });
   const supportedCases = [
     { mode: "monorepo", app: "web", apps: ["web"] },
     { mode: "monorepo", app: "mobile", apps: ["web", "mobile"] },
@@ -75,8 +104,13 @@ describe("PDF application-surface parity", () => {
                 : "src/routes/pdf.tsx";
           adapterPath =
             mode === "monorepo" ? "packages/pdf/src/client/usePdf.ts" : "src/hooks/usePdf.ts";
-          navigation = contentAt(files, `${prefix}src/components/header.tsx`);
-          expect(navigation).toContain(framework === "nextjs" ? 'href="/pdf"' : 'to="/pdf"');
+          navigation = contentAt(files, `${prefix}src/components/workspace-navigation.tsx`);
+          expect(navigation).toContain('path: "/pdf", label: "pdf"');
+          expect(navigation).toContain(framework === "nextjs" ? "href={path}" : "to={path}");
+          const userMenu = contentAt(files, `${prefix}src/components/header-user-menu.tsx`);
+          expect(userMenu).toContain(
+            framework === "nextjs" ? 'router.push("/pdf")' : 'router.navigate({ to: "/pdf" })',
+          );
           const routePath =
             mode === "monorepo"
               ? framework === "nextjs"
@@ -130,15 +164,18 @@ describe("PDF application-surface parity", () => {
         }
 
         const page = contentAt(files, pagePath);
+        const presentation =
+          app === "web" ? contentAt(files, `${prefix}src/features/pdf/pdf-workspace.tsx`) : page;
         const adapter = contentAt(files, adapterPath);
         expect(parseSync(pagePath, page).errors).toEqual([]);
         expect(parseSync(adapterPath, adapter).errors).toEqual([]);
-        expect(page).toContain("samplePdfData");
-        expect(page).toContain("invoice");
-        expect(page).toContain("certificate");
-        expect(page).toContain("agreement");
-        expect(page).not.toContain("logoUrl:");
-        expect(page).not.toContain("qrCodeDataUrl:");
+        expect(presentation).toContain("samplePdfData");
+        expect(presentation).toContain("invoice");
+        expect(presentation).toContain("certificate");
+        expect(presentation).toContain("agreement");
+        expect(presentation).not.toContain("logoUrl:");
+        expect(presentation).not.toContain("qrCodeDataUrl:");
+        if (app === "web") expect(page).toContain('from "@/features/pdf/pdf-workspace"');
         expect(adapter).toContain('credentials: "include"');
         expect(adapter).toContain(
           app === "web" ? "current application origin" : "configured API origin",
@@ -149,7 +186,7 @@ describe("PDF application-surface parity", () => {
           expect(adapter).toContain("window.desktopBridge.apiUrl");
           expect(adapter).not.toContain("await fetch(url");
         }
-        expect(`${page}\n${adapter}`).not.toMatch(
+        expect(`${page}\n${presentation}\n${adapter}`).not.toMatch(
           /\bas any\b|as unknown as|@ts-(?:ignore|nocheck)/,
         );
 

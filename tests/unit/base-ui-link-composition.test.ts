@@ -62,20 +62,20 @@ const TARGETS: Record<Mode, Record<Framework, Record<string, number>>> = {
   monorepo: {
     nextjs: {
       "apps/web/src/components/marketing/hero.tsx": 2,
-      "apps/web/src/features/dashboard/dashboard-header.tsx": 1,
+      "apps/web/src/features/dashboard/dashboard-header.tsx": 0,
       "apps/web/src/features/dashboard/checks-card.tsx": 1,
-      "apps/web/src/features/dashboard/identity-card.tsx": 3,
-      "apps/web/src/features/dashboard/actions-card.tsx": 3,
+      "apps/web/src/features/dashboard/identity-card.tsx": 2,
+      "apps/web/src/features/dashboard/actions-card.tsx": 0,
       "apps/web/src/app/not-found.tsx": 1,
       "apps/web/src/app/unauthorized.tsx": 1,
       "apps/web/src/app/forbidden.tsx": 1,
     },
     "tanstack-start": {
       "apps/web/src/components/marketing/hero.tsx": 2,
-      "apps/web/src/features/dashboard/dashboard-header.tsx": 1,
+      "apps/web/src/features/dashboard/dashboard-header.tsx": 0,
       "apps/web/src/features/dashboard/checks-card.tsx": 1,
-      "apps/web/src/features/dashboard/identity-card.tsx": 3,
-      "apps/web/src/features/dashboard/actions-card.tsx": 3,
+      "apps/web/src/features/dashboard/identity-card.tsx": 2,
+      "apps/web/src/features/dashboard/actions-card.tsx": 0,
       "apps/web/src/routes/$notFound.tsx": 1,
       "apps/web/src/routes/unauthorized.tsx": 1,
       "apps/web/src/routes/forbidden.tsx": 1,
@@ -84,14 +84,16 @@ const TARGETS: Record<Mode, Record<Framework, Record<string, number>>> = {
   single: {
     nextjs: {
       "src/components/marketing/hero.tsx": 2,
-      "src/app/dashboard/page.tsx": 7,
+      "src/features/dashboard/dashboard-overview.tsx": 0,
+      "src/features/dashboard/identity-card.tsx": 2,
+      "src/features/dashboard/quick-actions.tsx": 0,
       "src/app/not-found.tsx": 1,
     },
     "tanstack-start": {
       "src/components/marketing/hero.tsx": 2,
-      "src/features/dashboard/dashboard-overview.tsx": 2,
-      "src/features/dashboard/identity-card.tsx": 3,
-      "src/features/dashboard/quick-actions.tsx": 2,
+      "src/features/dashboard/dashboard-overview.tsx": 0,
+      "src/features/dashboard/identity-card.tsx": 2,
+      "src/features/dashboard/quick-actions.tsx": 0,
       "src/routes/$notFound.tsx": 1,
     },
   },
@@ -166,6 +168,32 @@ function walk(value: unknown, visit: (node: Node) => void): void {
     if (key === "type" || key === "start" || key === "end") continue;
     walk(child, visit);
   }
+}
+
+function auditMenuGroups(path: string, source: string): string[] {
+  const parsed = parseSync(path, source);
+  const violations = parsed.errors.map((error) => `${path}: ${error.message}`);
+  const visit = (value: unknown, groups: number): void => {
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child, groups);
+      return;
+    }
+    if (!isNode(value)) return;
+    const name =
+      value.type === "JSXElement" && isNode(value.openingElement)
+        ? identifierName(value.openingElement.name)
+        : undefined;
+    if (name === "DropdownMenu" || name === "DropdownMenuSub") groups = 0;
+    if (name === "DropdownMenuGroup") groups += 1;
+    if ((name === "DropdownMenuLabel" || name === "DropdownMenuItem") && groups === 0) {
+      violations.push(`${path}: ${name} must belong to a DropdownMenuGroup`);
+    }
+    for (const [key, child] of Object.entries(value)) {
+      if (key !== "type" && key !== "start" && key !== "end") visit(child, groups);
+    }
+  };
+  visit(parsed.program, 0);
+  return violations;
 }
 
 function auditLinkButtons(
@@ -261,22 +289,15 @@ describe("generated Base UI link-button composition", () => {
         for (const match of file.content.matchAll(/<Button\b[^>]*\basChild\b[^>]*>/g)) {
           violations.push(`${file.path}: Radix-only Button asChild in ${match[0]}`);
         }
-      }
-
-      const targets = { ...TARGETS[entry.mode][entry.framework] };
-      if (entry.billing.length === 0 && entry.mode === "monorepo") {
-        targets["apps/web/src/features/dashboard/identity-card.tsx"] = 2;
-        targets["apps/web/src/features/dashboard/actions-card.tsx"] = 2;
-      }
-      if (entry.billing.length === 0 && entry.mode === "single") {
-        if (entry.framework === "nextjs") {
-          targets["src/app/dashboard/page.tsx"] = 4;
-        } else {
-          targets["src/features/dashboard/dashboard-overview.tsx"] = 1;
-          targets["src/features/dashboard/identity-card.tsx"] = 2;
-          targets["src/features/dashboard/quick-actions.tsx"] = 1;
+        if (/<DropdownMenu(?:Label|Item)\b/.test(file.content)) {
+          violations.push(...auditMenuGroups(file.path, file.content));
         }
       }
+
+      const userMenu = byPath.get(`${sourceRoot}components/header-user-menu.tsx`);
+      expect(userMenu).toContain("<DropdownMenuLabel");
+
+      const targets = { ...TARGETS[entry.mode][entry.framework] };
       if (entry.billing.length > 0 && entry.mode === "monorepo" && entry.framework === "nextjs") {
         targets["apps/web/src/app/billing/components/billing-empty.tsx"] = 1;
       }

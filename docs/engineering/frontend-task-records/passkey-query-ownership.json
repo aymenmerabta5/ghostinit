@@ -1,0 +1,54 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "passkey-query-ownership",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/apps/fragments/auth/client-adapter.ts",
+    "src/templates/apps/fragments/settings/passkey-card.ts",
+    "src/templates/apps/fragments/settings/passkey-data.ts",
+    "src/templates/apps/fragments/settings/index.ts",
+    "src/templates/apps/fragments/settings/tanstack-feature.ts",
+    "src/templates/modes/single/composers/next.ts",
+    "src/templates/modes/single/pages/settings.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend", "better-auth-best-practices"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "b4cde95311850305d778e9497cd5cfc5eb9cf9b4b7985099ea6564835c434efa"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#read-and-mutation-states"],
+    "evidence": [
+      "tests/unit/passkey-query-ownership.test.ts",
+      "tests/unit/auth-passkey-platform-parity.test.ts",
+      "tests/unit/settings-dashboard-size.test.ts",
+      "tests/unit/generation-matrix.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "query.auth-owner",
+    "query.abort-on-retirement",
+    "query.canonical-admission",
+    "feedback.action-local",
+    "feedback.distinct-loading-empty-error",
+    "design.preserve-existing-system"
+  ],
+  "selectedComponentIds": [
+    "surface.card",
+    "feedback.alert",
+    "feedback.skeleton",
+    "form.input",
+    "action.button"
+  ],
+  "exceptionIds": []
+}

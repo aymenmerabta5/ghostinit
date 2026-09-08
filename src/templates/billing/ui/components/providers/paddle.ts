@@ -19,7 +19,7 @@ export function PaddlePanel(): React.JSX.Element {
   const paddleSubs = subscriptions.filter((s) => s.provider === "paddle");
   return (
     <Card>
-      <CardHeader><div className="flex items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle>{t("paddleTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("paddleDescription")}</CardDescription></div><Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> paddle</span></Badge></div></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle as="h2">{t("paddleTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("paddleDescription")}</CardDescription></div><Badge variant="secondary">paddle</Badge></div></CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="flex flex-wrap gap-2"><Button onClick={() => void handleCheckout("paddle")} disabled={isCheckoutLoading}>{isCheckoutLoading ? <Spinner data-icon="inline-start" /> : <CreditCardIcon data-icon="inline-start" />}{t("checkout")}</Button><Button variant="outline" onClick={() => void handlePortal("paddle")}><ExternalLinkIcon data-icon="inline-start" />{t("customerPortal")}</Button></div>
         <Alert><AlertTitle>{t("merchantOfRecordTitle")}</AlertTitle><AlertDescription className="max-w-[65ch]">{t("paddleTaxDescription")}</AlertDescription></Alert>

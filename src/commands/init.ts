@@ -115,7 +115,6 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
   const { filesWritten, installFailed, isDryRun, plan } = await runProjectInstall({
     projectName: name,
     projectRoot: cwd,
-    config,
     desiredConfig,
     resolvedConfig: resolvedProjectConfig,
     options,

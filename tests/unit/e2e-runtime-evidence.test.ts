@@ -43,6 +43,19 @@ setInterval(() => {}, 1_000);
   return track(spawnTracked(process.execPath, ["-e", source], process.cwd()));
 }
 
+function detachedGrandchildHealthServer(port: number, hostname = "127.0.0.1"): RunningProcess {
+  const server = `Bun.serve({ hostname: ${JSON.stringify(hostname)}, port: ${port}, fetch() {
+    return Response.json({ status: "ok", time: new Date().toISOString() });
+  } });
+  setTimeout(() => process.exit(0), 30_000);`;
+  const supervise = (source: string) => `const { spawn } = require("node:child_process");
+const child = spawn(process.execPath, ["-e", ${JSON.stringify(source)}], { detached: true, stdio: "inherit" });
+child.once("exit", () => process.exit(0));
+process.on("SIGTERM", () => child.kill("SIGTERM"));
+setTimeout(() => child.kill("SIGKILL"), 30_000);`;
+  return track(spawnTracked(process.execPath, ["-e", supervise(supervise(server))], process.cwd()));
+}
+
 afterEach(async () => {
   const failures: unknown[] = [];
   for (const process of running.splice(0).reverse()) {
@@ -77,6 +90,16 @@ describe("production E2E runtime evidence", () => {
 
     expect(result.response.status).toBe(200);
     expect(result.payload.status).toBe("ok");
+  });
+
+  test("ties a detached grandchild listener to its live ancestor tree", async () => {
+    const port = await reservePort();
+    await assertLoopbackPortUnowned(port);
+    const server = detachedGrandchildHealthServer(port);
+    const result = await waitForHealthyHttp(server, `http://127.0.0.1:${port}/api/health`, 5_000);
+    expect(result.response.status).toBe(200);
+    await terminateProcessTree(server.child);
+    await assertLoopbackPortUnowned(port);
   });
 
   test("rejects an owned wildcard listener despite an exact health response", async () => {

@@ -1,4 +1,5 @@
 import { file, type TemplateFile } from "../../shared.js";
+import { canonicalQueryAuthHookFile, queryAuthBoundaryFile } from "./query-auth.js";
 
 type TanstackMode = "monorepo" | "single";
 
@@ -8,54 +9,6 @@ export interface TanstackInitialReadSelection {
   readonly featureFlags?: boolean;
   readonly identity?: boolean;
   readonly messaging?: false | "convex" | "postgres";
-}
-
-function queryAuthCacheBoundaryContent(): string {
-  return `"use client";
-import * as React from "react";
-import type { QueryClient } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
-import {
-  currentQueryAuthScope,
-  queryAuthScopeFromSession,
-  queryAuthScopeSignature,
-  transitionQueryAuthScope,
-} from "@/lib/query-client";
-
-export function QueryAuthCacheBoundary({
-  children,
-  queryClient,
-}: {
-  children: React.ReactNode;
-  queryClient: QueryClient;
-}): React.JSX.Element {
-  const session = authClient.useSession();
-  const nextScope = React.useMemo(
-    () =>
-      session.isPending
-        ? currentQueryAuthScope(queryClient)
-        : queryAuthScopeFromSession(session.data),
-    [queryClient, session.data, session.isPending],
-  );
-  const nextSignature = queryAuthScopeSignature(nextScope);
-  const [appliedSignature, setAppliedSignature] = React.useState(() =>
-    queryAuthScopeSignature(currentQueryAuthScope(queryClient)),
-  );
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    transitionQueryAuthScope(queryClient, nextScope);
-    setAppliedSignature(nextSignature);
-    setMounted(true);
-  }, [nextScope, nextSignature, queryClient]);
-
-  // A fresh document cannot contain another account's cache. After mount,
-  // withhold descendants for the one transition render so no stale private
-  // query can paint before the old owner's cache is cleared.
-  if (mounted && appliedSignature !== nextSignature) return <></>;
-  return <>{children}</>;
-}
-`;
 }
 
 function protectedServerFunctionsContent(
@@ -183,12 +136,13 @@ export const getProtectedRouteSession = createServerFn({ method: "GET" }).handle
     getRequestHeaders().forEach((value, key) => headers.set(key, value));
     const application = await createRequestApplicationForRequest(headers);
     const result = await application.me();
-    const queryScope = result.user && result.sessionId
+    const principal = application.principal;
+    const queryScope = result.user && principal
       ? {
-          userId: result.user.id,
-          sessionId: result.sessionId,
-          tenantId: result.activeOrganizationId,
-          teamId: result.activeTeamId,
+          userId: principal.identityUserId,
+          sessionId: principal.sessionId,
+          tenantId: principal.activeOrganizationId,
+          teamId: principal.activeTeamId,
         }
       : null;
     if (result.user && !queryScope) {
@@ -222,7 +176,7 @@ function protectedRouteContent(initialReads: TanstackInitialReadSelection): stri
   const queryKeyImports = [
     "authScopedQueryKey",
     ...initialQueryKeyImports,
-    "transitionQueryAuthScope",
+    "createQueryAuthSessionResolver",
   ].join(",\n  ");
   const adminLoader = initialReads.admin
     ? `
@@ -326,18 +280,12 @@ export async function requireProtectedRoute(queryClient: QueryClient): Promise<{
   return { protectedSession: result.protectedSession, queryScope: result.queryScope };
 }
 
-export async function resolveRouteAuth(queryClient: QueryClient): Promise<{
-  protectedSession: ProtectedRouteSession;
-  queryScope: QueryAuthScope | null;
-}> {
-  const protectedSession = await getProtectedRouteSession();
-  transitionQueryAuthScope(queryClient, protectedSession.queryScope);
+export const resolveRouteAuth = createQueryAuthSessionResolver(getProtectedRouteSession, (queryClient, protectedSession) => {
   if (protectedSession.queryScope) {
     const options = protectedRouteSessionQueryOptions(protectedSession.queryScope);
     queryClient.setQueryData(options.queryKey, protectedSession);
   }
-  return { protectedSession, queryScope: protectedSession.queryScope };
-}
+});
 
 export function loadProtectedRoute(context: {
   queryClient: QueryClient;
@@ -357,11 +305,10 @@ export function tanstackServerFoundationFiles(
 ): TemplateFile[] {
   if (!hasAuth) return [];
   const root = mode === "monorepo" ? "apps/web/" : "";
-  const files = [
-    file(`${root}src/components/query-auth-boundary.tsx`, queryAuthCacheBoundaryContent()),
-  ];
+  const files = [queryAuthBoundaryFile(`${root}src`, hasApi)];
   if (!hasApi) return files;
   files.push(
+    canonicalQueryAuthHookFile(`${root}src`),
     file(`${root}src/lib/server-functions.ts`, protectedServerFunctionsContent(mode, initialReads)),
     file(`${root}src/lib/protected-route.ts`, protectedRouteContent(initialReads)),
   );

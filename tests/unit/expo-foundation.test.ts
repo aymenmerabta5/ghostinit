@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { parseSync } from "oxc-parser";
-import { convex, orpc as orpcVersions, tanstack } from "../../packages/versions/src/index.js";
+import {
+  convex,
+  orpc as orpcVersions,
+  tanstack,
+  typescript,
+} from "../../packages/versions/src/index.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
@@ -202,7 +207,7 @@ describe("generated Expo foundation", () => {
       );
       expect(manifest.devDependencies["@types/react"], mode).toBe("~19.2.18");
       expect(manifest.devDependencies["babel-preset-expo"], mode).toBe("~57.0.8");
-      expect(manifest.devDependencies.typescript, mode).toBe("~6.0.3");
+      expect(manifest.devDependencies.typescript, mode).toBe(`~${typescript.typescript}`);
       expect(unrange(manifest.dependencies["@orpc/react-query"]), mode).toBe(
         orpcVersions["@orpc/react-query"],
       );
@@ -234,7 +239,7 @@ describe("generated Expo foundation", () => {
       expect(offline).toContain('AsyncStorage from "@react-native-async-storage/async-storage"');
       expect(offline).toContain("const [unsubscribe, restorePromise] = persistQueryClient");
       expect(offline).toContain("restorePromise.catch");
-      expect(offline).toContain("return unsubscribe");
+      expect(offline).toContain("unsubscribe();");
       expect(offline).not.toContain("expo-secure-store");
 
       const provider = content(
@@ -250,7 +255,13 @@ describe("generated Expo foundation", () => {
       expect(provider).not.toContain("orpc");
       const layout = content(files, generatedPath(mode, "app/_layout.tsx"));
       expect(layout).toContain("<ConvexClientProvider>");
-      expect(layout).toContain("useState(makeNativeQueryClient)");
+      expect(layout).toContain("useMemo(() => makeNativeQueryClient(), [])");
+      expect(layout).toContain(
+        "useCanonicalQueryAuthScope(queryClient, session, sessionPending, readCurrentApplication)",
+      );
+      expect(layout).toContain("canonical.isPending || isRestoring");
+      expect(layout).toContain("nativeQueryCacheScope(canonical.scope)");
+      expect(offline).toContain('key: "ghostinit-query-cache:" + cacheScope');
       expect(layout).toContain('import { Header } from "@/components/header"');
       expect(layout).toContain("<Stack.Protected guard={isAuthenticated}>");
       expect(layout).toContain("useOfflineSync(queryClient");
@@ -260,7 +271,7 @@ describe("generated Expo foundation", () => {
       );
       expect(header).not.toContain("ml-2");
       expect(offline).toContain("buster: cacheScope");
-      expect(offline).toContain("queryClient.clear()");
+      expect(offline).toContain("invalidateQueryAuthScope(queryClient)");
       if (mode === "monorepo") {
         const dialog = content(files, "apps/mobile/src/components/ui/dialog.tsx");
         expect(dialog).toContain("sm:text-start");

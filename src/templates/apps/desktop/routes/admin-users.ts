@@ -8,14 +8,13 @@ export function desktopRouteAdminUsersContent(
   hasI18n = false,
 ): string {
   const i18n = nativeI18nTemplate(hasI18n, "adminUsers", nativeI18nImportPath("desktop", mode));
-  const dataImports = `import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+  const dataImports = `import * as React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { desktopQueryOptions, orpc } from "${desktopOrpcSpecifier(mode)}";
-import type { AdminUser, UserRole } from "${desktopKernelSpecifier(mode)}";`;
+import type { AdminUser } from "${desktopKernelSpecifier(mode)}";`;
   const dataState = `  const session = useQuery(desktopQueryOptions.me());
   const authPending = session.isPending;
   const role = session.data?.user?.banned ? null : session.data?.user?.role;
-  const queryClient = useQueryClient();
-  const adminUsersKey = orpc.adminUsers.list.key({ type: "query" });
   const usersQuery = useQuery(
     orpc.adminUsers.list.queryOptions({
       input: { page: 1, limit: 100 },
@@ -28,22 +27,8 @@ import type { AdminUser, UserRole } from "${desktopKernelSpecifier(mode)}";`;
       }),
     }),
   );
-  const changeRole = useMutation(
-    orpc.adminUsers.changeRole.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: adminUsersKey });
-      },
-    }),
-  );
-  const changeBan = useMutation(
-    orpc.adminUsers.setBanned.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: adminUsersKey });
-      },
-    }),
-  );
   const data = usersQuery.data ?? null;
-  const operationError = usersQuery.error ?? changeRole.error ?? changeBan.error;
+  const operationError = usersQuery.error;
   const error = ${
     hasI18n
       ? "Boolean(operationError)"
@@ -54,23 +39,6 @@ import type { AdminUser, UserRole } from "${desktopKernelSpecifier(mode)}";`;
       : null`
   };
   const loading = usersQuery.isPending;
-  async function setRole(authId: string, currentRole: UserRole): Promise<void> {
-    try {
-      await changeRole.mutateAsync({
-        userId: authId,
-        role: currentRole === "admin" ? "user" : "admin",
-      });
-    } catch {
-      // The mutation state renders the typed transport error.
-    }
-  }
-  async function toggleBan(authId: string, banned: boolean): Promise<void> {
-    try {
-      await changeBan.mutateAsync({ userId: authId, banned: !banned });
-    } catch {
-      // The mutation state renders the typed transport error.
-    }
-  }
 `;
   return `import { createFileRoute, Link } from "@tanstack/react-router";
 ${dataImports}
@@ -86,6 +54,42 @@ ${i18n.importLine}
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
 });
+
+function AdminUserActions({ user }: { user: AdminUser }): React.JSX.Element {
+${i18n.hookLine}
+  const queryClient = useQueryClient();
+  const inFlight = React.useRef(false);
+  const [pending, setPending] = React.useState<"role" | "ban" | null>(null);
+  const changeRole = useMutation(orpc.adminUsers.changeRole.mutationOptions());
+  const changeBan = useMutation(orpc.adminUsers.setBanned.mutationOptions());
+  const operationError = changeRole.error ?? changeBan.error;
+
+  async function run(operation: "role" | "ban"): Promise<void> {
+    if (!user.authId || inFlight.current) return;
+    inFlight.current = true;
+    setPending(operation);
+    changeRole.reset();
+    changeBan.reset();
+    try {
+      if (operation === "role") await changeRole.mutateAsync({ userId: user.authId, role: user.role === "admin" ? "user" : "admin" });
+      else await changeBan.mutateAsync({ userId: user.authId, banned: !user.banned });
+      await queryClient.invalidateQueries({ queryKey: orpc.adminUsers.list.key({ type: "query" }) });
+    } catch {
+      // Keep the failed row actionable; mutation state owns its error message.
+    } finally {
+      inFlight.current = false;
+      setPending(null);
+    }
+  }
+
+  return <div className="flex flex-col gap-2 md:items-end">
+    <div className="flex items-center gap-2">
+      <Button type="button" size="sm" variant="outline" disabled={!user.authId || pending !== null} aria-busy={pending === "role"} onClick={() => void run("role")}>{pending === "role" ? ${i18n.value("actions.updating", "Updating…")} : user.role === "admin" ? ${i18n.value("actions.demote", "Demote")} : ${i18n.value("actions.promote", "Make admin")}}</Button>
+      <Button type="button" size="sm" variant={user.banned ? "default" : "destructive"} disabled={!user.authId || pending !== null} aria-busy={pending === "ban"} onClick={() => void run("ban")}>{pending === "ban" ? ${i18n.value("actions.updating", "Updating…")} : user.banned ? ${i18n.value("actions.restore", "Unban")} : ${i18n.value("actions.suspend", "Ban")}}</Button>
+    </div>
+    {operationError ? <Alert variant="destructive" role="alert"><AlertTitle>${i18n.child("list.saveErrorTitle", "We couldn't save this change")}</AlertTitle><AlertDescription>${i18n.child("errors.requestFailed", "The request failed. Try again.")}</AlertDescription></Alert> : null}
+  </div>;
+}
 
 function AdminUsersPage() {
 ${i18n.hookLine}
@@ -119,10 +123,7 @@ ${dataState}
                 <div className="flex items-center gap-2"><p className="font-medium truncate">{u.name ?? u.email}</p><Badge variant="secondary">{${hasI18n ? 'u.role === "admin" ? t("roles.admin") : t("roles.user")' : "u.role"}}</Badge>{u.banned ? <Badge variant="destructive">${i18n.child("status.suspended", "banned")}</Badge> : null}</div>
                 <p className="text-sm text-muted-foreground truncate">{u.email}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" size="sm" variant="outline" disabled={!u.authId} onClick={() => { if (u.authId) void setRole(u.authId, u.role); }}>{u.role === "admin" ? ${i18n.value("actions.demote", "Demote")} : ${i18n.value("actions.promote", "Make admin")}}</Button>
-                <Button type="button" size="sm" variant={u.banned ? "default" : "destructive"} disabled={!u.authId} onClick={() => { if (u.authId) void toggleBan(u.authId, u.banned); }}>{u.banned ? ${i18n.value("actions.restore", "Unban")} : ${i18n.value("actions.suspend", "Ban")}}</Button>
-              </div>
+              <AdminUserActions user={u} />
             </div>
           )) : null}
         </CardContent>

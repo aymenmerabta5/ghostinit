@@ -444,7 +444,7 @@ describe("Cloudflare Workers generated deployment contract", () => {
 
   for (const mode of ["monorepo", "single"] as const) {
     for (const framework of ["nextjs", "tanstack-start"] as const) {
-      test(`${mode}/${framework}/Convex CSP preserves data and generated font sources`, () => {
+      test(`${mode}/${framework}/Convex CSP preserves data and self-hosted fonts`, () => {
         const plan = cloudflarePlan(mode, framework, "convex");
         const appRoot = mode === "monorepo" ? "apps/web/" : "";
         const csp = content(
@@ -457,12 +457,14 @@ describe("Cloudflare Workers generated deployment contract", () => {
           framework === "nextjs" ? "NEXT_PUBLIC_CONVEX_URL" : "VITE_CONVEX_URL",
           framework === "nextjs" ? "publicConvexOrigin.origin" : "convexUrl.origin",
           '" wss://"',
-          "https://fonts.googleapis.com",
-          "https://fonts.gstatic.com",
+          "style-src 'self' 'unsafe-inline'",
+          "font-src 'self'",
         ]) {
           expect(csp, source).toContain(source);
         }
         expect(csp).not.toContain("*.convex.cloud");
+        expect(csp).not.toContain("fonts.googleapis.com");
+        expect(csp).not.toContain("fonts.gstatic.com");
       });
     }
   }

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "dashboard-identity-state",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/apps/fragments/dashboard-identity.ts",
+    "src/templates/apps/fragments/dashboard-next.ts",
+    "src/templates/apps/fragments/dashboard-tanstack.ts",
+    "src/templates/modes/single/pages/dashboard.ts",
+    "src/templates/modes/single/pages/dashboard-feature.ts",
+    "src/templates/modes/single/tanstack/pages/dashboard-feature.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "0c7893ddeb3df9c366a1dc196b8930af52185ef5b169b7f97c2604adc04fe091"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#authentication-and-query-ownership"],
+    "evidence": [
+      "tests/unit/dashboard-identity-ownership.test.ts",
+      "tests/unit/dashboard-data-adapter-architecture.test.ts",
+      "tests/unit/next-dashboard-session-behavior.test.ts",
+      "tests/unit/settings-dashboard-size.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "authentication.current-user-ownership",
+    "authentication.api-off-fallback",
+    "architecture.feature-data-adapters",
+    "design.preserve-existing-system",
+    "feedback.pending-and-error-states"
+  ],
+  "selectedComponentIds": [
+    "action.button",
+    "surface.card",
+    "status.badge",
+    "feedback.alert",
+    "loading.skeleton"
+  ],
+  "exceptionIds": []
+}

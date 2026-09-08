@@ -1,9 +1,11 @@
 // @allow-long 312: single-mode TanStack Start composer; the file list is a linear manifest
+import { uiUtilsContent } from "../../../ui/utils.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
 import { tanstackSettingsFeatureFiles } from "../../../apps/fragments/settings/index.js";
 import { webIdentityWorkspaceFiles } from "../../../apps/fragments/identity-workspace/index.js";
 import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import { file, type TemplateFile } from "../../../shared.js";
+import { transactionalAccountDeletionFile } from "../../../auth-deletion.js";
 import {
   type BillingProviderName,
   type AddonInstallerMap,
@@ -47,6 +49,8 @@ import {
   singleSignUpRouteTanstackContent,
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
+  singleResetPasswordFormTanstackContent,
+  singleTwoFactorFormTanstackContent,
   singleTwoFactorRouteTanstackContent,
 } from "../tanstack/pages/auth.js";
 import {
@@ -100,9 +104,9 @@ import {
   serverDbEmptySchema,
   serverDrizzleConfigSingle,
   serverObservabilitySingle,
-  libUtils,
 } from "../server/db.js";
 import { themeProviderSingleContent, themeToggleSingleContent } from "../components/theme.js";
+import { workspaceShellFiles } from "../../../apps/fragments/header.js";
 import {
   singleProvidersTanstackContent,
   singleProvidersTanstackContentConvex,
@@ -208,12 +212,27 @@ export function buildTanstackFiles(
   files.push(file("src/router.tsx", singleRouterTanstackContent()));
   files.push(file("src/routes/__root.tsx", singleRootRouteTanstackContent(hasI18n)));
   files.push(file("src/routes/index.tsx", singleMarketingPageTanstackContent()));
-  files.push(file("src/components/marketing/hero.tsx", singleMarketingHeroTanstackContent()));
+  const marketingOptions = {
+    hasAuth,
+    hasApi,
+    hasBilling,
+    hasEve,
+    database: isConvex ? "convex" : isNone ? "none" : "postgres",
+  } as const;
   files.push(
-    file("src/components/marketing/features.tsx", singleMarketingFeaturesTanstackContent()),
+    file("src/components/marketing/hero.tsx", singleMarketingHeroTanstackContent(marketingOptions)),
   );
   files.push(
-    file("src/components/marketing/closing.tsx", singleMarketingClosingTanstackContent(hasBilling)),
+    file(
+      "src/components/marketing/features.tsx",
+      singleMarketingFeaturesTanstackContent(marketingOptions),
+    ),
+  );
+  files.push(
+    file(
+      "src/components/marketing/closing.tsx",
+      singleMarketingClosingTanstackContent(marketingOptions),
+    ),
   );
   if (hasAuth) {
     files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
@@ -240,15 +259,25 @@ export function buildTanstackFiles(
   if (hasAuth && hasEmail) {
     files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
     files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
+    files.push(
+      file("src/components/auth/reset-password-form.tsx", singleResetPasswordFormTanstackContent()),
+    );
     files.push(file("src/routes/magic-link.tsx", emailFlowPageContent("magic-link", "tanstack")));
     files.push(
       file("src/routes/verify-email.tsx", emailFlowPageContent("verify-email", "tanstack")),
     );
   }
   if (hasAuth) {
-    if (hasEmail) files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
+    if (hasEmail) {
+      files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
+      files.push(
+        file("src/components/auth/two-factor-form.tsx", singleTwoFactorFormTanstackContent()),
+      );
+    }
     files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent(isConvex)));
-    files.push(...singleDashboardFeatureFilesTanstack(hasBilling));
+    files.push(
+      ...singleDashboardFeatureFilesTanstack(hasBilling, hasApi && (isConvex || hasPostgres)),
+    );
     files.push(
       file(
         "src/routes/settings.tsx",
@@ -325,19 +354,16 @@ export function buildTanstackFiles(
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
   const hasTypedAdminNavigation = hasAdminApi;
   files.push(
-    file(
-      "src/components/header.tsx",
-      singleHeaderTanstackContent(
-        hasI18n,
-        hasAuth,
-        hasBilling,
-        hasTypedAdminNavigation,
-        isConvex && hasTypedAdminNavigation ? "../../convex/_generated/api" : undefined,
-        hasPdf,
-        hasMessaging,
-        headerNavigation,
-      ),
-    ),
+    file("src/components/header.tsx", singleHeaderTanstackContent(hasI18n, hasAuth)),
+    ...workspaceShellFiles("tanstack", {
+      sourceRoot: "src",
+      hasAuth,
+      hasBilling,
+      hasAdminNavigation: hasTypedAdminNavigation,
+      hasPdf,
+      hasMessaging,
+      navigation: headerNavigation,
+    }),
   );
   if (hasAuth) {
     files.push(
@@ -430,15 +456,16 @@ export function buildTanstackFiles(
     }
     files.push(file("drizzle.config.ts", serverDrizzleConfigSingle()));
   }
+  if (hasAuth && !isConvex) files.push(transactionalAccountDeletionFile("src/server/auth"));
   files.push(file("src/server/observability/index.ts", serverObservabilitySingle()));
-  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/utils.ts", uiUtilsContent()));
   files.push(file("src/lib/kernel.ts", singleKernelTypesContent()));
-  // shadcn-style primitives the pages import via @/components/ui/*.
   files.push(...singleWebUiFiles());
   for (const f of webLibFiles("src", "tanstack-start")) {
     if (
       f.path.startsWith("src/lib/") ||
       f.path.startsWith("src/hooks/") ||
+      f.path.startsWith("tests/") ||
       f.path.startsWith("src/components/ui/surface") ||
       f.path.startsWith("src/components/Notification") ||
       f.path.startsWith("src/components/form-fields") ||

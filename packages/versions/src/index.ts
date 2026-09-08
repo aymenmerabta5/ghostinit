@@ -29,12 +29,7 @@ export const runtime = {
 } as const;
 
 export const typescript = {
-  // TanStack/Vite and Expo tooling still load the JavaScript compiler API.
-  // Keep that tooling on TS6 until those consumers support the TS7 native port.
-  typescript: "6.0.3",
-  // Next 16.3 uses the project-local tsc CLI by default, which supports TS7
-  // without the JavaScript compiler API. Never set useTypeScriptCli=false.
-  typescriptNext: "7.0.2",
+  typescript: "7.0.2",
 } as const;
 
 export const nextStack = {
@@ -75,6 +70,7 @@ export const convex = {
 
 export const auth = {
   "better-auth": "1.6.30",
+  "@better-auth/core": "1.6.30",
   // Passkeys moved to a dedicated official package in Better Auth 1.6.
   // Keep this exact pin aligned with better-auth so their plugin types agree.
   "@better-auth/passkey": "1.6.30",
@@ -154,6 +150,9 @@ export const styling = {
 } as const;
 
 export const ui = {
+  "@fontsource-variable/geist": "5.3.0",
+  "@fontsource-variable/geist-mono": "5.3.0",
+  "@fontsource-variable/noto-sans-arabic": "5.3.0",
   shadcn: "4.19.0",
   "@base-ui/react": "1.7.0",
   "lucide-react": "1.34.0",
@@ -190,6 +189,7 @@ export const testing = {
 export const eve = {
   eve: "0.44.4",
   ai: "7.0.79",
+  "just-bash": "3.4.2",
   "@vercel/connect": "1.0.0",
 } as const;
 
@@ -230,22 +230,6 @@ export const electron = {
   "electron-builder": "26.15.7",
   "electron-updater": "6.8.9",
   "electron-store": "11.0.2",
-} as const;
-
-/**
- * @deprecated - DEPRECATED: Elysia removed, pure oRPC only.
- * Kept for backwards compatibility / reference, not emitted in templates.
- * File src/templates/backend/elysia.ts returns [] and is not used by monorepoFiles/singleFiles.
- * Spec non-negotiable oRPC contract-first, no websocket double RPC duplication treaty<App> vs @orpc/client.
- * Raw body webhooks handled via Next.js route handlers (single port) Buffer.from(await request.arrayBuffer()).
- * Catalog still spreads ...backend for backwards compat but consumers should NOT use elysia.
- * If you need to remove from bundle size, filter backend out of catalog in your own fork.
- * Pure oRPC transport is the supported architecture; Elysia is intentionally absent.
- */
-export const backend = {
-  elysia: "1.4.29",
-  "@elysiajs/cors": "1.4.2",
-  "@elysiajs/swagger": "1.3.1",
 } as const;
 
 export const i18n = {
@@ -347,7 +331,6 @@ export const catalog = {
   ...email,
   ...cache,
   ...electron,
-  ...backend, // DEPRECATED: kept for backwards compat, not used in generation — use oRPC only
   ...i18n,
   ...pdf,
   ...interactive,

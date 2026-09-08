@@ -1,13 +1,21 @@
 export function usePdfHookContent(_basePath: string): string {
   return `"use client";
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 export interface UsePdfOptions {
   endpoint?: string;
+  captureOwner?: () => () => boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requirePdfOwner(isCurrent: () => boolean): void {
+  if (isCurrent()) return;
+  const error = new Error("PDF operation is no longer active");
+  error.name = "AbortError";
+  throw error;
 }
 
 function safePdfFileName(value: string): string {
@@ -28,15 +36,30 @@ function resolvePdfEndpoint(value: string): string {
 
 export function usePdf(options: UsePdfOptions = {}) {
   const endpoint = options.endpoint ?? "/api/pdf";
+  const captureOwner = options.captureOwner;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lifetime = useRef({ mounted: false, generation: 0 });
+  useLayoutEffect(() => {
+    lifetime.current.mounted = true;
+    lifetime.current.generation += 1;
+    return () => { lifetime.current.mounted = false; lifetime.current.generation += 1; };
+  }, []);
+  const ownOperation = useCallback(() => {
+    const generation = lifetime.current.generation;
+    const ownsAuth = captureOwner?.();
+    return () => lifetime.current.mounted && lifetime.current.generation === generation && (ownsAuth?.() ?? true);
+  }, [captureOwner]);
 
   const generate = useCallback(async (input: { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string }) => {
+    const isCurrent = ownOperation();
+    requirePdfOwner(isCurrent);
     setLoading(true); setError(null);
     try {
       const res = await fetch(resolvePdfEndpoint(endpoint), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       if (!res.ok) throw new Error(\`PDF generation failed: \${res.status}\`);
       const json: unknown = await res.json();
+      requirePdfOwner(isCurrent);
       if (!isRecord(json) || typeof json.pdfBase64 !== "string") throw new Error("Invalid PDF response");
       const bytes = Uint8Array.from(atob(json.pdfBase64), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -48,25 +71,28 @@ export function usePdf(options: UsePdfOptions = {}) {
       return json;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg); throw e;
-    } finally { setLoading(false); }
-  }, [endpoint]);
+      if (isCurrent()) setError(msg); throw e;
+    } finally { if (isCurrent()) setLoading(false); }
+  }, [endpoint, ownOperation]);
 
   const preview = useCallback(async (input: Parameters<typeof generate>[0]) => {
+    const isCurrent = ownOperation();
+    requirePdfOwner(isCurrent);
     setLoading(true); setError(null);
     try {
       const res = await fetch(resolvePdfEndpoint(endpoint), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       if (!res.ok) throw new Error(\`Preview failed: \${res.status}\`);
       const json: unknown = await res.json();
+      requirePdfOwner(isCurrent);
       if (!isRecord(json) || typeof json.pdfBase64 !== "string") throw new Error("Invalid PDF response");
       const bytes = Uint8Array.from(atob(json.pdfBase64), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "application/pdf" });
       return URL.createObjectURL(blob);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg); throw e;
-    } finally { setLoading(false); }
-  }, [endpoint]);
+      if (isCurrent()) setError(msg); throw e;
+    } finally { if (isCurrent()) setLoading(false); }
+  }, [endpoint, ownOperation]);
 
   return { generate, preview, loading, error };
 }
@@ -79,7 +105,15 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import { authClient } from "@/lib/auth-client";
+import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
 import { env } from "${mode === "monorepo" ? "@repo/config/expo" : "@/lib/env/expo"}";
+
+function requirePdfOwner(isCurrent: () => boolean): void {
+  if (isCurrent()) return;
+  const error = new Error("PDF operation is no longer active");
+  error.name = "AbortError";
+  throw error;
+}
 
 function resolvePdfEndpoint(requested: string | undefined): string {
   let configuredOrigin: string | null = null;
@@ -110,17 +144,22 @@ function safePdfFileName(value: string): string {
 
 export function usePdfMobile(options: { endpoint?: string } = {}) {
   const endpoint = resolvePdfEndpoint(options.endpoint);
+  const ownOperation = useAuthOwnedEffect();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generateAndShare = useCallback(async (input: { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string }) => {
+    const isCurrent = ownOperation();
+    requirePdfOwner(isCurrent);
     setLoading(true); setError(null);
     try {
       const cookie = Platform.OS === "web" ? null : await authClient.getCookie();
+      requirePdfOwner(isCurrent);
       const headers: Record<string, string> = { "Content-Type": "application/json", ...(cookie ? { cookie } : {}) };
       const res = await fetch(endpoint, { method: "POST", credentials: "include", headers, body: JSON.stringify(input) });
       if (!res.ok) throw new Error(\`PDF failed: \${res.status}\`);
       const json: unknown = await res.json();
+      requirePdfOwner(isCurrent);
       if (!json || typeof json !== "object" || Array.isArray(json)) throw new Error("Invalid PDF response");
       const pdfBase64 = Reflect.get(json, "pdfBase64");
       const responseFileName = Reflect.get(json, "fileName");
@@ -138,17 +177,20 @@ export function usePdfMobile(options: { endpoint?: string } = {}) {
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
         return url;
       }
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      requirePdfOwner(isCurrent);
       const file = new File(Paths.cache, fileName);
       file.write(pdfBase64, { encoding: "base64" });
-      if (await Sharing.isAvailableAsync()) {
+      if (sharingAvailable) {
         await Sharing.shareAsync(file.uri, { mimeType: "application/pdf", dialogTitle: fileName });
       }
+      requirePdfOwner(isCurrent);
       return file.uri;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg); throw e;
-    } finally { setLoading(false); }
-  }, [endpoint]);
+      if (isCurrent()) setError(msg); throw e;
+    } finally { if (isCurrent()) setLoading(false); }
+  }, [endpoint, ownOperation]);
 
   return { generateAndShare, loading, error };
 }

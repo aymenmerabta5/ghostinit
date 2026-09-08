@@ -20,8 +20,10 @@ export function singleNitroConfigTanstackContent(
     tanstackSecurityPolicyDeclaration(hasConvex, hasPaddle),
     "",
     "export default defineNitroConfig({",
-    `  preset: '${preset}',`,
-    ...(hasEve ? eveNitroResolverHooks().split("\n") : []),
+    hasEve
+      ? `  preset: process.env.GHOSTINIT_EVE_RUNTIME === '1' ? (process.env.VERCEL ? 'vercel' : 'node-server') : '${preset}',`
+      : `  preset: '${preset}',`,
+    ...(hasEve ? eveNitroResolverHooks(true).split("\n") : []),
     ...(hasWebSocketMessaging ? ["  serverDir: 'server',"] : []),
     ...(hasWebSocketMessaging ? ["  experimental: { websocket: true },"] : []),
     ...(hasWebSocketMessaging
@@ -276,7 +278,7 @@ export function singleRootRouteTanstackContent(hasI18n = false): string {
     "} from '@tanstack/react-router'",
     "import type { QueryClient } from '@tanstack/react-query'",
     "import { AppProviders } from '@/components/providers'",
-    "import { Header } from '@/components/header'",
+    "import { AppShell } from '@/components/app-shell'",
     "import { useStandaloneSurfaceLocale, useStandaloneSurfaceTranslations } from '@/lib/translations.standalone'",
     "import appCss from '@/styles/app.css?url'",
     ...localeImports,
@@ -343,8 +345,7 @@ export function singleRootRouteTanstackContent(hasI18n = false): string {
     "  return (",
     rootDocumentOpen,
     providersOpen,
-    "        <Header />",
-    "        <Outlet />",
+    "        <AppShell><Outlet /></AppShell>",
     "      </AppProviders>",
     "    </RootDocument>",
     "  )",

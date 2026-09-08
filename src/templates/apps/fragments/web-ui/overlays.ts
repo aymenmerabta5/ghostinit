@@ -24,12 +24,12 @@ export interface TooltipContentProps
 export const TooltipContent = React.forwardRef<HTMLDivElement, TooltipContentProps>(
   ({ className, sideOffset = 4, ...props }, ref) => (
   <BaseTooltip.Portal>
-    <BaseTooltip.Positioner sideOffset={sideOffset}>
+    <BaseTooltip.Positioner sideOffset={sideOffset} className="z-[var(--layer-tooltip)]">
       <BaseTooltip.Popup
         ref={ref}
         data-slot="tooltip-content"
         className={cn(
-          "overflow-hidden rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+          "max-w-xs overflow-hidden rounded-md border border-border bg-popover px-3 py-2 text-xs leading-5 text-popover-foreground shadow-popover duration-150 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 motion-reduce:animate-none!",
           className,
         )}
         {...props}
@@ -57,12 +57,12 @@ export const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof BasePopover.Popup> & { sideOffset?: number; align?: "center" | "start" | "end" }
 >(({ className, sideOffset = 4, align = "center", ...props }, ref) => (
   <BasePopover.Portal>
-    <BasePopover.Positioner sideOffset={sideOffset} align={align}>
+    <BasePopover.Positioner sideOffset={sideOffset} align={align} className="z-[var(--layer-popover)]">
       <BasePopover.Popup
         ref={ref}
         data-slot="popover-content"
         className={cn(
-          "w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+          "w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-4 text-sm leading-6 text-popover-foreground shadow-popover outline-none duration-150 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 motion-reduce:animate-none!",
           className,
         )}
         {...props}
@@ -76,7 +76,7 @@ export const PopoverTitle = React.forwardRef<
   HTMLHeadingElement,
   React.ComponentPropsWithoutRef<typeof BasePopover.Title>
 >(({ className, ...props }, ref) => (
-  <BasePopover.Title ref={ref} data-slot="popover-title" className={cn("font-medium leading-none", className)} {...props} />
+  <BasePopover.Title ref={ref} data-slot="popover-title" className={cn("font-semibold leading-6", className)} {...props} />
 ));
 PopoverTitle.displayName = "PopoverTitle";
 
@@ -84,7 +84,7 @@ export const PopoverDescription = React.forwardRef<
   HTMLParagraphElement,
   React.ComponentPropsWithoutRef<typeof BasePopover.Description>
 >(({ className, ...props }, ref) => (
-  <BasePopover.Description ref={ref} data-slot="popover-description" className={cn("text-sm text-muted-foreground", className)} {...props} />
+  <BasePopover.Description ref={ref} data-slot="popover-description" className={cn("text-sm leading-6 text-muted-foreground", className)} {...props} />
 ));
 PopoverDescription.displayName = "PopoverDescription";
 `,
@@ -123,7 +123,7 @@ export const SheetOverlay = React.forwardRef<
     ref={ref}
     data-slot="sheet-overlay"
     className={cn(
-      "fixed inset-0 bg-foreground/40 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
+      "fixed inset-0 z-[var(--layer-overlay)] bg-scrim duration-200 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 motion-reduce:animate-none!",
       className,
     )}
     {...props}
@@ -132,7 +132,7 @@ export const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = "SheetOverlay";
 
 const sheetVariants = cva(
-  "fixed gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[open]:animate-in data-[closed]:animate-out data-[closed]:duration-300 data-[open]:duration-500",
+  "fixed z-[var(--layer-modal)] gap-5 overflow-y-auto bg-popover p-6 text-popover-foreground shadow-modal ease-out data-[open]:animate-in data-[closed]:animate-out data-[closed]:duration-150 data-[open]:duration-200 motion-reduce:animate-none!",
   {
     variants: {
       side: {
@@ -163,7 +163,7 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
         {showCloseButton && (
           <BaseDialog.Close
             data-slot="sheet-close"
-            className="absolute end-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+            className="absolute end-4 top-4 flex size-8 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none [&_svg]:size-4"
           >
             <X aria-hidden />
             <SheetCloseLabel />
@@ -176,7 +176,7 @@ export const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(
 SheetContent.displayName = "SheetContent";
 
 export const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div data-slot="sheet-header" className={cn("flex flex-col gap-2 text-center sm:text-start", className)} {...props} />
+  <div data-slot="sheet-header" className={cn("flex flex-col gap-2 pe-6 text-start", className)} {...props} />
 );
 SheetHeader.displayName = "SheetHeader";
 
@@ -189,7 +189,7 @@ export const SheetTitle = React.forwardRef<
   HTMLHeadingElement,
   React.ComponentPropsWithoutRef<typeof BaseDialog.Title>
 >(({ className, ...props }, ref) => (
-  <BaseDialog.Title ref={ref} data-slot="sheet-title" className={cn("text-lg font-semibold text-foreground", className)} {...props} />
+  <BaseDialog.Title ref={ref} data-slot="sheet-title" className={cn("text-xl font-semibold leading-snug tracking-tight text-foreground", className)} {...props} />
 ));
 SheetTitle.displayName = "SheetTitle";
 
@@ -197,7 +197,7 @@ export const SheetDescription = React.forwardRef<
   HTMLParagraphElement,
   React.ComponentPropsWithoutRef<typeof BaseDialog.Description>
 >(({ className, ...props }, ref) => (
-  <BaseDialog.Description ref={ref} data-slot="sheet-description" className={cn("text-sm text-muted-foreground", className)} {...props} />
+  <BaseDialog.Description ref={ref} data-slot="sheet-description" className={cn("text-sm leading-6 text-muted-foreground", className)} {...props} />
 ));
 SheetDescription.displayName = "SheetDescription";
 `,

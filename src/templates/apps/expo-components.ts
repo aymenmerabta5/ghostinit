@@ -1,3 +1,4 @@
+import { uiUtilsContent } from "../ui/utils.js";
 import { file, type TemplateFile } from "../shared.js";
 import { expoAuthClientContent, expoOrpcClientContent } from "./fragments/expo/orpc.js";
 import { expoHeaderContent, expoSignOutButtonContent } from "./fragments/expo/header.js";
@@ -12,6 +13,8 @@ import { expoAnalyticsFile } from "./fragments/expo/analytics.js";
 import { expoEveFiles, eveProtocolAcceptanceFile, eveProtocolFile } from "./fragments/eve/index.js";
 import { platformI18nFiles } from "./fragments/platform-i18n.js";
 import { resolveExpoCapabilities, type ExpoFeatureInput } from "./expo-core.js";
+import { nativeQueryRegressionFile } from "./fragments/expo/query-tests.js";
+import { canonicalQueryAuthHookContent } from "./fragments/query-auth.js";
 
 function headerContent(
   hasBilling: boolean,
@@ -31,8 +34,9 @@ function headerContent(
 export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFile[] {
   const capabilities = resolveExpoCapabilities(input, true);
   const files: TemplateFile[] = [
-    file("apps/mobile/src/lib/utils.ts", expoLibUtilsContent()),
+    file("apps/mobile/src/lib/utils.ts", uiUtilsContent()),
     file("apps/mobile/src/lib/query-client.ts", expoNativeQueryClientContent()),
+    nativeQueryRegressionFile(),
     ...rnrAllFiles(),
     file("apps/mobile/src/hooks/use-copy.ts", expoUseCopyHook()),
     file("apps/mobile/src/hooks/use-offline.ts", expoOfflineHookContent()),
@@ -70,6 +74,9 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
       file("apps/mobile/src/lib/orpc.ts", expoOrpcClientContent({ hasAuth: capabilities.hasAuth })),
     );
   }
+  if (capabilities.hasAuth && capabilities.hasApi) {
+    files.push(file("apps/mobile/src/lib/query-auth-scope.ts", canonicalQueryAuthHookContent()));
+  }
   if (capabilities.hasBilling) {
     files.push(file("apps/mobile/src/hooks/use-billing.ts", expoUseBillingHook()));
   }
@@ -99,16 +106,6 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
   }
 
   return files;
-}
-
-function expoLibUtilsContent(): string {
-  return `import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs));
-}
-`;
 }
 
 function expoUseAuthHook(): string {

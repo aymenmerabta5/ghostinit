@@ -13,6 +13,8 @@ type Invitation = NonNullable<IdentityWorkspaceController["invitations"]["data"]
 interface InvitationRowProps {
   invitation: Invitation;
   pending: boolean;
+  canAccept: boolean;
+  canCancel: boolean;
   onAccept(invitationId: string): Promise<void>;
   onCancel(invitationId: string): Promise<void>;
 }
@@ -20,6 +22,8 @@ interface InvitationRowProps {
 export function InvitationRow({
   invitation,
   pending,
+  canAccept,
+  canCancel,
   onAccept,
   onCancel,
 }: InvitationRowProps): React.JSX.Element {
@@ -48,12 +52,12 @@ ${i18n.hookLine}
       </div>
       {invitation.status === "pending" ? (
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" disabled={pending} onClick={() => void onAccept(invitation.id)}>
+          {canAccept ? <Button size="sm" variant="outline" disabled={pending} onClick={() => void onAccept(invitation.id)}>
             ${i18n.child("accept")}
-          </Button>
-          <Button size="sm" variant="destructive" disabled={pending} onClick={() => void onCancel(invitation.id)}>
+          </Button> : null}
+          {canCancel ? <Button size="sm" variant="destructive" disabled={pending} onClick={() => void onCancel(invitation.id)}>
             ${i18n.child("cancel")}
-          </Button>
+          </Button> : null}
         </div>
       ) : null}
     </div>

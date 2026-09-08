@@ -16,5 +16,3 @@ export function polarWebhookFiles(): TemplateFile[] {
 
 export const polarWebhookMonorepo = webhookContent("polar", "next", "monorepo").content;
 export const polarWebhookSingle = webhookContent("polar", "next", "single").content;
-export const polarWebhookLegacyContent = `// Legacy: replaced by oRPC — no longer emitted
-`;

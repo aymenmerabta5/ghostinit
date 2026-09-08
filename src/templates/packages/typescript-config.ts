@@ -1,4 +1,5 @@
 import { file, packageJson, type TemplateFile } from "../shared.js";
+import { NEXT_COMPILER_OPTIONS } from "../tooling/next-typescript.js";
 
 export function tsConfigFiles(): TemplateFile[] {
   return [
@@ -48,11 +49,10 @@ export function tsConfigFiles(): TemplateFile[] {
         {
           extends: "./base.json",
           compilerOptions: {
-            jsx: "preserve",
+            ...NEXT_COMPILER_OPTIONS,
             lib: ["ES2024", "DOM", "DOM.Iterable"],
             incremental: true,
             composite: false,
-            noEmit: true,
             types: ["bun-types", "node"],
             paths: {
               "@/*": ["./src/*"],

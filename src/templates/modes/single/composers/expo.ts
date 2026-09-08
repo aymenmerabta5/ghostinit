@@ -1,5 +1,7 @@
 // @allow-long 667: single-mode Expo composition keeps capability closure and flat-path ownership together
+import { uiUtilsContent } from "../../../ui/utils.js";
 import { file, type TemplateFile } from "../../../shared.js";
+import { nativeQueryRegressionFile } from "../../../apps/fragments/expo/query-tests.js";
 import { authRouteBoundaryCode } from "../../../apps/fragments/api/auth-boundary.js";
 import { singleKernelTypesContent } from "../fragments/kernel.js";
 import type { BillingProviderName, AddonInstallerMap } from "../../../../lib/addons.js";
@@ -20,6 +22,7 @@ import {
   expoEnvDtsContent,
 } from "../../../apps/expo-core.js";
 import { expoRootLayoutContent } from "../../../apps/fragments/expo/layout.js";
+import { canonicalQueryAuthHookContent } from "../../../apps/fragments/query-auth.js";
 import { expoDashboardPageContent } from "../../../apps/expo-pages.js";
 import {
   expoFullSettingsContent,
@@ -77,7 +80,6 @@ import {
   serverDbAuthSchemaStub,
   serverDrizzleConfigSingle,
   serverObservabilitySingle,
-  libUtils,
 } from "../server/db.js";
 import { hasAddon } from "../../../../lib/addons.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
@@ -619,8 +621,9 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       "app/index.tsx",
       buildExpoMarketingContent({
         hasAuth,
+        hasApi,
+        hasBilling,
         hasI18n: effectiveHasI18n,
-        reduceUnauthenticated: true,
       }),
     ),
   );
@@ -676,7 +679,11 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
     );
   }
   files.push(file("src/lib/query-client.ts", expoNativeQueryClientContent()));
+  files.push(nativeQueryRegressionFile(""));
   files.push(file("src/hooks/use-offline.ts", expoOfflineHookContent()));
+  if (hasAuth && hasApi) {
+    files.push(file("src/lib/query-auth-scope.ts", canonicalQueryAuthHookContent()));
+  }
   if (hasAnalytics) files.push(expoAnalyticsFile("single"));
   if (hasEveClient) {
     files.push(
@@ -695,7 +702,7 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       ),
     );
   }
-  files.push(file("src/lib/utils.ts", libUtils()));
+  files.push(file("src/lib/utils.ts", uiUtilsContent()));
   files.push(file("src/components/ui/text.tsx", rnrTextContent()));
   files.push(file("src/components/ui/button.tsx", rnrButtonContent()));
   files.push(file("src/components/ui/card.tsx", rnrCardContent()));

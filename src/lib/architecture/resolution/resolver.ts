@@ -23,7 +23,8 @@ const URL_SCHEME = /^[a-z][a-z\d+.-]*:/i;
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/i;
 const ROUTE_TREE_SPECIFIER = /^\.\/routeTree\.gen(?:\.[cm]?[jt]sx?)?$/i;
 const NEXT_ENV_SOURCE = /^(?:apps\/web\/)?next-env\.d\.ts$/;
-const NEXT_GENERATED_TYPE_SPECIFIER = /^\.\/\.next\/types\/(?:routes|root-params)\.d\.ts$/;
+const NEXT_GENERATED_TYPE_SPECIFIER =
+  /^\.\/\.next\/(?:dev\/)?types\/(?:routes|root-params)\.d\.ts$/;
 
 export async function createImportResolver(
   root: string,

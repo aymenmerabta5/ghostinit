@@ -3,15 +3,22 @@ import {
   nextConfigHeadersFunction,
   posthogRewritesBlock,
 } from "../../../apps/fragments/core/security.js";
+import { NEXT_COMPILER_OPTIONS, NEXT_TYPE_INCLUDES } from "../../../tooling/next-typescript.js";
+import { NEXT_DEVELOPMENT_MEMORY_CONFIG } from "../../../tooling/next-memory.js";
+import {
+  nextServerExternalPackagesBlock,
+  type NextConfigOptions,
+} from "../../../tooling/next-config.js";
 
-export function singleNextConfigContent(
-  hasEve: boolean,
+export function singleNextConfigContent({
+  hasEve = false,
   hasI18n = false,
   hasPdf = false,
   hasCloudflare = false,
   hasConvex = false,
-  hasPaddle = false,
-): string {
+  billingProviders = [],
+}: NextConfigOptions = {}): string {
+  const hasPaddle = billingProviders.includes("paddle");
   const headers = nextConfigHeadersFunction(hasConvex, hasPaddle);
   const rewrites = posthogRewritesBlock();
   const imports = [
@@ -52,6 +59,8 @@ export function singleNextConfigContent(
       : []),
     "const config: NextConfig = {",
     cacheComponentsConfigBlock(hasCloudflare),
+    NEXT_DEVELOPMENT_MEMORY_CONFIG,
+    nextServerExternalPackagesBlock(billingProviders, hasCloudflare),
     "  reactStrictMode: true,",
     "  poweredByHeader: false,",
     ...(hasPdf
@@ -83,7 +92,7 @@ export function singleTsConfigContent(): string {
         compilerOptions: {
           target: "ES2024",
           lib: ["ES2024", "DOM", "DOM.Iterable"],
-          jsx: "preserve",
+          ...NEXT_COMPILER_OPTIONS,
           module: "ESNext",
           moduleResolution: "bundler",
           strict: true,
@@ -93,7 +102,6 @@ export function singleTsConfigContent(): string {
           resolveJsonModule: true,
           incremental: true,
           types: ["bun-types/test", "node"],
-          plugins: [{ name: "next" }],
           paths: {
             "@/*": ["./src/*"],
             "@/server/*": ["./src/server/*"],
@@ -101,8 +109,8 @@ export function singleTsConfigContent(): string {
             "@/lib/*": ["./src/lib/*"],
           },
         },
-        include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-        exclude: ["node_modules"],
+        include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ...NEXT_TYPE_INCLUDES],
+        exclude: ["node_modules", ".ghostinit"],
       },
       null,
       2,

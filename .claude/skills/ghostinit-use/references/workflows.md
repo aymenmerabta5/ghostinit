@@ -287,16 +287,16 @@ ghostinit sync --check || (echo "Registries out of sync, run ghostinit sync" && 
 - `Module "x" does not exist` → `ghostinit add module x` first
 - `No GhostInit project state found` → cd to project root with `.ghostinit/state.json`
 - `Registries out of sync` → `ghostinit sync`
-- `Drift: path: modified externally` → tracked file edited outside ghostinit, restore or `--force`
+- `Drift: path: modified externally` → tracked file edited outside GhostInit: inspect a dry-run plan and preserve or restore it deliberately; `--force` cannot override a managed-file conflict
 - `BETTER_AUTH_SECRET must be at least 32` → strong secret in `.env.local`
 - `It looks like you're trying to use TypeScript...` → ensure `bunfig.toml` hoist=true (scaffold handles, manual change broke)
 - `Reserved module name` → name collides with workspace packages `api,auth,database,config,ui,...` or JS reserved or generated infra `openapi,contract,router,context,index`
 - `At least one app target required --apps web, mobile, or both` → passed `--apps none` or empty, set `web` or `mobile` or `both`
 - `Single mode supports only one app target --apps web or --apps mobile, not both. Use monorepo for web+mobile` → switch `--mode monorepo` for dual apps or choose one app for single
-- Lock active → `.ghostinit/lock` leftover after crash; `--force` or rm manually
+- Lock active → inspect the renewable `.ghostinit.lock` lease and its owner; allow stale recovery or stop the known writer before explicit takeover. Do not remove an active lease manually
 - Webhook signature fail → raw body must be `Buffer.from(await request.arrayBuffer())` not json, secret from env, URL matches dashboard.
 - Turbo cache stale billing → ensure new env var also in turbo.json globalEnv (includes EXPO_PUBLIC_* now).
-- Expo Metro cannot resolve @repo/* → ensure `apps/mobile/tsconfig.json` extends `@repo/typescript-config/expo.json` and `@/*` + `@repo/*` paths present; Metro auto monorepo requires SDK 52+, check `expo` version 54.
+- Expo Metro cannot resolve @repo/* → ensure `apps/mobile/tsconfig.json` extends `@repo/typescript-config/expo.json` and `@/*` + `@repo/*` paths present; the emitted SDK 57 Metro config discovers the workspace automatically. Keep its catalog-compatible Expo/Uniwind versions and generated aliases intact.
 - `EXPO_PUBLIC_API_URL` not set → mobile defaults to `http://localhost:3000`; if backend elsewhere set explicit URL, ensure backend CORS allows mobile origin if web.
 - `expo-secure-store` install fail → plugin `expo-secure-store` must be in `app.json` plugins array; scaffold handles.
 - Expo auth cookie missing → Better Auth server must have `expo()` plugin when mobile selected; client `expoClient()` + SecureStore adapter; check `authClient.getCookie()` forwarding in oRPC `RPCLink` headers.

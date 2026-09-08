@@ -72,7 +72,6 @@ async function createProject(
   const created = await runProjectInstall({
     projectName: "registry-fixture",
     projectRoot: root,
-    config: resolution.config,
     desiredConfig: resolution.desiredConfig,
     resolvedConfig: resolution.resolvedConfig,
     options: options(root),

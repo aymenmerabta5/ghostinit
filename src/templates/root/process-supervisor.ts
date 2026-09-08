@@ -2,7 +2,7 @@
 import * as v from "../versions.js";
 import { posixProcessGroupHelpersContent } from "../shared/posix-process-groups.js";
 
-export interface ProductionProcessSupervisorOptions {
+export interface ProcessSupervisorOptions {
   readonly hostedEve?: {
     readonly eveScript: string;
     readonly webScript: string;
@@ -12,11 +12,28 @@ export interface ProductionProcessSupervisorOptions {
 /** Render a Bun-owned, cross-platform supervisor for generated package scripts. */
 export function productionProcessSupervisorContent(
   scripts: readonly string[],
-  options: ProductionProcessSupervisorOptions = {},
+  options: ProcessSupervisorOptions = {},
+): string {
+  return processSupervisorContent(scripts, options, "production");
+}
+
+export function developmentProcessSupervisorContent(
+  scripts: readonly string[],
+  options: ProcessSupervisorOptions,
+): string {
+  return processSupervisorContent(scripts, options, "development");
+}
+
+function processSupervisorContent(
+  scripts: readonly string[],
+  options: ProcessSupervisorOptions,
+  mode: "production" | "development",
 ): string {
   const processScripts = `[${scripts.map((script) => JSON.stringify(script)).join(", ")}]`;
   const eveScript = options.hostedEve?.eveScript ?? null;
   const webScript = options.hostedEve?.webScript ?? null;
+  const label = mode === "development" ? "Development" : "Production";
+  const originVariable = mode === "development" ? "EVE_BASE_URL" : "EVE_NEXT_PRODUCTION_ORIGIN";
   return `import { randomUUID } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
@@ -42,16 +59,17 @@ const SCOPE_ENV = "GHOSTINIT_PROCESS_SCOPE_ID";
 const WINDOWS_JOB_LAUNCHER_ARG = "--ghostinit-windows-job-launcher";
 const WINDOWS_JOB_ADMISSION = "ghostinit:windows-job-assigned";
 const SUPERVISOR_PATH = fileURLToPath(import.meta.url);
+${mode === "development" ? 'process.env.NODE_ENV = "development";\n' : ""}
 
 if (typeof Bun === "undefined" || Bun.version !== EXPECTED_BUN_VERSION) {
   throw new Error(
-    "Production supervision requires Bun " +
+    "${label} supervision requires Bun " +
       EXPECTED_BUN_VERSION +
       "; received " +
       (typeof Bun === "undefined" ? "a non-Bun runtime" : Bun.version),
   );
 }
-if (CONFIGURED_PROCESS_SCRIPTS.length === 0) throw new Error("No production process was configured");
+if (CONFIGURED_PROCESS_SCRIPTS.length === 0) throw new Error("No ${mode} process was configured");
 
 function configuredPort(name, fallback) {
   const source = process.env[name]?.trim();
@@ -72,9 +90,9 @@ function configuredEveTopology() {
   }
   // Vercel's withEve build-output service owns the runtime. A package start
   // command must never create a second local process there.
-  if (process.env.VERCEL) return { local: false, origin: null, port: null };
+  ${mode === "production" ? "if (process.env.VERCEL) return { local: false, origin: null, port: null };" : ""}
   const port = configuredPort(EVE_PORT_ENV, DEFAULT_EVE_PORT);
-  const configured = process.env.EVE_NEXT_PRODUCTION_ORIGIN?.trim();
+  const configured = process.env.${originVariable}?.trim();
   if (!configured) {
     return { local: true, origin: "http://" + LOOPBACK_HOST + ":" + String(port), port };
   }
@@ -82,7 +100,7 @@ function configuredEveTopology() {
   try {
     url = new URL(configured);
   } catch {
-    throw new Error("EVE_NEXT_PRODUCTION_ORIGIN must be an absolute HTTPS or loopback URL");
+    throw new Error("${originVariable} must be an absolute HTTPS or loopback URL");
   }
   const loopback =
     url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
@@ -94,12 +112,12 @@ function configuredEveTopology() {
     url.hash ||
     (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
   ) {
-    throw new Error("EVE_NEXT_PRODUCTION_ORIGIN must be an absolute HTTPS or loopback URL");
+    throw new Error("${originVariable} must be an absolute HTTPS or loopback URL");
   }
   if (!loopback) return { local: false, origin: url.origin, port: null };
   const originPort = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
   if (originPort !== port) {
-    throw new Error("EVE_NEXT_PRODUCTION_ORIGIN port must match " + EVE_PORT_ENV);
+    throw new Error("${originVariable} port must match " + EVE_PORT_ENV);
   }
   return { local: true, origin: url.origin, port };
 }
@@ -107,6 +125,7 @@ function configuredEveTopology() {
 const EVE_TOPOLOGY = configuredEveTopology();
 if (EVE_TOPOLOGY.origin !== null) {
   process.env.EVE_NEXT_PRODUCTION_ORIGIN = EVE_TOPOLOGY.origin;
+  ${mode === "development" ? "process.env.EVE_BASE_URL = EVE_TOPOLOGY.origin;" : ""}
 }
 const WEB_PORT = configuredPort("PORT", DEFAULT_WEB_PORT);
 if (EVE_TOPOLOGY.local && EVE_TOPOLOGY.port === WEB_PORT) {
@@ -134,7 +153,7 @@ function environmentForScript(script, additions = {}) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 ${posixProcessGroupHelpersContent({
-  label: "Production",
+  label,
   inspectionTimeoutExpression: "FORCED_MS",
 })}
 
@@ -228,7 +247,7 @@ function macScopedProcessIds(scope) {
   });
   if (result.error || result.status !== 0) {
     throw new Error(
-      "Could not inspect the macOS production process scope: " +
+      "Could not inspect the macOS ${mode} process scope: " +
         (result.error?.message || String(result.stderr || result.status)),
     );
   }
@@ -296,7 +315,7 @@ async function terminatePosixTree(managed) {
 // the admitted launcher creates with the Job before that process can execute.
 function waitForWindowsJobAdmission() {
   if (typeof process.send !== "function") {
-    return Promise.reject(new Error("Windows production launcher requires a private IPC channel"));
+    return Promise.reject(new Error("Windows ${mode} launcher requires a private IPC channel"));
   }
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -310,13 +329,13 @@ function waitForWindowsJobAdmission() {
     };
     const onMessage = (message) => {
       if (message !== WINDOWS_JOB_ADMISSION) {
-        finish(new Error("Windows production launcher received invalid admission data"));
+        finish(new Error("Windows ${mode} launcher received invalid admission data"));
         return;
       }
       finish();
     };
     const onDisconnect = () =>
-      finish(new Error("Windows production supervisor disconnected before Job Object admission"));
+      finish(new Error("Windows ${mode} supervisor disconnected before Job Object admission"));
     process.once("message", onMessage);
     process.once("disconnect", onDisconnect);
   });
@@ -324,10 +343,10 @@ function waitForWindowsJobAdmission() {
 
 async function runWindowsJobLauncher(script) {
   if (process.platform !== "win32") {
-    throw new Error("The Windows production launcher cannot run on " + process.platform);
+    throw new Error("The Windows ${mode} launcher cannot run on " + process.platform);
   }
   if (!PROCESS_SCRIPTS.includes(script)) {
-    throw new Error("The Windows production launcher received an unknown script");
+    throw new Error("The Windows ${mode} launcher received an unknown script");
   }
   await waitForWindowsJobAdmission();
   const child = spawn(process.execPath, ["run", script], {
@@ -354,7 +373,7 @@ async function runWindowsJobLauncher(script) {
 const launcherRequested = process.argv[2] === WINDOWS_JOB_LAUNCHER_ARG;
 if (launcherRequested) {
   if (process.argv.length !== 4) {
-    throw new Error("The Windows production launcher received invalid arguments");
+    throw new Error("The Windows ${mode} launcher received invalid arguments");
   }
   await runWindowsJobLauncher(process.argv[3]);
 }
@@ -380,7 +399,7 @@ async function createWindowsJob() {
   if (!handle) {
     const code = kernel.symbols.GetLastError();
     kernel.close();
-    throw new Error("Could not create the Windows production Job Object (error " + code + ")");
+    throw new Error("Could not create the Windows ${mode} Job Object (error " + code + ")");
   }
   const limits = new Uint8Array(144);
   new DataView(limits.buffer).setUint32(16, 0x00002000, true);
@@ -388,7 +407,7 @@ async function createWindowsJob() {
     const code = kernel.symbols.GetLastError();
     kernel.symbols.CloseHandle(handle);
     kernel.close();
-    throw new Error("Could not configure the Windows production Job Object (error " + code + ")");
+    throw new Error("Could not configure the Windows ${mode} Job Object (error " + code + ")");
   }
 
   let closed = false;
@@ -404,7 +423,7 @@ async function createWindowsJob() {
       ) === 0
     ) {
       throw new Error(
-        "Could not inspect the Windows production Job Object (error " +
+        "Could not inspect the Windows ${mode} Job Object (error " +
           kernel.symbols.GetLastError() +
           ")",
       );
@@ -428,7 +447,7 @@ async function createWindowsJob() {
         if (kernel.symbols.AssignProcessToJobObject(handle, processHandle) === 0) {
           throw new Error(
             script +
-              ": could not enter the Windows production Job Object (error " +
+              ": could not enter the Windows ${mode} Job Object (error " +
               kernel.symbols.GetLastError() +
               ")",
           );
@@ -440,7 +459,7 @@ async function createWindowsJob() {
     async terminate() {
       if (kernel.symbols.TerminateJobObject(handle, 1) === 0) {
         throw new Error(
-          "Could not terminate the Windows production Job Object (error " +
+          "Could not terminate the Windows ${mode} Job Object (error " +
             kernel.symbols.GetLastError() +
             ")",
         );
@@ -451,7 +470,7 @@ async function createWindowsJob() {
         await sleep(POLL_MS);
       }
       if (activeProcesses() !== 0) {
-        throw new Error("Windows production Job Object still has live processes");
+        throw new Error("Windows ${mode} Job Object still has live processes");
       }
     },
     close() {
@@ -461,7 +480,7 @@ async function createWindowsJob() {
       try {
         if (kernel.symbols.CloseHandle(handle) === 0) {
           handleError = new Error(
-            "Could not close the Windows production Job Object (error " +
+            "Could not close the Windows ${mode} Job Object (error " +
               kernel.symbols.GetLastError() +
               ")",
           );
@@ -480,7 +499,7 @@ async function createWindowsJob() {
       if (failures.length > 1) {
         throw new AggregateError(
           failures,
-          "Could not close the Windows production Job Object and FFI library",
+          "Could not close the Windows ${mode} Job Object and FFI library",
         );
       }
     },
@@ -504,7 +523,7 @@ async function assignWindowsLauncherOrReap(windowsJob, managed) {
     if (!reaped) {
       throw new AggregateError(
         [assignmentError],
-        managed.script + ": unassigned Windows production launcher could not be reaped",
+        managed.script + ": unassigned Windows ${mode} launcher could not be reaped",
       );
     }
     throw assignmentError;
@@ -522,7 +541,7 @@ async function cleanupStartedProcesses(windowsJob, children) {
         const reaping = await Promise.allSettled(
           children.map(async (managed) => {
             if (!(await waitForChildExit(managed.child, FORCED_MS + 1_000))) {
-              throw new Error(managed.script + ": Windows production launcher could not be reaped");
+              throw new Error(managed.script + ": Windows ${mode} launcher could not be reaped");
             }
           }),
         );
@@ -536,7 +555,7 @@ const windowsJob = await createWindowsJob();
 const children = [];
 try {
   for (const script of PROCESS_SCRIPTS) {
-    const scope = "ghostinit-production-" + randomUUID();
+    const scope = "ghostinit-${mode}-" + randomUUID();
     const childEnv = windowsJob
       ? { ...process.env, [SCOPE_ENV]: scope }
       : environmentForScript(script, { [SCOPE_ENV]: scope });
@@ -575,7 +594,7 @@ try {
   if (cleanupFailures.length > 0) {
     throw new AggregateError(
       [startupError, ...cleanupFailures],
-      "Production launcher setup and containment cleanup failed",
+      "${label} launcher setup and containment cleanup failed",
     );
   }
   throw startupError;
@@ -584,7 +603,7 @@ try {
 function admitWindowsLauncher(managed) {
   return new Promise((resolve, reject) => {
     if (!managed.child.connected || typeof managed.child.send !== "function") {
-      reject(new Error(managed.script + ": Windows production launcher IPC is unavailable"));
+      reject(new Error(managed.script + ": Windows ${mode} launcher IPC is unavailable"));
       return;
     }
     managed.child.send(WINDOWS_JOB_ADMISSION, (error) => {
@@ -601,7 +620,7 @@ async function shutdown(exitCode) {
   shutdownPromise ??= (async () => {
     const failures = (await cleanupStartedProcesses(windowsJob, children)).map(String);
     if (failures.length > 0) {
-      console.error("Production process cleanup failed:\\n- " + failures.join("\\n- "));
+      console.error("${label} process cleanup failed:\\n- " + failures.join("\\n- "));
       process.exit(1);
     }
     process.exit(exitCode);
@@ -612,7 +631,7 @@ async function shutdown(exitCode) {
 process.once("SIGINT", () => void shutdown(130));
 process.once("SIGTERM", () => void shutdown(143));
 
-if (WEB_PROCESS_SCRIPT !== null && !process.env.VERCEL) {
+if (WEB_PROCESS_SCRIPT !== null${mode === "production" ? " && !process.env.VERCEL" : ""}) {
   const readiness = Promise.all([
     ...(PROCESS_SCRIPTS.includes(WEB_PROCESS_SCRIPT)
       ? [waitForTcpPort(WEB_PORT, "Web process")]
@@ -638,7 +657,7 @@ if (WEB_PROCESS_SCRIPT !== null && !process.env.VERCEL) {
     console.error(startup.error instanceof Error ? startup.error.message : String(startup.error));
     await shutdown(1);
   }
-  console.log("[ghostinit] production processes ready");
+  console.log("[ghostinit] ${mode} processes ready");
 }
 
 const first = await Promise.race(outcomes);

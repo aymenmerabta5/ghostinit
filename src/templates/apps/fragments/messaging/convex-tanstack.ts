@@ -10,34 +10,46 @@ function appRoot(mode: MessagingMode): string {
   return mode === "monorepo" ? "apps/web/" : "";
 }
 
-function routeGeneratedRoot(mode: MessagingMode): string {
-  return mode === "monorepo" ? "../../../../convex/_generated" : "../../convex/_generated";
-}
-
 function componentGeneratedRoot(mode: MessagingMode): string {
   return mode === "monorepo"
     ? "../../../../../../convex/_generated"
     : "../../../../convex/_generated";
 }
 
-function routeContent(mode: MessagingMode): string {
-  const generated = routeGeneratedRoot(mode);
+function routeContent(): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { loadInitialConversations, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
+import { ConvexMessagesPage } from "./-components/messages/convex-messages";
+
+export const Route = createFileRoute("/messages")({
+  beforeLoad: ({ context }) => requireProtectedRoute(context.queryClient),
+  loader: ({ context }) => Promise.all([
+    loadProtectedRoute(context),
+    loadInitialConversations(context),
+  ]),
+  component: ConvexMessagesPage,
+});
+`;
+}
+
+function pageContent(mode: MessagingMode): string {
+  const generated = componentGeneratedRoot(mode);
   return `"use client";
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
-import { loadInitialConversations, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
 import { currentQueryAuthScope, messagingConversationsQueryKey } from "@/lib/query-client";
 import type { Id } from "${generated}/dataModel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
-import { ConvexMessageThread } from "./-components/messages/convex-message-thread";
-import { useConvexConversations, useStartConvexConversation } from "./-components/messages/convex-messaging-queries";
+import { ConvexMessageThread } from "./convex-message-thread";
+import { useConvexConversations, useStartConvexConversation } from "./convex-messaging-queries";
 
-function MessagesPage(): React.JSX.Element {
+export function ConvexMessagesPage(): React.JSX.Element {
   const t = useSurfaceTranslations("messaging");
   const queryClient = useQueryClient();
   const scope = currentQueryAuthScope(queryClient);
@@ -52,25 +64,30 @@ function MessagesPage(): React.JSX.Element {
   const getOrCreate = useStartConvexConversation();
   const [selected, setSelected] = React.useState<Id<"conversations"> | null>(null);
   const [peerId, setPeerId] = React.useState("");
-  return <main className="min-h-screen bg-background p-6">
-    <div className="mx-auto grid max-w-6xl grid-cols-[300px_1fr] gap-6">
-      <Card><CardHeader><CardTitle className="text-base">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">
-        {conversationItems.map((conversation) => <Button key={conversation.key} type="button" variant={conversation.liveId !== null && selected === conversation.liveId ? "secondary" : "outline"} disabled={conversation.liveId === null} onClick={() => { if (conversation.liveId !== null) setSelected(conversation.liveId); }} className="w-full justify-start font-mono text-xs">{conversation.key.slice(0, 8)}</Button>)}
-        <div className="flex gap-2"><Input value={peerId} onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><Button variant="outline" disabled={!peerId.trim()} onClick={async () => { const conversation = await getOrCreate(peerId.trim()); setSelected(conversation._id); setPeerId(""); }}>{t("startDirectMessage")}</Button></div>
+  const [starting, setStarting] = React.useState(false);
+  const [startError, setStartError] = React.useState(false);
+  const startInFlight = React.useRef(false);
+  async function startConversation(): Promise<void> {
+    if (!peerId.trim() || startInFlight.current) return;
+    startInFlight.current = true; setStarting(true); setStartError(false);
+    try { const conversation = await getOrCreate(peerId.trim()); setSelected(conversation._id); setPeerId(""); }
+    catch { setStartError(true); }
+    finally { startInFlight.current = false; setStarting(false); }
+  }
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+    <div className="flex min-w-0 flex-col gap-7">
+    <header className="flex flex-col gap-2"><h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1><p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">{t("desktopDescription")}</p></header>
+    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)]">
+      <Card><CardHeader><CardTitle as="h2">{t("conversations")}</CardTitle></CardHeader><CardContent className="flex flex-col gap-2">
+        {conversationItems.map((conversation) => <Button key={conversation.key} type="button" variant={conversation.liveId !== null && selected === conversation.liveId ? "secondary" : "outline"} disabled={conversation.liveId === null} onClick={() => { if (conversation.liveId !== null) setSelected(conversation.liveId); }} className="h-auto min-h-14 w-full flex-col items-start gap-1 py-3 text-start"><span className="text-sm font-medium">{t("conversation")}</span><code dir="ltr" title={conversation.key} className="text-xs text-muted-foreground">{conversation.key.slice(0, 8)}</code></Button>)}
+        <div className="flex flex-col gap-2"><Field><FieldLabel htmlFor="message-recipient">{t("peerUserId")}</FieldLabel><Input id="message-recipient" value={peerId} aria-describedby="message-recipient-help" onChange={(event) => setPeerId(event.target.value)} placeholder={t("peerUserId")} /><FieldDescription id="message-recipient-help">{t("peerUserIdHelp")}</FieldDescription></Field><Button variant="outline" disabled={starting || !peerId.trim()} aria-busy={starting} onClick={() => void startConversation()}>{starting ? t("starting") : t("startDirectMessage")}</Button></div>
+        {startError ? <Alert variant="destructive" role="alert"><AlertDescription>{t("operationError")}</AlertDescription></Alert> : null}
       </CardContent></Card>
-      {selected ? <Card><CardContent className="flex flex-col gap-3 p-4"><ConvexMessageThread conversationId={selected} /></CardContent></Card> : <Empty><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>}
+      {selected ? <Card><CardContent className="flex flex-col gap-3 p-4"><ConvexMessageThread conversationId={selected} /></CardContent></Card> : <Empty className="min-h-64 rounded-lg border bg-card"><EmptyHeader><EmptyTitle>{t("selectConversationShort")}</EmptyTitle></EmptyHeader></Empty>}
+    </div>
     </div>
   </main>;
 }
-
-export const Route = createFileRoute("/messages")({
-  beforeLoad: ({ context }) => requireProtectedRoute(context.queryClient),
-  loader: ({ context }) => Promise.all([
-    loadProtectedRoute(context),
-    loadInitialConversations(context),
-  ]),
-  component: MessagesPage,
-});
 `;
 }
 
@@ -216,6 +233,7 @@ import * as React from "react";
 import type { Id } from "${generated}/dataModel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { ConvexMessageComposer } from "./convex-message-composer";
 import { useConvexMessages, useConvexTyping } from "./convex-messaging-queries";
@@ -226,7 +244,7 @@ export function ConvexMessageThread({ conversationId }: { conversationId: Id<"co
   const typing = useConvexTyping(conversationId);
   return <>
     <div className="flex max-h-[400px] flex-col gap-2 overflow-auto">
-      {(messages?.messages ?? []).length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noMessages")}</EmptyTitle></EmptyHeader></Empty> : (messages?.messages ?? []).map((message) => <Card key={message._id}><CardContent className="flex flex-col gap-1 p-3">
+      {messages === undefined ? <div aria-busy="true" aria-label={t("loadingMessages")}><Skeleton className="h-32 w-full" /></div> : messages.messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noMessages")}</EmptyTitle></EmptyHeader></Empty> : messages.messages.map((message) => <Card key={message._id}><CardContent className="flex flex-col gap-1 p-3">
         {message.body ? <div className="text-sm">{message.body}</div> : null}
         {message.attachments.map((attachment) => attachment.url ? <a key={attachment.id} href={attachment.url} className="text-xs underline">{attachment.originalName}</a> : null)}
       </CardContent></Card>)}
@@ -242,7 +260,8 @@ export function messagingConvexTanstackWebFiles(mode: MessagingMode = "monorepo"
   const root = appRoot(mode);
   const componentRoot = `${root}src/routes/-components/messages`;
   return [
-    file(`${root}src/routes/messages.tsx`, routeContent(mode)),
+    file(`${root}src/routes/messages.tsx`, routeContent()),
+    file(`${componentRoot}/convex-messages.tsx`, pageContent(mode)),
     file(
       `${componentRoot}/convex-messaging-data.ts`,
       convexTanstackMessagingDataContent(componentGeneratedRoot(mode)),

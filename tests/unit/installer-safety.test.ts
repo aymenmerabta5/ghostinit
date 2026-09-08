@@ -470,7 +470,6 @@ try {
       {
         projectName: resolved.config.name,
         projectRoot: root,
-        config: resolved.config,
         desiredConfig: resolved.desiredConfig,
         resolvedConfig: resolved.resolvedConfig,
         options: options(root),
@@ -578,7 +577,6 @@ try {
         {
           projectName: resolved.config.name,
           projectRoot: root,
-          config: resolved.config,
           desiredConfig: resolved.desiredConfig,
           resolvedConfig: resolved.resolvedConfig,
           options: options(root),
@@ -632,7 +630,6 @@ try {
         {
           projectName: resolved.config.name,
           projectRoot,
-          config: resolved.config,
           desiredConfig: resolved.desiredConfig,
           resolvedConfig: resolved.resolvedConfig,
           options: options(parent),

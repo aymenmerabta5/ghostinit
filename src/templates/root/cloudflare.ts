@@ -150,9 +150,9 @@ const allowsDevelopmentDiagnostics = import.meta.env.DEV;
 const contentSecurityPolicy = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'" + (allowsDevelopmentDiagnostics ? " 'unsafe-eval'" : ""),
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
-  "font-src 'self' https://fonts.gstatic.com",
+  "font-src 'self'",
   "connect-src 'self' https://us.i.posthog.com" + convexConnectSources + (allowsDevelopmentDiagnostics ? " ws: wss:" : ""),
   "object-src 'none'",
   "frame-ancestors 'none'",
@@ -550,7 +550,7 @@ async function runLongLived(args, cwd, env, stopOnStdinEnd, onCleanupVerified) {
   }
   try {
     releaseEnvironmentLifecycleLock.trackChild(child);
-    captureProcessTree(child);
+    await captureProcessTree(child);
     releaseEnvironmentLifecycleLock.trackChild(child);
     const terminal = await Promise.race([completion, interrupted]);
     const terminationError = await (terminationPromise ??= terminateSupervisedProcessTree(child, completion)
@@ -824,7 +824,7 @@ if (action === "deploy" || action === "upload") {
 }
 if (action === "dev") {
   assertNoRuntimeDotenvFiles();
-  await runLongLived(FRAMEWORK === "nextjs" ? [resolve(APP_ROOT, "node_modules/next/dist/bin/next"), "dev", ...forwarded] : ["x", "--no-install", "vite", "dev", ...forwarded], APP_ROOT, localRuntimeEnvironment(), stopOnStdinEnd);
+  await runLongLived(FRAMEWORK === "nextjs" ? [resolve(APP_ROOT, "node_modules/next/dist/bin/next"), "dev", "--webpack", ...forwarded] : ["x", "--no-install", "vite", "dev", ...forwarded], APP_ROOT, localRuntimeEnvironment(), stopOnStdinEnd);
   return;
 }
 assertNoRuntimeDotenvFiles();
@@ -1439,7 +1439,7 @@ if (action === "dev" && !forwarded.includes("--once")) {
   };
   try {
     releaseEnvironmentLifecycleLock.trackChild(child);
-    captureProcessTree(child);
+    await captureProcessTree(child);
     releaseEnvironmentLifecycleLock.trackChild(child);
     await Promise.race([waitForStableGeneratedEnvironment(child), interrupted.then(() => { throw new Error("Convex dev startup interrupted by signal " + requestedSignal); })]);
     const generatedContent = validateConfiguredOutput();

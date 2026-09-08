@@ -21,7 +21,7 @@ export function headerActionsContent(
           <Button size="sm" render={<Link to="/sign-up" />} nativeButton={false}>{t("signUp")}</Button>
         </div>`;
   const localeImport = hasI18n ? 'import { LocaleSwitcher } from "./locale-switcher.js";' : "";
-  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-16 sm:w-32" />' : "";
+  const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-20 shrink-0 sm:w-28" />' : "";
   const notificationImport = hasNotifications
     ? 'import { NotificationInboxBell } from "@/features/notifications/bell";'
     : "";
@@ -33,28 +33,32 @@ import * as React from "react";
 ${linkImport}
 import { Button } from "@/components/ui/button";
 import { HeaderUserMenu } from "./header-user-menu.js";
-import type { HeaderUser } from "./header-user-menu.js";
+import type { WorkspaceIdentity } from "./workspace-identity.js";
 import { ThemeToggle } from "./theme-toggle.js";
 ${localeImport}
 ${notificationImport}
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export interface HeaderActionsProps {
-  user: HeaderUser | null;
-  isAuthenticated: boolean;
-  pending: boolean;
+  identity: WorkspaceIdentity;
 }
 
-export function HeaderActions({ user, isAuthenticated, pending }: HeaderActionsProps): React.JSX.Element {
+export function HeaderActions({ identity }: HeaderActionsProps): React.JSX.Element {
   const t = useSurfaceTranslations("header");
+  const common = useSurfaceTranslations("common");
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1 sm:gap-2">
       ${localeSwitcher}
       <ThemeToggle />
-      {pending ? (
-        <div className="size-9 animate-pulse rounded-full bg-muted" aria-hidden />
-      ) : isAuthenticated ? (
-        <div className="flex items-center gap-2">${notificationBell}<HeaderUserMenu user={user} /></div>
+      {identity.status === "pending" ? (
+        <div className="size-9 motion-safe:animate-pulse rounded-full bg-muted" aria-hidden />
+      ) : identity.status === "authenticated" ? (
+        <div className="flex items-center gap-2">${notificationBell}<HeaderUserMenu user={identity.user} /></div>
+      ) : identity.status === "error" ? (
+        <div className="flex items-center gap-2" role="status">
+          <span className="hidden text-xs text-muted-foreground md:inline">{t("accountUnavailable")}</span>
+          <Button variant="outline" size="sm" onClick={identity.retry} aria-label={t("retryAccount")}>{common("retry")}</Button>
+        </div>
       ) : (
         ${signInUp}
       )}

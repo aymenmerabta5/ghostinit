@@ -1,9 +1,3 @@
-/**
- * convex/http.ts — HTTP router mounting the auth handler.
- *
- * Extracted verbatim from database/convex.ts, which had grown past 1100 LOC.
- */
-
 export function convexHttpContent(hasAuth = true): string {
   return [
     'import { httpRouter } from "convex/server";',
@@ -12,13 +6,9 @@ export function convexHttpContent(hasAuth = true): string {
     "",
     "const http = httpRouter();",
     "",
-    ...(hasAuth
-      ? ["// Better Auth routes", "authComponent.registerRoutes(http, createAuth);"]
-      : []),
+    ...(hasAuth ? ["authComponent.registerRoutes(http, createAuth);"] : []),
     "",
-    "// ------------------------------------------------------------------",
     "// Health check — used by @repo/database healthCheck() and load balancers",
-    "// ------------------------------------------------------------------",
     "http.route({",
     '  path: "/api/health",',
     '  method: "GET",',
@@ -47,10 +37,8 @@ export function convexHttpContent(hasAuth = true): string {
     "",
     ...(hasAuth
       ? [
-          "// ------------------------------------------------------------------",
           "// CORS preflight for auth — required for crossDomain cookie flow",
           "// crossDomain plugin needs credentials true",
-          "// ------------------------------------------------------------------",
           "http.route({",
           '  pathPrefix: "/api/auth/",',
           '  method: "OPTIONS",',

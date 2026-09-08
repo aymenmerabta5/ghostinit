@@ -20,7 +20,7 @@ describe("generated Worker Paddle payment-page acceptance", () => {
       deployableAssetRoots: [],
     };
     const base =
-      "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; object-src 'none'; frame-ancestors 'none';";
+      "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none';";
     const csp = paddleCheckoutContentSecurityPolicy(base);
     const response = (body: string, policy = csp, status = 200) =>
       new Response(body, {

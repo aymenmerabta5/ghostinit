@@ -1,11 +1,19 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { identityWorkspaceFeatureRoot, type IdentityWorkspaceMode } from "./model.js";
+import {
+  identityWorkspacePermissionQueriesContent,
+  identityWorkspacePermissionsContent,
+} from "./web-access.js";
 
 export function identityWorkspaceQueriesContent(): string {
   return `"use client";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { authScopedQueryKey, currentQueryAuthScope } from "@/lib/query-client";
 import type { IdentityWorkspaceInitialData } from "./types";
+import { WORKSPACE_PERMISSIONS, resolveWorkspacePermissions } from "./permissions";
+
+${identityWorkspacePermissionQueriesContent()}
 
 export function useIdentityWorkspaceQueries(
   selectedOrganizationId: string | null,
@@ -18,42 +26,24 @@ export function useIdentityWorkspaceQueries(
   const teams = useQuery(orpc.identity.teams.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId), initialData: isInitialOrganization ? initialData?.teams : undefined }));
   const teamId = selectedTeamId ?? (isInitialOrganization ? initialData?.teamId : null) ?? teams.data?.[0]?.id ?? null;
   const members = useQuery(orpc.identity.organizations.listMembers.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId), initialData: isInitialOrganization ? initialData?.members : undefined }));
-  const invitationPermission = useQuery(orpc.identity.organizations.hasPermission.queryOptions({ input: { organizationId: organizationId ?? "", permission: "invitation:read" }, enabled: Boolean(organizationId) }));
-  const invitations = useQuery(orpc.identity.invitations.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId) && invitationPermission.data?.allowed === true, initialData: isInitialOrganization ? initialData?.invitations : undefined }));
+  const permissions = useWorkspacePermissions(organizationId);
+  const invitations = useQuery(orpc.identity.invitations.list.queryOptions({ input: { organizationId: organizationId ?? "" }, enabled: Boolean(organizationId) && permissions.canReadInvitations, initialData: isInitialOrganization && permissions.canReadInvitations ? initialData?.invitations : undefined }));
   const teamMembers = useQuery(orpc.identity.teams.listMembers.queryOptions({ input: { organizationId: organizationId ?? "", teamId: teamId ?? "" }, enabled: Boolean(organizationId && teamId), initialData: isInitialOrganization && teamId === initialData?.teamId ? initialData.teamMembers : undefined }));
-  return { invitations, members, organizationId, organizations, teamId, teamMembers, teams };
+  return { invitations, members, organizationId, organizations, permissions, teamId, teamMembers, teams };
 }
 `;
 }
 
 function identityWorkspaceTanstackQueriesContent(): string {
   return `"use client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { orpc, orpcClient } from "@/lib/orpc";
-import {
-  authScopedQueryKey,
-  currentQueryAuthScope,
-  identityWorkspaceInitialQueryKey,
-  type QueryAuthScope,
-} from "@/lib/query-client";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
+import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey } from "@/lib/query-client";
+import { getInitialIdentityWorkspace } from "@/lib/server-functions";
 import type { IdentityWorkspaceInitialData } from "./types";
+import { WORKSPACE_PERMISSIONS, resolveWorkspacePermissions } from "./permissions";
 
-async function fetchInitialIdentityWorkspace(scope: QueryAuthScope): Promise<IdentityWorkspaceInitialData> {
-  const organizations = await orpcClient.identity.organizations.list({});
-  const organizationId = organizations.some((organization) => organization.id === scope.tenantId)
-    ? scope.tenantId
-    : organizations[0]?.id ?? null;
-  if (!organizationId) return { organizations, organizationId: null, teams: [], members: [], invitations: [], teamId: null, teamMembers: [] };
-  const permission = await orpcClient.identity.organizations.hasPermission({ organizationId, permission: "invitation:read" });
-  const [teams, members, invitations] = await Promise.all([
-    orpcClient.identity.teams.list({ organizationId }),
-    orpcClient.identity.organizations.listMembers({ organizationId }),
-    permission.allowed ? orpcClient.identity.invitations.list({ organizationId }) : Promise.resolve([]),
-  ]);
-  const teamId = teams.some((team) => team.id === scope.teamId) ? scope.teamId : teams[0]?.id ?? null;
-  const teamMembers = teamId ? await orpcClient.identity.teams.listMembers({ organizationId, teamId }) : [];
-  return { organizations, organizationId, teams, members, invitations, teamId, teamMembers };
-}
+${identityWorkspacePermissionQueriesContent()}
 
 export function useIdentityWorkspaceQueries(
   selectedOrganizationId: string | null,
@@ -68,7 +58,7 @@ export function useIdentityWorkspaceQueries(
       : ["auth", "anonymous", "identity-workspace", "initial"],
     queryFn: async () => {
       if (!scope) throw new Error("Authentication is required");
-      return await fetchInitialIdentityWorkspace(scope);
+      return await getInitialIdentityWorkspace();
     },
     enabled: Boolean(scope) && typeof window !== "undefined",
     staleTime: 30_000,
@@ -87,11 +77,12 @@ export function useIdentityWorkspaceQueries(
   const teamId = selectedTeamId ?? (isInitialOrganization ? effectiveInitialData?.teamId : null) ?? teams.data?.[0]?.id ?? null;
   const membersOptions = orpc.identity.organizations.listMembers.queryOptions({ input: { organizationId: organizationId ?? "" }, initialData: isInitialOrganization ? effectiveInitialData?.members : undefined });
   const members = useQuery({ ...membersOptions, queryKey: scope ? authScopedQueryKey(scope, membersOptions.queryKey) : ["auth", "anonymous", "members"], enabled: Boolean(scope && organizationId) });
+  const permissions = useWorkspacePermissions(organizationId);
   const invitationsOptions = orpc.identity.invitations.list.queryOptions({ input: { organizationId: organizationId ?? "" }, initialData: isInitialOrganization ? effectiveInitialData?.invitations : undefined });
-  const invitations = useQuery({ ...invitationsOptions, queryKey: scope ? authScopedQueryKey(scope, invitationsOptions.queryKey) : ["auth", "anonymous", "invitations"], enabled: Boolean(scope && organizationId) });
+  const invitations = useQuery({ ...invitationsOptions, queryKey: scope ? authScopedQueryKey(scope, invitationsOptions.queryKey) : ["auth", "anonymous", "invitations"], enabled: Boolean(scope && organizationId) && permissions.canReadInvitations });
   const teamMembersOptions = orpc.identity.teams.listMembers.queryOptions({ input: { organizationId: organizationId ?? "", teamId: teamId ?? "" }, initialData: isInitialOrganization && teamId === effectiveInitialData?.teamId ? effectiveInitialData.teamMembers : undefined });
   const teamMembers = useQuery({ ...teamMembersOptions, queryKey: scope ? authScopedQueryKey(scope, teamMembersOptions.queryKey) : ["auth", "anonymous", "team-members"], enabled: Boolean(scope && organizationId && teamId) });
-  return { invitations, members, organizationId, organizations, teamId, teamMembers, teams };
+  return { invitations, members, organizationId, organizations, permissions, teamId, teamMembers, teams };
 }
 `;
 }
@@ -100,11 +91,11 @@ export function identityWorkspaceBrowserMutationsContent(): string {
   return `"use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
-import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey } from "@/lib/query-client";
+import { authScopedQueryKey, currentQueryAuthScope, identityWorkspaceInitialQueryKey, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 
 interface WorkspaceMutationCallbacks {
   organizationCreated(id: string): void;
-  teamCreated(id: string): void;
+  teamCreated(id: string, organizationId: string): void;
   invitationCreated(): void;
   teamMemberAdded(): void;
 }
@@ -117,6 +108,7 @@ export function useIdentityWorkspaceMutations(callbacks: WorkspaceMutationCallba
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.organizations.list.key({ type: "query" })) }),
       queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.organizations.listMembers.key({ type: "query" })) }),
+      queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.organizations.hasPermission.key({ type: "query" })) }),
       queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.teams.list.key({ type: "query" })) }),
       queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.teams.listMembers.key({ type: "query" })) }),
       queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.invitations.list.key({ type: "query" })) }),
@@ -124,16 +116,16 @@ export function useIdentityWorkspaceMutations(callbacks: WorkspaceMutationCallba
     ]);
   }
   const createOrganization = useMutation(orpc.identity.organizations.create.mutationOptions({ onSuccess: async ({ organization }) => { callbacks.organizationCreated(organization.id); await invalidateWorkspace(); } }));
-  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
-  const createTeam = useMutation(orpc.identity.teams.create.mutationOptions({ onSuccess: async ({ team }) => { callbacks.teamCreated(team.id); await invalidateWorkspace(); } }));
-  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const setActiveOrganization = useMutation(orpc.identity.organizations.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
+  const createTeam = useMutation(orpc.identity.teams.create.mutationOptions({ onSuccess: async ({ team }) => { callbacks.teamCreated(team.id, team.organizationId); await invalidateWorkspace(); } }));
+  const setActiveTeam = useMutation(orpc.identity.teams.setActive.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const inviteMember = useMutation(orpc.identity.invitations.create.mutationOptions({ onSuccess: async () => { callbacks.invitationCreated(); await invalidateWorkspace(); } }));
   const cancelInvitation = useMutation(orpc.identity.invitations.cancel.mutationOptions({ onSuccess: invalidateWorkspace }));
   const acceptInvitation = useMutation(orpc.identity.invitations.accept.mutationOptions({ onSuccess: invalidateWorkspace }));
   const changeMemberRole = useMutation(orpc.identity.organizations.changeMemberRole.mutationOptions({ onSuccess: invalidateWorkspace }));
-  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeMember = useMutation(orpc.identity.organizations.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const addTeamMember = useMutation(orpc.identity.teams.addMember.mutationOptions({ onSuccess: async () => { callbacks.teamMemberAdded(); await invalidateWorkspace(); } }));
-  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: invalidateWorkspace }));
+  const removeTeamMember = useMutation(orpc.identity.teams.removeMember.mutationOptions({ onSuccess: () => requestQueryAuthScopeRefresh(queryClient) }));
   const all = [createOrganization, setActiveOrganization, createTeam, setActiveTeam, inviteMember, cancelInvitation, acceptInvitation, changeMemberRole, removeMember, addTeamMember, removeTeamMember];
   return { acceptInvitation, addTeamMember, cancelInvitation, changeMemberRole, createOrganization, createTeam, inviteMember, pending: all.some((mutation) => mutation.isPending), removeMember, removeTeamMember, setActiveOrganization, setActiveTeam };
 }
@@ -144,6 +136,7 @@ export function identityWorkspaceNextMutationsContent(): string {
   return `"use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { authScopedQueryKey, currentQueryAuthScope, requestQueryAuthScopeRefresh } from "@/lib/query-client";
 import {
   acceptInvitationAction,
   addTeamMemberAction,
@@ -160,7 +153,7 @@ import {
 
 interface WorkspaceMutationCallbacks {
   organizationCreated(id: string): void;
-  teamCreated(id: string): void;
+  teamCreated(id: string, organizationId: string): void;
   invitationCreated(): void;
   teamMemberAdded(): void;
 }
@@ -168,25 +161,27 @@ interface WorkspaceMutationCallbacks {
 export function useIdentityWorkspaceMutations(callbacks: WorkspaceMutationCallbacks) {
   const queryClient = useQueryClient();
   async function invalidateWorkspace(): Promise<void> {
+    const scope = currentQueryAuthScope(queryClient);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: orpc.identity.organizations.list.key({ type: "query" }) }),
       queryClient.invalidateQueries({ queryKey: orpc.identity.organizations.listMembers.key({ type: "query" }) }),
+      ...(scope ? [queryClient.invalidateQueries({ queryKey: authScopedQueryKey(scope, orpc.identity.organizations.hasPermission.key({ type: "query" })) })] : []),
       queryClient.invalidateQueries({ queryKey: orpc.identity.teams.list.key({ type: "query" }) }),
       queryClient.invalidateQueries({ queryKey: orpc.identity.teams.listMembers.key({ type: "query" }) }),
       queryClient.invalidateQueries({ queryKey: orpc.identity.invitations.list.key({ type: "query" }) }),
     ]);
   }
   const createOrganization = useMutation({ mutationFn: createOrganizationAction, onSuccess: async ({ organization }) => { callbacks.organizationCreated(organization.id); await invalidateWorkspace(); } });
-  const setActiveOrganization = useMutation({ mutationFn: setActiveOrganizationAction, onSuccess: invalidateWorkspace });
-  const createTeam = useMutation({ mutationFn: createTeamAction, onSuccess: async ({ team }) => { callbacks.teamCreated(team.id); await invalidateWorkspace(); } });
-  const setActiveTeam = useMutation({ mutationFn: setActiveTeamAction, onSuccess: invalidateWorkspace });
+  const setActiveOrganization = useMutation({ mutationFn: setActiveOrganizationAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
+  const createTeam = useMutation({ mutationFn: createTeamAction, onSuccess: async ({ team }) => { callbacks.teamCreated(team.id, team.organizationId); await invalidateWorkspace(); } });
+  const setActiveTeam = useMutation({ mutationFn: setActiveTeamAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const inviteMember = useMutation({ mutationFn: createInvitationAction, onSuccess: async () => { callbacks.invitationCreated(); await invalidateWorkspace(); } });
   const cancelInvitation = useMutation({ mutationFn: cancelInvitationAction, onSuccess: invalidateWorkspace });
   const acceptInvitation = useMutation({ mutationFn: acceptInvitationAction, onSuccess: invalidateWorkspace });
   const changeMemberRole = useMutation({ mutationFn: changeMemberRoleAction, onSuccess: invalidateWorkspace });
-  const removeMember = useMutation({ mutationFn: removeMemberAction, onSuccess: invalidateWorkspace });
+  const removeMember = useMutation({ mutationFn: removeMemberAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const addTeamMember = useMutation({ mutationFn: addTeamMemberAction, onSuccess: async () => { callbacks.teamMemberAdded(); await invalidateWorkspace(); } });
-  const removeTeamMember = useMutation({ mutationFn: removeTeamMemberAction, onSuccess: invalidateWorkspace });
+  const removeTeamMember = useMutation({ mutationFn: removeTeamMemberAction, onSuccess: () => requestQueryAuthScopeRefresh(queryClient) });
   const all = [createOrganization, setActiveOrganization, createTeam, setActiveTeam, inviteMember, cancelInvitation, acceptInvitation, changeMemberRole, removeMember, addTeamMember, removeTeamMember];
   return { acceptInvitation, addTeamMember, cancelInvitation, changeMemberRole, createOrganization, createTeam, inviteMember, pending: all.some((mutation) => mutation.isPending), removeMember, removeTeamMember, setActiveOrganization, setActiveTeam };
 }
@@ -241,6 +236,7 @@ export function webIdentityWorkspaceDataFiles(
   const root = identityWorkspaceFeatureRoot(mode);
   const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
   return [
+    file(`${root}/permissions.ts`, identityWorkspacePermissionsContent()),
     file(
       `${root}/queries.ts`,
       router === "next"

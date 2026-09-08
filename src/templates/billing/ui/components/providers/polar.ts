@@ -22,7 +22,7 @@ export function PolarPanel(): React.JSX.Element {
   const polarSubscriptions = subscriptions.filter((subscription) => subscription.provider === "polar");
   return (
     <Card>
-      <CardHeader><div className="flex items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle>{t("polarTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("polarDescription")}</CardDescription></div><Badge variant="secondary"><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-primary" /> polar</span></Badge></div></CardHeader>
+      <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-col gap-1"><CardTitle as="h2">{t("polarTitle")}</CardTitle><CardDescription className="max-w-[65ch]">{t("polarDescription")}</CardDescription></div><Badge variant="secondary">polar</Badge></div></CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="flex flex-wrap gap-2"><Button onClick={() => void handleCheckout("polar")} disabled={isCheckoutLoading}>{isCheckoutLoading ? <Spinner data-icon="inline-start" /> : <CreditCardIcon data-icon="inline-start" />}{t("checkout")}</Button><Button variant="outline" onClick={() => void handlePortal("polar")}><ExternalLinkIcon data-icon="inline-start" />{t("customerPortal")}</Button></div>
         <PolarBenefits licenseKey={licenseKey} usageEvents={usageEvents} copyText={copyText} />

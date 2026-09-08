@@ -21,6 +21,7 @@ import {
   headerActionsContent,
   headerFileContent,
   headerUserMenuContent,
+  workspaceShellFiles,
 } from "../../src/templates/apps/fragments/header/index.js";
 import {
   buildMarketingPageContent,
@@ -54,7 +55,28 @@ function formattedLines({ name, source, extension = "tsx" }: SizeCase): number {
 }
 
 function casesFor(router: Router): SizeCase[] {
+  const marketingOptions = {
+    hasAuth: true,
+    hasApi: true,
+    hasBilling: true,
+    hasEve: true,
+    database: "postgres",
+  } as const;
   return [
+    ...workspaceShellFiles(router, {
+      sourceRoot: "src",
+      hasAuth: true,
+      hasBilling: true,
+      hasAdminNavigation: true,
+      hasPdf: true,
+      hasMessaging: true,
+      navigation: { eve: true, notifications: true, storage: true, featureFlags: true, jobs: true },
+    }).map(({ path, content }): SizeCase => ({
+      name: `${router}-${path}`,
+      source: content,
+      maximum: 150,
+      extension: path.endsWith(".tsx") ? "tsx" : "ts",
+    })),
     { name: `${router}-header`, source: headerFileContent(router, true, true), maximum: 120 },
     {
       name: `${router}-public-header`,
@@ -108,17 +130,17 @@ function casesFor(router: Router): SizeCase[] {
     },
     {
       name: `${router}-single-marketing-hero`,
-      source: singleMarketingHeroComponentContent(router),
+      source: singleMarketingHeroComponentContent(router, marketingOptions),
       maximum: 150,
     },
     {
       name: `${router}-single-marketing-features`,
-      source: singleMarketingFeaturesComponentContent(router),
+      source: singleMarketingFeaturesComponentContent(router, marketingOptions),
       maximum: 150,
     },
     {
       name: `${router}-single-marketing-closing`,
-      source: singleMarketingClosingComponentContent(router),
+      source: singleMarketingClosingComponentContent(router, marketingOptions),
       maximum: 150,
     },
   ];
@@ -158,11 +180,30 @@ describe("generated shell, analytics, marketing, and auth boundaries", () => {
       const signUpPage = signUpPageContent(router);
       expect(signInPage).toContain('from "@/components/auth/sign-in-form"');
       expect(signUpPage).toContain('from "@/components/auth/sign-up-form"');
-      expect(`${signInPage}\n${signUpPage}`).toContain('className="inline-block rtl:rotate-180"');
+      for (const page of [signInPage, signUpPage]) {
+        expect(page).toContain('import { ArrowLeft } from "lucide-react"');
+        expect(
+          page.match(
+            /<ArrowLeft\b[^>]*aria-hidden[^>]*className="[^"\n]*\brtl:rotate-180\b[^"\n]*"[^>]*\/>/g,
+          ),
+        ).toHaveLength(1);
+      }
       expect(`${signInPage}\n${signUpPage}`).not.toMatch(/>←\s+\{t\(/);
 
       const header = headerFileContent(router, true, true);
-      expect(header).toContain('from "./header-actions.js"');
+      expect(header).toContain("export function Header(");
+      expect(header).not.toMatch(/useAuth|useQueryAuthSession|useQuery\(/);
+      const shell = workspaceShellFiles(router, {
+        sourceRoot: "src",
+        hasAuth: true,
+        hasBilling: true,
+        hasAdminNavigation: true,
+        hasPdf: false,
+        hasMessaging: false,
+        navigation: {},
+      }).find(({ path }) => path.endsWith("/app-shell.tsx"))!.content;
+      expect(shell).toContain('from "./header-actions"');
+      expect(shell).toContain("<Header workspace={workspace}");
       expect(headerActionsContent(router, true)).toContain('from "./header-user-menu.js"');
       expect(headerUserMenuContent(router)).toContain("<DropdownMenuTrigger");
 

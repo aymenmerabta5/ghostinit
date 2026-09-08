@@ -104,7 +104,8 @@ describe("generated field and select module splits", () => {
     const selectItems = generated.get("select-items.tsx") ?? "";
 
     expect(fieldControls).not.toMatch(/\b(?:ml|mr|pl|pr|left|right)-/);
-    expect(selectItems).toContain("py-1.5 ps-8 pe-2");
+    expect(selectItems).toContain("py-2 ps-8 pe-2.5");
+    expect(selectItems).toContain("min-h-9");
     expect(selectItems).toContain('className="absolute start-2');
     expect(selectItems).not.toMatch(/\b(?:ml|mr|pl|pr|left|right)-/);
   });

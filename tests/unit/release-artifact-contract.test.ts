@@ -8,6 +8,7 @@ import { verifyBunReleaseCapabilities } from "../../scripts/release-artifact.js"
 import {
   expectedDistFiles,
   PACKED_MANIFEST_FILES,
+  PACKED_PATCHED_DEPENDENCIES,
   STALE_DIST_SENTINEL,
   verifyPackedPackageClosure,
 } from "../../scripts/package-contract.js";
@@ -24,10 +25,12 @@ test("Bun-only release prepares, verifies, and digests one exact tarball without
 
   const manifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
     files: string[];
+    patchedDependencies: Record<string, string>;
     publishConfig: Record<string, unknown>;
     scripts: Record<string, string>;
   };
   expect(manifest.files).toEqual(PACKED_MANIFEST_FILES);
+  expect(manifest.patchedDependencies).toEqual(PACKED_PATCHED_DEPENDENCIES);
   expect(manifest.publishConfig).toEqual({ access: "public" });
   expect(manifest.publishConfig.provenance).toBeUndefined();
   expect(manifest.scripts["release:artifact"]).toBe("bun run scripts/release-artifact.ts");
@@ -112,11 +115,39 @@ test("package closure is source-derived and rejects missing, stale, and leaked f
       mkdirSync(resolve(absolute, ".."), { recursive: true });
       writeFileSync(absolute, "contract fixture\n");
     }
-    writeFileSync(
-      join(temp, "package.json"),
-      JSON.stringify({ name: "ghostinit", version: "0.0.0", files: PACKED_MANIFEST_FILES }),
-    );
+    const manifest = {
+      name: "ghostinit",
+      version: "0.0.0",
+      files: PACKED_MANIFEST_FILES,
+      patchedDependencies: PACKED_PATCHED_DEPENDENCIES,
+    };
+    const manifestPath = join(temp, "package.json");
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const patchPath = join(temp, Object.values(PACKED_PATCHED_DEPENDENCIES)[0]);
+    mkdirSync(resolve(patchPath, ".."), { recursive: true });
+    writeFileSync(patchPath, "reviewed dependency patch\n");
     expect(verifyPackedPackageClosure(temp).distFiles).toEqual([...expected].sort());
+
+    rmSync(patchPath);
+    expect(() => verifyPackedPackageClosure(temp)).toThrow("missing declared patch files");
+    mkdirSync(patchPath);
+    expect(() => verifyPackedPackageClosure(temp)).toThrow("missing declared patch files");
+    rmSync(patchPath, { recursive: true });
+    writeFileSync(patchPath, "reviewed dependency patch\n");
+    for (const patchedDependencies of [
+      undefined,
+      null,
+      {},
+      { "@electric-sql/pglite-socket@0.2.10": "../outside.patch" },
+    ]) {
+      writeFileSync(manifestPath, JSON.stringify({ ...manifest, patchedDependencies }));
+      expect(() => verifyPackedPackageClosure(temp)).toThrow("patch metadata");
+    }
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    const unexpectedPatch = join(temp, "patches", "unexpected.patch");
+    writeFileSync(unexpectedPatch, "unexpected\n");
+    expect(() => verifyPackedPackageClosure(temp)).toThrow("outside the allowlist");
+    rmSync(unexpectedPatch);
 
     const stale = join(dist, ...STALE_DIST_SENTINEL.split("/"));
     mkdirSync(resolve(stale, ".."), { recursive: true });

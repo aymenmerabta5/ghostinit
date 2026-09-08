@@ -1,9 +1,3 @@
-/**
- * Shared theme-provider and theme-toggle fragments
- * Eliminates 100% duplication: both Next and TanStack use identical next-themes wrapper
- * SunIcon/MoonIcon inline SVG + rotate-0 scale-100 dark:-rotate-90 transition pattern shared
- */
-
 export function themeProviderFileContent(): string {
   return `"use client";
 
@@ -12,7 +6,7 @@ import { ThemeProvider as NextThemesProvider, type ThemeProviderProps } from "ne
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps): React.JSX.Element {
   return (
-    <NextThemesProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange {...props}>
+    <NextThemesProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange {...props}>
       {children}
     </NextThemesProvider>
   );
@@ -20,57 +14,17 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps): React
 `;
 }
 
-export const sunIconSvg = `function SunIcon(props: React.SVGProps<SVGSVGElement>): React.JSX.Element {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-    </svg>
-  );
-}`;
-
-export const moonIconSvg = `function MoonIcon(props: React.SVGProps<SVGSVGElement>): React.JSX.Element {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M12 3a6 6 0 0 0 9 9a9 9 0 1 1-9-9Z" />
-    </svg>
-  );
-}`;
-
 export function themeToggleFileContent(): string {
   return `"use client";
 
 import * as React from "react";
 import { useTheme } from "next-themes";
+import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-${sunIconSvg}
-
-${moonIconSvg}
-
 export function ThemeToggle(): React.JSX.Element {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const t = useSurfaceTranslations("theme");
   const [mounted, setMounted] = React.useState(false);
 
@@ -90,11 +44,12 @@ export function ThemeToggle(): React.JSX.Element {
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      className="relative"
+      onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
       aria-label={t("toggle")}
     >
-      <SunIcon className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" data-icon="inline-start" />
-      <MoonIcon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" data-icon="inline-start" />
+      <Sun className="size-4 rotate-0 scale-100 transition-transform motion-reduce:transition-none dark:-rotate-90 dark:scale-0" data-icon="inline-start" aria-hidden />
+      <Moon className="absolute size-4 rotate-90 scale-0 transition-transform motion-reduce:transition-none dark:rotate-0 dark:scale-100" data-icon="inline-start" aria-hidden />
       <span className="sr-only">{t("toggle")}</span>
     </Button>
   );
@@ -122,10 +77,9 @@ export function providersFileContent(
     router === "tanstack" && hasI18n
       ? `import { I18nProvider, type Locale } from "@/lib/i18n";`
       : "";
-  const queryAuthBoundaryImport =
-    router === "tanstack" && hasAuth
-      ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary.js";`
-      : "";
+  const queryAuthBoundaryImport = hasAuth
+    ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary.js";`
+    : "";
   const analyticsOpen = hasAnalytics ? "<PostHogProvider>" : "";
   const analyticsClose = hasAnalytics ? "</PostHogProvider>" : "";
   const pageView = hasAnalytics
@@ -139,9 +93,8 @@ export function providersFileContent(
   const initialLocaleProperty =
     router === "tanstack" && hasI18n ? "  initialLocale: Locale;\n" : "";
   const initialLocaleParameter = router === "tanstack" && hasI18n ? ", initialLocale" : "";
-  const queryAuthOpen =
-    router === "tanstack" && hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
-  const queryAuthClose = router === "tanstack" && hasAuth ? `</QueryAuthCacheBoundary>` : "";
+  const queryAuthOpen = hasAuth ? `<QueryAuthCacheBoundary queryClient={client}>` : "";
+  const queryAuthClose = hasAuth ? `</QueryAuthCacheBoundary>` : "";
   return `"use client";
 
 import * as React from "react";
@@ -163,19 +116,19 @@ export function AppProviders({ children, queryClient${initialLocaleParameter} }:
   const client = queryClient ?? getQueryClient();
   return (
     <QueryClientProvider client={client}>
-      ${queryAuthOpen}
         ${i18nOpen}
           ${convexOpen}
             <ThemeProvider>
+              ${queryAuthOpen}
               ${analyticsOpen}
                 ${pageView}
                 {children}
                 <Toaster richColors position="bottom-right" />
               ${analyticsClose}
+              ${queryAuthClose}
             </ThemeProvider>
           ${convexClose}
         ${i18nClose}
-      ${queryAuthClose}
     </QueryClientProvider>
   );
 }

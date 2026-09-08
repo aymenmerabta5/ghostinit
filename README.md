@@ -9,7 +9,7 @@ Production-grade CLI that scaffolds well-structured monorepos with architectural
 
 ## Overview
 
-Host (`ghostinit` CLI) generates GhostInit Layered Architecture (UI->Supporting, inspired by DDD, pragmatic linear chain — NOT canonical DDD — build-time enforced via oxc-parser, well-structured monorepo with architectural linting, not runtime isolation, single DB shared, separate deployables, not single binary): UI(1) → Transport(oRPC 2) → Domain(3) → Capabilities(4) → Vendors(5) → Supporting(6) enforced by `src/lib/architecture.ts` via `oxc-parser`. Host is single package with composers (<300 LOC/file host-only goal, no `export *`); generated monorepos use `apps/* + packages/* + tooling/*`, manifest-derived capability-scoped Turbo environment inputs, and the generated hoisted linker required by the supported Next.js toolchain.
+The CLI compiles a validated project specification into an owned, transactional file plan. Generated projects separate UI, transport, application services, domain contracts, vendor adapters, and supporting infrastructure. Application and adapter dependencies point toward domain contracts; domain code cannot depend on their implementations. `ghostinit check` enforces these boundaries with resolved imports and `oxc-parser`. Single and monorepo modes share the same logical rules; monorepos package them under `apps/* + packages/* + tooling/*`. See [the architecture guide](./CONTRIBUTING.md#generated-application-boundaries).
 
 ## Quick Start
 
@@ -69,7 +69,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 - Bun version sourced from `packages/versions` + retained Node runtime target, isolated linker host vs hoist=true generated
 - Next.js 16 + React 19 + TanStack Start 1.x (exact pins in `packages/versions`)
-- TypeScript 7.0.2 for Next 16.3's project-local tsc CLI; TypeScript 6.0.3 only for compiler-API-dependent TanStack/Expo tooling
+- TypeScript 7.0.2 across generated apps and shared tooling, including Next 16.3's project-local tsc CLI
 - Drizzle ORM + PostgreSQL / Convex
 - Better Auth (email/password, 2FA, admin)
 - oRPC 1.15 contract-first + OpenAPI (pure, no Elysia dual RPC)

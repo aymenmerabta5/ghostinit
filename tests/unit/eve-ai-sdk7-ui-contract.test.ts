@@ -46,13 +46,21 @@ describe("Eve UI on the AI SDK 7 message contract", () => {
       expect(parseSync(path, page).errors).toEqual([]);
       // Eve 0.47 wraps AI SDK 7 and accepts string | UserContent. A text-only
       // send is therefore the string itself; direct useChat would use { text }.
-      expect(page).toContain("void agent.send(input)");
+      expect(page).toContain("agent.send(input)");
       expect(page).not.toMatch(/agent\.send\(\s*\{\s*(?:message|text)\s*:/);
       expect(page).not.toMatch(/sendMessage\(\s*\{\s*message\s*:/);
-      expect(page).toContain("message.parts.map");
-      expect(page).toMatch(/part\.type === ["']text["']/);
-      expect(page).toContain("part.text");
-      expect(page).not.toMatch(/message\.content|\bcontent\?:\s*string/);
+      const root = mode === "single" ? "src" : "apps/web/src";
+      const transcript = files.find(
+        (file) => file.path === `${root}/features/agent/agent-transcript.tsx`,
+      )!.content;
+      const prompt = files.find(
+        (file) => file.path === `${root}/features/agent/agent-prompt.tsx`,
+      )!.content;
+      expect(prompt).toContain("void onSend(input)");
+      expect(transcript).toContain("message.parts.map");
+      expect(transcript).toMatch(/part\.type === ["']text["']/);
+      expect(transcript).toContain("part.text");
+      expect(transcript).not.toMatch(/message\.content|\bcontent\?:\s*string/);
 
       const generatedSource = files.map((file) => file.content).join("\n");
       expect(generatedSource).not.toMatch(/sendMessage\(\s*\{\s*message\s*:/);

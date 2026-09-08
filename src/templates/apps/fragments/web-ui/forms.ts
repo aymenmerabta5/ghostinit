@@ -19,7 +19,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       type={type}
       data-slot="input"
       className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20",
+        "flex h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-base leading-6 text-card-foreground shadow-control ring-offset-background transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20 md:text-sm",
         className,
       )}
       {...props}
@@ -44,7 +44,7 @@ export const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
       ref={ref}
       data-slot="label"
       className={cn(
-        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 data-[invalid=true]:text-destructive",
+        "text-sm font-medium leading-5 text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70 data-[invalid=true]:text-destructive",
         className,
       )}
       {...props}
@@ -84,6 +84,8 @@ import {
   AppTextField,
 } from "../form-fields/index.js";
 import { cn } from "../../lib/utils.js";
+import { useSurfaceTranslations } from "../../lib/translations.js";
+import { Alert, AlertDescription, AlertTitle } from "./alert.js";
 import { Button, type ButtonProps } from "./button.js";
 import { fieldContext, formContext, useFormContext } from "./form-context.js";
 import { Spinner } from "./spinner.js";
@@ -102,19 +104,59 @@ export interface FormProps {
   className?: string;
 }
 
+const subscribeToHydration = () => () => undefined;
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
 export function Form({ form, onSubmit, children, className }: FormProps): React.JSX.Element {
+  const t = useSurfaceTranslations("errors");
+  const common = useSurfaceTranslations("common");
+  const clientReady = React.useSyncExternalStore(subscribeToHydration, clientSnapshot, serverSnapshot);
+  const inFlight = React.useRef(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitFailed, setSubmitFailed] = React.useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    if (!clientReady || inFlight.current) return;
+    inFlight.current = true;
+    setIsSubmitting(true);
+    try {
+      const outcomes = await Promise.allSettled([
+        Promise.resolve().then(() => form.handleSubmit()),
+        Promise.resolve().then(() => onSubmit?.(event)),
+      ]);
+      setSubmitFailed(outcomes.some((outcome) => outcome.status === "rejected"));
+    } finally {
+      inFlight.current = false;
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <form
+      method="post"
+      noValidate
       data-slot="form"
+      aria-busy={!clientReady || isSubmitting}
       className={cn("flex flex-col gap-6", className)}
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        void form.handleSubmit();
-        onSubmit?.(event);
+        void submit(event);
       }}
     >
+      {!clientReady ? <p role="status" className="text-sm text-muted-foreground">{common("formPreparing")}</p> : null}
+      <noscript><p className="text-sm text-muted-foreground">{common("formJavaScriptRequired")}</p></noscript>
+      <fieldset className="contents" disabled={!clientReady}>
       {children}
+      {submitFailed ? <Alert role="alert" variant="destructive">
+        <AlertTitle>{t("genericTitle")}</AlertTitle>
+        <AlertDescription>{t("genericDescription")}</AlertDescription>
+        <Button type="submit" variant="outline" size="sm" disabled={isSubmitting}>
+          {isSubmitting ? common("loading") : t("retry")}
+        </Button>
+      </Alert> : null}
+      </fieldset>
     </form>
   );
 }

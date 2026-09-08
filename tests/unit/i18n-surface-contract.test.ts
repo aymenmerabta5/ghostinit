@@ -74,12 +74,22 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
         marketing: [`${root}/app/page.tsx`, ...marketingComponents],
         auth: [
           `${root}/app/sign-in/page.tsx`,
+          `${root}/app/sign-in/page.client.tsx`,
           `${root}/app/sign-up/page.tsx`,
+          `${root}/app/sign-up/page.client.tsx`,
           `${root}/components/auth/sign-in-form.tsx`,
           `${root}/components/auth/sign-up-form.tsx`,
           `${root}/app/2fa/page.tsx`,
+          `${root}/app/2fa/page.client.tsx`,
+          `${root}/components/auth/two-factor-form.tsx`,
         ],
-        recovery: [`${root}/app/forgot-password/page.tsx`, `${root}/app/reset-password/page.tsx`],
+        recovery: [
+          `${root}/app/forgot-password/page.tsx`,
+          `${root}/app/forgot-password/page.client.tsx`,
+          `${root}/app/reset-password/page.tsx`,
+          `${root}/app/reset-password/page.client.tsx`,
+          `${root}/components/auth/reset-password-form.tsx`,
+        ],
         dashboard:
           mode === "monorepo"
             ? [
@@ -91,7 +101,12 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
                 `${root}/features/dashboard/actions-card.tsx`,
                 `${root}/features/dashboard/modules-card.tsx`,
               ]
-            : [`${root}/app/dashboard/page.tsx`],
+            : [
+                `${root}/app/dashboard/page.tsx`,
+                `${root}/features/dashboard/dashboard-overview.tsx`,
+                `${root}/features/dashboard/identity-card.tsx`,
+                `${root}/features/dashboard/quick-actions.tsx`,
+              ],
         settings: [
           `${root}/app/settings/page.tsx`,
           `${root}/app/settings/components/profile-card.tsx`,
@@ -127,8 +142,13 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           `${root}/components/auth/sign-in-form.tsx`,
           `${root}/components/auth/sign-up-form.tsx`,
           `${root}/routes/2fa.tsx`,
+          `${root}/components/auth/two-factor-form.tsx`,
         ],
-        recovery: [`${root}/routes/forgot-password.tsx`, `${root}/routes/reset-password.tsx`],
+        recovery: [
+          `${root}/routes/forgot-password.tsx`,
+          `${root}/routes/reset-password.tsx`,
+          `${root}/components/auth/reset-password-form.tsx`,
+        ],
         dashboard:
           mode === "single"
             ? [
@@ -349,19 +369,24 @@ describe("generated locale control reachability", () => {
         const header = [
           read(files, `${root}/components/header.tsx`),
           read(files, `${root}/components/header-actions.tsx`),
+          read(files, `${root}/components/workspace-navigation.tsx`),
+          read(files, `${root}/components/workspace-navigation-trigger.tsx`),
+          read(files, `${root}/components/workspace-identity-status.tsx`),
         ].join("\n");
+        const appShell = read(files, `${root}/components/app-shell.tsx`);
         const marketing = surfaceSource(files, mode, framework, "marketing");
 
         expect(shell).toMatch(
-          /import\s+\{\s*Header\s*\}\s+from\s+["'][^"']*components\/header(?:\.js)?["']/,
+          /import\s+\{\s*AppShell\s*\}\s+from\s+["'][^"']*components\/app-shell(?:\.js)?["']/,
         );
-        expect(shell.match(/<Header\b/g) ?? []).toHaveLength(1);
+        expect(shell.match(/<AppShell\b/g) ?? []).toHaveLength(1);
+        expect(appShell.match(/<Header\b/g) ?? []).toHaveLength(1);
         expect(header).toMatch(/import\s+\{\s*LocaleSwitcher\s*\}/);
         expect(header).toMatch(/<LocaleSwitcher\b/);
         expect(marketing.match(/<header\b/g) ?? []).toHaveLength(0);
         const providerName = framework === "nextjs" ? "NextIntlClientProvider" : "AppProviders";
         const providerOpen = shell.indexOf(`<${providerName}`);
-        const headerUse = shell.indexOf("<Header");
+        const headerUse = shell.indexOf("<AppShell");
         const providerClose = shell.indexOf(`</${providerName}>`);
         expect(providerOpen).toBeGreaterThanOrEqual(0);
         expect(headerUse).toBeGreaterThan(providerOpen);
@@ -371,7 +396,8 @@ describe("generated locale control reachability", () => {
         const noAuthPaths = new Set(noAuthFiles.map(({ path }) => path));
         const noAuthShell = read(noAuthFiles, shellPath);
         const noAuthHeader = read(noAuthFiles, `${root}/components/header.tsx`);
-        expect(noAuthShell).toMatch(/<Header\b/);
+        expect(noAuthShell).toMatch(/<AppShell\b/);
+        expect(read(noAuthFiles, `${root}/components/app-shell.tsx`)).toMatch(/<Header\b/);
         expect(noAuthHeader).toMatch(/<LocaleSwitcher\b/);
         expect(noAuthHeader).not.toContain("useAuth");
         expect(noAuthHeader).not.toContain("authClient");

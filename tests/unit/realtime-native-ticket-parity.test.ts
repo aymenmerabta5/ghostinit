@@ -69,7 +69,7 @@ describe("ticket-authenticated realtime parity", () => {
       scripts: Record<string, string>;
     };
     expect(rootPackage.scripts.dev).toBe("turbo run dev");
-    expect(webPackage.scripts.dev).toContain("server.ts");
+    expect(webPackage.scripts.dev).toContain("scripts/start-next-server.mjs bun dev");
     expect(webPackage.scripts.dev).not.toContain("next dev");
     expect(read(monorepo, "apps/web/src/app/api/ws/route.ts")).toContain(
       "Run bun run dev in development or bun run start in production",
@@ -78,7 +78,7 @@ describe("ticket-authenticated realtime parity", () => {
     const singlePackage = JSON.parse(read(generate("single", "nextjs"), "package.json")) as {
       scripts: Record<string, string>;
     };
-    expect(singlePackage.scripts.dev).toContain("server.ts");
+    expect(singlePackage.scripts.dev).toContain("scripts/start-next-server.mjs bun dev");
     expect(singlePackage.scripts.dev).not.toContain("next dev");
 
     const tanstackPackage = JSON.parse(

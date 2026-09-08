@@ -33,7 +33,7 @@
   "properties": {
     "$schema": { "const": "https://ghostinit.dev/schemas/design-system-contract.schema.json" },
     "schemaVersion": { "const": 1 },
-    "contractVersion": { "const": "1.0.0" },
+    "contractVersion": { "const": "1.1.0" },
     "layout": { "$ref": "#/$defs/layout" },
     "layoutIdentity": { "enum": ["monorepo:@repo/ui", "single:@/platform/ui"] },
     "apps": {
@@ -183,8 +183,8 @@
       "required": ["format", "defaultTheme", "themes", "names", "contrast"],
       "properties": {
         "format": { "const": "oklch" },
-        "defaultTheme": { "const": "dark" },
-        "themes": { "const": ["dark", "light"] },
+        "defaultTheme": { "const": "light" },
+        "themes": { "const": ["light", "dark"] },
         "names": {
           "type": "array",
           "minItems": 20,
@@ -235,9 +235,9 @@
       ],
       "properties": {
         "unitRem": { "const": 0.25 },
-        "controlHeightRem": { "const": 2.25 },
-        "topBarHeightRem": { "const": 3.5 },
-        "sidebarWidthRem": { "const": 16 },
+        "controlHeightRem": { "const": 2.5 },
+        "topBarHeightRem": { "const": 4 },
+        "sidebarWidthRem": { "const": 14.5 },
         "contentMaxRem": { "const": 72 }
       }
     },
@@ -246,10 +246,10 @@
       "additionalProperties": false,
       "required": ["baseRem", "control", "surface", "status"],
       "properties": {
-        "baseRem": { "const": 0.5 },
+        "baseRem": { "const": 0.75 },
         "control": { "const": "md" },
         "surface": { "const": "lg" },
-        "status": { "const": "full" }
+        "status": { "const": "sm" }
       }
     },
     "elevation": {
@@ -258,8 +258,8 @@
       "required": ["default", "surfaceShadow", "overlayShadow"],
       "properties": {
         "default": { "const": "border" },
-        "surfaceShadow": { "const": "none" },
-        "overlayShadow": { "const": "shadow-lg" }
+        "surfaceShadow": { "const": "shadow-surface" },
+        "overlayShadow": { "const": "shadow-modal" }
       }
     },
     "iconLibrary": {
@@ -279,10 +279,10 @@
       "additionalProperties": false,
       "required": ["default", "bodySize", "metadataSize", "controlHeight"],
       "properties": {
-        "default": { "const": "compact" },
-        "bodySize": { "const": "sm" },
+        "default": { "const": "comfortable" },
+        "bodySize": { "const": "text-[0.9375rem]" },
         "metadataSize": { "const": "xs" },
-        "controlHeight": { "const": "h-9" }
+        "controlHeight": { "const": "h-10" }
       }
     },
     "motion": {

@@ -12,7 +12,8 @@ import "./.next/types/routes.d.ts";
 import "./.next/types/root-params.d.ts";
 `;
 
-describe("Next framework-generated type references", () => {
+describe.each(["types", "dev/types"])("Next framework-generated %s references", (typeDirectory) => {
+  const nextEnv = NEXT_ENV.replaceAll(".next/types/", `.next/${typeDirectory}/`);
   let root: string;
 
   beforeEach(() => {
@@ -59,11 +60,11 @@ describe("Next framework-generated type references", () => {
   }
 
   test("recognizes the exact Next 16.3 next-env imports in single and monorepo apps", async () => {
-    file("next-env.d.ts", NEXT_ENV);
-    file("apps/web/next-env.d.ts", NEXT_ENV);
+    file("next-env.d.ts", nextEnv);
+    file("apps/web/next-env.d.ts", nextEnv);
     for (const generatedType of ["routes", "root-params"]) {
-      file(`.next/types/${generatedType}.d.ts`);
-      file(`apps/web/.next/types/${generatedType}.d.ts`);
+      file(`.next/${typeDirectory}/${generatedType}.d.ts`);
+      file(`apps/web/.next/${typeDirectory}/${generatedType}.d.ts`);
     }
     const resolver = await createImportResolver(root);
 
@@ -72,7 +73,7 @@ describe("Next framework-generated type references", () => {
         expect(
           await resolver.resolve(
             join(root, ...source.split("/")),
-            reference(`./.next/types/${generatedType}.d.ts`),
+            reference(`./.next/${typeDirectory}/${generatedType}.d.ts`),
           ),
         ).toMatchObject({ kind: "generated", reason: "generated-next-types" });
       }
@@ -80,11 +81,11 @@ describe("Next framework-generated type references", () => {
   });
 
   test("does not report blockers for the post-build Next-owned declarations", async () => {
-    file("next-env.d.ts", NEXT_ENV);
-    file("apps/web/next-env.d.ts", NEXT_ENV);
+    file("next-env.d.ts", nextEnv);
+    file("apps/web/next-env.d.ts", nextEnv);
     for (const generatedType of ["routes", "root-params"]) {
-      file(`.next/types/${generatedType}.d.ts`);
-      file(`apps/web/.next/types/${generatedType}.d.ts`);
+      file(`.next/${typeDirectory}/${generatedType}.d.ts`);
+      file(`apps/web/.next/${typeDirectory}/${generatedType}.d.ts`);
     }
 
     const report = await analyzeProjectReport(root);
@@ -92,10 +93,10 @@ describe("Next framework-generated type references", () => {
   });
 
   test("does not exempt lookalike imports from user-owned source", async () => {
-    file("next-env.d.ts", NEXT_ENV);
-    file("apps/web/next-env.d.ts", NEXT_ENV);
-    file("src/user.ts", 'import "../.next/types/routes.d.ts";\n');
-    file("apps/web/src/user.ts", 'import "../.next/types/routes.d.ts";\n');
+    file("next-env.d.ts", nextEnv);
+    file("apps/web/next-env.d.ts", nextEnv);
+    file("src/user.ts", `import "../.next/${typeDirectory}/routes.d.ts";\n`);
+    file("apps/web/src/user.ts", `import "../.next/${typeDirectory}/routes.d.ts";\n`);
 
     const report = await analyzeProjectReport(root);
     const unresolved = report.findings
@@ -103,8 +104,8 @@ describe("Next framework-generated type references", () => {
       .map(({ file: path, specifier }) => [path, specifier]);
 
     expect(unresolved).toEqual([
-      ["apps/web/src/user.ts", "../.next/types/routes.d.ts"],
-      ["src/user.ts", "../.next/types/routes.d.ts"],
+      ["apps/web/src/user.ts", `../.next/${typeDirectory}/routes.d.ts`],
+      ["src/user.ts", `../.next/${typeDirectory}/routes.d.ts`],
     ]);
   });
 });

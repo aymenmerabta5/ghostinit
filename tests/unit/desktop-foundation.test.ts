@@ -316,10 +316,10 @@ describe("generated desktop capability foundation", () => {
     expect(desktopSource).not.toContain("desktop:auth-set-session");
     expect(
       files.find(({ path }) => path === `${prefix}src/renderer/index.html`)?.content,
-    ).toContain('class="dark"');
+    ).toContain('class="light"');
     expect(
       files.find(({ path }) => path === `${prefix}src/renderer/lib/theme.tsx`)?.content,
-    ).toContain('useState<Theme>("dark")');
+    ).toContain('useState<Theme>("light")');
     expect(`${root}\n${desktopSource}`).not.toMatch(/\b(?:ml|mr|pl|pr)-|text-left/);
   });
 

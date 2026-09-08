@@ -1,4 +1,9 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import { queryAuthRegressionFile } from "../query-auth-tests.js";
+import { authOwnedEffectFile } from "../auth-owned-effect.js";
+
+import { queryAuthStateContent } from "./query-auth-state.js";
+export { queryAuthStateContent } from "./query-auth-state.js";
 
 export function queryClientContent(): string {
   return `import { QueryClient } from "@tanstack/react-query";
@@ -11,112 +16,13 @@ export interface ResolvedRpcError {
   meta?: Record<string, unknown>;
 }
 
-export interface QueryAuthScope {
-  userId: string;
-  sessionId: string;
-  tenantId: string | null;
-  teamId: string | null;
-}
-
-const QUERY_AUTH_SCOPE_KEY = ["__ghostinit", "auth-scope"] as const;
-const queryAuthScopes = new WeakMap<QueryClient, QueryAuthScope | null>();
+${queryAuthStateContent()}
 
 interface RpcErrorShape {
   code: string;
   status: number;
   message: string;
   data?: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function optionalScopeId(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-export function queryAuthScopeFromSession(value: unknown): QueryAuthScope | null {
-  if (!isRecord(value) || !isRecord(value.user) || !isRecord(value.session)) return null;
-  const userId = optionalScopeId(value.user.id);
-  const sessionId = optionalScopeId(value.session.id);
-  if (!userId || !sessionId) return null;
-  return {
-    userId,
-    sessionId,
-    tenantId:
-      optionalScopeId(value.session.activeOrganizationId) ??
-      optionalScopeId(value.user.activeOrganizationId),
-    teamId:
-      optionalScopeId(value.session.activeTeamId) ?? optionalScopeId(value.user.activeTeamId),
-  };
-}
-
-export function queryAuthScopeSignature(scope: QueryAuthScope | null): string {
-  if (!scope) return "anonymous";
-  return JSON.stringify([
-    scope.userId,
-    scope.sessionId,
-    scope.tenantId ?? "",
-    scope.teamId ?? "",
-  ]);
-}
-
-export function currentQueryAuthScope(queryClient: QueryClient): QueryAuthScope | null {
-  const hydrated = queryClient.getQueryData<QueryAuthScope | null>(QUERY_AUTH_SCOPE_KEY);
-  if (hydrated !== undefined) {
-    queryAuthScopes.set(queryClient, hydrated);
-    return hydrated;
-  }
-  return queryAuthScopes.get(queryClient) ?? null;
-}
-
-export function authScopedQueryKey(
-  scope: QueryAuthScope,
-  queryKey: readonly unknown[],
-): readonly unknown[] {
-  return ["auth", queryAuthScopeSignature(scope), ...queryKey] as const;
-}
-
-export function adminUsersQueryKey(
-  scope: QueryAuthScope,
-  input?: { search: string; page: number; limit: number },
-): readonly unknown[] {
-  return authScopedQueryKey(scope, input ? ["admin-users", input] : ["admin-users"]);
-}
-
-export function billingSnapshotQueryKey(scope: QueryAuthScope): readonly unknown[] {
-  return authScopedQueryKey(scope, ["billing", "snapshot"]);
-}
-
-export function identityWorkspaceInitialQueryKey(scope: QueryAuthScope): readonly unknown[] {
-  return authScopedQueryKey(scope, ["identity-workspace", "initial"]);
-}
-
-export function messagingConversationsQueryKey(scope: QueryAuthScope): readonly unknown[] {
-  return authScopedQueryKey(scope, ["messaging", "conversations"]);
-}
-
-export function initialUserFeatureFlagQueryKey(scope: QueryAuthScope): readonly unknown[] {
-  return authScopedQueryKey(scope, ["feature-flags", "new-dashboard"]);
-}
-
-/**
- * Change the authenticated cache owner before descendants can read cached data.
- * Keeping the scope marker in Query itself lets TanStack SSR hydration carry the
- * owner into the browser without a second, process-global store.
- */
-export function transitionQueryAuthScope(
-  queryClient: QueryClient,
-  nextScope: QueryAuthScope | null,
-): void {
-  const current = currentQueryAuthScope(queryClient);
-  if (queryAuthScopeSignature(current) !== queryAuthScopeSignature(nextScope)) {
-    queryClient.clear();
-  }
-  const stableScope = nextScope ? { ...nextScope } : null;
-  queryAuthScopes.set(queryClient, stableScope);
-  queryClient.setQueryData(QUERY_AUTH_SCOPE_KEY, stableScope);
 }
 
 function readRpcError(value: unknown): RpcErrorShape | undefined {
@@ -205,5 +111,9 @@ export function getQueryClient(): QueryClient {
 }
 
 export function queryClientLibFiles(base = "apps/web/src"): TemplateFile[] {
-  return [file(`${base}/lib/query-client.ts`, queryClientContent())];
+  return [
+    file(`${base}/lib/query-client.ts`, queryClientContent()),
+    authOwnedEffectFile(base),
+    queryAuthRegressionFile(base === "src" ? "" : base.replace(/\/src$/, "")),
+  ];
 }

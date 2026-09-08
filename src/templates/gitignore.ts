@@ -70,6 +70,7 @@ export function generatedGitignoreContent(): string {
     "",
     "# GhostInit internal state",
     "/.ghostinit/",
+    "/apps/*/.ghostinit/",
     "/.ghostinit-staging/",
     "/.ghostinit.lock",
     "",
@@ -79,6 +80,7 @@ export function generatedGitignoreContent(): string {
 /** Keep generated POSIX scripts runnable after checkout on every host. */
 export function generatedGitattributesContent(includePatchFiles = false): string {
   return [
+    "* text=auto eol=lf",
     "*.sh text eol=lf",
     "/.husky/* text eol=lf",
     ...(includePatchFiles ? ["patches/*.patch text eol=lf"] : []),

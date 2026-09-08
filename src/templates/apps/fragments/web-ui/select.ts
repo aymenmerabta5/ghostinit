@@ -65,13 +65,13 @@ export function SelectTrigger({
       ref={ref}
       data-slot="select-trigger"
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm leading-6 text-card-foreground shadow-control ring-offset-background transition-colors hover:border-ring focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
       {...props}
     >
       {children}
-      <ChevronsUpDown data-icon="inline-end" aria-hidden />
+      <ChevronsUpDown className="size-4 text-muted-foreground" data-icon="inline-end" aria-hidden />
     </BaseSelect.Trigger>
   );
 }
@@ -86,7 +86,7 @@ export function SelectValue({ className, ref, ...props }: SelectValueProps): Rea
     <BaseSelect.Value
       ref={ref}
       data-slot="select-value"
-      className={cn("truncate data-[placeholder]:text-muted-foreground", className)}
+      className={cn("min-w-0 truncate text-start data-[placeholder]:text-muted-foreground", className)}
       {...props}
     />
   );
@@ -105,17 +105,17 @@ export function SelectContent({
 }: SelectContentProps): React.JSX.Element {
   return (
     <BaseSelect.Portal>
-      <BaseSelect.Positioner alignItemWithTrigger={false} sideOffset={4}>
+      <BaseSelect.Positioner alignItemWithTrigger={false} sideOffset={4} className="z-[var(--layer-popover)]">
         <BaseSelect.Popup
           ref={ref}
           data-slot="select-content"
           className={cn(
-            "min-w-[var(--anchor-width)] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95",
+            "min-w-[var(--anchor-width)] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-popover duration-150 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 motion-reduce:animate-none!",
             className,
           )}
           {...props}
         >
-          <BaseSelect.List>{children}</BaseSelect.List>
+          <BaseSelect.List className="max-h-80 overflow-y-auto">{children}</BaseSelect.List>
         </BaseSelect.Popup>
       </BaseSelect.Positioner>
     </BaseSelect.Portal>
@@ -164,12 +164,12 @@ export function SelectItem({
       ref={ref}
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ps-8 pe-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex min-h-9 w-full cursor-default select-none items-center rounded-md py-2 ps-8 pe-2.5 text-sm leading-5 outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[selected]:font-medium data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
     >
-      <BaseSelect.ItemIndicator className="absolute start-2 flex items-center justify-center">
+      <BaseSelect.ItemIndicator className="absolute start-2 flex items-center justify-center [&_svg]:size-4">
         <Check aria-hidden />
       </BaseSelect.ItemIndicator>
       <BaseSelect.ItemText>{children}</BaseSelect.ItemText>

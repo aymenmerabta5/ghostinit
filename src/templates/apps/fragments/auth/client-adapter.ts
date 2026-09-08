@@ -85,6 +85,9 @@ const identityEmailFlowClient = authClient as typeof authClient & IdentityEmailF
   verifyTwoFactor(input: { code: string; trustDevice: boolean }) {
     return authClient.twoFactor.verifyTotp(input);
   },
+  verifyBackupCode(input: { code: string; trustDevice: boolean }) {
+    return authClient.twoFactor.verifyBackupCode(input);
+  },
   disableTwoFactor(input: { password: string }) {
     return authClient.twoFactor.disable(input);
   },
@@ -104,11 +107,8 @@ const identityEmailFlowClient = authClient as typeof authClient & IdentityEmailF
   register(input: { name?: string } = {}) {
     return authClient.passkey.addPasskey(input);
   },
-  useList() {
-    return authClient.useListPasskeys();
-  },
-  list() {
-    return authClient.passkey.listUserPasskeys();
+  list(options: { signal?: AbortSignal } = {}) {
+    return authClient.passkey.listUserPasskeys({ fetchOptions: options });
   },
   rename(input: { id: string; name: string }) {
     return authClient.passkey.updatePasskey(input);
@@ -249,6 +249,13 @@ export function createRequiredPasswordSchema(passwordRequired: string) {
 
 export function createTotpSchema(codeSixDigits: string) {
   return z.object({ code: z.string().regex(/^[0-9]{6}$/, codeSixDigits) });
+}
+
+export function createTwoFactorChallengeSchema(method: "authenticator" | "backup", message: string) {
+  return z.object({
+    code: method === "backup" ? z.string().trim().min(1, message) : z.string().regex(/^[0-9]{6}$/, message),
+    trustDevice: z.boolean(),
+  });
 }
 `;
 }

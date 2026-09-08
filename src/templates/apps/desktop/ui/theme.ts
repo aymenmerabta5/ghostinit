@@ -12,37 +12,54 @@ const ThemeContext = React.createContext<{
   toggle: () => void;
 } | null>(null);
 
+function storedTheme(value: unknown): Theme | null {
+  return value === "light" || value === "dark" ? value : null;
+}
+
+function localTheme(): Theme | null {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const raw = localStorage.getItem("ghostinit-theme-v1");
+    if (raw) {
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && "theme" in parsed) {
+          const candidate = storedTheme(parsed.theme);
+          if (candidate) return candidate;
+        }
+      } catch {}
+    }
+    return storedTheme(localStorage.getItem("ghostinit-theme"));
+  } catch {
+    return null;
+  }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeRaw] = React.useState<Theme>("dark");
+  const [theme, setThemeRaw] = React.useState<Theme>("light");
+  const [initialized, setInitialized] = React.useState(false);
+  const userSelected = React.useRef(false);
+  const pendingWrite = React.useRef<Promise<void>>(Promise.resolve());
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      try {
-        if (typeof window === "undefined") return;
-        const bridge = window.desktopBridge;
-        const stored = await bridge.getClientSettings();
-        let candidate: Theme | null = (stored?.theme as Theme | undefined) ?? null;
+      let candidate: Theme | null = null;
+      if (typeof window !== "undefined") {
+        try {
+          candidate = storedTheme((await window.desktopBridge.getClientSettings())?.theme);
+        } catch {}
+        candidate ??= localTheme();
         if (!candidate) {
           try {
-            if (typeof localStorage !== "undefined") {
-              const raw = localStorage.getItem("ghostinit-theme-v1");
-              if (raw) {
-                try { candidate = (JSON.parse(raw) as { theme: Theme }).theme ?? null; } catch { candidate = localStorage.getItem("ghostinit-theme") as Theme | null; }
-              } else {
-                candidate = localStorage.getItem("ghostinit-theme") as Theme | null;
-              }
-            }
+            candidate = typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark" : "light";
           } catch {}
         }
-        if (candidate === "dark" || candidate === "light") {
-          if (mounted) setThemeRaw(candidate);
-          return;
-        }
-        if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          if (mounted) setThemeRaw("dark");
-        }
-      } catch {}
+      }
+      if (!mounted) return;
+      if (!userSelected.current) setThemeRaw(candidate ?? "light");
+      setInitialized(true);
     })();
     return () => {
       mounted = false;
@@ -52,24 +69,43 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (typeof document === "undefined" || typeof window === "undefined") return;
     const root = document.documentElement;
+    root.classList.toggle("light", theme === "light");
     root.classList.toggle("dark", theme === "dark");
     root.style.colorScheme = theme;
-    try {
-      if (typeof localStorage !== "undefined") {
-        // Versioned key following client-localstorage-schema: version + minimize
-        localStorage.setItem("ghostinit-theme-v1", JSON.stringify({ v: 1, theme }));
-        localStorage.setItem("ghostinit-theme", theme); // legacy compat
-      }
-      const bridge = window.desktopBridge;
-      bridge
-        .getClientSettings()
-        .then((previous) => bridge.setClientSettings({ ...previous, theme }))
-        .catch(() => bridge.setClientSettings({ theme }));
-    } catch {}
   }, [theme]);
 
-  const setTheme = React.useCallback((t: Theme) => setThemeRaw(t), []);
-  const toggle = React.useCallback(() => setThemeRaw((p) => (p === "dark" ? "light" : "dark")), []);
+  React.useEffect(() => {
+    if (!initialized || typeof window === "undefined") return;
+    let current = true;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("ghostinit-theme-v1", JSON.stringify({ v: 1, theme }));
+        localStorage.setItem("ghostinit-theme", theme);
+      }
+    } catch {}
+    // Keep bridge writes ordered so an older request cannot overwrite a newer choice.
+    pendingWrite.current = pendingWrite.current.then(async () => {
+      if (!current) return;
+      try {
+        const bridge = window.desktopBridge;
+        const previous = await bridge.getClientSettings();
+        if (!current) return;
+        await bridge.setClientSettings({ ...previous, theme });
+      } catch {
+        // A failed read must not replace unknown saved settings with a theme-only object.
+      }
+    });
+    return () => { current = false; };
+  }, [theme, initialized]);
+
+  const setTheme = React.useCallback((next: Theme) => {
+    userSelected.current = true;
+    setThemeRaw(next);
+  }, []);
+  const toggle = React.useCallback(() => {
+    userSelected.current = true;
+    setThemeRaw((previous) => (previous === "dark" ? "light" : "dark"));
+  }, []);
 
   return <ThemeContext.Provider value={{ theme, setTheme, toggle }}>{children}</ThemeContext.Provider>;
 }

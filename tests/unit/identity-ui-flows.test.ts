@@ -14,16 +14,19 @@ import {
   signUpFormContent,
   signUpPageContent,
   twoFactorPageContent,
+  twoFactorFormContent,
 } from "../../src/templates/apps/fragments/auth/index.js";
 import {
   forgotPasswordPageContent,
   resetPasswordPageContent,
+  resetPasswordFormContent,
 } from "../../src/templates/apps/fragments/recovery/index.js";
 import {
   settingsDangerZoneCardContent,
   settingsPasswordCardContent,
   settingsProfileCardContent,
   settingsSessionsCardContent,
+  settingsSessionsDataContent,
   settingsSessionsListContent,
   settingsTwoFactorCardContent,
   settingsTwoFactorHookContent,
@@ -36,16 +39,19 @@ import {
   signInPageSingle,
   signUpFormSingleContent,
   signUpPageSingle,
+  singleTwoFactorFormContent,
 } from "../../src/templates/modes/single/pages/auth.js";
 import {
   forgotPasswordPageSingle,
   resetPasswordPageSingle,
+  resetPasswordFormSingleContent,
 } from "../../src/templates/modes/single/pages/password.js";
 import {
   settingsDangerZoneCardSingle,
   settingsPasswordCardSingle,
   settingsProfileCardSingle,
   settingsSessionsCardSingle,
+  settingsSessionsDataSingle,
   settingsSessionsListSingle,
   settingsTwoFactorCardSingle,
   settingsTwoFactorHookSingle,
@@ -53,11 +59,13 @@ import {
 import {
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
+  singleResetPasswordFormTanstackContent,
   singleSignInFormTanstackContent,
   singleSignInRouteTanstackContent,
   singleSignUpFormTanstackContent,
   singleSignUpRouteTanstackContent,
   singleTwoFactorRouteTanstackContent,
+  singleTwoFactorFormTanstackContent,
 } from "../../src/templates/modes/single/tanstack/pages/auth.js";
 
 const tempRoot = path.join(process.cwd(), `.identity-ui-schema-${process.pid}`);
@@ -166,7 +174,11 @@ describe("generated identity forms and queries", () => {
         [signUpPageSingle(), signUpFormSingleContent()],
       ],
       [[forgotPasswordPageContent("next")], [forgotPasswordPageSingle()]],
-      [[resetPasswordPageContent("next")], [resetPasswordPageSingle()]],
+      [
+        [resetPasswordPageContent("next"), resetPasswordFormContent("next")],
+        [resetPasswordPageSingle(), resetPasswordFormSingleContent()],
+      ],
+      [[twoFactorFormContent("next")], [singleTwoFactorFormContent()]],
       [
         [signInPageContent("tanstack"), signInFormContent("tanstack")],
         [singleSignInRouteTanstackContent(), singleSignInFormTanstackContent()],
@@ -176,8 +188,14 @@ describe("generated identity forms and queries", () => {
         [singleSignUpRouteTanstackContent(), singleSignUpFormTanstackContent()],
       ],
       [[forgotPasswordPageContent("tanstack")], [singleForgotPasswordRouteTanstackContent()]],
-      [[resetPasswordPageContent("tanstack")], [singleResetPasswordRouteTanstackContent()]],
-      [[twoFactorPageContent("tanstack")], [singleTwoFactorRouteTanstackContent()]],
+      [
+        [resetPasswordPageContent("tanstack"), resetPasswordFormContent("tanstack")],
+        [singleResetPasswordRouteTanstackContent(), singleResetPasswordFormTanstackContent()],
+      ],
+      [
+        [twoFactorPageContent("tanstack"), twoFactorFormContent("tanstack")],
+        [singleTwoFactorRouteTanstackContent(), singleTwoFactorFormTanstackContent()],
+      ],
     ] as const;
     for (const [sharedFiles, singleFiles] of pairs) {
       expect(singleFiles).toEqual(sharedFiles);
@@ -201,6 +219,7 @@ describe("generated identity forms and queries", () => {
       [settingsTwoFactorCardContent(), settingsTwoFactorCardSingle()],
       [settingsTwoFactorHookContent(), settingsTwoFactorHookSingle()],
       [settingsSessionsCardContent(), settingsSessionsCardSingle()],
+      [settingsSessionsDataContent(), settingsSessionsDataSingle()],
       [settingsSessionsListContent(), settingsSessionsListSingle()],
       [settingsDangerZoneCardContent(), settingsDangerZoneCardSingle()],
     ] as const;
@@ -237,8 +256,8 @@ describe("generated identity forms and queries", () => {
       .filter(({ path }) => path.endsWith("/queries.ts") || path.endsWith("/mutations.ts"))
       .map(({ content }) => content)
       .join("\n");
-    for (const source of [settingsSessionsCardContent(), tanstackSessions ?? ""]) {
-      expect(source).toContain("orpc.identity.sessions.list.queryOptions({ input: {}");
+    for (const source of [settingsSessionsDataContent(), tanstackSessions ?? ""]) {
+      expect(source).toMatch(/orpc\.identity\.sessions\.list\.queryOptions\(\{\s*input: \{\}/);
       expect(source).toContain('orpc.identity.sessions.list.key({ type: "query" })');
       expect(source).toContain("orpc.identity.sessions.revoke.mutationOptions");
       expect(source).toContain("orpc.identity.sessions.revokeOthers.mutationOptions");

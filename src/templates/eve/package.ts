@@ -18,8 +18,8 @@ export function evePackageJson(projectName: string, isBun: boolean): TemplateFil
         imports: { "#*": "./agent/*", "#evals/*": "./evals/*" },
         scripts: {
           build: "eve build",
-          "dev:diagnostic": "eve dev",
-          "start:diagnostic": "eve start",
+          "dev:diagnostic": "node ../../scripts/eve-dev.mjs",
+          "start:diagnostic": "node .output/server/index.mjs",
           typecheck: "tsc --noEmit",
           test: "bun test",
           lint: "oxlint --deny-warnings .",
@@ -36,6 +36,7 @@ export function evePackageJson(projectName: string, isBun: boolean): TemplateFil
           "@vercel/connect": v.eve["@vercel/connect"],
           ai: v.eve.ai,
           eve: v.eve.eve,
+          "just-bash": v.eve["just-bash"],
           zod: v.validation.zod,
         },
         devDependencies: {

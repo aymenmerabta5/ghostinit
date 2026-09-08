@@ -3,7 +3,8 @@ import { packageJson } from "../../shared.js";
 import * as v from "../../versions.js";
 import type { BillingProviderName } from "../../../lib/addons.js";
 import { jobsAdapterIntegrationGuide } from "../../adapters/jobs/index.js";
-import { nodeEngineSelector, typescriptRuntimeCommand } from "../../root/deploy.js";
+import { nodeEngineSelector } from "../../root/deploy.js";
+import { customNextServerCommand, nextRuntimeCommand } from "../../root/next-server-runtime.js";
 import {
   OPENNEXT_AWS_WINDOWS_PATCH_KEY,
   OPENNEXT_AWS_WINDOWS_PATCH_PATH,
@@ -11,10 +12,6 @@ import {
 
 const LINT_ALL =
   "bun run lint && bun run lint:architecture && bun run lint:rtl && bun run lint:animations && bun run lint:server-only && bun run typecheck";
-
-function nextRuntimeCommand(runtime: "node" | "bun", command: "dev" | "build" | "start"): string {
-  return runtime === "bun" ? `bun ./node_modules/next/dist/bin/next ${command}` : `next ${command}`;
-}
 
 function drizzleScript(runtime: "node" | "bun", command: "generate" | "migrate" | "push"): string {
   return runtime === "bun"
@@ -32,8 +29,10 @@ function wireBackendProcessScripts(
   framework: "nextjs" | "tanstack-start",
 ): void {
   if (framework === "nextjs" && hasMessaging && !isConvex) {
-    scripts.dev = typescriptRuntimeCommand(runtime, "server.ts");
-    scripts.start = typescriptRuntimeCommand(runtime, "server.ts");
+    scripts.dev = customNextServerCommand(runtime, "dev");
+    scripts.start = customNextServerCommand(runtime, "start");
+    scripts["build:server"] = customNextServerCommand(runtime, "build");
+    scripts.build = `bun run build:server && ${scripts.build}`;
   }
   const database = isConvex ? "convex" : "postgres";
   if (hasJobs) {
@@ -125,6 +124,10 @@ function buildDeps(
         "server-only": `^${v.runtime["server-only"]}`,
       };
 
+  deps["@fontsource-variable/geist"] = v.ui["@fontsource-variable/geist"];
+  deps["@fontsource-variable/geist-mono"] = v.ui["@fontsource-variable/geist-mono"];
+  deps["@fontsource-variable/noto-sans-arabic"] = v.ui["@fontsource-variable/noto-sans-arabic"];
+
   if (hasApi) {
     deps["@orpc/server"] = `^${v.orpc["@orpc/server"]}`;
     deps["@orpc/contract"] = `^${v.orpc["@orpc/contract"]}`;
@@ -137,7 +140,10 @@ function buildDeps(
     deps["posthog-js"] = `^${v.analytics["posthog-js"]}`;
     deps["posthog-node"] = `^${v.analytics["posthog-node"]}`;
   }
-  if (hasAuth && !isConvex) deps["@better-auth/passkey"] = `^${v.auth["@better-auth/passkey"]}`;
+  if (hasAuth && !isConvex) {
+    deps["@better-auth/core"] = `^${v.auth["@better-auth/core"]}`;
+    deps["@better-auth/passkey"] = `^${v.auth["@better-auth/passkey"]}`;
+  }
 
   if (hasEmail) {
     deps["react-email"] = `^${v.email["react-email"]}`;
@@ -156,6 +162,7 @@ function buildDeps(
   }
   if (hasEve) {
     deps.eve = `^${v.eve.eve}`;
+    deps["just-bash"] = v.eve["just-bash"];
     deps.ai = `^${v.eve.ai}`;
     deps["@vercel/connect"] = `^${v.eve["@vercel/connect"]}`;
   }
@@ -186,14 +193,15 @@ export function singlePackageJson(
   isNone = false,
   hasStorage = false,
   hasCloudflare = false,
+  hasPdf = false,
 ): string {
   const lintAll =
     "oxlint --deny-warnings . && bun scripts/check-import-aliases.cjs && bun scripts/check-next-parity.cjs && bun scripts/check-navigation-imports.cjs";
   const scripts: Record<string, string> = isConvex
     ? {
-        dev: nextRuntimeCommand(runtime, "dev"),
-        build: nextRuntimeCommand(runtime, "build"),
-        start: nextRuntimeCommand(runtime, "start"),
+        dev: nextRuntimeCommand(runtime, "dev", hasPdf),
+        build: nextRuntimeCommand(runtime, "build", hasPdf),
+        start: nextRuntimeCommand(runtime, "start", hasPdf),
         typecheck: "tsc --noEmit",
         test: "bun test",
         lint: lintAll,
@@ -212,9 +220,9 @@ export function singlePackageJson(
         "convex:codegen": "convex codegen",
       }
     : {
-        dev: nextRuntimeCommand(runtime, "dev"),
-        build: nextRuntimeCommand(runtime, "build"),
-        start: nextRuntimeCommand(runtime, "start"),
+        dev: nextRuntimeCommand(runtime, "dev", hasPdf),
+        build: nextRuntimeCommand(runtime, "build", hasPdf),
+        start: nextRuntimeCommand(runtime, "start", hasPdf),
         typecheck: "tsc --noEmit",
         test: "bun test",
         lint: lintAll,
@@ -249,13 +257,15 @@ export function singlePackageJson(
   );
   if (hasEve) {
     const webStart = scripts.start;
+    scripts["dev:web"] = scripts.dev;
+    scripts.dev = "bun scripts/start-development.mjs";
     scripts["build:web"] = scripts.build;
     scripts.build = "bun scripts/build-with-eve.mjs";
     scripts["eve:build"] = "eve build";
-    scripts["eve:dev"] = "eve dev";
-    scripts["eve:start"] = "eve start";
+    scripts["eve:dev"] = "node scripts/eve-dev.mjs";
+    scripts["eve:start"] = "node .output/server/index.mjs";
     scripts["start:web"] = webStart;
-    scripts["start:eve"] = "bun .output/server/index.mjs";
+    scripts["start:eve"] = "node .output/server/index.mjs";
     scripts["start:production"] = "bun scripts/start-production.mjs";
     scripts.start = "bun --env-file=.env.local run start:production";
   }
@@ -289,7 +299,7 @@ export function singlePackageJson(
     type: "module",
     engines: {
       bun: v.runtime.bun,
-      ...(runtime === "node" ? { node: nodeEngineSelector() } : {}),
+      ...(runtime === "node" || hasEve ? { node: nodeEngineSelector() } : {}),
     },
     packageManager: `bun@${v.runtime.bun}`,
     scripts,
@@ -310,7 +320,7 @@ export function singlePackageJson(
       "bun-types": `^${v.runtime.bun}`,
       // Next 16.3 uses this package-local TS7 tsc CLI. Generated lint checks use
       // oxc-parser rather than TypeScript's removed JavaScript compiler API.
-      typescript: `^${v.typescript.typescriptNext}`,
+      typescript: `^${v.typescript.typescript}`,
       "@types/node": `^${v.runtime["@types/node"]}`,
       "@types/react": `^${v.nextStack["@types/react"]}`,
       "@types/react-dom": `^${v.nextStack["@types/react-dom"]}`,
@@ -417,7 +427,7 @@ export function singlePackageJsonTanstack(
     scripts["build:web"] = scripts.build;
     scripts.build = "bun scripts/build-with-eve.mjs";
     scripts["eve:build"] = "bun scripts/eve-command.mjs build";
-    scripts["eve:dev"] = "bun scripts/eve-command.mjs dev";
+    scripts["eve:dev"] = "node scripts/eve-dev.mjs";
     scripts["eve:start"] = "bun scripts/eve-command.mjs start";
     scripts["start:web"] = webStart;
     scripts["start:eve"] = "bun scripts/eve-command.mjs start";
@@ -449,7 +459,7 @@ export function singlePackageJsonTanstack(
     type: "module",
     engines: {
       bun: v.runtime.bun,
-      ...(runtime === "node" ? { node: nodeEngineSelector() } : {}),
+      ...(runtime === "node" || hasEve ? { node: nodeEngineSelector() } : {}),
     },
     packageManager: `bun@${v.runtime.bun}`,
     scripts,
@@ -596,6 +606,7 @@ export function singlePackageJsonExpo(
   }
   if (hasEve) {
     deps.eve = `^${v.eve.eve}`;
+    deps["just-bash"] = v.eve["just-bash"];
     deps.ai = `^${v.eve.ai}`;
     deps["@vercel/connect"] = `^${v.eve["@vercel/connect"]}`;
   }

@@ -8,6 +8,7 @@ export function signUpPageContent(router: RouterType): string {
 import type * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SignUpForm } from "@/components/auth/sign-up-form";
+import { ArrowLeft } from "lucide-react";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export const Route = createFileRoute("/sign-up")({ component: SignUpPage });`
@@ -15,14 +16,15 @@ export const Route = createFileRoute("/sign-up")({ component: SignUpPage });`
 import type * as React from "react";
 import Link from "next/link";
 import { SignUpForm } from "@/components/auth/sign-up-form";
+import { ArrowLeft } from "lucide-react";
 import { useSurfaceTranslations } from "@/lib/translations";`;
   const backLink = isTanstack
     ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <span aria-hidden className="inline-block rtl:rotate-180">←</span>
+          <ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />
           <span>{t("signUp.backHome")}</span>
         </Link>`
     : `<Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <span aria-hidden className="inline-block rtl:rotate-180">←</span>
+          <ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />
           <span>{t("signUp.backHome")}</span>
         </Link>`;
 
@@ -31,11 +33,11 @@ import { useSurfaceTranslations } from "@/lib/translations";`;
 ${isTanstack ? "function" : "export default function"} SignUpPage(): React.JSX.Element {
   const t = useSurfaceTranslations("auth");
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="flex w-full max-w-[420px] flex-col gap-6">
+    <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14">
+      <div className="flex w-full max-w-[440px] flex-col gap-8">
         ${backLink}
         <SignUpForm />
-        <p className="mx-auto max-w-[65ch] text-center text-xs text-muted-foreground">{t("signUp.termsPrefix")} {t("signUp.securityNote")}</p>
+        <p className="mx-auto max-w-[48ch] text-center text-xs leading-5 text-muted-foreground">{t("signUp.termsPrefix")} {t("signUp.securityNote")}</p>
       </div>
     </main>
   );
@@ -78,16 +80,16 @@ export function SignUpForm(): React.JSX.Element {
   }
 
   return (
-    <Card>
-      <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
-        <CardDescription className="max-w-[60ch]">Password signup is disabled because the email capability is not selected. Use a configured OAuth provider.</CardDescription>
+    <Card className="border-0 bg-transparent p-0 shadow-none">
+      <CardHeader className="gap-2 p-0 pb-6 sm:p-0 sm:pb-6">
+        <CardTitle as="h1" className="text-3xl tracking-tight">{t("signUp.title")}</CardTitle>
+        <CardDescription className="max-w-[60ch]">{t("signUp.emailDisabled")}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+      <CardContent className="flex flex-col gap-6 p-0 sm:p-0">
         {error ? <Alert variant="destructive"><AlertTitle>{t("signUp.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <AuthOAuthButtons googleLabel={t("signUp.oauthGoogle")} githubLabel={t("signUp.oauthGitHub")} separatorLabel={t("signUp.or")} onSelect={signUpWithOAuth} />
       </CardContent>
-      <CardFooter className="justify-center text-sm">${signInLink}</CardFooter>
+      <CardFooter className="mt-6 justify-center border-t border-border/70 p-0 pt-5 text-sm sm:p-0 sm:pt-5">${signInLink}</CardFooter>
     </Card>
   );
 }
@@ -101,8 +103,8 @@ import { useRouter } from "next/navigation";`;
     ? "  const navigate = useNavigate();"
     : "  const router = useRouter();";
   const navigate = isTanstack
-    ? `    void navigate({ to: "/dashboard" });`
-    : `    router.push("/dashboard");`;
+    ? `      await navigate({ to: destination });`
+    : `      router.push(destination);`;
   const signInLink = isTanstack
     ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signUp.signInPrompt")} {t("signUp.signInLink")}</Link>`
     : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("signUp.signInPrompt")} {t("signUp.signInLink")}</Link>`;
@@ -143,6 +145,7 @@ ${routerHook}
         setError(t("signUp.genericError"));
         return;
       }
+      const destination = result.data?.token ? "/dashboard" : "/verify-email";
 ${navigate}
     },
   });
@@ -158,12 +161,12 @@ ${navigate}
   }
 
   return (
-    <Card>
-      <CardHeader className="gap-2">
-        <CardTitle className="text-2xl tracking-tight">{t("signUp.title")}</CardTitle>
+    <Card className="border-0 bg-transparent p-0 shadow-none">
+      <CardHeader className="gap-2 p-0 pb-6 sm:p-0 sm:pb-6">
+        <CardTitle as="h1" className="text-3xl tracking-tight">{t("signUp.title")}</CardTitle>
         <CardDescription className="max-w-[60ch]">{t("signUp.description")}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-6">
+      <CardContent className="flex flex-col gap-6 p-0 sm:p-0">
         {error ? <Alert variant="destructive"><AlertTitle>{t("signUp.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <AuthOAuthButtons
           googleLabel={t("signUp.oauthGoogle")}
@@ -184,11 +187,11 @@ ${navigate}
                 {(field) => <field.PasswordField label={t("signUp.passwordLabel")} description={t("signUp.passwordDescription")} autoComplete="new-password" required minLength={8} maxLength={64} />}
               </form.AppField>
             </FieldGroup>
-            <form.SubmitButton className="w-full" pendingLabel={t("signUp.submitting")}>{t("signUp.submit")}</form.SubmitButton>
+            <form.SubmitButton className="h-10 w-full" pendingLabel={t("signUp.submitting")}>{t("signUp.submit")}</form.SubmitButton>
           </Form>
         </form.AppForm>
       </CardContent>
-      <CardFooter className="flex-col gap-3"><div className="flex w-full justify-center text-sm">${signInLink}</div></CardFooter>
+      <CardFooter className="mt-6 flex-col gap-3 border-t border-border/70 p-0 pt-5 sm:p-0 sm:pt-5"><div className="flex w-full flex-wrap justify-center gap-3 text-sm">${signInLink}</div></CardFooter>
     </Card>
   );
 }

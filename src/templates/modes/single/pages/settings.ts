@@ -5,9 +5,12 @@ import {
   settingsPageContent,
   settingsPasskeyCardContent,
   settingsPasskeyListContent,
+  settingsPasskeyDataContent,
+  settingsPasskeyManagementContent,
   settingsPasswordCardContent,
   settingsProfileCardContent,
   settingsSessionsCardContent,
+  settingsSessionsDataContent,
   settingsSessionsListContent,
   settingsTwoFactorCardContent,
   settingsTwoFactorHookContent,
@@ -21,12 +24,12 @@ export function useSettingsHookSingle(): string {
   return settingsHookContent();
 }
 
-export function settingsProfileCardSingle(useServerActions = false): string {
-  return settingsProfileCardContent(useServerActions);
+export function settingsProfileCardSingle(): string {
+  return settingsProfileCardContent();
 }
 
-export function settingsPasswordCardSingle(useServerActions = false): string {
-  return settingsPasswordCardContent(useServerActions);
+export function settingsPasswordCardSingle(): string {
+  return settingsPasswordCardContent();
 }
 
 export function settingsPasskeyCardSingle(): string {
@@ -37,6 +40,14 @@ export function settingsPasskeyListSingle(): string {
   return settingsPasskeyListContent();
 }
 
+export function settingsPasskeyDataSingle(): string {
+  return settingsPasskeyDataContent();
+}
+
+export function settingsPasskeyManagementSingle(): string {
+  return settingsPasskeyManagementContent();
+}
+
 export function settingsTwoFactorCardSingle(): string {
   return settingsTwoFactorCardContent();
 }
@@ -45,16 +56,20 @@ export function settingsTwoFactorHookSingle(): string {
   return settingsTwoFactorHookContent();
 }
 
-export function settingsSessionsCardSingle(useServerActions = false): string {
-  return settingsSessionsCardContent(useServerActions);
+export function settingsSessionsCardSingle(): string {
+  return settingsSessionsCardContent();
+}
+
+export function settingsSessionsDataSingle(useServerActions = false): string {
+  return settingsSessionsDataContent(useServerActions);
 }
 
 export function settingsSessionsListSingle(): string {
   return settingsSessionsListContent();
 }
 
-export function settingsDangerZoneCardSingle(hasEmail = true, useServerActions = false): string {
-  return settingsDangerZoneCardContent(hasEmail, useServerActions);
+export function settingsDangerZoneCardSingle(hasEmail = true): string {
+  return settingsDangerZoneCardContent(hasEmail);
 }
 
 export function settingsPageSingleContent(

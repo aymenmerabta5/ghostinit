@@ -1,6 +1,10 @@
 import { lstatSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
+export const PACKED_PATCHED_DEPENDENCIES = {
+  "@electric-sql/pglite-socket@0.2.10": "patches/@electric-sql%2Fpglite-socket@0.2.10.patch",
+} as const;
+
 /** `package.json#files` is a release contract, not an open-ended pack list. */
 export const PACKED_MANIFEST_FILES = [
   "dist/**/*",
@@ -9,6 +13,7 @@ export const PACKED_MANIFEST_FILES = [
   "policy/**/*",
   "evidence/compatibility/**/*",
   "docs/engineering/**/*",
+  ...Object.values(PACKED_PATCHED_DEPENDENCIES),
   "README.md",
   "VISION.md",
   "CHANGELOG.md",
@@ -21,6 +26,7 @@ const PACKED_ROOT_FILES = new Set([
   "VISION.md",
   "CHANGELOG.md",
   "LICENSE",
+  ...Object.values(PACKED_PATCHED_DEPENDENCIES),
 ]);
 const PACKED_PREFIXES = [
   "dist/",
@@ -106,12 +112,24 @@ export function verifyDistClosure(
 export function verifyPackedPackageClosure(packageRoot: string): PackedClosure {
   const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
     files?: unknown;
+    patchedDependencies?: unknown;
   };
   if (JSON.stringify(manifest.files) !== JSON.stringify(PACKED_MANIFEST_FILES)) {
     throw new Error("Packed package manifest files allowlist does not match the release contract");
   }
+  if (
+    JSON.stringify(manifest.patchedDependencies) !== JSON.stringify(PACKED_PATCHED_DEPENDENCIES)
+  ) {
+    throw new Error("Packed package patch metadata does not match the release contract");
+  }
 
   const files = relativeFiles(packageRoot);
+  const missingPatches = Object.values(PACKED_PATCHED_DEPENDENCIES).filter(
+    (path) => !files.includes(path),
+  );
+  if (missingPatches.length > 0) {
+    throw new Error(`Packed package is missing declared patch files: ${missingPatches.join(", ")}`);
+  }
   const unexpected = files.filter(
     (path) =>
       !PACKED_ROOT_FILES.has(path) && !PACKED_PREFIXES.some((prefix) => path.startsWith(prefix)),

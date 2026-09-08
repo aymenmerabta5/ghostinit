@@ -654,7 +654,7 @@ export function FormSection({
   title,
 }: FormSectionProps): React.JSX.Element {
   return (
-    <FieldSet className={cn("rounded-lg border p-4", className)}>
+    <FieldSet className={cn("gap-5 border-t border-border pt-5", className)}>
       {title ? <FieldLegend>{title}</FieldLegend> : null}
       {description ? <FieldDescription>{description}</FieldDescription> : null}
       <FieldGroup className="gap-4">{children}</FieldGroup>

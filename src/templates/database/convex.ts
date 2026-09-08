@@ -10,6 +10,7 @@ import { convexUsersContent } from "./convex/users.js";
 import { convexBillingContent } from "./convex/billing.js";
 import { convexBillingServerContent } from "./convex/billing-server.js";
 import { convexGeneratedBootstrapFiles } from "./convex/generated.js";
+import { convexTypeScriptConfigFile } from "./convex/config.js";
 import * as v from "../versions.js";
 import type { ProjectMode } from "../../lib/addons.js";
 
@@ -306,6 +307,7 @@ export function convexDatabaseFiles(
     ...(hasBilling ? [file("convex/billing.ts", billingContent)] : []),
     ...(hasBilling ? [file("convex/billingServer.ts", convexBillingServerContent())] : []),
     ...convexGeneratedBootstrapFiles(),
+    convexTypeScriptConfigFile(),
     file("convex.json", `${convexJsonContent}\n`),
     file("packages/database/package.json", pkgJson),
     file("packages/database/tsconfig.json", tsconfigContent),

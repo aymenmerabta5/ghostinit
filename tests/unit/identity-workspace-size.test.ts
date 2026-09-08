@@ -8,9 +8,14 @@ type Framework = "nextjs" | "tanstack-start";
 type Mode = "monorepo" | "single";
 
 const FEATURE_FILES = [
+  "access.ts",
+  "permissions.ts",
   "components/invitations-card.tsx",
   "components/invitation-row.tsx",
   "components/members-card.tsx",
+  "components/member-identity.tsx",
+  "components/member-row.tsx",
+  "components/team-members.tsx",
   "components/organizations-card.tsx",
   "components/teams-card.tsx",
   "controller.ts",

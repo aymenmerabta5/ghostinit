@@ -62,6 +62,19 @@ function contrastRatio(first: readonly number[], second: readonly number[]): num
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function emittedColor(theme: string, appearance: "light" | "dark", token: string) {
+  const block = new RegExp(`(?:^|\\n)\\.${appearance} \\{([^}]+)\\}`).exec(theme)?.[1];
+  expect(block, `missing ${appearance} theme block`).toBeDefined();
+  const values = [...(block ?? "").matchAll(new RegExp(`--${token}: oklch\\(([^)]+)\\);`, "g"))];
+  expect(values, `${appearance} --${token} must be declared exactly once`).toHaveLength(1);
+  const value = values[0]?.[1] ?? "";
+  expect(value, `${appearance} --${token} must be opaque numeric OKLCH`).toMatch(
+    /^\d*\.?\d+ \d*\.?\d+ \d*\.?\d+$/,
+  );
+  const [lightness, chroma, hue] = value.split(" ").map(Number);
+  return [lightness, chroma, hue] as const;
+}
+
 describe("generated desktop and Expo accessibility contract", () => {
   test("Expo identity feedback uses the shared React Native Reusables alert", () => {
     const files = generated("monorepo", "mobile");
@@ -162,8 +175,15 @@ describe("generated desktop and Expo accessibility contract", () => {
       const input = source(files, `${componentRoot}/input.tsx`);
       const field = source(files, `${componentRoot}/field.tsx`);
       expect(button).toContain("@base-ui/react/button");
-      expect(button).toContain("min-h-9");
+      expect(button).toContain('default: "h-10 px-4 py-2"');
+      expect(button).toContain('sm: "h-9 px-3 text-sm"');
+      expect(button).toContain('icon: "size-10 p-0"');
       expect(button).toContain("motion-reduce:transition-none");
+      expect(button).toContain("aria-busy={loading || undefined}");
+      expect(button).toContain("disabled={disabled || loading}");
+      expect(input).toContain("h-10");
+      expect(input).toContain("bg-card");
+      expect(input).toContain("shadow-control");
       expect(input).toContain("focus-visible:ring-2");
       expect(input).toContain("aria-[invalid=true]:border-destructive");
       expect(field).toContain('aria-live="polite"');
@@ -242,39 +262,65 @@ describe("generated desktop and Expo accessibility contract", () => {
   });
 
   test("shared OKLCH text and action pairs meet WCAG AA in light and dark themes", () => {
-    const files = generated("single", "mobile");
-    const theme = source(files, "src/platform/ui/styles/theme.css");
-    expect(theme).not.toMatch(/#(?:000|fff)\b/i);
-    expect(theme).not.toMatch(/oklch\((?:0|1) 0 0\)/);
-
-    const pairs = [
-      [
-        [0.98, 0.005, 264],
-        [0.09, 0.01, 264],
-      ],
-      [
-        [0.65, 0.015, 264],
-        [0.18, 0.01, 264],
-      ],
-      [
-        [0.65, 0.22, 264],
-        [0.12, 0.02, 264],
-      ],
-      [
-        [0.14, 0.01, 264],
-        [0.99, 0.005, 264],
-      ],
-      [
-        [0.5, 0.015, 264],
-        [0.95, 0.01, 264],
-      ],
-      [
-        [0.55, 0.22, 264],
-        [0.99, 0.005, 264],
-      ],
+    const textPairs = [
+      ["foreground", "background"],
+      ["card-foreground", "card"],
+      ["popover-foreground", "popover"],
+      ["muted-foreground", "background"],
+      ["muted-foreground", "card"],
+      ["muted-foreground", "muted"],
+      ["muted-foreground", "popover"],
+      ["primary-foreground", "primary"],
+      ["secondary-foreground", "secondary"],
+      ["accent-foreground", "accent"],
+      ["destructive-foreground", "destructive"],
+      ["destructive", "card"],
+      ["success", "card"],
+      ["warning", "card"],
+      ["code-foreground", "code"],
+      ["sidebar-foreground", "sidebar"],
+      ["sidebar-primary-foreground", "sidebar-primary"],
+      ["sidebar-accent-foreground", "sidebar-accent"],
     ] as const;
-    for (const [foreground, background] of pairs) {
-      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    const boundaryPairs = [
+      ["input", "card"],
+      ["ring", "background"],
+      ["ring", "card"],
+      ["ring", "popover"],
+      ["sidebar-ring", "sidebar"],
+    ] as const;
+    for (const mode of ["monorepo", "single"] as const) {
+      for (const platform of ["desktop", "mobile"] as const) {
+        const files = generated(mode, platform);
+        const theme = source(
+          files,
+          mode === "monorepo"
+            ? "packages/ui/src/styles/theme.css"
+            : "src/platform/ui/styles/theme.css",
+        );
+        expect(theme).not.toMatch(/#(?:000|fff)\b/i);
+        expect(theme).not.toMatch(/oklch\((?:0|1) 0 0\)/);
+        for (const appearance of ["light", "dark"] as const) {
+          for (const [foreground, background] of textPairs) {
+            expect(
+              contrastRatio(
+                emittedColor(theme, appearance, foreground),
+                emittedColor(theme, appearance, background),
+              ),
+              `${mode}/${platform}/${appearance}: ${foreground} on ${background}`,
+            ).toBeGreaterThanOrEqual(4.5);
+          }
+          for (const [boundary, background] of boundaryPairs) {
+            expect(
+              contrastRatio(
+                emittedColor(theme, appearance, boundary),
+                emittedColor(theme, appearance, background),
+              ),
+              `${mode}/${platform}/${appearance}: ${boundary} against ${background}`,
+            ).toBeGreaterThanOrEqual(3);
+          }
+        }
+      }
     }
   });
 });

@@ -14,7 +14,8 @@ import {
   eveLifecycleCallbackFile,
   eveLifecycleCallbackRouteFile,
 } from "./lifecycle.js";
-import { tanstackEveAgentHeaderFile, tanstackEveAgentPageFile } from "./page.js";
+import { tanstackEveAgentPageFile } from "./page.js";
+import { agentComponentFiles } from "../../apps/fragments/agent/components.js";
 import { eveFacadePolicyFile } from "./policy.js";
 import {
   postgresEveActorFile,
@@ -232,9 +233,8 @@ export function integrateEveSecurityFiles(
     ...eveFacadeRouteFiles(options.mode, options.framework),
     eveLifecycleCallbackRouteFile(options.mode, options.framework),
     eveAdmissionLifecycleHookFile(options.mode),
-    ...(options.framework === "tanstack-start"
-      ? [tanstackEveAgentPageFile(options.mode), tanstackEveAgentHeaderFile(options.mode)]
-      : []),
+    ...agentComponentFiles(options.mode),
+    ...(options.framework === "tanstack-start" ? [tanstackEveAgentPageFile(options.mode)] : []),
     ...persistentFiles,
   ]);
 

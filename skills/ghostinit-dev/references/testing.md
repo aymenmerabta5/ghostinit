@@ -112,7 +112,7 @@ Build script verifies real d.ts >10 bytes not fake `export {}` stub via declarat
 ## Fixtures Deep
 
 - `bun.lock` per fixture isolated via host `bunfig.toml` `linker=isolated,hoist=false` hermetic vs generated hoist=true.
-- All three fixture manifests target the canonical `runtime.bun` version. The Next fixture pins TypeScript 6.0.3 because Next 16 requires the JavaScript compiler API; the Drizzle/oRPC and Expo fixtures retain TypeScript 7.0.2 coverage. The fixture runner enforces Bun, frozen-installs each manifest, and invokes every fixture's typecheck script.
+- All three fixture manifests target the canonical `runtime.bun` version. The compatibility fixtures deliberately differ from emitted apps: the Next fixture retains a TS6 baseline, while Drizzle/oRPC and Expo fixtures cover TS7. Generated Next apps use the TS7 CLI; generated TanStack, shared tooling, and Expo use the TS6 JavaScript compiler API. Read each fixture manifest when changing compiler coverage. The fixture runner enforces Bun, frozen-installs each manifest, and invokes every fixture's typecheck script.
 - oRPC uses one lockstep catalog line; `@orpc/next` is omitted because its latest 1.14.11 was an accidental deprecated v2 publish, so GhostInit uses pure RPCHandler route handlers instead.
 
 ## Troubleshooting Tests
@@ -122,5 +122,5 @@ Build script verifies real d.ts >10 bytes not fake `export {}` stub via declarat
 - Architecture checker finds violations after template change → fix template imports not checker (checker mirrors intended layer model). If model intentionally changed, update checker `getLayerFromFilePath` + `getLayerFromImport` + docs + AGENTS.md same PR.
 - Secret detection false positive → check SECRET_SUBSTRINGS superset maybe word contains `key` substring unavoidable (monkey) → adjust detection logic or rename var.
 - Billing parser forward-compat: `parseBillingInput("stripe,unknown")` should not throw → ["stripe"], `parseBillingInput("unknown")` must throw ValidationError.
-- Sync drift unrelated to your change → `ghostinit sync` to regenerate, or `--force` + `--dry-run` preview.
-- Lock active on status → `.ghostinit/lock` leftover after crash, rm manually or --force.
+- Sync drift unrelated to your change → inspect `ghostinit sync --dry-run` before regenerating. Preserve user edits; `--force` cannot override managed-file hash conflicts.
+- Lock active on status → `.ghostinit.lock` exists. Inspect its renewable lease/owner, allow stale recovery, or stop the known writer before explicit `--force` takeover; never delete an active lease manually.

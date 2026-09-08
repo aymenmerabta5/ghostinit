@@ -1,0 +1,44 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "next-settings-session-ownership",
+  "role": "implementer",
+  "recordedOn": "2026-09-07",
+  "changedGlobs": [
+    "src/templates/apps/fragments/settings/sessions-card.ts",
+    "src/templates/apps/fragments/settings/sessions-data.ts",
+    "src/templates/apps/fragments/settings/index.ts",
+    "src/templates/modes/single/pages/settings.ts",
+    "src/templates/modes/single/composers/next.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "02e2e78397e32ae86687bebf458254dadd126ea20296c63871bf97e2377d98c4"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#ownership-and-composition"],
+    "evidence": [
+      "tests/unit/settings-dashboard-size.test.ts",
+      "tests/unit/identity-ui-flows.test.ts",
+      "tests/unit/tanstack-query-auth-boundary.test.ts",
+      "tests/unit/generation-matrix.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "ownership.data-adapter",
+    "composition.presentation-boundary",
+    "authentication.scoped-initial-data",
+    "structure.formatted-file-budget"
+  ],
+  "selectedComponentIds": ["surface.card", "feedback.alert", "status.badge", "action.button"],
+  "exceptionIds": []
+}

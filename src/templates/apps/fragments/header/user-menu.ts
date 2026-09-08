@@ -15,13 +15,12 @@ export function headerUserMenuContent(
       : 'import { useRouter } from "@tanstack/react-router";';
   const signOut =
     router === "next"
-      ? `    router.push("/");`
+      ? `    transitionQueryAuthScope(getQueryClient(), null);
+    router.push("/");
+    router.refresh();`
       : `    transitionQueryAuthScope(getQueryClient(), null);
     router.navigate({ to: "/" });`;
-  const queryResetImport =
-    router === "tanstack"
-      ? `import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";`
-      : "";
+  const queryResetImport = `import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";`;
   const billingDestination = !hasBilling
     ? ""
     : router === "next"
@@ -115,16 +114,18 @@ ${signOut}
         <Avatar className="size-8"><AvatarFallback className="text-xs">{getInitials(user)}</AvatarFallback></Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex flex-col gap-1">
-          <span className="truncate font-medium">{user?.name ?? t("fallbackUser")}</span>
-          <span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex flex-col gap-1">
+            <span className="truncate font-medium">{user?.name ?? t("fallbackUser")}</span>
+            <span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
 ${dropdownNav}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => void handleSignOut()}>{t("signOut")}</DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => void handleSignOut()}>{t("signOut")}</DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -20,7 +20,7 @@ export const TabsList = React.forwardRef<
     ref={ref}
     data-slot="tabs-list"
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      "inline-flex min-h-11 max-w-full items-center justify-center gap-1 rounded-lg border border-border bg-muted p-1 text-muted-foreground",
       className,
     )}
     {...props}
@@ -36,7 +36,7 @@ export const TabsTrigger = React.forwardRef<
     ref={ref}
     data-slot="tabs-trigger"
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-background data-[active]:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground",
+      "inline-flex min-h-9 items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[active]:bg-card data-[active]:text-foreground data-[active]:shadow-control data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-control",
       className,
     )}
     {...props}
@@ -52,7 +52,7 @@ export const TabsContent = React.forwardRef<
     ref={ref}
     data-slot="tabs-content"
     className={cn(
-      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      "mt-5 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       className,
     )}
     {...props}
@@ -83,7 +83,7 @@ export const DialogBackdrop = React.forwardRef<
     ref={ref}
     data-slot="dialog-overlay"
     className={cn(
-      "fixed inset-0 bg-foreground/40 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0",
+      "fixed inset-0 z-[var(--layer-overlay)] bg-scrim duration-150 data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 motion-reduce:animate-none!",
       className,
     )}
     {...props}
@@ -108,7 +108,7 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       data-slot="dialog-content"
       className={cn(
-        "fixed start-[50%] top-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 rtl:translate-x-[50%] data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 data-[closed]:slide-out-to-left-1/2 data-[closed]:slide-out-to-top-[48%] data-[open]:slide-in-from-left-1/2 data-[open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed start-[50%] top-[50%] z-[var(--layer-modal)] grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto rounded-xl border border-border bg-popover p-6 text-popover-foreground shadow-modal duration-150 rtl:translate-x-[50%] data-[open]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 motion-reduce:animate-none! sm:p-7",
         className,
       )}
       {...props}
@@ -117,7 +117,7 @@ export const DialogContent = React.forwardRef<
       {showCloseButton && (
         <BaseDialog.Close
           data-slot="dialog-close"
-          className="absolute end-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[open]:bg-accent data-[open]:text-muted-foreground"
+          className="absolute end-4 top-4 flex size-8 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none [&_svg]:size-4"
         >
           <X aria-hidden />
           <DialogCloseLabel />
@@ -129,12 +129,12 @@ export const DialogContent = React.forwardRef<
 DialogContent.displayName = "DialogContent";
 
 export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div data-slot="dialog-header" className={cn("flex flex-col gap-1.5 text-center sm:text-start", className)} {...props} />
+  <div data-slot="dialog-header" className={cn("flex flex-col gap-2 pe-6 text-start", className)} {...props} />
 );
 DialogHeader.displayName = "DialogHeader";
 
 export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div data-slot="dialog-footer" className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)} {...props} />
+  <div data-slot="dialog-footer" className={cn("flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end", className)} {...props} />
 );
 DialogFooter.displayName = "DialogFooter";
 
@@ -142,7 +142,7 @@ export const DialogTitle = React.forwardRef<
   HTMLHeadingElement,
   React.ComponentPropsWithoutRef<typeof BaseDialog.Title>
 >(({ className, ...props }, ref) => (
-  <BaseDialog.Title ref={ref} data-slot="dialog-title" className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props} />
+  <BaseDialog.Title ref={ref} data-slot="dialog-title" className={cn("text-xl font-semibold leading-snug tracking-tight", className)} {...props} />
 ));
 DialogTitle.displayName = "DialogTitle";
 
@@ -150,7 +150,7 @@ export const DialogDescription = React.forwardRef<
   HTMLParagraphElement,
   React.ComponentPropsWithoutRef<typeof BaseDialog.Description>
 >(({ className, ...props }, ref) => (
-  <BaseDialog.Description ref={ref} data-slot="dialog-description" className={cn("text-sm text-muted-foreground", className)} {...props} />
+  <BaseDialog.Description ref={ref} data-slot="dialog-description" className={cn("text-sm leading-6 text-muted-foreground", className)} {...props} />
 ));
 DialogDescription.displayName = "DialogDescription";
 `,
@@ -164,8 +164,8 @@ import { cn } from "../../lib/utils.js";
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div data-slot="table-container" className="relative w-full overflow-auto rounded-lg border">
-      <table ref={ref} data-slot="table" className={cn("w-full caption-bottom text-sm", className)} {...props} />
+    <div data-slot="table-container" className="relative w-full overflow-auto rounded-lg border border-border bg-card shadow-surface">
+      <table ref={ref} data-slot="table" className={cn("w-full caption-bottom text-sm leading-6", className)} {...props} />
     </div>
   ),
 );
@@ -173,7 +173,7 @@ Table.displayName = "Table";
 
 export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <thead ref={ref} data-slot="table-header" className={cn("[&_tr]:border-b", className)} {...props} />
+    <thead ref={ref} data-slot="table-header" className={cn("bg-muted/60 [&_tr]:border-b", className)} {...props} />
   ),
 );
 TableHeader.displayName = "TableHeader";
@@ -197,7 +197,7 @@ export const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttribut
     <tr
       ref={ref}
       data-slot="table-row"
-      className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)}
+      className={cn("border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-accent/60", className)}
       {...props}
     />
   ),
@@ -209,7 +209,7 @@ export const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttr
     <th
       ref={ref}
       data-slot="table-head"
-      className={cn("h-10 px-4 text-start align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pe-0 [&>[role=checkbox]]:translate-y-[2px]", className)}
+      className={cn("h-11 whitespace-nowrap px-5 text-start align-middle text-xs font-semibold text-muted-foreground [&:has([role=checkbox])]:pe-0", className)}
       {...props}
     />
   ),
@@ -218,7 +218,7 @@ TableHead.displayName = "TableHead";
 
 export const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} data-slot="table-cell" className={cn("p-4 align-middle [&:has([role=checkbox])]:pe-0 [&>[role=checkbox]]:translate-y-[2px]", className)} {...props} />
+    <td ref={ref} data-slot="table-cell" className={cn("px-5 py-4 align-middle [&:has([role=checkbox])]:pe-0", className)} {...props} />
   ),
 );
 TableCell.displayName = "TableCell";
