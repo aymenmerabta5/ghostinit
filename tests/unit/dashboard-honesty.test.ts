@@ -102,16 +102,24 @@ describe("generated dashboard operational honesty", () => {
             AR_MESSAGES.dashboard,
           ]) {
             const header = text(
-              render(read(files, `${root}/dashboard-header.tsx`), "DashboardHeader", catalog),
+              render(
+                read(files, `${root}/components/dashboard-header.tsx`),
+                "DashboardHeader",
+                catalog,
+              ),
             );
             const architecture = text(
-              render(read(files, `${root}/architecture-card.tsx`), "ArchitectureCard", catalog),
+              render(
+                read(files, `${root}/components/architecture-card.tsx`),
+                "ArchitectureCard",
+                catalog,
+              ),
             );
             const checks = text(
-              render(read(files, `${root}/checks-card.tsx`), "ChecksCard", catalog),
+              render(read(files, `${root}/components/checks-card.tsx`), "ChecksCard", catalog),
             );
             const modules = text(
-              render(read(files, `${root}/modules-card.tsx`), "ModulesCard", catalog),
+              render(read(files, `${root}/components/modules-card.tsx`), "ModulesCard", catalog),
             );
             expect(`${header} ${architecture} ${checks} ${modules}`).not.toMatch(
               /\bPASS\b|\bRÉUSSI\b|ناجح|system live|système opérationnel|النظام يعمل|environment: local|0 blockers|0 highs|3 mediums/,
@@ -167,7 +175,7 @@ describe("generated dashboard operational honesty", () => {
         expect(dashboard).not.toMatch(
           /systemLive|environmentLocal|statusPass|checks\.(?:blockers|highs|mediums)/,
         );
-        expect(dashboard).toContain("useDashboardIdentity(initialUser)");
+        expect(dashboard).toContain("useDashboardIdentity(user)");
         expect(dashboard).toContain('String(user.email ?? "")');
         expect(dashboard).not.toContain("identity.signedInAs");
       });

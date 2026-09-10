@@ -4,7 +4,7 @@ For agents with zero codebase knowledge.
 
 ## Registry
 
-Commands: `create, init, upgrade, add, sync, status, check, doctor, version, help`. Invoke via `ghostinit <command> [args] [flags]`.
+Commands: `create, init, upgrade, add, sync, status, check, doctor, security, capabilities, version, help`. Invoke via `ghostinit <command> [args] [flags]`.
 
 ## `create <name>`
 
@@ -25,45 +25,45 @@ Scaffolds new project folder `<name>` under `--cwd` (default cwd).
   - `apps/web + apps/mobile` when both selected (monorepo only).
   - Single mode `apps mobile|desktop` → flat frontend-only native structure with no generated backend host.
 - If `existsSync(projectRoot)` and no `--force` → exit 18 conflict.
-- If install fails → exit 22 generation error but files still written.
+- If installation or verification fails → exit 22. A new target is published only after its private candidate passes; ordinary failures discard the candidate or roll back an existing empty target. If process cleanup cannot be verified, diagnostic files may be retained and the command reports that explicitly.
 - If prompt cancelled → exit 130.
 
 ### Flags
 
-| Flag                  | Values                                                    | Default    | Effect                                                                                                                                                        |
-| --------------------- | --------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--preset`            | `saas,frontend,custom`                                    | `saas`     | Preset: saas=full Auth+DB+API+Email+Analytics; frontend=minimal; custom=pick via --with-*                                                                     |
-| `--mode`              | `monorepo`, `single`                                      | `monorepo` | Structure: workspaces vs flat                                                                                                                                 |
-| `--framework`         | `nextjs`, `tanstack-start`                                | `nextjs`   | Frontend framework for web target                                                                                                                             |
-| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                                  |
-| `--billing`           | `stripe,chargily,paddle,polar,both,all,none` comma/repeat | `none`     | Any combo allowed                                                                                                                                             |
-| `--cache`             | `redis,none` (alias `upstash`)                            | `none`     | Cache via Upstash Redis + memory fallback                                                                                                                     |
-| `--deploy`            | `vercel,fly,docker,cloudflare,none`                       | `none`     | Provider deployment output; Cloudflare supports web + Convex/none (Next via OpenNext, TanStack native)                                                        |
-| `--stack`             | `nextjs,tanstack-start,expo,both`                         | —          | Frontend shorthand: maps to framework+apps for frontend preset                                                                                                |
-| `--with-auth`         | flag                                                      | off        | Opt-in Auth (requires DB postgres                                                                                                                             | convex); custom only, saas forces on, frontend off unless --with-* |
-| `--with-api`          | flag                                                      | off        | Opt-in oRPC API contract-first                                                                                                                                |
-| `--with-email`        | flag                                                      | off        | Opt-in Resend email                                                                                                                                           |
-| `--with-analytics`    | flag                                                      | off        | Opt-in PostHog                                                                                                                                                |
-| `--with-cache`        | flag                                                      | off        | Opt-in Upstash Redis (same as --cache redis)                                                                                                                  |
-| `--with-eve`          | flag                                                      | off        | Opt-in Eve AI hybrid; --features eve deprecated alias                                                                                                         |
-| `--with-i18n`         | flag                                                      | off        | Opt-in next-intl; --features i18n deprecated alias                                                                                                            |
-| `--with-pdf`          | flag                                                      | off        | Opt-in React PDF renderer; custom only                                                                                                                        |
-| `--with-messaging`    | flag                                                      | off        | Opt-in DM messaging (requires DB+auth+api); custom only, saas/frontend opt-in                                                                                 |
-| `--features`          | `eve,i18n,none` deprecated alias                          | `none`     | Alias for --with-eve/--with-i18n (case-insensitive deduped)                                                                                                   |
-| `--database`          | `postgres,convex,none`                                    | `postgres` | DB provider; frontend defaults to none if not set                                                                                                             |
-| `--runtime`           | `bun,node`                                                | `bun`      | Executor for generated scripts                                                                                                                                |
-| `--cwd`               | path                                                      | `.`        | Parent where project created                                                                                                                                  |
-| `--no-install`        | flag                                                      | off        | Skip verified install; run `bun run install:bootstrap` once in the fresh output                                                                               |
-| `--force`             | flag                                                      | off        | Permit command-specific existing/dirty checks or lease takeover; never bypass managed-file conflicts                                                          |
-| `--json`              | flag                                                      | off        | JSON envelope to stdout, logs stderr                                                                                                                          |
-| `--yes` / `--ci`      | flag                                                      | off        | Non-interactive; --yes defaults to saas unless --preset set                                                                                                   |
-| `--dry-run`           | flag                                                      | off        | Preview: no write, returns `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` first 100 + `hasMore` (`--json`); text shows `237 files (394 kB)` + list |
-| `--fix`               | flag                                                      | off        | Auto-fix (only `check`/`doctor`): `check --fix` selected manifest-derived turbo.json keys, `doctor --fix` mint secrets                                        |
-| `--verbose`           | flag                                                      | off        | Verbose (only `status`/`check`/`doctor`): `status --verbose` full config                                                                                      |
-| `--list`              | flag                                                      | off        | List (only `add`/`status`): `add --list` modules, `status --list` alias                                                                                       |
-| `--quiet` / `--debug` | flag                                                      | off        | Log verbosity                                                                                                                                                 |
+| Flag                  | Values                                                       | Default    | Effect                                                                                                                                                        |
+| --------------------- | ------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--preset`            | `saas,frontend,custom`                                       | `saas`     | Preset: saas=full Auth+DB+API+Email+Analytics; frontend=minimal; custom=pick via --with-*                                                                     |
+| `--mode`              | `monorepo`, `single`                                         | `monorepo` | Structure: workspaces vs flat                                                                                                                                 |
+| `--framework`         | `nextjs`, `tanstack-start`                                   | `nextjs`   | Frontend framework for web target                                                                                                                             |
+| `--apps`              | `web,mobile,desktop,both,all` comma/repeat                   | `web`      | App targets: web=Next/TanStack, mobile=Expo, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop                                  |
+| `--billing`           | `stripe,paddle,polar,chargily,manual,both,none` comma/repeat | `none`     | At most one global provider, plus optional Chargily and manual                                                                                                |
+| `--cache`             | `redis,none` (alias `upstash`)                               | `none`     | Cache via Upstash Redis + memory fallback                                                                                                                     |
+| `--deploy`            | `vercel,fly,docker,cloudflare,none`                          | `none`     | Provider deployment output; Cloudflare supports web + Convex/none (Next via OpenNext, TanStack native)                                                        |
+| `--stack`             | `nextjs,tanstack-start,expo,both`                            | —          | Frontend shorthand: maps to framework+apps for frontend preset                                                                                                |
+| `--with-auth`         | flag                                                         | off        | Opt-in Auth (requires DB postgres                                                                                                                             | convex); custom only, saas forces on, frontend off unless --with-* |
+| `--with-api`          | flag                                                         | off        | Opt-in oRPC API contract-first                                                                                                                                |
+| `--with-email`        | flag                                                         | off        | Opt-in Resend email                                                                                                                                           |
+| `--with-analytics`    | flag                                                         | off        | Opt-in PostHog                                                                                                                                                |
+| `--with-cache`        | flag                                                         | off        | Opt-in Upstash Redis (same as --cache redis)                                                                                                                  |
+| `--with-eve`          | flag                                                         | off        | Opt-in Eve AI hybrid; --features eve deprecated alias                                                                                                         |
+| `--with-i18n`         | flag                                                         | off        | Opt-in next-intl; --features i18n deprecated alias                                                                                                            |
+| `--with-pdf`          | flag                                                         | off        | Opt-in React PDF renderer; custom only                                                                                                                        |
+| `--with-messaging`    | flag                                                         | off        | Opt-in DM messaging (requires DB+auth+api); custom only, saas/frontend opt-in                                                                                 |
+| `--features`          | `eve,i18n,none` deprecated alias                             | `none`     | Alias for --with-eve/--with-i18n (case-insensitive deduped)                                                                                                   |
+| `--database`          | `postgres,convex,none`                                       | `postgres` | DB provider; frontend defaults to none if not set                                                                                                             |
+| `--runtime`           | `bun,node`                                                   | `bun`      | Executor for generated scripts                                                                                                                                |
+| `--cwd`               | path                                                         | `.`        | Parent where project created                                                                                                                                  |
+| `--no-install`        | flag                                                         | off        | Skip verified install; run `bun run install:bootstrap` once in the fresh output                                                                               |
+| `--force`             | flag                                                         | off        | Permit command-specific existing/dirty checks or lease takeover; never bypass managed-file conflicts                                                          |
+| `--json`              | flag                                                         | off        | JSON envelope to stdout, logs stderr                                                                                                                          |
+| `--yes` / `--ci`      | flag                                                         | off        | Non-interactive; --yes defaults to saas unless --preset set                                                                                                   |
+| `--dry-run`           | flag                                                         | off        | Preview: no write, returns `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` first 100 + `hasMore` (`--json`); text shows `237 files (394 kB)` + list |
+| `--fix`               | flag                                                         | off        | Auto-fix (only `check`/`doctor`): `check --fix` selected manifest-derived turbo.json keys, `doctor --fix` mint secrets                                        |
+| `--verbose`           | flag                                                         | off        | Verbose (only `status`/`check`/`doctor`): `status --verbose` full config                                                                                      |
+| `--list`              | flag                                                         | off        | List (only `add`/`status`): `add --list` modules, `status --list` alias                                                                                       |
+| `--quiet` / `--debug` | flag                                                         | off        | Log verbosity                                                                                                                                                 |
 
-Invalid `--mode/framework/database/apps/preset/cache/deploy` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both`/`all` alias → `web,mobile`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`. Cloudflare validation rejects PostgreSQL, Eve, and server-side PDF; select Convex or no database and keep those capabilities off.
+Invalid `--mode/framework/database/apps/preset/cache/deploy` → throws validation error exit 17 or exit 2 for combo, no silent fallback. Billing: partially unknown tolerated (`stripe,unknown` → `stripe`), fully unknown → throws exit 17. Features: deprecated alias, same tolerance (`eve,unknown`→`eve`, fully unknown→throws). Apps: `both` → `web,mobile`; `all` → `web,mobile,desktop`, repeatable/comma: `--apps web --apps mobile` == `--apps web,mobile`. Auth validation: `--with-auth` + `--database none` → exit 2 blocked (requires postgres|convex). Preset frontend with no explicit --database defaults to `none`. Cloudflare validation rejects PostgreSQL, Eve, and server-side PDF; select Convex or no database and keep those capabilities off.
 
 Interactive when TTY and no --json/--yes/--ci: preset-first wizard. First prompts project name (if missing), then `What are you building?` select SaaS Starter / Frontend Only / Custom. Branching: SaaS → mode, framework, database (postgres|convex), billing multiselect, apps, features (eve/i18n); Frontend → mode, stack (nextjs|tanstack-start|expo|both), install confirm; Custom → mode, framework, database (postgres|convex|none), apps, addons 7-toggle (auth/api/email/analytics/cache/eve/i18n), billing, install confirm. Cancel → exit 130.
 
@@ -89,7 +89,7 @@ ghostinit create my-app --preset saas --billing stripe --with-pdf --with-messagi
 ghostinit create my-worker --preset frontend --framework tanstack-start --database none --deploy cloudflare --yes --no-install
 ```
 
-## `upgrade [--dry-run] [--force] [--json]`
+## `upgrade [--dry-run] [--force] [--no-install] [--json]`
 
 Compiles the current V2 desired state and applies a hash-gated transactional
 re-render. Generator-owned files update only from their recorded base hash;
@@ -98,6 +98,27 @@ and conflicting managed edits stop the entire operation before commit. The
 plan also covers path moves, environment migrations, and self-issued secret
 materialization. Run `ghostinit upgrade --dry-run` first, especially when a
 deployment change moves `.env.local` values into Cloudflare `.dev.vars`.
+
+After reconciliation, upgrade applies compatible security repairs, installs frozen,
+runs the canonical installed audit, and executes `typecheck`, `lint:all`, and root
+`test`. `--no-install` skips this phase and reports security `not-run`. A failed
+security phase can follow an applied source upgrade; inspect JSON `upgraded` and
+`dependencySecurity`, and follow its recovery guidance.
+
+## `security [audit|fix] [--dry-run] [--json]`
+
+`audit` is the default, read-only action. `fix --dry-run` previews compatible,
+age-eligible repairs without changing project files or installed dependencies.
+`fix` publishes verified lock/manifests/evidence and security floors, installs the
+project frozen, audits it, and runs `typecheck`, `lint:all`, and root `test`.
+
+The command accepts project options such as `--cwd`; `fix` is a positional action,
+not a `--fix` flag. CLI results use the normal JSON envelope. `clean`/`fixed`
+return 0, `partial`/`blocked` return 8, and runtime failure returns 1 (typed
+validation/lock/cancellation errors retain their usual codes). Dry-run results do
+not prove installation. Generated `security:audit`/`security:fix` return the result
+directly, with blocked results using exit 1. See
+[dependency-security.md](dependency-security.md) for complete policy and recovery.
 
 ## `add module <name>`
 
@@ -255,7 +276,7 @@ ghostinit status --list
 
 ## Global Flags (All Commands)
 
-`--cwd` working dir root, `--json` envelope, `--yes`/`--ci` non-interactive, `--dry-run` preview, `--force` permits command-specific existing/dirty checks and explicit lease takeover; managed-file conflicts still fail, `--no-install` create only, `--runtime`, `--quiet` suppress stderr, `--debug` verbose, `--version`, `--help`.
+`--cwd` working dir root, `--json` envelope, `--yes`/`--ci` non-interactive, `--dry-run` preview, `--force` permits command-specific existing/dirty checks and explicit lease takeover; managed-file conflicts still fail, `--no-install` create/init/upgrade only, `--runtime`, `--quiet` suppress stderr, `--debug` verbose, `--version`, `--help`.
 
 Help text: `ghostinit` or `ghostinit help` or `ghostinit --help`. Version: `ghostinit version` or `--version`.
 
@@ -267,4 +288,4 @@ Exit codes: `0 OK, 1 GENERAL_ERROR, 2 INVALID_ARGUMENTS, 8 DRIFT, 16 MISSING_DEP
 
 ## Lock
 
-`.ghostinit.lock` is a renewable local-filesystem lease. Its default expiry is five minutes since the latest heartbeat, with token-checked release and guarded stale takeover. `status.lockActive` reports file presence, not process liveness. Stop a known active writer before requesting `--force` takeover; do not delete an active lease manually. Force never bypasses reconciliation hash conflicts.
+`.ghostinit.lock` is a renewable local-filesystem lease. Its default expiry is five minutes since the latest heartbeat, with token-checked release and guarded stale takeover. `status.lockActive` reports file presence, not process liveness. Stop a known active writer before requesting `--force` takeover; do not delete an active lease manually. Force never bypasses reconciliation hash conflicts. A dependency-security `CLEANUP_UNVERIFIED` journal also blocks every mutation and force/TTL takeover until independent process cleanup verification and explicit journal reconciliation.

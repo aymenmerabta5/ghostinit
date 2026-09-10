@@ -234,25 +234,38 @@ describe("e2e: generated project structure (no install)", () => {
     }
   });
 
-  it("turbo.json globalEnv includes every selected billing and analytics group", () => {
-    const projectRoot = createProject(tmp, "demo", ["--billing", "all", "--with-analytics"]);
-    const turbo = readJson(join(projectRoot, "turbo.json"));
-    const env: string[] = turbo.globalEnv ?? [];
+  it.each(["stripe", "paddle", "polar"])(
+    "%s turbo.json includes only selected billing and analytics groups",
+    (provider) => {
+      const projectRoot = createProject(tmp, "demo", [
+        "--billing",
+        `chargily,${provider}`,
+        "--with-analytics",
+      ]);
+      const turbo = readJson(join(projectRoot, "turbo.json"));
+      const env: string[] = turbo.globalEnv ?? [];
 
-    const groups: Record<string, string[]> = {
-      stripe: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"],
-      chargily: ["CHARGILY_API_KEY", "CHARGILY_SECRET_KEY", "CHARGILY_MODE"],
-      paddle: ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET", "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN"],
-      polar: ["POLAR_ACCESS_TOKEN", "POLAR_WEBHOOK_SECRET", "POLAR_ORG_ID"],
-      posthog: ["POSTHOG_HOST", "POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"],
-    };
+      const groups: Record<string, string[]> = {
+        stripe: [
+          "STRIPE_SECRET_KEY",
+          "STRIPE_WEBHOOK_SECRET",
+          "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        ],
+        chargily: ["CHARGILY_API_KEY", "CHARGILY_SECRET_KEY", "CHARGILY_MODE"],
+        paddle: ["PADDLE_API_KEY", "PADDLE_WEBHOOK_SECRET", "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN"],
+        polar: ["POLAR_ACCESS_TOKEN", "POLAR_WEBHOOK_SECRET", "POLAR_ORG_ID"],
+        posthog: ["POSTHOG_HOST", "POSTHOG_API_KEY", "NEXT_PUBLIC_POSTHOG_KEY"],
+      };
 
-    for (const [group, vars] of Object.entries(groups)) {
-      for (const v of vars) {
-        expect(env.includes(v), `[${group}] missing in globalEnv: ${v}`).toBe(true);
+      for (const [group, vars] of Object.entries(groups)) {
+        for (const v of vars) {
+          expect(env.includes(v), `[${group}] globalEnv: ${v}`).toBe(
+            [provider, "chargily", "posthog"].includes(group),
+          );
+        }
       }
-    }
-  });
+    },
+  );
 
   it("root and app package.json are parseable and have expected scripts", () => {
     const projectRoot = createProject(tmp, "demo");
@@ -367,20 +380,37 @@ describe("e2e: generated project structure (no install)", () => {
     expect(highBlocker).toEqual([]);
   });
 
-  it("create with --billing all includes billing package files", () => {
-    const projectRoot = createProject(tmp, "billdemo", ["--billing", "all"]);
+  it.each(["stripe", "paddle", "polar"])(
+    "create with manual, Chargily and %s includes only selected billing files",
+    (provider) => {
+      const projectRoot = createProject(tmp, "billdemo", [
+        "--billing",
+        `manual,chargily,${provider}`,
+      ]);
+      const files = collectFilesRecursive(join(projectRoot, "packages/billing"), projectRoot);
+      expect(files.length).toBeGreaterThan(0);
+      expect(files.some((path) => path.includes("/manual/"))).toBe(true);
+      const envExample = readFileSync(join(projectRoot, ".env.example"), "utf-8");
+      expect(envExample).toContain("CHARGILY_API_KEY");
+      const globalKeys = {
+        stripe: "STRIPE_SECRET_KEY",
+        paddle: "PADDLE_API_KEY",
+        polar: "POLAR_ACCESS_TOKEN",
+      };
+      for (const [name, key] of Object.entries(globalKeys))
+        expect(envExample.includes(key), key).toBe(name === provider);
+    },
+  );
 
-    // Billing package should exist when all providers selected
-    const billingFiles = collectFilesRecursive(join(projectRoot, "packages/billing"), projectRoot);
-    expect(billingFiles.length).toBeGreaterThan(0);
-
-    const envExample = readFileSync(join(projectRoot, ".env.example"), "utf-8");
-    // When billing=all, env.example should contain lines for each provider
-    expect(envExample).toContain("STRIPE_SECRET_KEY");
-    expect(envExample).toContain("CHARGILY_API_KEY");
-    expect(envExample).toContain("PADDLE_API_KEY");
-    expect(envExample).toContain("POLAR_ACCESS_TOKEN");
-  });
+  it.each(["all", "stripe,polar", "stripe,paddle", "paddle,polar"])(
+    "create rejects conflicting billing selection %s before writing a project",
+    (billing) => {
+      expect(() => createProject(tmp, "invalid-billing", ["--billing", billing])).toThrow(
+        "at most one global billing provider",
+      );
+      expect(existsSync(join(tmp, "invalid-billing"))).toBe(false);
+    },
+  );
 
   it("create with --features eve generates eve app", () => {
     const projectRoot = createProject(tmp, "evedemo", ["--features", "eve"]);

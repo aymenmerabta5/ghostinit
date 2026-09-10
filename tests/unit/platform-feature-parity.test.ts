@@ -49,7 +49,10 @@ describe("Expo and Electron platform feature parity", () => {
       const enabled = generate(mode, "mobile", true);
       const disabled = generate(mode, "mobile", false);
       const root = mode === "monorepo" ? "apps/mobile/src" : "src";
-      const layout = mode === "monorepo" ? "apps/mobile/app/_layout.tsx" : "app/_layout.tsx";
+      const layout =
+        mode === "monorepo"
+          ? "apps/mobile/src/components/providers.tsx"
+          : "src/components/providers.tsx";
       const runtimePath = `${root}/lib/i18n.tsx`;
       const runtime = read(enabled, runtimePath);
 
@@ -75,7 +78,10 @@ describe("Expo and Electron platform feature parity", () => {
       expect(runtime).toContain("<View style={{ flex: 1, direction }}>");
       expect(runtime).toContain('accessibilityRole="radiogroup"');
       expect(read(enabled, layout)).toContain("<PlatformI18nProvider>");
-      const marketingPath = mode === "monorepo" ? "apps/mobile/app/index.tsx" : "app/index.tsx";
+      const marketingPath =
+        mode === "monorepo"
+          ? "apps/mobile/src/features/marketing/screen.tsx"
+          : "src/features/marketing/screen.tsx";
       expect(read(enabled, marketingPath)).toContain("<LocaleSwitcher />");
       expect(read(disabled, marketingPath)).not.toContain("LocaleSwitcher");
       expect(read(disabled, layout)).not.toContain("PlatformI18nProvider");
@@ -98,7 +104,7 @@ describe("Expo and Electron platform feature parity", () => {
       const mainPath = mode === "monorepo" ? "apps/desktop/src/main.ts" : "src/main.ts";
       const preloadPath = mode === "monorepo" ? "apps/desktop/src/preload.ts" : "src/preload.ts";
       const providersPath = `${root}/lib/providers.tsx`;
-      const rootRoutePath = `${root}/routes/__root.tsx`;
+      const rootRoutePath = `${root}/features/app-shell/app-shell.tsx`;
       const runtimePath = `${root}/lib/i18n.tsx`;
       const runtime = read(enabled, runtimePath);
 
@@ -140,7 +146,7 @@ describe("Expo and Electron platform feature parity", () => {
       const disabled = generate(mode, "desktop", false);
       const root = mode === "monorepo" ? "apps/desktop/src/renderer" : "src/renderer";
       const analyticsPath = `${root}/lib/analytics.tsx`;
-      const routePath = `${root}/routes/__root.tsx`;
+      const routePath = `${root}/features/app-shell/app-shell.tsx`;
       const source = read(enabled, analyticsPath);
 
       expect(parseSync(analyticsPath, source).errors).toEqual([]);

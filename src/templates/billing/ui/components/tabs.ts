@@ -16,7 +16,7 @@ export function billingTabsContent(selected: string[]): string {
   const singleBranches = selected
     .map(
       (p) =>
-        `        {only === "${p}" ? <${p.charAt(0).toUpperCase() + p.slice(1)}Panel /> : null}`,
+        `        {only === "${p}" ? <${p.charAt(0).toUpperCase() + p.slice(1)}Panel billing={billing}${p === "chargily" ? " paymentLink={paymentLink}" : ""} /> : null}`,
     )
     .join("\n");
   if (selected.length === 1) {
@@ -38,13 +38,10 @@ export function billingTabsContent(selected: string[]): string {
 import * as React from "react";
 ${alertImport}
 ${imports}
-import { BillingDataProvider, type BillingInitialData } from "../hooks/use-billing-page";
+import type { BillingPageState } from "../types";
 ${translationImport}
-interface BillingTabsProps { providers: string[]; initialData: BillingInitialData; }
-export function BillingTabs({ providers, initialData }: BillingTabsProps): React.JSX.Element {
-  return <BillingDataProvider initialData={initialData}><BillingTabsContent providers={providers} /></BillingDataProvider>;
-}
-function BillingTabsContent({ providers }: { providers: string[] }): React.JSX.Element {
+interface BillingTabsProps { providers: string[]; billing: BillingPageState; paymentLink?: React.ReactNode; }
+export function BillingTabs({ providers, billing${selected.includes("chargily") ? ", paymentLink" : ""} }: BillingTabsProps): React.JSX.Element {
 ${translationHook}
   const list = providers.length > 0 ? providers : ${JSON.stringify(selected)} as string[];
   const only = list[0];
@@ -68,7 +65,7 @@ ${singleBranches}
   const tabsContents = selected
     .map(
       (p) =>
-        `        <TabsContent value="${p}" className="flex flex-col gap-6">\n          <${p.charAt(0).toUpperCase() + p.slice(1)}Panel />\n        </TabsContent>`,
+        `        <TabsContent value="${p}" className="flex flex-col gap-6">\n          <${p.charAt(0).toUpperCase() + p.slice(1)}Panel billing={billing}${p === "chargily" ? " paymentLink={paymentLink}" : ""} />\n        </TabsContent>`,
     )
     .join("\n");
   const dualAlert = `      {hasChargily && hasGlobal ? (<Alert className="border-primary/20 bg-primary/[0.04]"><AlertTitle>{t("dualMarketTitle")}</AlertTitle><AlertDescription className="max-w-[75ch]">{t("dualMarketDescription", { providers: "${selected.join(", ")}" })}</AlertDescription></Alert>) : null}`;
@@ -80,13 +77,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 ${imports}
-import { BillingDataProvider, type BillingInitialData } from "../hooks/use-billing-page";
+import type { BillingPageState } from "../types";
 import { useSurfaceTranslations } from "@/lib/translations";
-interface BillingTabsProps { providers: string[]; initialData: BillingInitialData; }
-export function BillingTabs({ providers, initialData }: BillingTabsProps): React.JSX.Element {
-  return <BillingDataProvider initialData={initialData}><BillingTabsContent providers={providers} /></BillingDataProvider>;
-}
-function BillingTabsContent({ providers }: { providers: string[] }): React.JSX.Element {
+interface BillingTabsProps { providers: string[]; billing: BillingPageState; paymentLink?: React.ReactNode; }
+export function BillingTabs({ providers, billing${selected.includes("chargily") ? ", paymentLink" : ""} }: BillingTabsProps): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
   const list = providers.length > 0 ? providers : ${JSON.stringify(selected)} as string[];
   const hasChargily = list.includes("chargily");

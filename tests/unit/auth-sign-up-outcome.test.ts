@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { betterAuth } from "better-auth";
-import { signUpFormContent } from "../../src/templates/apps/fragments/auth/sign-up.js";
-import { generatedFormHarness, textContent } from "../helpers/generated-form-harness.js";
+import { authFeatureHarness } from "../helpers/auth-feature-harness.js";
 
 function formFor(router: "next" | "tanstack", data: unknown, error: unknown = null) {
   const destinations: string[] = [];
-  const ui = generatedFormHarness(signUpFormContent(router), ["SignUpForm"], {
+  const ui = authFeatureHarness(router, ["useSignUpForm"], {
     Link: "Link",
     CardFooter: "CardFooter",
     AuthOAuthButtons: "AuthOAuthButtons",
@@ -19,7 +18,7 @@ function formFor(router: "next" | "tanstack", data: unknown, error: unknown = nu
       },
     identityClient: { signUpWithEmail: async () => ({ data, error }) },
   });
-  ui.render("SignUpForm");
+  ui.render("useSignUpForm");
   const form = ui.forms[0]!;
   form.values = {
     name: "Test Actor",
@@ -89,7 +88,7 @@ describe("generated web signup outcomes", () => {
       const { ui, form, destinations } = formFor(router, null, { message: "Rejected" });
       await form.handleSubmit();
       expect(destinations).toEqual([]);
-      expect(textContent(ui.render("SignUpForm"))).toContain("signUp.genericError");
+      expect(ui.render("useSignUpForm")).toMatchObject({ error: "signUp.genericError" });
       expect(form.values).toEqual({
         name: "Test Actor",
         email: "actor@example.test",

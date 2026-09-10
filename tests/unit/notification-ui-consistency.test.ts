@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { generatedUiOutput } from "../helpers/generated-ui-output.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
 import {
   deferred,
   elements,
@@ -41,6 +43,7 @@ function setup(framework: "nextjs" | "tanstack-start", mode: "monorepo" | "singl
     },
   };
   let scope: typeof scopeA | null = scopeA;
+  let generation = 0;
   let hydrating = false;
   let queryOptions: { queryKey: unknown[]; enabled: boolean; initialData?: unknown[] } | null =
     null;
@@ -73,33 +76,68 @@ function setup(framework: "nextjs" | "tanstack-start", mode: "monorepo" | "singl
   const second = deferred<void>();
   const queue = [first, second];
   let creates = 0;
+  let marks = 0;
+  const markQueue: Array<ReturnType<typeof deferred<void>>> = [];
+  const navigations: string[] = [];
+  const navigation = generatedFormHarness(output.read(`${output.root}/lib/notifications.ts`), [
+    "resolveNotificationDestination",
+    "getNotificationHref",
+    "formatNotification",
+  ]).module;
+  const publish = async (input: { title: string; body: string }) => {
+    creates += 1;
+    const next = queue.shift();
+    if (!next) throw new Error("Duplicate notification");
+    await next.promise;
+    const item = {
+      id: "created-notification",
+      kind: "user.note",
+      href: "/notifications",
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      title: input.title,
+      body: input.body,
+    };
+    records.push(item);
+    return item;
+  };
+  const mark = async ({ notificationId: id }: { notificationId: string }) => {
+    marks += 1;
+    const gate = markQueue.shift();
+    if (gate) await gate.promise;
+    const index = records.findIndex((item) => item.id === id);
+    if (index >= 0) records[index] = { ...records[index]!, readAt: new Date().toISOString() };
+  };
   const bindings = {
-    useAuthOwnedEffect: () => () => () => true,
-    useNotificationInbox: () => queries.render("useNotificationInbox"),
+    useAuthOwnedEffect: () => () => {
+      const captured = generation;
+      return () => captured === generation && scope !== null;
+    },
+    useQueryClient: () => client,
+    currentQueryAuthGeneration: () => generation,
+    subscribeQueryAuthGeneration: () => () => {},
+    useNotificationInbox: (items?: unknown[], initialScope?: unknown) =>
+      (
+        queries.module.useNotificationInbox as (
+          items?: unknown[],
+          initialScope?: unknown,
+        ) => unknown
+      )(items, initialScope),
     useInvalidateNotificationInbox: () => invalidator,
-    useRouter: () => ({ push() {} }),
-    useNavigate: () => async () => {},
-    resolveNotificationDestination: (href: string) => href,
-    async publishSelfNotification(input: { title: string; body: string }) {
-      creates += 1;
-      const next = queue.shift();
-      if (!next) throw new Error("Duplicate notification");
-      await next.promise;
-      const item = {
-        id: "created-notification",
-        kind: "user.note",
-        href: "/notifications",
-        createdAt: new Date().toISOString(),
-        readAt: null,
-        ...input,
-      };
-      records.push(item);
-      return item;
-    },
-    async markNotificationRead(id: string) {
-      const index = records.findIndex((item) => item.id === id);
-      if (index >= 0) records[index] = { ...records[index]!, readAt: new Date().toISOString() };
-    },
+    useRouter: () => ({
+      push: (href: string) => {
+        navigations.push(href);
+      },
+    }),
+    useNavigate:
+      () =>
+      async ({ to }: { to: string }) => {
+        navigations.push(to);
+      },
+    ...navigation,
+    createSelfNotificationAction: publish,
+    markNotificationReadAction: mark,
+    orpcClient: { notifications: { createSelf: publish, markRead: mark } },
     Input: "Input",
     Textarea: "Textarea",
     Field: "Field",
@@ -108,6 +146,17 @@ function setup(framework: "nextjs" | "tanstack-start", mode: "monorepo" | "singl
     EmptyHeader: "EmptyHeader",
     EmptyTitle: "EmptyTitle",
     EmptyDescription: "EmptyDescription",
+    ...Object.fromEntries(
+      [
+        "Bell",
+        "Badge",
+        "Popover",
+        "PopoverTrigger",
+        "PopoverContent",
+        "PopoverTitle",
+        "PopoverDescription",
+      ].map((name) => [name, name]),
+    ),
   };
   return {
     output,
@@ -120,16 +169,71 @@ function setup(framework: "nextjs" | "tanstack-start", mode: "monorepo" | "singl
     first,
     second,
     creates: () => creates,
+    marks: () => marks,
+    markQueue,
+    navigations,
     currentQueryOptions: () => queryOptions,
     setHydrating: (value: boolean) => {
       hydrating = value;
     },
     clearOwner: () => {
       scope = null;
+      generation += 1;
     },
     switchOwner: () => {
       scope = scopeB;
+      generation += 1;
     },
+  };
+}
+
+function pageHarness(testCase: ReturnType<typeof setup>) {
+  const base = `${testCase.output.root}/features/notifications`;
+  const mutation = queryMutationHarness();
+  const ui = generatedFormHarness(
+    [
+      authOwnedMutationContent(),
+      ...[
+        "mutations.ts",
+        "use-notification-workspace.ts",
+        "components/notifications-workspace.tsx",
+        "components/notification-composer.tsx",
+        "page.tsx",
+      ].map((path) => testCase.output.read(`${base}/${path}`)),
+    ].join("\n"),
+    ["NotificationsPage", "NotificationsWorkspace", "NotificationComposer"],
+    { ...testCase.bindings, useMutation: mutation.useMutation },
+  );
+  return () => {
+    const page = ui.render("NotificationsPage", { initialItems: [], initialScope: scopeA });
+    const workspace = elements(page).find((node) => node.type === ui.module.NotificationsWorkspace);
+    if (!workspace) throw new Error("Missing emitted notification workspace composition");
+    const tree = ui.render("NotificationsWorkspace", workspace.props);
+    const composer = elements(tree).find((node) => node.type === ui.module.NotificationComposer);
+    if (!composer) throw new Error("Missing emitted controlled notification composer");
+    return [tree, ui.render("NotificationComposer", composer.props)];
+  };
+}
+
+function bellHarness(testCase: ReturnType<typeof setup>) {
+  const base = `${testCase.output.root}/features/notifications`;
+  const mutation = queryMutationHarness();
+  const ui = generatedFormHarness(
+    [
+      authOwnedMutationContent(),
+      ...["mutations.ts", "use-notification-bell.ts", "bell.tsx"].map((path) =>
+        testCase.output.read(`${base}/${path}`),
+      ),
+      testCase.output.read(`${testCase.output.root}/components/NotificationBell.tsx`),
+    ].join("\n"),
+    ["NotificationInboxBell", "NotificationBell"],
+    { ...testCase.bindings, useMutation: mutation.useMutation },
+  );
+  return () => {
+    const screen = ui.render("NotificationInboxBell");
+    const view = elements(screen).find((node) => node.type === ui.module.NotificationBell);
+    if (!view) throw new Error("Missing emitted controlled notification bell");
+    return { props: view.props, tree: ui.render("NotificationBell", view.props) };
   };
 }
 
@@ -172,29 +276,8 @@ describe("notification inbox and bell consistency", () => {
     for (const mode of ["single", "monorepo"] as const) {
       test(`${mode}/${framework} coalesces create, recovers from failure, and updates both surfaces after bell read`, async () => {
         const testCase = setup(framework, mode);
-        const page = generatedFormHarness(
-          testCase.output.read(`${testCase.output.root}/features/notifications/page.tsx`),
-          ["NotificationsPage"],
-          { ...testCase.bindings, NotificationComposer: "NotificationComposer" },
-        );
-        const composer = generatedFormHarness(
-          testCase.output.read(
-            `${testCase.output.root}/features/notifications/components/notification-composer.tsx`,
-          ),
-          ["NotificationComposer"],
-          testCase.bindings,
-        );
-        const bell = generatedFormHarness(
-          testCase.output.read(`${testCase.output.root}/features/notifications/bell.tsx`),
-          ["NotificationInboxBell"],
-          { ...testCase.bindings, NotificationBell: "NotificationBell" },
-        );
-        const render = () => {
-          const tree = page.render("NotificationsPage", { initialItems: [], initialScope: scopeA });
-          const controlled = elements(tree).find((node) => node.type === "NotificationComposer");
-          if (!controlled) throw new Error("Missing controlled notification composer");
-          return [tree, composer.render("NotificationComposer", controlled.props)];
-        };
+        const render = pageHarness(testCase);
+        const renderBell = bellHarness(testCase);
         const titleInput = elements(render()).find(
           (node) => node.props.id === "notification-title",
         )!;
@@ -238,13 +321,16 @@ describe("notification inbox and bell consistency", () => {
         expect(testCase.invalidations).toEqual([
           { queryKey: [scopeA.userId, "notifications", "inbox"] },
         ]);
-        const bellView = elements(bell.render("NotificationInboxBell")).find(
-          (node) => node.type === "NotificationBell",
-        )!;
+        const bellView = renderBell();
         expect(
           (bellView.props.notifications as Item[]).filter((item) => item.readAt === null),
         ).toHaveLength(1);
-        await (bellView.props.onMarkRead as (id: string) => Promise<void>)("created-notification");
+        const bellAction = elements(bellView.tree).find(
+          (node) => node.type === "Button" && typeof node.props.onClick === "function",
+        );
+        if (!bellAction) throw new Error("Missing controlled bell activation");
+        (bellAction.props.onClick as () => void)();
+        await flush();
         expect(
           elements(render()).some(
             (node) =>
@@ -253,12 +339,15 @@ describe("notification inbox and bell consistency", () => {
               textContent(node) === "read",
           ),
         ).toBe(true);
-        const refreshedBell = elements(bell.render("NotificationInboxBell")).find(
-          (node) => node.type === "NotificationBell",
-        )!;
+        const refreshedBell = renderBell();
         expect(
           (refreshedBell.props.notifications as Item[]).filter((item) => item.readAt === null),
         ).toHaveLength(0);
+        expect(testCase.invalidations).toEqual([
+          { queryKey: [scopeA.userId, "notifications", "inbox"] },
+          { queryKey: [scopeA.userId, "notifications", "inbox"] },
+        ]);
+        expect(testCase.navigations).toEqual(["/notifications"]);
       });
 
       test(`${mode}/${framework} never seeds an earlier owner's RSC inbox into a new owner query`, () => {
@@ -279,69 +368,49 @@ describe("notification inbox and bell consistency", () => {
   }
 
   test("the bell catches failed read mutations and exposes a safe retry without navigating", async () => {
-    const output = generatedUiOutput("nextjs");
+    const testCase = setup("nextjs", "monorepo");
     const first = deferred<void>();
     const second = deferred<void>();
-    const queue = [first, second];
-    let marks = 0;
-    let navigations = 0;
-    const ui = generatedFormHarness(
-      output.read(`${output.root}/components/NotificationBell.tsx`),
-      ["NotificationBell"],
-      {
-        Bell: "Bell",
-        Badge: "Badge",
-        Popover: "Popover",
-        PopoverTrigger: "PopoverTrigger",
-        PopoverContent: "PopoverContent",
-        PopoverTitle: "PopoverTitle",
-        PopoverDescription: "PopoverDescription",
-        Empty: "Empty",
-        EmptyHeader: "EmptyHeader",
-        EmptyTitle: "EmptyTitle",
-        EmptyDescription: "EmptyDescription",
-        formatNotification: () => ({ title: "Owned note", message: "Owned content" }),
-        getNotificationHref: () => ({ href: "/notifications" }),
-      },
-    );
-    const props = {
-      notifications: [
-        {
-          id: "note",
-          type: "user.note",
-          payload: {},
-          readAt: null,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      async onMarkRead() {
-        marks += 1;
-        const gate = queue.shift();
-        if (!gate) throw new Error("Duplicate mark");
-        await gate.promise;
-      },
-      onNavigate() {
-        navigations += 1;
-      },
-    };
-    const render = () => ui.render("NotificationBell", props);
+    testCase.markQueue.push(first, second);
+    testCase.records.push({
+      id: "note",
+      kind: "user.note",
+      title: "Owned note",
+      body: "Owned content",
+      href: "/notifications",
+      readAt: null,
+      createdAt: new Date().toISOString(),
+    });
+    await testCase.cache.refetch();
+    const renderBell = bellHarness(testCase);
+    const render = () => renderBell().tree;
     const button = elements(render()).find(
       (node) => node.type === "Button" && typeof node.props.onClick === "function",
     )!;
-    const pending = (button.props.onClick as () => Promise<void>)();
-    await (button.props.onClick as () => Promise<void>)();
-    expect(marks).toBe(1);
+    expect((button.props.onClick as () => void)()).toBeUndefined();
+    (button.props.onClick as () => void)();
+    expect(testCase.marks()).toBe(1);
+    expect(
+      elements(render()).find(
+        (node) => node.type === "Button" && typeof node.props.onClick === "function",
+      )?.props.disabled,
+    ).toBe(true);
     first.reject(new Error("Mark read failed"));
-    await expect(pending).resolves.toBeUndefined();
-    expect(navigations).toBe(0);
+    await flush();
+    expect(testCase.navigations).toEqual([]);
+    expect(testCase.invalidations).toHaveLength(0);
     expect(textContent(render())).toContain("unavailable");
     const retry = elements(render()).find(
       (node) => node.type === "Button" && typeof node.props.onClick === "function",
     )!;
-    const completion = (retry.props.onClick as () => Promise<void>)();
+    (retry.props.onClick as () => void)();
     second.resolve();
-    await completion;
-    expect(navigations).toBe(1);
+    await flush();
+    expect(testCase.marks()).toBe(2);
+    expect(testCase.navigations).toEqual(["/notifications"]);
+    expect(testCase.invalidations).toEqual([
+      { queryKey: [scopeA.userId, "notifications", "inbox"] },
+    ]);
     expect(textContent(render())).not.toContain("unavailable");
   });
 });

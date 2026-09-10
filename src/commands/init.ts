@@ -112,7 +112,13 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
   const desiredConfig = resolution.desiredConfig;
   const resolvedProjectConfig = resolution.resolvedConfig;
 
-  const { filesWritten, installFailed, isDryRun, plan } = await runProjectInstall({
+  const {
+    filesWritten,
+    installFailed,
+    isDryRun,
+    plan,
+    resolvedProjectConfig: installedProjectConfig,
+  } = await runProjectInstall({
     projectName: name,
     projectRoot: cwd,
     desiredConfig,
@@ -133,7 +139,7 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
           installFailed,
           dryRun: Boolean(isDryRun),
           resolvedConfig: config,
-          resolvedProjectConfig,
+          resolvedProjectConfig: installedProjectConfig,
           configHash: plan.projectConfigHash,
           planHash: plan.planHash,
           ...(isDryRun ? { plan: publicGenerationPlan(plan) } : {}),
@@ -141,7 +147,7 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
         error: installFailed
           ? {
               message:
-                "Project files were generated, but dependency installation or formatting failed",
+                "Project initialization did not complete because dependency installation, formatting, or verification failed",
               code: exitCodeName(ExitCode.GENERATION_ERROR),
             }
           : undefined,
@@ -150,11 +156,17 @@ export async function initCommand(args: string[], options: GlobalOptions): Promi
       }),
     );
   } else {
-    options.logger.info(
-      `Initialized ghostinit project "${name}" in ${cwd} (${filesWritten} files${isDryRun ? ", dry-run" : ""})`,
-    );
-    if (!options.noInstall && !isDryRun) {
-      options.logger.info("Next: bun run dev");
+    if (installFailed) {
+      options.logger.error(
+        `Project initialization did not complete in ${cwd}. Review the installation or verification error before retrying.`,
+      );
+    } else {
+      options.logger.info(
+        `Initialized ghostinit project "${name}" in ${cwd} (${filesWritten} files${isDryRun ? ", dry-run" : ""})`,
+      );
+      if (!options.noInstall && !isDryRun) {
+        options.logger.info("Next: bun run dev");
+      }
     }
   }
 

@@ -100,7 +100,14 @@ function verifyLanding(
   });
   const files = new Map(plan.files.map((file) => [file.physicalPath, file.content]));
   const root = mode === "single" ? "app" : "apps/mobile/app";
-  const path = `${root}/index.tsx`;
+  const routePath = `${root}/index.tsx`;
+  const route = files.get(routePath);
+  if (!route) throw new Error(`Missing Expo landing route: ${routePath}`);
+  expect(parseSync(routePath, route, { lang: "tsx" }).errors).toEqual([]);
+  expect(route).toContain(
+    'export { MarketingScreen as default } from "@/features/marketing/screen";',
+  );
+  const path = `${mode === "single" ? "" : "apps/mobile/"}src/features/marketing/screen.tsx`;
   const content = files.get(path);
   if (!content) throw new Error(`Missing Expo landing: ${path}`);
   const parsed = parseSync(path, content, { lang: "tsx" });

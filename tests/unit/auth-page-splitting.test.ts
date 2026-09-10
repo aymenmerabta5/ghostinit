@@ -3,15 +3,9 @@ import { parseSync } from "oxc-parser";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { formatGenerationText } from "../../src/generation/plan-formatter.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
-import { twoFactorFormContent } from "../../src/templates/apps/fragments/auth/two-factor.js";
-import { resetPasswordFormContent } from "../../src/templates/apps/fragments/recovery/reset-password-form.js";
-import { expoTwoFactorContent } from "../../src/templates/apps/fragments/expo/auth.js";
-import {
-  deferred,
-  elements,
-  generatedFormHarness,
-  textContent,
-} from "../helpers/generated-form-harness.js";
+import { authFeatureHarness } from "../helpers/auth-feature-harness.js";
+import { expoAuthFeatureFiles } from "../../src/templates/apps/fragments/auth/native.js";
+import { deferred, elements, textContent } from "../helpers/generated-form-harness.js";
 
 describe("focused authentication route composition", () => {
   for (const mode of ["single", "monorepo"] as const) {
@@ -45,13 +39,9 @@ describe("focused authentication route composition", () => {
               framework === "nextjs"
                 ? `${root}/app/${route}/page.tsx`
                 : `${root}/routes/${route}.tsx`;
-            const formPath = `${root}/components/auth/${formName}.tsx`;
-            const clientPath = routePath.replace(/page\.tsx$/, "page.client.tsx");
-            const filePaths = [
-              routePath,
-              formPath,
-              ...(framework === "nextjs" && i18n ? [clientPath] : []),
-            ];
+            const formPath = `${root}/features/auth/components/${formName}.tsx`;
+            const screenPath = `${root}/features/auth/${route === "2fa" ? "two-factor" : route}-screen.tsx`;
+            const filePaths = [routePath, formPath, screenPath];
             for (const path of filePaths) {
               const file = plan.files.find(({ physicalPath }) => physicalPath === path);
               expect(file, path).toBeDefined();
@@ -60,27 +50,24 @@ describe("focused authentication route composition", () => {
               expect(parseSync(path, formatted).errors, path).toEqual([]);
             }
             const routeContent = plan.files.find(
-              ({ physicalPath }) =>
-                physicalPath === (framework === "nextjs" && i18n ? clientPath : routePath),
+              ({ physicalPath }) => physicalPath === routePath,
             )!.content;
             const form = plan.files.find(({ physicalPath }) => physicalPath === formPath)!;
-            expect(routeContent).toContain(`<${component}`);
+            expect(routeContent).toContain(component.replace("Form", "Screen"));
             expect(routeContent).not.toContain("useAppForm");
-            expect(form.content).toContain("useAppForm({");
+            expect(form.content).not.toContain("useAppForm({");
+            expect(form.content).toContain("state: ");
             expect(form.content).toContain('CardTitle as="h1"');
             expect(form.lifecycle).toBe(
               plan.files.find(
-                ({ physicalPath }) => physicalPath === `${root}/components/auth/sign-in-form.tsx`,
+                ({ physicalPath }) =>
+                  physicalPath === `${root}/features/auth/components/sign-in-form.tsx`,
               )!.lifecycle,
             );
             if (framework === "nextjs") {
               expect(
                 plan.files.find(({ physicalPath }) => physicalPath === routePath)!.lifecycle,
               ).toBe("seed-once");
-              if (i18n)
-                expect(
-                  plan.files.find(({ physicalPath }) => physicalPath === clientPath)!.lifecycle,
-                ).toBe("seed-once");
             }
           }
         });
@@ -95,22 +82,10 @@ describe("extracted authentication form behavior", () => {
       const challenge = deferred<{ error: null | object }>();
       const calls: Array<{ method: string; input: unknown }> = [];
       const navigations: string[] = [];
-      const states: unknown[] = [];
-      let cursor = 0;
-      const ui = generatedFormHarness(twoFactorFormContent(router), ["TwoFactorForm"], {
+      const ui = authFeatureHarness(router, ["TwoFactorHarness"], {
         Badge: "Badge",
         CardFooter: "CardFooter",
         Link: "Link",
-        useState(initial: unknown) {
-          const index = cursor++;
-          if (!(index in states)) states[index] = initial;
-          return [
-            states[index],
-            (value: unknown) => {
-              states[index] = typeof value === "function" ? value(states[index]) : value;
-            },
-          ];
-        },
         createTwoFactorChallengeSchema: () => ({}),
         useRouter: () => ({ push: (to: string) => navigations.push(to) }),
         useNavigate:
@@ -129,8 +104,7 @@ describe("extracted authentication form behavior", () => {
         },
       });
       const render = () => {
-        cursor = 0;
-        return ui.render("TwoFactorForm");
+        return ui.render("TwoFactorHarness");
       };
       const switchButton = () => {
         const subscription = elements(render()).find(({ props }) => "selector" in props)!;
@@ -171,7 +145,7 @@ describe("extracted authentication form behavior", () => {
       const calls: unknown[] = [];
       const navigations: string[] = [];
       let fail = true;
-      const ui = generatedFormHarness(resetPasswordFormContent(router), ["ResetPasswordForm"], {
+      const ui = authFeatureHarness(router, ["ResetPasswordHarness"], {
         CardFooter: "CardFooter",
         ArrowLeft: "ArrowLeft",
         Link: "Link",
@@ -189,7 +163,7 @@ describe("extracted authentication form behavior", () => {
         },
       });
       const render = (token = "token", queryError: string | null = null) =>
-        ui.render("ResetPasswordForm", { token, queryError });
+        ui.render("ResetPasswordHarness", { token, queryError });
       const missing = render("");
       expect(textContent(missing)).toContain("resetPassword.invalidLinkDescription");
       expect(elements(missing).some(({ type }) => type === "Form")).toBe(false);
@@ -219,11 +193,26 @@ describe("extracted authentication form behavior", () => {
 
 test("Expo two-factor challenge offers the sign-in return without a protected recovery-code link", () => {
   for (const i18n of [false, true]) {
-    const source = expoTwoFactorContent(i18n);
-    expect(source).toContain('<Link href="/sign-in"');
-    expect(source).not.toContain('<Link href="/settings"');
-    expect(source).not.toContain("twoFactor.recoveryCodes");
-    expect(source).toContain("identityClient.verifyTwoFactor");
-    expect(parseSync("two-factor.tsx", source).errors).toEqual([]);
+    const files = expoAuthFeatureFiles("monorepo", true, i18n);
+    const route = files.find((file) => file.path === "apps/mobile/app/2fa.tsx")!.content;
+    const view = files.find((file) =>
+      file.path.endsWith("/components/two-factor-form.tsx"),
+    )!.content;
+    const workflow = files.find((file) => file.path.endsWith("/use-two-factor-form.ts"))!.content;
+    const mutations = files.find((file) => file.path.endsWith("/mutations.ts"))!.content;
+    expect(route).toContain("useLocalSearchParams");
+    expect(route).not.toContain("identityClient");
+    expect(route).not.toContain("useForm");
+    expect(view).toContain('<Link href="/sign-in"');
+    expect(view).not.toContain('<Link href="/settings"');
+    expect(view).not.toContain("twoFactor.recoveryCodes");
+    expect(view).toContain("editable={false}");
+    expect(workflow).toContain("verifyAuthChallenge");
+    expect(workflow).toContain("trustDevice: false");
+    expect(workflow).not.toContain("trustDevice: value.trustDevice");
+    expect(mutations).toContain("identityClient.verifyTwoFactor");
+    for (const file of files.filter((file) => /\.tsx?$/.test(file.path))) {
+      expect(parseSync(file.path, file.content).errors, file.path).toEqual([]);
+    }
   }
 });

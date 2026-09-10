@@ -39,7 +39,7 @@ export type CapabilityRequirement =
   | {
       readonly kind: "capability";
       readonly capability: CapabilityId;
-      readonly when?: "jobs-user-facing-api";
+      readonly when?: "jobs-user-facing-api" | "manual-billing";
     }
   | {
       readonly kind: "backend";

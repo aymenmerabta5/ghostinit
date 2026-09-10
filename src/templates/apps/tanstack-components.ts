@@ -64,7 +64,7 @@ export function tanstackComponentFiles(addonMap?: AddonMapInput): TemplateFile[]
     : {};
   const billing = addonMap
     ? hasAddon(addonMap as AddonInstallerMap, "billing") ||
-      ["stripe", "chargily", "paddle", "polar"].some((provider) =>
+      ["stripe", "chargily", "paddle", "polar", "manual"].some((provider) =>
         hasAddon(addonMap as AddonInstallerMap, provider),
       )
     : true;
@@ -98,7 +98,7 @@ export function tanstackComponentFiles(addonMap?: AddonMapInput): TemplateFile[]
     ...(auth
       ? headerSupportComponents(i18n, billing, hasTypedAdminNavigation, messaging, pdf, navigation)
       : []),
-    signOutButton(),
+    ...(auth ? [signOutButton()] : []),
     authClientFile(convex ? "convex" : "postgres", email),
     useCopyHook(),
     useAuthHook(),

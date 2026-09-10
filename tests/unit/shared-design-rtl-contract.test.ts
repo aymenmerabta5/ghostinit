@@ -294,12 +294,13 @@ describe("shared light-first design and RTL contract", () => {
     const files = generateProjectFiles(config({ apps: ["web", "desktop"], billing: ["stripe"] }), {
       dryRun: false,
     });
-    const workspaces = files.filter(
-      ({ path }) =>
-        path.endsWith("features/identity-workspace/components/organizations-card.tsx") ||
-        path.endsWith("renderer/routes/workspace.tsx"),
+    const workspaces = files.filter(({ path }) =>
+      path.endsWith("features/identity-workspace/components/organizations-card.tsx"),
     );
-    expect(workspaces).toHaveLength(2);
+    expect(workspaces.map(({ path }) => path).sort()).toEqual([
+      "apps/desktop/src/renderer/features/identity-workspace/components/organizations-card.tsx",
+      "apps/web/src/features/identity-workspace/components/organizations-card.tsx",
+    ]);
     for (const workspace of workspaces) {
       expect(workspace.content, workspace.path).toContain("text-start");
       expect(workspace.content, workspace.path).not.toContain("text-left");

@@ -10,6 +10,7 @@ export function convexAuthContent(
   hasEmail = true,
   hasI18n = false,
   hasMobile = false,
+  hasManualBilling = false,
 ): string {
   void mode;
   const authEmailLocaleLines = !hasEmail
@@ -66,6 +67,9 @@ export function convexAuthContent(
     'import { ConvexError } from "convex/values";',
     'import authConfig from "./auth.config";',
     'import { query } from "./_generated/server";',
+    ...(hasManualBilling
+      ? ['import { assertManualPaymentDeletionAllowed } from "./manualPaymentRetention";']
+      : []),
     "",
     "// Env validation — no insecure https://example.com fallback, require SITE_URL",
     "function requireEnv(name: string): string {",
@@ -191,7 +195,14 @@ export function convexAuthContent(
     '          .query("users")',
     '          .withIndex("by_authId", (query) => query.eq("authId", authUser._id))',
     "          .unique();",
-    "        if (existing) await ctx.db.delete(existing._id);",
+    ...(hasManualBilling
+      ? [
+          "        if (existing) {",
+          "          await assertManualPaymentDeletionAllowed(ctx, existing._id);",
+          "          await ctx.db.delete(existing._id);",
+          "        }",
+        ]
+      : ["        if (existing) await ctx.db.delete(existing._id);"]),
     "      },",
     "    },",
     "  },",

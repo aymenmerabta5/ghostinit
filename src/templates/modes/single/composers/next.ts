@@ -6,6 +6,7 @@ import { webLibFiles } from "../../../apps/fragments/web-lib.js";
 import {
   type BillingProviderName,
   type AddonInstallerMap,
+  type DeployTarget,
   hasAddon,
 } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
@@ -16,7 +17,7 @@ import { analyticsFiles } from "../../../analytics.js";
 import { i18nFiles } from "../../../i18n.js";
 import { surfaceTranslationFiles } from "../../../i18n/surface.js";
 import { emailFlowPageContent } from "../../../apps/fragments/recovery/index.js";
-import { globalErrorFileContent } from "../../../apps/fragments/layout.js";
+import { globalErrorFileContent, systemFeatureFiles } from "../../../apps/fragments/layout.js";
 
 import { singlePackageJson } from "../package.js";
 import { filteredEnvExample, filteredEnvLocal } from "../config.js";
@@ -54,36 +55,17 @@ import {
   singleMarketingPage,
 } from "../pages/marketing.js";
 import {
-  authOAuthButtonsSingleContent,
   forgotPasswordPageSingle,
   resetPasswordPageSingle,
-  resetPasswordFormSingleContent,
-  singleTwoFactorFormContent,
-  signInFormSingleContent,
-  signInMethodsSingleContent,
   signInPageSingle,
-  signUpFormSingleContent,
   signUpPageSingle,
 } from "../pages/auth.js";
+import { authFeatureFiles } from "../../../apps/fragments/auth/feature.js";
 import { singleTwoFactorPageContent, singleAgentPageContent } from "../pages/two-factor.js";
 import { dashboardPageSingle, singleDashboardFeatureFilesNext } from "../pages/dashboard.js";
-import {
-  settingsLayoutSingle,
-  useSettingsHookSingle,
-  settingsProfileCardSingle,
-  settingsPasswordCardSingle,
-  settingsPasskeyCardSingle,
-  settingsPasskeyListSingle,
-  settingsPasskeyDataSingle,
-  settingsPasskeyManagementSingle,
-  settingsTwoFactorCardSingle,
-  settingsTwoFactorHookSingle,
-  settingsSessionsCardSingle,
-  settingsSessionsDataSingle,
-  settingsSessionsListSingle,
-  settingsDangerZoneCardSingle,
-  settingsPageSingleContent,
-} from "../pages/settings.js";
+import { settingsLayoutSingle, settingsPageSingleContent } from "../pages/settings.js";
+import { webSettingsFeatureFiles } from "../../../apps/fragments/settings/feature.js";
+import { identityPureClientFiles } from "../../../apps/fragments/auth/client-validation.js";
 import { singleNextAdminFeatureFiles } from "../pages/admin.js";
 import { webIdentityWorkspaceFiles } from "../../../apps/fragments/identity-workspace/index.js";
 import { settingsActionsContent } from "../../../apps/fragments/settings/actions.js";
@@ -142,6 +124,7 @@ export function buildNextFiles(
   hasAnalytics: boolean,
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
+  deploy?: DeployTarget,
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
   const isNone = hasAddon(addonMap, "database:none");
@@ -153,6 +136,7 @@ export function buildNextFiles(
   const hasPdf = hasAddon(addonMap, "pdf");
   const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const apiCapabilities = {
+    manualBilling: effectiveBilling.includes("manual"),
     auth: hasAuth,
     identity: hasApi && hasAuth && !isNone,
     messaging: hasApi && hasMessaging && !isConvex && !isNone,
@@ -232,39 +216,31 @@ export function buildNextFiles(
   if (hasAuth && hasEmail) {
     files.push(file("src/app/forgot-password/page.tsx", forgotPasswordPageSingle()));
     files.push(file("src/app/reset-password/page.tsx", resetPasswordPageSingle()));
-    files.push(
-      file("src/components/auth/reset-password-form.tsx", resetPasswordFormSingleContent()),
-    );
     files.push(file("src/app/magic-link/page.tsx", emailFlowPageContent("magic-link", "next")));
     files.push(file("src/app/verify-email/page.tsx", emailFlowPageContent("verify-email", "next")));
   }
   if (hasAuth) {
     files.push(file("src/app/sign-in/page.tsx", signInPageSingle(hasEmail)));
     files.push(file("src/app/sign-up/page.tsx", signUpPageSingle()));
-    files.push(file("src/components/auth/oauth-buttons.tsx", authOAuthButtonsSingleContent()));
     files.push(
-      file(
-        "src/components/auth/sign-in-methods.tsx",
-        signInMethodsSingleContent(!isConvex && !isNone),
-      ),
+      ...authFeatureFiles({
+        router: "next",
+        sourceRoot: "src",
+        hasEmail,
+        hasPasskey: !isConvex && !isNone,
+        includePureClientFiles: false,
+      }),
     );
-    files.push(
-      file(
-        "src/components/auth/sign-in-form.tsx",
-        signInFormSingleContent(hasEmail, !isConvex && !isNone),
-      ),
-    );
-    files.push(file("src/components/auth/sign-up-form.tsx", signUpFormSingleContent(hasEmail)));
     files.push(file("src/app/dashboard/page.tsx", dashboardPageSingle(isConvex)));
     files.push(...singleDashboardFeatureFilesNext(hasBilling, hasApi && !isNone));
   }
   files.push(file("src/app/not-found.tsx", singleNotFoundPage()));
   files.push(file("src/app/error.tsx", singleErrorPage()));
   files.push(file("src/app/global-error.tsx", globalErrorFileContent()));
+  files.push(...systemFeatureFiles("next", "src", hasAuth, true));
   files.push(file("src/app/loading.tsx", singleLoadingPage()));
   if (hasAuth && hasEmail) {
     files.push(file("src/app/2fa/page.tsx", singleTwoFactorPageContent()));
-    files.push(file("src/components/auth/two-factor-form.tsx", singleTwoFactorFormContent()));
   }
   if (hasEve) files.push(file("src/app/agent/page.tsx", singleAgentPageContent()));
   if (hasAuth) {
@@ -305,7 +281,7 @@ export function buildNextFiles(
     else if (apiCapabilities.featureFlags) files.push(...singleServiceErrorFiles());
     files.push(...singleCapabilityApiFiles(apiCapabilities, isConvex ? "convex" : "postgres"));
     if (hasAdminApi) files.push(...singleAdminApiFiles(isConvex ? "convex" : "postgres"));
-    if (hasBilling) files.push(...singleBillingApiFiles());
+    if (hasBilling) files.push(...singleBillingApiFiles(apiCapabilities.manualBilling));
   }
   if (hasAuth) {
     files.push(
@@ -314,45 +290,19 @@ export function buildNextFiles(
         settingsLayoutSingle(hasBilling, apiCapabilities.identity),
       ),
     );
-    files.push(file("src/app/settings/hooks/use-settings.ts", useSettingsHookSingle()));
+    files.push(
+      ...webSettingsFeatureFiles(
+        "src",
+        "next",
+        apiCapabilities.identity,
+        hasEmail,
+        !isConvex && !isNone,
+      ),
+    );
+    files.push(...identityPureClientFiles("src"));
     if (apiCapabilities.identity) {
       files.push(file("src/app/settings/actions.ts", settingsActionsContent("single")));
     }
-    files.push(file("src/app/settings/components/profile-card.tsx", settingsProfileCardSingle()));
-    if (hasEmail) {
-      files.push(
-        file("src/app/settings/components/password-card.tsx", settingsPasswordCardSingle()),
-        file("src/app/settings/components/two-factor-card.tsx", settingsTwoFactorCardSingle()),
-        file(
-          "src/app/settings/components/use-two-factor-settings.ts",
-          settingsTwoFactorHookSingle(),
-        ),
-      );
-    }
-    if (!isConvex && !isNone) {
-      files.push(
-        file("src/app/settings/components/passkey-card.tsx", settingsPasskeyCardSingle()),
-        file("src/app/settings/components/passkey-list.tsx", settingsPasskeyListSingle()),
-        file("src/app/settings/passkeys.ts", settingsPasskeyDataSingle()),
-        file(
-          "src/app/settings/components/use-passkey-management.ts",
-          settingsPasskeyManagementSingle(),
-        ),
-      );
-    }
-    if (apiCapabilities.identity) {
-      files.push(
-        file("src/app/settings/components/sessions-card.tsx", settingsSessionsCardSingle()),
-        file("src/app/settings/components/session-list.tsx", settingsSessionsListSingle()),
-        file("src/app/settings/sessions.ts", settingsSessionsDataSingle(true)),
-      );
-    }
-    files.push(
-      file(
-        "src/app/settings/components/danger-zone-card.tsx",
-        settingsDangerZoneCardSingle(hasEmail),
-      ),
-    );
     files.push(
       file(
         "src/app/settings/page.tsx",
@@ -380,6 +330,7 @@ export function buildNextFiles(
     const convexAll = convexDatabaseFiles(projectName, runtime, "single", {
       auth: hasAuth,
       billing: hasBilling,
+      manualBilling: effectiveBilling.includes("manual"),
       email: hasEmail,
       i18n: hasI18n,
       posts: hasAuth,
@@ -483,13 +434,17 @@ export function buildNextFiles(
   }
   if (hasAuth) files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
   files.push(gitignoreSingle());
+  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
     readmeSingle(projectName, hasEmail, {
       framework: "nextjs",
       hasEve,
+      database: dbType,
+      deploy: deploy ?? (hasCloudflare ? "cloudflare" : "none"),
+      billing: effectiveBilling,
+      auth: hasAuth,
     }),
   );
-  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
     filteredEnvExample(projectName, secrets, effectiveBilling, hasEmail, runtime, dbType, {
       framework: "nextjs",

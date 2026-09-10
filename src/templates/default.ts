@@ -1,6 +1,9 @@
 // Default GhostInit project generation entrypoints.
 
 import type { GenerationPlan } from "../domain/generation/types.js";
+import { canonicalDesiredProjectConfig } from "../domain/project/desired-canonical.js";
+
+export { canonicalDesiredProjectConfig };
 import type { DesiredProjectConfig, ResolvedProjectConfig } from "../domain/project/config.js";
 import { serializeDesiredProjectConfig } from "../lib/project-config.js";
 import { projectConfigSchema, type ProjectConfig } from "../lib/config.js";
@@ -28,31 +31,6 @@ import {
 
 const CONFIG_RENDERER_ID = "ghostinit.desired-config.v2" as const;
 const CONFIG_ACCEPTANCE_ID = "project.config-roundtrip.v2" as const;
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-/** Canonicalize only order-insensitive desired-state collections. */
-export function canonicalDesiredProjectConfig(desired: DesiredProjectConfig): DesiredProjectConfig {
-  const billing = desired.capabilities.billing;
-  return {
-    ...desired,
-    apps: [...desired.apps].sort(
-      (left, right) =>
-        compareText(left.id, right.id) ||
-        compareText(left.target, right.target) ||
-        compareText(left.deploy, right.deploy),
-    ),
-    capabilities: {
-      ...desired.capabilities,
-      billing:
-        billing === undefined || billing === false
-          ? billing
-          : { providers: [...new Set(billing.providers)].sort(compareText) },
-    },
-  };
-}
 
 export interface ProjectGenerationPlanOptions {
   readonly desiredConfig?: DesiredProjectConfig;

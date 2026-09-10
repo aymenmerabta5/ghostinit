@@ -24,7 +24,7 @@ import {
 import type { ChecksumEntry } from "./checksum.js";
 import { hashContent } from "./checksum.js";
 import { IncompatibleSchemaError, ProjectStateError } from "./errors.js";
-import { ghostinitVersion } from "../templates/versions.js";
+import { ghostinitVersion } from "../../packages/versions/src/index.js";
 import { FsTransaction } from "./fs.js";
 import {
   desiredToProjectConfig,

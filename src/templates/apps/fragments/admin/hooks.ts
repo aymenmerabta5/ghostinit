@@ -5,20 +5,17 @@ function hookContent(): string {
   return `"use client";
 
 import * as React from "react";
-import { useAdminUserMutations } from "../mutations";
-import { useAdminUsersData } from "../queries";
-import {
-  translateAdminUsersError,
-  useAdminUsersTranslations,
-} from "../translations";
-import { DEFAULT_ADMIN_USERS_FILTERS } from "../types";
+import { useAdminUserMutations } from "./mutations";
+import { useAdminUsersData, resolveAdminUsersError } from "./queries";
+import { translateAdminUsersError } from "./translations";
+import { useAdminUsersTranslations } from "./use-admin-users-translations";
+import { DEFAULT_ADMIN_USERS_FILTERS } from "./types";
 import type {
   AdminUsersFilterInput,
   AdminUsersFilters,
   AdminUsersInitialData,
   AdminUserRole,
-  CreateAdminUserInput,
-} from "../types";
+} from "./types";
 
 export function useAdminUsers(initialData?: AdminUsersInitialData) {
   const translate = useAdminUsersTranslations();
@@ -47,13 +44,13 @@ export function useAdminUsers(initialData?: AdminUsersInitialData) {
 
   return {
     users: query.data?.users ?? [],
-    total: query.data?.total ?? 0,
+    total: query.data?.total,
     filters,
     totalPages,
     isPending: query.isPending,
     isFetching: query.isFetching,
-    queryError: translateAdminUsersError(query.error, translate),
-    mutationError: translateAdminUsersError(mutations.error, translate),
+    queryError: translateAdminUsersError(resolveAdminUsersError(query.error), translate),
+    mutationError: translateAdminUsersError(resolveAdminUsersError(mutations.error), translate),
     hasMore: query.hasMore,
     totalIsExact: query.totalIsExact,
     applyFilters,
@@ -62,16 +59,12 @@ export function useAdminUsers(initialData?: AdminUsersInitialData) {
     nextPage: () => goToPage(filters.page + 1),
     retry: query.retry,
     resetMutationError: mutations.resetErrors,
-    async createUser(input: CreateAdminUserInput): Promise<boolean> {
-      return await mutations.createUser(input);
-    },
     async toggleRole(identityId: string, currentRole: AdminUserRole): Promise<boolean> {
       return await mutations.updateRole(identityId, currentRole === "admin" ? "user" : "admin");
     },
     async toggleBanned(identityId: string, currentlyBanned: boolean): Promise<boolean> {
       return await mutations.updateBanned(identityId, !currentlyBanned);
     },
-    createPending: mutations.createPending,
     rolePendingId: mutations.rolePendingId,
     banPendingId: mutations.banPendingId,
   };
@@ -80,5 +73,5 @@ export function useAdminUsers(initialData?: AdminUsersInitialData) {
 }
 
 export function adminUsersHook(options: AdminTemplateOptions): TemplateFile {
-  return file(`${adminFeatureRoot(options)}/hooks/use-admin-users.ts`, hookContent());
+  return file(`${adminFeatureRoot(options)}/use-admin-users.ts`, hookContent());
 }

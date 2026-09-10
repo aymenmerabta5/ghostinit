@@ -27,7 +27,7 @@ import {
   authClientShim,
 } from "./fragments/core.js";
 import type { AddonInstallerMap } from "../../lib/addons.js";
-import { hasAddon } from "../../lib/addons.js";
+import { BILLING_PROVIDERS, hasAddon } from "../../lib/addons.js";
 import { surfaceTranslationFiles } from "../i18n/surface.js";
 import { canonicalQueryAuthHookFile, queryAuthBoundaryFile } from "./fragments/query-auth.js";
 import { requestOwnedSnapshotFile } from "./fragments/request-owned-snapshot.js";
@@ -68,9 +68,7 @@ export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
     : {};
   const billing = addonMap
     ? hasAddon(addonMap as AddonInstallerMap, "billing") ||
-      ["stripe", "chargily", "paddle", "polar"].some((provider) =>
-        hasAddon(addonMap as AddonInstallerMap, provider),
-      )
+      BILLING_PROVIDERS.some((provider) => hasAddon(addonMap as AddonInstallerMap, provider))
     : true;
   const hasTypedAdminNavigation =
     auth && api && !(addonMap && hasAddon(addonMap as AddonInstallerMap, "database:none"));
@@ -98,7 +96,7 @@ export function componentFiles(addonMap?: AddonMapInput): TemplateFile[] {
     ...(auth
       ? headerSupportComponents(i18n, billing, hasTypedAdminNavigation, messaging, pdf, navigation)
       : []),
-    signOutButton(),
+    ...(auth ? [signOutButton()] : []),
     authClient(convex ? "convex" : "postgres", email),
     useCopyHook(),
     useAuthHook(),

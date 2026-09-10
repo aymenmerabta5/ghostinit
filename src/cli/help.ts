@@ -27,9 +27,9 @@ Global options:
   --json                 Emit stable JSON envelope
   --yes                  Accept defaults without prompts
   --ci                   CI / non-interactive mode (disables TTY prompts)
-  --dry-run              Preview without locks, writes, cleanup, install, or secret minting
+  --dry-run              Preview without project locks, changes, package installation, or secret minting
   --force                Use command-specific force behavior; managed-file conflicts still block writes
-  --no-install           Skip installation during create
+  --no-install           Skip installation during create/upgrade (security remains unverified)
   --runtime node|bun     Runtime preference
   --quiet                Suppress stderr logs
   --debug                Verbose logging
@@ -37,10 +37,16 @@ Global options:
   --verbose              Verbose output (status, check, doctor only)
   --list                 List mode (add, status only)
 
+Dependency security:
+  security [audit]           Read-only dependency audit
+  security fix              Apply compatible, age-eligible fixes and verify the installed project
+  security fix --dry-run     Preview repairs without changing the project or installing packages
+  Install and upgrade workflows apply compatible security fixes automatically.
+
 Create/init options:
   --mode monorepo|single     Project structure mode (default: monorepo)
   --framework nextjs|tanstack-start     Frontend framework (default: nextjs)
-  --billing <providers>      Billing: stripe,chargily,paddle,polar|both|all|none (repeatable or comma-separated)
+  --billing <providers>      Billing: manual, chargily, and at most one of stripe|paddle|polar (comma-separated or repeatable; none disables)
   --features <list>          Features: eve,i18n (deprecated alias for --with-eve/--with-i18n)
   --database postgres|convex|none (default: postgres)
   --apps web,mobile,desktop|both|all Apps: web, mobile, desktop or combos (repeatable or comma-separated, default: web; both=web,mobile, all=web,mobile,desktop)

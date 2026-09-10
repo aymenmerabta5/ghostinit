@@ -10,9 +10,9 @@
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 168,
-    "uniquePackages": 139,
-    "latestScopes": 143,
+    "auditedScopes": 169,
+    "uniquePackages": 140,
+    "latestScopes": 144,
     "compatibilityHeldScopes": 25,
     "uniqueCompatibilityHolds": 19,
     "auditedLockfiles": 4,
@@ -76,12 +76,17 @@
     },
     {
       "scope": "typescript",
-      "removed": ["typescriptLegacy", "@typescript/native-preview"],
+      "removed": [
+        "typescriptLegacy",
+        "@typescript/native-preview"
+      ],
       "reason": "Unused pins; stable TS7 replaced native-preview and no generated consumer used the TS5 alias."
     },
     {
       "scope": "typescript",
-      "removed": ["typescriptNext"],
+      "removed": [
+        "typescriptNext"
+      ],
       "reason": "Generated applications and shared packages now select the same 7.0.2 catalog pin. Exact-package source audits did not establish a mandatory TS6 API dependency in the emitted paths; installed migration gates remain proof-required in evidence/toolchain/typescript-7.0.2.json."
     },
     {
@@ -93,6 +98,14 @@
       "scope": "eve.just-bash",
       "value": "3.4.2",
       "reason": "Install the eligible optional sandbox engine through audited generated manifests; explicit justbash autoInstall:false prevents runtime graph mutation."
+    },
+    {
+      "scope": "cloudflare.sharp",
+      "package": "sharp",
+      "version": "0.35.4",
+      "reason": "Worker-only exact override fixes GHSA-rgj7-g3m4-5g8c. Incremental registry re-verification preserves the existing catalog snapshot and seven-day policy; isolated Miniflare Images runtime exercised PNG/JPEG/WebP/AVIF with libheif 1.23.2.",
+      "advisory": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c",
+      "auditedAt": "2026-09-08T23:40:40.654Z"
     }
   ],
   "holds": [
@@ -105,7 +118,10 @@
         "https://registry.npmjs.org/@convex-dev%2Fbetter-auth",
         "https://registry.npmjs.org/better-auth"
       ],
-      "scopes": ["auth.better-auth", "host.devDependencies.better-auth"]
+      "scopes": [
+        "auth.better-auth",
+        "host.devDependencies.better-auth"
+      ]
     },
     {
       "package": "@better-auth/core",
@@ -116,38 +132,56 @@
         "https://registry.npmjs.org/better-auth/1.6.30",
         "https://registry.npmjs.org/@better-auth%2Fcore"
       ],
-      "scopes": ["auth.@better-auth/core", "host.devDependencies.@better-auth/core"]
+      "scopes": [
+        "auth.@better-auth/core",
+        "host.devDependencies.@better-auth/core"
+      ]
     },
     {
       "package": "@better-auth/passkey",
       "pinned": "1.6.30",
       "reasonCode": "better-auth-lockstep",
       "detail": "Official passkey plugin types must stay on the selected Better Auth 1.6.30 line.",
-      "evidence": ["https://registry.npmjs.org/@better-auth%2Fpasskey"],
-      "scopes": ["auth.@better-auth/passkey", "host.devDependencies.@better-auth/passkey"]
+      "evidence": [
+        "https://registry.npmjs.org/@better-auth%2Fpasskey"
+      ],
+      "scopes": [
+        "auth.@better-auth/passkey",
+        "host.devDependencies.@better-auth/passkey"
+      ]
     },
     {
       "package": "@better-auth/expo",
       "pinned": "1.6.30",
       "reasonCode": "better-auth-lockstep",
       "detail": "Official Expo plugin types must stay on the selected Better Auth 1.6.30 line.",
-      "evidence": ["https://registry.npmjs.org/@better-auth%2Fexpo"],
-      "scopes": ["auth.@better-auth/expo"]
+      "evidence": [
+        "https://registry.npmjs.org/@better-auth%2Fexpo"
+      ],
+      "scopes": [
+        "auth.@better-auth/expo"
+      ]
     },
     {
       "package": "node",
       "pinned": "24.19.0",
       "reasonCode": "node-lts",
       "detail": "Node 24 is the current LTS target; 24.19.0 is the newest Node 24 release old enough for the seven-day supply-chain policy, while npm latest follows the non-LTS current line.",
-      "evidence": ["https://registry.npmjs.org/node"],
-      "scopes": ["runtime.node"]
+      "evidence": [
+        "https://registry.npmjs.org/node"
+      ],
+      "scopes": [
+        "runtime.node"
+      ]
     },
     {
       "package": "@types/node",
       "pinned": "24.13.3",
       "reasonCode": "node-type-line",
       "detail": "Declarations intentionally match the Node 24 LTS runtime; this is the newest 24.x release.",
-      "evidence": ["https://registry.npmjs.org/@types%2Fnode"],
+      "evidence": [
+        "https://registry.npmjs.org/@types%2Fnode"
+      ],
       "scopes": [
         "host.devDependencies.@types/node",
         "host.overrides.@types/node",
@@ -163,7 +197,9 @@
         "https://registry.npmjs.org/expo-template-default",
         "https://registry.npmjs.org/react"
       ],
-      "scopes": ["expoReact.react"]
+      "scopes": [
+        "expoReact.react"
+      ]
     },
     {
       "package": "react-dom",
@@ -174,7 +210,9 @@
         "https://registry.npmjs.org/expo-template-default",
         "https://registry.npmjs.org/react-dom"
       ],
-      "scopes": ["expoReact.react-dom"]
+      "scopes": [
+        "expoReact.react-dom"
+      ]
     },
     {
       "package": "@react-native-async-storage/async-storage",
@@ -185,7 +223,9 @@
         "https://registry.npmjs.org/expo",
         "https://registry.npmjs.org/@react-native-async-storage%2Fasync-storage"
       ],
-      "scopes": ["expo.@react-native-async-storage/async-storage"]
+      "scopes": [
+        "expo.@react-native-async-storage/async-storage"
+      ]
     },
     {
       "package": "react-native",
@@ -196,7 +236,9 @@
         "https://registry.npmjs.org/expo-template-default",
         "https://registry.npmjs.org/react-native"
       ],
-      "scopes": ["expo.react-native"]
+      "scopes": [
+        "expo.react-native"
+      ]
     },
     {
       "package": "react-native-safe-area-context",
@@ -207,7 +249,9 @@
         "https://registry.npmjs.org/expo",
         "https://registry.npmjs.org/react-native-safe-area-context"
       ],
-      "scopes": ["expo.react-native-safe-area-context"]
+      "scopes": [
+        "expo.react-native-safe-area-context"
+      ]
     },
     {
       "package": "react-native-screens",
@@ -218,7 +262,9 @@
         "https://registry.npmjs.org/expo",
         "https://registry.npmjs.org/react-native-screens"
       ],
-      "scopes": ["expo.react-native-screens"]
+      "scopes": [
+        "expo.react-native-screens"
+      ]
     },
     {
       "package": "react-native-gesture-handler",
@@ -229,7 +275,9 @@
         "https://registry.npmjs.org/expo",
         "https://registry.npmjs.org/react-native-gesture-handler"
       ],
-      "scopes": ["expo.react-native-gesture-handler"]
+      "scopes": [
+        "expo.react-native-gesture-handler"
+      ]
     },
     {
       "package": "react-native-reanimated",
@@ -240,7 +288,9 @@
         "https://registry.npmjs.org/expo-template-default",
         "https://registry.npmjs.org/react-native-reanimated"
       ],
-      "scopes": ["reanimated.react-native-reanimated"]
+      "scopes": [
+        "reanimated.react-native-reanimated"
+      ]
     },
     {
       "package": "react-native-worklets",
@@ -251,39 +301,59 @@
         "https://registry.npmjs.org/expo-template-default",
         "https://registry.npmjs.org/react-native-worklets"
       ],
-      "scopes": ["worklets.react-native-worklets"]
+      "scopes": [
+        "worklets.react-native-worklets"
+      ]
     },
     {
       "package": "vite",
       "pinned": "7.3.6",
       "reasonCode": "validated-plugin-line",
       "detail": "Selected Nitro accepts Vite 7 or 8; GhostInit retains the validated Vite 7 plus plugin-react 5 pair until those two packages are migrated together.",
-      "evidence": ["https://registry.npmjs.org/nitro", "https://registry.npmjs.org/vite"],
-      "scopes": ["tanstackStart.vite"]
+      "evidence": [
+        "https://registry.npmjs.org/nitro",
+        "https://registry.npmjs.org/vite"
+      ],
+      "scopes": [
+        "tanstackStart.vite"
+      ]
     },
     {
       "package": "@vitejs/plugin-react",
       "pinned": "5.2.0",
       "reasonCode": "vite-7-peer",
       "detail": "Plugin React 5.2 supports Vite 7; latest 6.1.1 requires Vite ^8.",
-      "evidence": ["https://registry.npmjs.org/@vitejs%2Fplugin-react"],
-      "scopes": ["tanstackStart.@vitejs/plugin-react"]
+      "evidence": [
+        "https://registry.npmjs.org/@vitejs%2Fplugin-react"
+      ],
+      "scopes": [
+        "tanstackStart.@vitejs/plugin-react"
+      ]
     },
     {
       "package": "nitro",
       "pinned": "3.0.260610-beta",
       "reasonCode": "nitro-vite7-websocket",
       "detail": "The generated TanStack runtime is validated against Nitro 3.0.260610-beta for maintained Vite 7 and WebSocket support; stable 3.0.0 uses the obsolete integration surface.",
-      "evidence": ["https://registry.npmjs.org/nitro"],
-      "scopes": ["tanstackStart.nitro"]
+      "evidence": [
+        "https://registry.npmjs.org/nitro"
+      ],
+      "scopes": [
+        "tanstackStart.nitro"
+      ]
     },
     {
       "package": "@orpc/client",
       "pinned": "1.15.0",
       "reasonCode": "orpc-v1-contract",
       "detail": "The numerically newer 2.0.0 release is deprecated as accidental; generated oRPC contracts, servers, adapters, and fixtures are validated as one 1.15.0 package family.",
-      "evidence": ["https://registry.npmjs.org/@orpc%2Fclient"],
-      "scopes": ["orpc.@orpc/client", "host.devDependencies.@orpc/client"]
+      "evidence": [
+        "https://registry.npmjs.org/@orpc%2Fclient"
+      ],
+      "scopes": [
+        "orpc.@orpc/client",
+        "host.devDependencies.@orpc/client"
+      ]
     }
   ],
   "omissions": [
@@ -1620,159 +1690,393 @@
     },
     {
       "package": "@img/sharp-darwin-arm64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:30.023Z",
-      "integrity": "sha512-RMnFX7YQsMoh7lWfcM4NEHHymBX/rLuKNPVM84XE9ONPcaSCDgE7CHIHpSgPcO2xcRthgBy1HfNO319mwhIAkg=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:39:55.590Z",
+      "integrity": "sha512-Uhfl4V4lhP2nbUVF9+hyH1+luj86f1gUFeo8ALYxFoULoU+G87D43BfeMP8XHsk9boxAnCY/bf2EHwhA7MuGsA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-darwin-arm64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:39:55.590Z",
+        "integrity": "sha512-Uhfl4V4lhP2nbUVF9+hyH1+luj86f1gUFeo8ALYxFoULoU+G87D43BfeMP8XHsk9boxAnCY/bf2EHwhA7MuGsA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-darwin-x64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:33.895Z",
-      "integrity": "sha512-Xo+5uFBtLN0BKqieTxiFzFPQAUlBbbH5iBKyRX/z1JrbnYsHTfKJnUfL8+p2TPXr1pXqao4eeL4Rl144uDpK9w=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:00.335Z",
+      "integrity": "sha512-hWniXY3bG5qKpkKrAwPe4y+VTPmf086YQAnkxWh7uA1YrlRouWGa0M0Mxj3ZjnXFkv7/TD1bTy9lGUK26vRvWw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-darwin-x64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:00.335Z",
+        "integrity": "sha512-hWniXY3bG5qKpkKrAwPe4y+VTPmf086YQAnkxWh7uA1YrlRouWGa0M0Mxj3ZjnXFkv7/TD1bTy9lGUK26vRvWw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-freebsd-wasm32",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:37.586Z",
-      "integrity": "sha512-lUxcqWIj2wMQ9BrwNjngcr1gWUr5xgaGThBRqPPalIC2n67Cqj1uPh8NnA/ZhAg8hUbKl+kVHKwgUIwe6ZYPrg=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:39:00.233Z",
+      "integrity": "sha512-lIsKw/BU+kjB4eZjxrYrZmwOJYi3Ajrv66iAlBmUPyKc3HpnloevB1g3wxGD9P/5BbQ1brBGl65VRRrCvQDEqA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-freebsd-wasm32",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:39:00.233Z",
+        "integrity": "sha512-lIsKw/BU+kjB4eZjxrYrZmwOJYi3Ajrv66iAlBmUPyKc3HpnloevB1g3wxGD9P/5BbQ1brBGl65VRRrCvQDEqA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-darwin-arm64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:50:41.057Z",
-      "integrity": "sha512-9J6ypZFpQBj4YnePGoq/S38w6nz+vqg5WZLrLGY4YuSemdMq47GMLBPO42MzwdGwpg/agZ7xzZcFHa48xlywfg=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:37:12.080Z",
+      "integrity": "sha512-suTBPTDGrI9WodccaDdwZItTSaBYASlBk1NSfElSHrUfzu3szG6lvIF58+WiFvnfzuK8ZBFS5zE00PxqxnRiPg==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-darwin-arm64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:37:12.080Z",
+        "integrity": "sha512-suTBPTDGrI9WodccaDdwZItTSaBYASlBk1NSfElSHrUfzu3szG6lvIF58+WiFvnfzuK8ZBFS5zE00PxqxnRiPg==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-darwin-x64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:50:35.900Z",
-      "integrity": "sha512-m2pW1n6cns9VaubNwsZ+c3CRYjxNQWgJ5gPlnL1nbBcpkBvFm6SCFN5o0psFHI8w9n11NKhFkeEDns98tiqbEw=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:02.543Z",
+      "integrity": "sha512-FVJZ5mITMobmXIz/hPDTw0EintTW5H3WfrxwLqEqjiIihlu+hVRyGrFQ60xl0Lxn7Bt3zdpevPaQi0HEzqz9fw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-darwin-x64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:02.543Z",
+        "integrity": "sha512-FVJZ5mITMobmXIz/hPDTw0EintTW5H3WfrxwLqEqjiIihlu+hVRyGrFQ60xl0Lxn7Bt3zdpevPaQi0HEzqz9fw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-arm",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:50:46.007Z",
-      "integrity": "sha512-1eMLzy92I4J6rmi4mAT8yC3HxOtniyGELlzGbNMLLeqe052ahFQ0h6LFq+lh5DsDIdYViIDst08abvSbcEdLXQ=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:16.503Z",
+      "integrity": "sha512-3rbU4vqXXc3hY/OiXdl52xZvT0F1yEngWfvqudtPJg/KkyiaQw2DRsFrNzpmLvfavbwOq3qXn36GP8obHRULQA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-arm",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:16.503Z",
+        "integrity": "sha512-3rbU4vqXXc3hY/OiXdl52xZvT0F1yEngWfvqudtPJg/KkyiaQw2DRsFrNzpmLvfavbwOq3qXn36GP8obHRULQA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-arm64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:50:51.068Z",
-      "integrity": "sha512-dqVSFynCox4C/J8kT16V7SIFAns0IjgLwkvYT7p8LQVmJ5OS5b6tI9IGflxTeuBS//zXeFIUbwt5dwxyZ17cnA=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:24.945Z",
+      "integrity": "sha512-0DaL0A6Xu6sQSQFwe4iVCrKWU2cCTItnRsYsCdxAMm9NF6twAA9BKnoqy4hqz4+azQ0JHuA26qiUKsf1XJ/v5A==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-arm64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:24.945Z",
+        "integrity": "sha512-0DaL0A6Xu6sQSQFwe4iVCrKWU2cCTItnRsYsCdxAMm9NF6twAA9BKnoqy4hqz4+azQ0JHuA26qiUKsf1XJ/v5A==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-ppc64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:51:06.804Z",
-      "integrity": "sha512-3z0NHDxD6n5I9gc05U1eW1AyRm+Gznzq3naMrthPNqE6oYykcogW0l/jfpJdjYnuNl8R7yI9pNbE1XiUeyq0Aw=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:50.188Z",
+      "integrity": "sha512-cdn1OvUBwsXhbC0zSzJnNzf5MZ/mTrobawDvNXBTxe8VtqKAm0sRuEY2Evzovb/w9JMk4TvRxqt1mekSuJz64w==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-ppc64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:50.188Z",
+        "integrity": "sha512-cdn1OvUBwsXhbC0zSzJnNzf5MZ/mTrobawDvNXBTxe8VtqKAm0sRuEY2Evzovb/w9JMk4TvRxqt1mekSuJz64w==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-riscv64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:51:11.866Z",
-      "integrity": "sha512-bsb4rI+NldGOsXuej2r8OdSS8+zXDVaCWxyWrcv6kneTOlgAHtZABRzBBCwdsPiD90J4myNJuHpg6kA20ImW/w=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:57.946Z",
+      "integrity": "sha512-HjPVx7yKz+0lqdhDlTw1tt90wamBoxhiXpvl1XZpJLiHH4RCJ5yDTqH+VlYPv2fwFs89JFw4c1IexYOcQUi4IQ==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-riscv64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:57.946Z",
+        "integrity": "sha512-HjPVx7yKz+0lqdhDlTw1tt90wamBoxhiXpvl1XZpJLiHH4RCJ5yDTqH+VlYPv2fwFs89JFw4c1IexYOcQUi4IQ==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-s390x",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:51:17.642Z",
-      "integrity": "sha512-/ABshyj8gCpyIrNXnHn4LorDJ0HHm1VhXPBlxZ8zAtfVPAaSafXPGn+sUSIRiwaSBy0mmFjSjiXI5mkcwdChKQ=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:07.159Z",
+      "integrity": "sha512-neWLh+3yCNThxnfy3c4BbVBeGgt9aftno+XbT56iK28RgeDs3UOFWviLWlUu0bArYVYJaFDK+RRohbicUNCm8Q==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-s390x",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:07.159Z",
+        "integrity": "sha512-neWLh+3yCNThxnfy3c4BbVBeGgt9aftno+XbT56iK28RgeDs3UOFWviLWlUu0bArYVYJaFDK+RRohbicUNCm8Q==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linux-x64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:51:23.068Z",
-      "integrity": "sha512-ITPEtgffGJ0S6G9dRyw/366tJQqFRcHWPHhC+Stpg3Z8AEMrDrTr2lhdz4f/Y/HMbRh//7Z5mBzEpVdi62Oc3w=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:33:23.108Z",
+      "integrity": "sha512-4vKmvAst9nrowcqquKFAyZJUDolUaIp8uRiN0mWFguJ1IplC9/pitXtlnnlU4aa/eJw3J7i67V+pwUL+wZGdsA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linux-x64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:33:23.108Z",
+        "integrity": "sha512-4vKmvAst9nrowcqquKFAyZJUDolUaIp8uRiN0mWFguJ1IplC9/pitXtlnnlU4aa/eJw3J7i67V+pwUL+wZGdsA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linuxmusl-arm64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:50:56.119Z",
-      "integrity": "sha512-zE9EdiUzUmg5mDT5a1rk5fYJ6GWPloTwWBYDS14naqHsL+EaMpDj1AWnpLgh3u0YCORv2Tt50wrcrpYqkP97Kw=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:32:33.778Z",
+      "integrity": "sha512-Y9kQaLMuNoB0bPYOOdcZMaseNrFpPodIWWMrx+CZyydf2xn68j9WYc6sWWRrDwNkzCQjKYfc68L7jKjGlHMibw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linuxmusl-arm64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:32:33.778Z",
+        "integrity": "sha512-Y9kQaLMuNoB0bPYOOdcZMaseNrFpPodIWWMrx+CZyydf2xn68j9WYc6sWWRrDwNkzCQjKYfc68L7jKjGlHMibw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-libvips-linuxmusl-x64",
-      "version": "1.3.2",
-      "publishedAt": "2026-06-30T09:51:01.103Z",
-      "integrity": "sha512-m0lrLiUt+lBYnCFr8qV/65yMR4E/c7/wf78I5eKTdkEakFAlZ9QlzEM3QIhhAwVeUhLAHLcCq7a7Vszq/oFNZQ=="
+      "version": "1.3.3",
+      "publishedAt": "2026-08-26T08:29:40.798Z",
+      "integrity": "sha512-fj8Mv0HHfD1Rr+4I68+3agJynxDWtBFgicTbSOb9Bke6pIwzGcJ+RX/yHjmiEGFMCavY/dxvem7MyNaJF+wDiw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-libvips-linuxmusl-x64",
+        "version": "1.3.3",
+        "publishedAt": "2026-08-26T08:29:40.798Z",
+        "integrity": "sha512-fj8Mv0HHfD1Rr+4I68+3agJynxDWtBFgicTbSOb9Bke6pIwzGcJ+RX/yHjmiEGFMCavY/dxvem7MyNaJF+wDiw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-arm",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:40.843Z",
-      "integrity": "sha512-affVWCTLooy8TSxbDx2qkzuDeaWLNVBA+P//FNBirHsXpP2fuBhk5AuboYUnrDnzoXes8GFjpTx0SBFOCRg+FA=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:44:12.045Z",
+      "integrity": "sha512-7OAS8gI0EReKGVN2HssHlM6umJgxF5VI3xN0p9FA91p/YO+ou5hiNghLdZ5BEHztwaaK5+bLKRf8x/o2L2nk9A==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-arm",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:44:12.045Z",
+        "integrity": "sha512-7OAS8gI0EReKGVN2HssHlM6umJgxF5VI3xN0p9FA91p/YO+ou5hiNghLdZ5BEHztwaaK5+bLKRf8x/o2L2nk9A==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-arm64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:45.088Z",
-      "integrity": "sha512-QgKDspHPnrU+GQ55XPhGwyhC8acLVOOSyAvo1oVfFmrIXLkDNmGWzAfDZ4xK8oSA1qBQrALcHX0G5UZni/SuFQ=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:16.201Z",
+      "integrity": "sha512-De4jpEnAU8Hd5oT0j1G3uL4ZvTuipVMn7YC6vPaJhy6/7EwEae0SVAoBrUMYQbkLGDm85taVWwuPc1a44LTzCQ==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-arm64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:16.201Z",
+        "integrity": "sha512-De4jpEnAU8Hd5oT0j1G3uL4ZvTuipVMn7YC6vPaJhy6/7EwEae0SVAoBrUMYQbkLGDm85taVWwuPc1a44LTzCQ==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-ppc64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:48.459Z",
-      "integrity": "sha512-sMd8rDxmpLOwv/7N44klFjOD5DUO7FLdjiXDI0hoxYaf7Ar262dQIEkosE98bps+5HPLtp/EvNqeqQtOycP/IA=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:20.994Z",
+      "integrity": "sha512-2oYZJeIl4kCcMGk4ouZVjnkCtFrpQFlNEtJ6GbxzhHQchwH0NH/qEb9ykmOl29dqwMq+JhFdZn+1ak2FKhI9fQ==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-ppc64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:20.994Z",
+        "integrity": "sha512-2oYZJeIl4kCcMGk4ouZVjnkCtFrpQFlNEtJ6GbxzhHQchwH0NH/qEb9ykmOl29dqwMq+JhFdZn+1ak2FKhI9fQ==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-riscv64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:51.682Z",
-      "integrity": "sha512-0Eob78yjlYPfL5vMNWAW55l3R9Y6BQS/gOfe0ZcP9mEz9ohhKSt4im1hayiknXgf8AWrFqMvJcKIdmLmEe7yeQ=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:41:25.526Z",
+      "integrity": "sha512-cPbNChoRURAWdebDIHSenxRpgEdy7JkPydSnUxRm9VvKD7m0/xVaR/8Fzlu81pk5nHEvHH87UZUA7cTtwnbJSA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-riscv64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:41:25.526Z",
+        "integrity": "sha512-cPbNChoRURAWdebDIHSenxRpgEdy7JkPydSnUxRm9VvKD7m0/xVaR/8Fzlu81pk5nHEvHH87UZUA7cTtwnbJSA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-s390x",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:55.215Z",
-      "integrity": "sha512-KgAxQ0DxpNOq1rG2t5cgTgShJFGSuU7XO45cqC+1NVOuZnP6tlgZRuSYOfNupGkHID0o3cJOsw4DVeJpMovcGw=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:28.792Z",
+      "integrity": "sha512-RY0JFY8Fd6RonCBtHz+DvadaPkXDSI1AUn6yWL9TipqkZ1vY8w8evqdgyDFnkm4/K1ve1TvZiaePP5oSd4+WVQ==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-s390x",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:28.792Z",
+        "integrity": "sha512-RY0JFY8Fd6RonCBtHz+DvadaPkXDSI1AUn6yWL9TipqkZ1vY8w8evqdgyDFnkm4/K1ve1TvZiaePP5oSd4+WVQ==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linux-x64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:27:58.652Z",
-      "integrity": "sha512-8pqvxubL2PGdhlPy6GLqzDYMUjyRmKAwKHYKixpdJYBUK7PJ0C029XdsnpFIdgRZG68fZiGdHVWcKPvtiPB4cA=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:41:33.733Z",
+      "integrity": "sha512-9qvvEAuk8k89TfWUoX2htWjbAMX8p+NxCppjpcg5k6xMsjhBQPTsoIh36h9Qde4WRuGpJeYnOjdosDn/cnv+OA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linux-x64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:41:33.733Z",
+        "integrity": "sha512-9qvvEAuk8k89TfWUoX2htWjbAMX8p+NxCppjpcg5k6xMsjhBQPTsoIh36h9Qde4WRuGpJeYnOjdosDn/cnv+OA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linuxmusl-arm64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:01.834Z",
-      "integrity": "sha512-Vz0iQjzzcSX3HCbfwFfCSG/9SCIqyO0mH2sXyiHaAYfBk0cRsCWXRyQYX0ovCK/PAQBbTzQ0dsPQHh5MAFL59w=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:37.456Z",
+      "integrity": "sha512-KB5jxpfWQTr0nc3xdHtWChdbifHrBGsd2SM62Eyxrl8afikm+f5qGBU75SJIZBT/S1MC8XyacdlXBMSWq6OURA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linuxmusl-arm64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:37.456Z",
+        "integrity": "sha512-KB5jxpfWQTr0nc3xdHtWChdbifHrBGsd2SM62Eyxrl8afikm+f5qGBU75SJIZBT/S1MC8XyacdlXBMSWq6OURA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-linuxmusl-x64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:05.423Z",
-      "integrity": "sha512-6O1NPKcDVj9QEdg7Hx549EX8U0rp6yXQERqru6yRN7fGBn32UvIRJUlWnk+8xDCiG76hXVBbX82NZ/ZKr0euIg=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:42:44.695Z",
+      "integrity": "sha512-f+eZJZIQNEEd26RPSW+76chwOf1XtA2Y/O+5ocVyLliHkeih3e+jhLVBdNTd2rS3IbNXK8+ug93Vf5ZXtF5Lxg==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-linuxmusl-x64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:42:44.695Z",
+        "integrity": "sha512-f+eZJZIQNEEd26RPSW+76chwOf1XtA2Y/O+5ocVyLliHkeih3e+jhLVBdNTd2rS3IbNXK8+ug93Vf5ZXtF5Lxg==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-wasm32",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:10.579Z",
-      "integrity": "sha512-cZ0XkcYGpHZkqW6iCkqTcmUC0CD9DhD5d/qeZlZkfRBn6GnHniZXLUo5+9xw8Iv76YE6LQFN9YNBlKREcCG76w=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:41:50.308Z",
+      "integrity": "sha512-zQnl4Kwp7Q6NHsENtU2T/00Zi+w3AQNwz3+UaTyVBy2FpXrzXzGjndpK61onhZjRtRpQXxCTeqw19bVyXOh7jA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-wasm32",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:41:50.308Z",
+        "integrity": "sha512-zQnl4Kwp7Q6NHsENtU2T/00Zi+w3AQNwz3+UaTyVBy2FpXrzXzGjndpK61onhZjRtRpQXxCTeqw19bVyXOh7jA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-webcontainers-wasm32",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:14.419Z",
-      "integrity": "sha512-2rnq7bX3NzeR2T4YWgz8qiG4h3TSdMe+vN1iQXpJleSJ3SM5zQ8Fy2SyyXAWlbxpEZ2Y+Z4u1BePgJEYbSy80Q=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:40:53.074Z",
+      "integrity": "sha512-ESfNkywmCfPNyaZjxooddJQiQ+l/nTpGEOGthxiLnIHXC/CmcBixnfwUleX9mCz9ovrUUvKMap/pm8RYbzfwaA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-webcontainers-wasm32",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:40:53.074Z",
+        "integrity": "sha512-ESfNkywmCfPNyaZjxooddJQiQ+l/nTpGEOGthxiLnIHXC/CmcBixnfwUleX9mCz9ovrUUvKMap/pm8RYbzfwaA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-win32-arm64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:19.358Z",
-      "integrity": "sha512-4bPwFdMbeC4JQ8L8LOyWp6nsHcboP5fxkp6iPOXz2Vg49R42TuMs2whkJ5OAP4/Ul035qOzy0AecOF9VOscn4w=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:42:00.650Z",
+      "integrity": "sha512-iNdlBX9gLVvqe2I3uIJSIKTq6wckP/DYxZtcqxm09x5Gi24DnFBmPAWZmr60ZyYMG0xlzo6goG3670ar+RXvRw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-win32-arm64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:42:00.650Z",
+        "integrity": "sha512-iNdlBX9gLVvqe2I3uIJSIKTq6wckP/DYxZtcqxm09x5Gi24DnFBmPAWZmr60ZyYMG0xlzo6goG3670ar+RXvRw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-win32-ia32",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:24.791Z",
-      "integrity": "sha512-r53mXsBN6lFUDiST764SvgwUdHAqM4rPAiDzAmf4fLoB6X/rkfyTrLCg6+g17wJJiCmB3JYgHuUldCWUIRFSXw=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:42:08.536Z",
+      "integrity": "sha512-kqRsbaa5CS6KHlpxnN7WhE6vAAugXyZButpRdvDWetlv6Qv4N9WTcrWzF7tXfB9T7MsoadqdI8hmwLq6UlLvtw==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-win32-ia32",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:42:08.536Z",
+        "integrity": "sha512-kqRsbaa5CS6KHlpxnN7WhE6vAAugXyZButpRdvDWetlv6Qv4N9WTcrWzF7tXfB9T7MsoadqdI8hmwLq6UlLvtw==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@img/sharp-win32-x64",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:29.762Z",
-      "integrity": "sha512-D4y1vNeZrIIJCN+uHaWVtH86B+aCrdMYYjicy9pXHvbGZeGYLLSd3wdVuC37FxVXlU1ARsk84eKWfWMXGYEqvA=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:45:20.014Z",
+      "integrity": "sha512-XtmnYhBcrORsJ4XJngyzr/EWP0hRZLAZRFaApdKuviyqF78+ylxh2y06ZmtULAMOnObJ3ucpN0AcwSWnMowTRg==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "@img/sharp-win32-x64",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:45:20.014Z",
+        "integrity": "sha512-XtmnYhBcrORsJ4XJngyzr/EWP0hRZLAZRFaApdKuviyqF78+ylxh2y06ZmtULAMOnObJ3ucpN0AcwSWnMowTRg==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "@isaacs/ttlcache",
@@ -3348,15 +3652,15 @@
     },
     {
       "package": "@xmldom/xmldom",
-      "version": "0.8.13",
-      "publishedAt": "2026-04-18T11:27:55.806Z",
-      "integrity": "sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw=="
+      "version": "0.8.15",
+      "publishedAt": "2026-08-21T22:20:29.920Z",
+      "integrity": "sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA=="
     },
     {
       "package": "@xmldom/xmldom",
-      "version": "0.9.10",
-      "publishedAt": "2026-04-18T11:34:10.031Z",
-      "integrity": "sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw=="
+      "version": "0.9.12",
+      "publishedAt": "2026-08-21T22:32:42.389Z",
+      "integrity": "sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A=="
     },
     {
       "package": "abort-controller",
@@ -4692,9 +4996,18 @@
     },
     {
       "package": "js-yaml",
-      "version": "4.3.1",
-      "publishedAt": "2026-07-31T17:39:51.183Z",
-      "integrity": "sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ=="
+      "version": "4.3.2",
+      "publishedAt": "2026-08-26T20:42:48.747Z",
+      "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "js-yaml",
+        "version": "4.3.2",
+        "publishedAt": "2026-08-26T20:42:48.747Z",
+        "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "jsc-safe-url",
@@ -6054,9 +6367,18 @@
     },
     {
       "package": "sharp",
-      "version": "0.35.3",
-      "publishedAt": "2026-07-01T11:28:34.077Z",
-      "integrity": "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q=="
+      "version": "0.35.4",
+      "publishedAt": "2026-08-26T09:42:27.903Z",
+      "integrity": "sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==",
+      "auditWindow": {
+        "scope": "locked-release",
+        "package": "sharp",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:42:27.903Z",
+        "integrity": "sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==",
+        "auditedAt": "2026-09-09T22:40:04.179Z",
+        "cutoffAt": "2026-09-02T22:40:04.179Z"
+      }
     },
     {
       "package": "shebang-command",
@@ -7013,6 +7335,30 @@
       "registryLatestPublishedAt": "2026-04-12T16:41:11.574Z",
       "eligibleLatest": "17.4.2",
       "eligibleLatestPublishedAt": "2026-04-12T16:41:11.574Z"
+    },
+    {
+      "scope": "cloudflare.sharp",
+      "group": "cloudflare",
+      "key": "sharp",
+      "package": "sharp",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "pinned": "0.35.4",
+      "pinnedPublishedAt": "2026-08-26T09:42:27.903Z",
+      "registryLatest": "0.35.4",
+      "registryLatestPublishedAt": "2026-08-26T09:42:27.903Z",
+      "eligibleLatest": "0.35.4",
+      "eligibleLatestPublishedAt": "2026-08-26T09:42:27.903Z",
+      "status": "latest",
+      "auditWindow": {
+        "scope": "cloudflare.sharp",
+        "package": "sharp",
+        "version": "0.35.4",
+        "publishedAt": "2026-08-26T09:42:27.903Z",
+        "auditedAt": "2026-09-08T23:40:40.654Z",
+        "cutoffAt": "2026-09-01T23:40:40.654Z"
+      }
     },
     {
       "scope": "cloudflare.wrangler",

@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { formsFiles } from "../../src/templates/apps/fragments/web-ui/forms.js";
-import { settingsProfileCardContent } from "../../src/templates/apps/fragments/settings/profile-card.js";
-import { settingsPasswordCardContent } from "../../src/templates/apps/fragments/settings/password-card.js";
-import { tanstackSettingsDataFeatureFiles } from "../../src/templates/apps/fragments/settings/tanstack-feature.js";
+import { settingsFeatureHarness, settingsSource } from "../helpers/settings-feature-harness.js";
 import {
   deferred,
   elements,
@@ -11,9 +9,20 @@ import {
   textContent,
 } from "../helpers/generated-form-harness.js";
 
+function formSource(): string {
+  const files = formsFiles();
+  return ["form-submit.tsx", "form.tsx"]
+    .map((name) => {
+      const emitted = files.find(({ path }) => path.endsWith(`/ui/${name}`));
+      if (!emitted) throw new Error(`Missing form module: ${name}`);
+      return emitted.content;
+    })
+    .join("\n");
+}
+
 describe("generated form rejection recovery", () => {
   test("server-rendered handler forms use POST and cannot submit until the client is ready", async () => {
-    const source = formsFiles().find(({ path }) => path.endsWith("/ui/form.tsx"))!.content;
+    const source = formSource();
     let attempts = 0;
     const form = {
       handleSubmit: async () => {
@@ -46,7 +55,7 @@ describe("generated form rejection recovery", () => {
   });
 
   test("unexpected submit rejection stays inline, preserves values, and permits a deliberate retry", async () => {
-    const source = formsFiles().find(({ path }) => path.endsWith("/ui/form.tsx"))?.content;
+    const source = formSource();
     if (!source) throw new Error("Missing generated Form");
     const first = deferred<void>();
     const second = deferred<void>();
@@ -91,7 +100,7 @@ describe("generated form rejection recovery", () => {
   });
 
   test("synchronous failures recover without duplicating a feature's handled error", async () => {
-    const source = formsFiles().find(({ path }) => path.endsWith("/ui/form.tsx"))?.content;
+    const source = formSource();
     if (!source) throw new Error("Missing generated Form");
     let throws = true;
     const form = {
@@ -120,20 +129,50 @@ describe("generated form rejection recovery", () => {
     expect(textContent(render())).toContain("Known operation failure");
   });
 
+  test("AppFormSubmitButton disabled can only further restrict valid idle submission", () => {
+    const source = formSource();
+    const ui = generatedFormHarness(source, ["AppFormSubmitButton"], {
+      useFormContext: () => ({ Subscribe: "Subscribe" }),
+    });
+    for (const disabled of [undefined, false, true])
+      for (const canSubmit of [false, true])
+        for (const isSubmitting of [false, true]) {
+          const subscription = elements(
+            ui.render("AppFormSubmitButton", {
+              disabled,
+              children: "Save",
+              pendingLabel: "Saving",
+              "aria-busy": false,
+            }),
+          )[0]!;
+          const render = subscription.children[0] as (state: readonly boolean[]) => unknown;
+          const button = elements(render([canSubmit, isSubmitting]))[0]!;
+          expect(button.props.disabled).toBe(Boolean(disabled) || !canSubmit || isSubmitting);
+          expect(button.props["aria-busy"]).toBe(isSubmitting);
+          expect(textContent(button)).toContain(isSubmitting ? "Saving" : "Save");
+        }
+  });
+
   for (const kind of ["profile", "password"] as const) {
-    test(`${kind}: rejected request preserves input and retry can succeed`, async () => {
+    test(kind + ": rejected request preserves input and retry can succeed", async () => {
       let fail = true;
       const successes: string[] = [];
       const operation = async () => {
         if (fail) throw new Error("private transport details");
         return { error: null };
       };
-      const source =
-        kind === "profile" ? settingsProfileCardContent() : settingsPasswordCardContent();
-      const name = kind === "profile" ? "ProfileEditor" : "PasswordCard";
-      const ui = generatedFormHarness(source, [name], {
+      const name = kind === "profile" ? "useProfileForm" : "usePasswordForm";
+      const view = kind === "profile" ? "ProfileView" : "PasswordView";
+      const source = settingsSource(
+        "single",
+        "next",
+        "settings/model.ts",
+        "settings/mutations.ts",
+        "settings/use-" + kind + "-form.ts",
+        "settings/components/" + kind + "-view.tsx",
+      );
+      const ui = settingsFeatureHarness(source, [name, view], {
         identityClient: { updateProfile: operation, changePassword: operation },
-        getQueryClient: () => ({}),
         requestQueryAuthScopeRefresh: () => undefined,
         useRouter: () => ({ refresh: () => undefined }),
         toast: {
@@ -142,10 +181,13 @@ describe("generated form rejection recovery", () => {
         },
       });
       const render = () =>
-        ui.render(name, { email: "user@example.test", initialName: "Original", role: "user" });
+        ui.render(view, {
+          email: "user@example.test",
+          role: "user",
+          model: ui.render(name, "Original"),
+        });
       render();
-      const form = ui.forms[0];
-      if (!form) throw new Error("Missing generated app form");
+      const form = ui.forms[0]!;
       form.values =
         kind === "profile"
           ? { name: "Edited name" }
@@ -156,58 +198,75 @@ describe("generated form rejection recovery", () => {
       expect(form.values).toEqual(before);
       expect(form.resets).toBe(0);
       expect(textContent(render())).toContain(
-        `errors.${kind === "profile" ? "profileUpdate" : "passwordUpdate"}`,
+        "errors." + (kind === "profile" ? "profileUpdate" : "passwordUpdate"),
       );
       expect(textContent(render())).not.toContain("private transport details");
       expect(successes).toEqual([]);
       fail = false;
       await form.handleSubmit();
-      expect(successes).toEqual([`${kind}.successMessage`]);
+      expect(successes).toEqual([kind + ".successMessage"]);
       expect(form.resets).toBe(kind === "password" ? 1 : 0);
     });
   }
 
-  test("TanStack settings adapters return failures for rejected requests and retain success payloads", async () => {
-    const files = tanstackSettingsDataFeatureFiles("src/features/settings", false, "", true, false);
-    const source = files.find(({ path }) => path.endsWith("/mutations.ts"))?.content;
-    if (!source) throw new Error("Missing settings mutation adapters");
+  test("TanStack settings adapters settle rejected operations and retain successful challenge payloads", async () => {
     let fail = true;
     const operation = async () => {
       if (fail) throw new Error("private transport details");
       return { error: null, data: { totpURI: "otpauth://reviewed", backupCodes: ["backup"] } };
     };
-    const ui = generatedFormHarness(source, ["useSettingsMutations"], {
-      identityClient: Object.fromEntries(
-        [
-          "updateProfile",
-          "changePassword",
-          "enableTwoFactor",
-          "verifyTwoFactor",
-          "disableTwoFactor",
-          "deleteAccount",
-        ].map((name) => [name, operation]),
+    const ui = settingsFeatureHarness(
+      settingsSource("single", "tanstack", "settings/model.ts", "settings/mutations.ts"),
+      ["useUpdateProfileMutation", "useChangePasswordMutation", "useTwoFactorMutation"],
+      {
+        identityClient: Object.fromEntries(
+          [
+            "updateProfile",
+            "changePassword",
+            "enableTwoFactor",
+            "verifyTwoFactor",
+            "disableTwoFactor",
+          ].map((name) => [name, operation]),
+        ),
+      },
+    );
+    type Mutation = { run(input: unknown): Promise<unknown> };
+    for (const [hook, input] of [
+      ["useUpdateProfileMutation", { name: "Updated" }],
+      ["useChangePasswordMutation", { currentPassword: "old", newPassword: "new" }],
+      ["useTwoFactorMutation", { kind: "enable", password: "password" }],
+      ["useTwoFactorMutation", { kind: "verify", code: "123456" }],
+      ["useTwoFactorMutation", { kind: "disable", password: "password" }],
+    ] as const)
+      await expect((ui.render(hook) as Mutation).run(input)).resolves.toMatchObject({
+        status: "error",
+      });
+    const deletion = settingsFeatureHarness(
+      settingsSource(
+        "single",
+        "tanstack",
+        "account-deletion/model.ts",
+        "account-deletion/mutations.ts",
       ),
-    });
-    const actions = ui.render("useSettingsMutations") as Record<
-      string,
-      (...args: string[]) => Promise<{ ok: boolean; totpUri?: string }>
-    >;
-    for (const name of [
-      "updateProfile",
-      "changePassword",
-      "enableTwoFactor",
-      "verifyTwoFactor",
-      "disableTwoFactor",
-      "deleteAccount",
-    ]) {
-      const action = actions[name];
-      if (!action) throw new Error(`Missing action ${name}`);
-      await expect(action("value", "other")).resolves.toMatchObject({ ok: false });
-    }
+      ["useDeleteAccountMutation"],
+      { identityClient: { deleteAccount: operation } },
+    );
+    const deleteHook = deletion.render("useDeleteAccountMutation", () => {
+      throw new Error("Refused deletion completed");
+    }) as { run(): Promise<void> };
+    await expect(deleteHook.run()).resolves.toBeUndefined();
+    expect(
+      (deletion.render("useDeleteAccountMutation", () => {}) as { error: unknown }).error,
+    ).toBeInstanceOf(Error);
     fail = false;
-    expect(await actions.enableTwoFactor?.("password")).toMatchObject({
-      ok: true,
-      totpUri: "otpauth://reviewed",
+    expect(
+      await (ui.render("useTwoFactorMutation") as Mutation).run({
+        kind: "enable",
+        password: "password",
+      }),
+    ).toMatchObject({
+      status: "success",
+      data: { kind: "challenge", totpUri: "otpauth://reviewed", backupCodes: ["backup"] },
     });
   });
 
@@ -216,21 +275,26 @@ describe("generated form rejection recovery", () => {
     const current = {
       data: {
         user: { id: "user-b", email: "b@example.test", name: "Account B", role: "user" },
-      } as { user: typeof initialUser } | null,
+        session: { id: "session-b" },
+      } as { user: typeof initialUser; session: { id: string } } | null,
       isPending: false,
     };
-    const ui = generatedFormHarness(settingsProfileCardContent(), ["ProfileCard"], {
+    const source = settingsSource(
+      "single",
+      "next",
+      "settings/queries.ts",
+      "settings/use-profile-identity.ts",
+      "settings/profile-card.tsx",
+    );
+    const ui = generatedFormHarness(source, ["ProfileCard"], {
       identityClient: { useSession: () => current },
       useQueryAuthSession: () => null,
     });
+    const props = () => elements(ui.render("ProfileCard", { initialUser }))[0]?.props;
     ui.setHydrated(false);
-    expect(elements(ui.render("ProfileCard", { initialUser }))[0]?.props.initialName).toBe(
-      "Account A",
-    );
+    expect(props()?.user).toMatchObject({ name: "Account A" });
     ui.setHydrated(true);
-    expect(elements(ui.render("ProfileCard", { initialUser }))[0]?.props.initialName).toBe(
-      "Account B",
-    );
+    expect(props()?.user).toMatchObject({ name: "Account B" });
     current.isPending = true;
     expect(
       elements(ui.render("ProfileCard", { initialUser })).some(
@@ -240,9 +304,7 @@ describe("generated form rejection recovery", () => {
     current.isPending = false;
     current.data = null;
     expect(
-      elements(ui.render("ProfileCard", { initialUser })).some(
-        ({ props }) => "initialName" in props,
-      ),
+      elements(ui.render("ProfileCard", { initialUser })).some(({ props }) => "user" in props),
     ).toBe(false);
     expect(textContent(ui.render("ProfileCard", { initialUser }))).toContain(
       "unauthorizedDescription",
@@ -263,12 +325,31 @@ describe("generated form rejection recovery", () => {
       isPending: false,
       error: null,
     };
-    const ui = generatedFormHarness(settingsProfileCardContent(), ["ProfileCard"], {
-      identityClient: { useSession: () => ({ data: { user: provider }, isPending: false }) },
+    const source = settingsSource(
+      "single",
+      "next",
+      "settings/queries.ts",
+      "settings/use-profile-identity.ts",
+      "settings/profile-card.tsx",
+    );
+    const ui = generatedFormHarness(source, ["ProfileCard", "ProfileEditor"], {
+      useProfileForm: () => ({}),
+      ProfileView: "ProfileView",
+      identityClient: {
+        useSession: () => ({
+          data: { user: provider, session: { id: "session" } },
+          isPending: false,
+        }),
+      },
       useQueryAuthSession: () => canonical,
     });
-    expect(elements(ui.render("ProfileCard", {}))[0]?.props.role).toBe("admin");
+    expect(elements(ui.render("ProfileCard", {}))[0]?.props.user).toMatchObject({
+      id: "domain-user",
+      role: "admin",
+    });
+    expect(elements(ui.render("ProfileEditor", { user: domainUser }))[0]?.props.role).toBe("admin");
     canonical.hasCanonicalApi = false;
-    expect(elements(ui.render("ProfileCard", {}))[0]?.props.role).toBe("user");
+    expect(elements(ui.render("ProfileCard", {}))[0]?.props.user).toEqual(provider);
+    expect(elements(ui.render("ProfileEditor", { user: provider }))[0]?.props.role).toBe("user");
   });
 });

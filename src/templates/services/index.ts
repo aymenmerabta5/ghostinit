@@ -56,6 +56,8 @@ export function servicesFiles(a?: unknown, b?: unknown, c?: unknown): TemplateFi
   const requestApplicationSelection = {
     admin: withRequestApplication,
     billing: withRequestApplication && withBilling,
+    manualBilling:
+      withRequestApplication && Boolean(addons && hasAddon(addons as AddonInstallerMap, "manual")),
     featureFlags: withRequestApplication && withFeatureFlags,
     identity: withRequestApplication,
     messaging: withRequestApplication && withMessaging,
@@ -161,6 +163,11 @@ export function err<E = Error>(error: E): Result<never, E> {
   // selected, so the barrel must not re-export it unconditionally — doing so left
   // no-billing projects with a barrel importing a file that was never generated.
   const barrelLines = [
+    ...(requestApplicationSelection.manualBilling
+      ? [
+          `export type { manualPaymentService as manualPaymentServiceContract } from "${isMonorepo ? "@repo/billing/manual" : "@/server/billing/manual"}";`,
+        ]
+      : []),
     ...(withAuth && database !== "none" ? [`export * as admin from "./admin/index.js";`] : []),
     ...(withAuth && database !== "none"
       ? [`export * as identity from "./identity/index.js";`]

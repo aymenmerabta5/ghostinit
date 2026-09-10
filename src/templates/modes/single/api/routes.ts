@@ -188,6 +188,7 @@ export function singleOpenapiRouteContent(): string {
 }
 
 export interface SingleApiCapabilitySelection {
+  manualBilling?: boolean;
   readonly auth?: boolean;
   readonly admin?: boolean;
   readonly billing?: boolean;
@@ -592,6 +593,9 @@ export function singleApiContractContent(
         'import { billingCreateCheckoutContract } from "./procedures/billing/create-checkout";',
         'import { billingCreatePortalSessionContract } from "./procedures/billing/create-portal-session";',
         'import { billingCreatePaymentLinkContract } from "./procedures/billing/create-payment-link";',
+        ...(capabilities.manualBilling
+          ? ['import { manualBillingContract } from "./procedures/billing/manual";']
+          : []),
       ]
     : [];
   const billingEntry = hasBilling
@@ -601,6 +605,7 @@ export function singleApiContractContent(
         "    createCheckout: billingCreateCheckoutContract,",
         "    createPortalSession: billingCreatePortalSessionContract,",
         "    createPaymentLink: billingCreatePaymentLinkContract,",
+        ...(capabilities.manualBilling ? ["    manual: manualBillingContract,"] : []),
         "  },",
       ]
     : [];
@@ -696,6 +701,9 @@ export function singleApiRouterContent(
         'import { billingCreateCheckout } from "./procedures/billing/create-checkout";',
         'import { billingCreatePortalSession } from "./procedures/billing/create-portal-session";',
         'import { billingCreatePaymentLink } from "./procedures/billing/create-payment-link";',
+        ...(capabilities.manualBilling
+          ? ['import { manualBillingProcedures } from "./procedures/billing/manual";']
+          : []),
       ]
     : [];
   const billingEntry = hasBilling
@@ -705,6 +713,7 @@ export function singleApiRouterContent(
         "      createCheckout: billingCreateCheckout,",
         "      createPortalSession: billingCreatePortalSession,",
         "      createPaymentLink: billingCreatePaymentLink,",
+        ...(capabilities.manualBilling ? ["      manual: manualBillingProcedures,"] : []),
         "    },",
       ]
     : [];

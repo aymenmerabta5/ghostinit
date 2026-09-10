@@ -85,6 +85,8 @@ function isClientPath(path: string): boolean {
 }
 
 function isServerPath(path: string): boolean {
+  // The client function-reference protocol is parsed and its import edges remain checked.
+  if (path === "convex/_generated/api.js") return false;
   return (
     /(?:^|\/)(?:server|backend|convex|eve)(?:\/|$)/.test(path) ||
     /(?:^|\/)packages\/api(?:\/|$)/.test(path) ||

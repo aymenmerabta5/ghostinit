@@ -59,20 +59,5 @@ export function singleHeaderUserMenuTanstackContent(
 }
 
 export function singleSignOutButtonTanstackContent(): string {
-  return [
-    '"use client"',
-    "import * as React from 'react'",
-    "import { useRouter } from '@tanstack/react-router'",
-    "import { authClient } from '@/lib/auth-client'",
-    "import { getQueryClient, transitionQueryAuthScope } from '@/lib/query-client'",
-    "import { useSurfaceTranslations } from '@/lib/translations'",
-    "import { Button } from '@/components/ui/button'",
-    "export function SignOutButton(): React.JSX.Element {",
-    "  const router = useRouter()",
-    "  const t = useSurfaceTranslations('header')",
-    "  async function handleClick(): Promise<void> { await authClient.signOut(); transitionQueryAuthScope(getQueryClient(), null); router.navigate({ to: '/' }) }",
-    "  return (<Button variant='outline' onClick={() => void handleClick()}>{t('signOut')}</Button>)",
-    "}",
-    "",
-  ].join("\n");
+  return 'export { SignOutButton } from "@/features/app-shell/sign-out-button";\n';
 }

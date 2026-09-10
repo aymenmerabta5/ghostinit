@@ -53,13 +53,14 @@ function files(router: "next" | "tanstack", all = true) {
     navigation: { eve: all, notifications: all, storage: all, featureFlags: all, jobs: all },
   });
   return (name: string) =>
-    output.find(({ path }) => path.endsWith(`/${name}.tsx`) || path.endsWith(`/${name}.ts`))!
-      .content;
+    [...output]
+      .reverse()
+      .find(({ path }) => path.endsWith(`/${name}.tsx`) || path.endsWith(`/${name}.ts`))!.content;
 }
 
 function navigation(read: (name: string) => string) {
   return generatedFormHarness(
-    read("workspace-navigation"),
+    read("navigation-model") + "\n" + read("workspace-navigation"),
     ["WorkspaceNavigation", "workspaceSection"],
     { ...icons, Link: "Link", WorkspaceIdentityStatus: "IdentityStatus" },
   );
@@ -67,6 +68,42 @@ function navigation(read: (name: string) => string) {
 
 describe("workspace shell identity and navigation", () => {
   for (const router of ["next", "tanstack"] as const) {
+    test(`${router} signs out before clearing private data and navigating`, async () => {
+      const read = files(router);
+      const events: string[] = [];
+      let fail = false;
+      const actions = generatedFormHarness(
+        [read("mutations"), read("use-shell-actions")].join("\n"),
+        ["useShellActions"],
+        {
+          authClient: {
+            async signOut() {
+              events.push("signOut");
+              if (fail) throw new Error("failed");
+            },
+          },
+          getQueryClient: () => "client",
+          transitionQueryAuthScope: (client: unknown, scope: unknown) => {
+            expect(client).toBe("client");
+            expect(scope).toBeNull();
+            events.push("clear");
+          },
+          useRouter: () => ({
+            push: (path: string) => events.push(path),
+            refresh: () => events.push("refresh"),
+            navigate: ({ to }: { to: string }) => events.push(to),
+          }),
+        },
+      );
+      const workflow = actions.module.useShellActions!() as { onSignOut(): Promise<void> };
+      await workflow.onSignOut();
+      expect(events).toEqual(["signOut", "clear", "/", ...(router === "next" ? ["refresh"] : [])]);
+      events.length = 0;
+      fail = true;
+      await expect(workflow.onSignOut()).rejects.toThrow("failed");
+      expect(events).toEqual(["signOut"]);
+    });
+
     test(`${router} keeps capability links and private roles scoped to the current identity`, () => {
       const nav = navigation(files(router));
       const destinations = (identity: unknown) =>
@@ -168,7 +205,12 @@ describe("workspace shell identity and navigation", () => {
       (elements(failedTree).find((node) => node.type === "Button")!.props.onClick as () => void)();
       expect(retries).toBe(1);
       for (const identity of [pending, anonymous, failure, authenticated()]) {
-        const tree = actions.render("HeaderActions", { identity });
+        const tree = actions.render("HeaderActions", {
+          identity,
+          notifications: { type: "NotificationBell", props: {}, children: [] },
+          onNavigate() {},
+          async onSignOut() {},
+        });
         const nodes = elements(tree);
         const signedIn = (identity as { status: string }).status === "authenticated";
         expect(nodes.some((node) => node.type === "UserMenu")).toBe(signedIn);
@@ -193,7 +235,7 @@ describe("workspace shell identity and navigation", () => {
       });
       const mobile = generatedFormHarness(
         read("workspace-navigation-trigger"),
-        ["WorkspaceNavigationTrigger"],
+        ["WorkspaceNavigationTrigger", "WorkspaceNavigationSheet"],
         {
           ...icons,
           BrandWordmark: "BrandWordmark",
@@ -212,7 +254,7 @@ describe("workspace shell identity and navigation", () => {
       ]) {
         for (const [harness, name] of [
           [sidebar, "WorkspaceSidebar"],
-          [mobile, "WorkspaceNavigationTrigger"],
+          [mobile, "WorkspaceNavigationSheet"],
         ] as const) {
           const tree = harness.render(name, { pathname: "/dashboard", identity });
           const nav = elements(tree).find((node) => node.type === "Navigation")!;
@@ -223,18 +265,35 @@ describe("workspace shell identity and navigation", () => {
         }
       }
       const props = { pathname: "/dashboard", identity: authenticated() };
-      let tree = mobile.render("WorkspaceNavigationTrigger", props);
+      let tree = mobile.render("WorkspaceNavigationSheet", props);
       (
         elements(tree).find((node) => node.type === "Sheet")!.props.onOpenChange as (
           open: boolean,
         ) => void
       )(true);
-      tree = mobile.render("WorkspaceNavigationTrigger", props);
+      tree = mobile.render("WorkspaceNavigationSheet", props);
       expect(elements(tree).find((node) => node.type === "Sheet")!.props.open).toBe(true);
       (elements(tree).find((node) => node.type === "Navigation")!.props.onNavigate as () => void)();
-      tree = mobile.render("WorkspaceNavigationTrigger", props);
+      tree = mobile.render("WorkspaceNavigationSheet", props);
       expect(elements(tree).find((node) => node.type === "Sheet")!.props.open).toBe(false);
-      expect(read("workspace-navigation-trigger")).toContain("[pathname, owner]");
+      const drawerKey = (pathname: string, identity: unknown) =>
+        elements(mobile.render("WorkspaceNavigationTrigger", { pathname, identity }))[0]!.props.key;
+      expect(drawerKey("/dashboard", authenticated())).toBe(
+        drawerKey("/dashboard", authenticated()),
+      );
+      expect(drawerKey("/settings", authenticated())).not.toBe(
+        drawerKey("/dashboard", authenticated()),
+      );
+      expect(drawerKey("/dashboard", { status: "anonymous" })).not.toBe(
+        drawerKey("/dashboard", authenticated()),
+      );
+      expect(
+        drawerKey("/dashboard", {
+          status: "authenticated",
+          user: { ...account, email: "other@example.test" },
+        }),
+      ).not.toBe(drawerKey("/dashboard", authenticated()));
+      expect(read("workspace-navigation-trigger")).not.toContain("useEffect");
     });
 
     test(`${router} uses canonical identity without restoring stale provider roles or styling public billing as private`, () => {
@@ -263,18 +322,24 @@ describe("workspace shell identity and navigation", () => {
       const state = generatedFormHarness(read("workspace-identity"), ["resolveWorkspaceIdentity"]);
       const nav = navigation(read);
       let pathname = "/dashboard";
-      const harness = generatedFormHarness(read("app-shell"), ["AppShell"], {
-        useAuth: () => session,
-        useQueryAuthSession: () => context,
-        usePathname: () => pathname,
-        useRouterState: () => pathname,
-        workspaceSection: nav.module.workspaceSection,
-        resolveWorkspaceIdentity: state.module.resolveWorkspaceIdentity,
-        Header: "Header",
-        HeaderActions: "HeaderActions",
-        WorkspaceSidebar: "WorkspaceSidebar",
-        WorkspaceNavigationTrigger: "WorkspaceNavigationTrigger",
-      });
+      const harness = generatedFormHarness(
+        [read("queries"), read("use-app-shell"), read("app-shell")].join("\n"),
+        ["AppShell"],
+        {
+          useShellActions: () => ({ onNavigate() {}, async onSignOut() {} }),
+          useAuth: () => session,
+          useQueryAuthSession: () => context,
+          usePathname: () => pathname,
+          useRouterState: () => pathname,
+          workspaceSection: nav.module.workspaceSection,
+          resolveWorkspaceIdentity: state.module.resolveWorkspaceIdentity,
+          Header: "Header",
+          HeaderActions: "HeaderActions",
+          NotificationInboxBell: "NotificationBell",
+          WorkspaceSidebar: "WorkspaceSidebar",
+          WorkspaceNavigationTrigger: "WorkspaceNavigationTrigger",
+        },
+      );
       const rendered = () => elements(harness.render("AppShell", { children: "page-content" }));
       const identity = () =>
         rendered().find((node) => node.type === "HeaderActions")!.props.identity;

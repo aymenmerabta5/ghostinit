@@ -4,9 +4,8 @@ import type { RouterType } from "./reset-password.js";
 export function resetPasswordFormContent(router: RouterType = "next"): string {
   const isTanstack = router === "tanstack";
   const routerImports = isTanstack
-    ? 'import { Link, useNavigate } from "@tanstack/react-router";'
-    : `import Link from "next/link";
-import { useRouter } from "next/navigation";`;
+    ? 'import { Link } from "@tanstack/react-router";'
+    : `import Link from "next/link";`;
   const fields = `<form.AppForm>
             <Form form={form} className="flex flex-col gap-6">
               <FieldGroup>
@@ -28,53 +27,17 @@ import { useRouter } from "next/navigation";`;
 import type * as React from "react";
 import { ArrowLeft } from "lucide-react";
 ${routerImports}
-import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, ${isTanstack ? "" : "CardFooter, "}CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createResetPasswordSchema, identityClient } from "@/lib/auth-client";
+import { Form } from "@/components/ui/form";
+import type { ResetPasswordFormState } from "../types";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-interface ResetPasswordFormProps {
-  token: string;
-  queryError: string | null;
-}
-
-export function ResetPasswordForm({ token, queryError }: ResetPasswordFormProps): React.JSX.Element {
-  const ${isTanstack ? "navigate = useNavigate()" : "router = useRouter()"};
+export function ResetPasswordForm({ state }: { state: ResetPasswordFormState }): React.JSX.Element {
   const t = useSurfaceTranslations("recovery");
-  const authT = useSurfaceTranslations("auth");
-  const linkError = queryError
-    ? queryError === "INVALID_TOKEN"
-      ? t("resetPassword.expiredToken")
-      : t("resetPassword.genericError")
-    : token
-      ? null
-      : t("resetPassword.missingToken");
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const error = submissionError ?? linkError;
-  const form = useAppForm({
-    defaultValues: { newPassword: "", confirmPassword: "" },
-    validators: {
-      onSubmit: createResetPasswordSchema({
-        passwordRequired: authT("validation.passwordRequired"),
-        passwordTooShort: authT("validation.passwordTooShort"),
-        passwordTooLong: authT("validation.passwordTooLong"),
-        passwordMismatch: t("resetPassword.passwordMismatch"),
-      }),
-    },
-    onSubmit: async ({ value }) => {
-      setSubmissionError(null);
-      const result = await identityClient.resetPassword({ newPassword: value.newPassword, token });
-      if (result.error) {
-        setSubmissionError(t("resetPassword.genericError"));
-        return;
-      }
-      ${isTanstack ? 'void navigate({ to: "/sign-in" });' : 'router.push("/sign-in?reset=success");'}
-    },
-  });
+  const { form, token, error } = state;
 ${
   isTanstack
     ? `

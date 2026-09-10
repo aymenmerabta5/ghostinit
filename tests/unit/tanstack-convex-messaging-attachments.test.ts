@@ -8,12 +8,21 @@ import { z } from "zod";
 type Mode = "monorepo" | "single";
 
 const CLIENT_FILES = [
-  "convex-messages.tsx",
-  "convex-messaging-data.ts",
-  "convex-messaging-queries.ts",
-  "convex-attachment-upload.ts",
-  "convex-message-composer.tsx",
-  "convex-message-thread.tsx",
+  "screen.tsx",
+  "model.ts",
+  "queries.ts",
+  "mutations.ts",
+  "types.ts",
+  "use-convex-inbox.ts",
+  "use-start-conversation-form.ts",
+  "use-convex-message-form.ts",
+  "message-composer.tsx",
+  "message-thread.tsx",
+  "start-conversation-form.tsx",
+  "components/conversation-sidebar.tsx",
+  "components/start-conversation-form.tsx",
+  "components/message-composer.tsx",
+  "components/message-thread.tsx",
 ] as const;
 
 function config(mode: Mode, messaging: boolean, storage: boolean): ProjectConfig {
@@ -87,8 +96,8 @@ describe("TanStack Convex web messaging attachments", () => {
       const generated = generateProjectFiles(config(mode, true, true), { dryRun: true });
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
       const root = mode === "monorepo" ? "apps/web/" : "";
-      const componentRoot = `${root}src/routes/-components/messages`;
-      const source = content(byPath, `${componentRoot}/convex-messaging-data.ts`);
+      const componentRoot = `${root}src/features/messaging`;
+      const source = content(byPath, `${componentRoot}/model.ts`);
       const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(
         source.replace(/^import[^\n]*\n/gm, "").replace(/^export /gm, ""),
       );
@@ -134,21 +143,21 @@ describe("TanStack Convex web messaging attachments", () => {
       ]);
       expect(() => schemas.convexTypingListSchema!.parse([{ userId: 42 }])).toThrow();
       const route = content(byPath, `${root}src/routes/messages.tsx`);
-      const messagingPage = content(byPath, `${componentRoot}/convex-messages.tsx`);
-      const thread = content(byPath, `${componentRoot}/convex-message-thread.tsx`);
-      const queries = content(byPath, `${componentRoot}/convex-messaging-queries.ts`);
-      expect(queries).toContain("const rawConversations: unknown = useQuery");
-      expect(queries).toContain("rawConversations === undefined ? undefined");
-      expect(queries).toContain("convexConversationSchema.parse(await start");
-      expect(queries).toContain("const rawMessages: unknown = useQuery");
-      expect(queries).toContain("rawMessages === undefined ? undefined");
-      expect(route).toContain('from "./-components/messages/convex-messages"');
+      const messagingPage = content(byPath, `${componentRoot}/screen.tsx`);
+      const thread = content(byPath, `${componentRoot}/use-convex-inbox.ts`);
+      const queries = content(byPath, `${componentRoot}/queries.ts`);
+      const mutations = content(byPath, `${componentRoot}/mutations.ts`);
+      expect(queries).toContain("const raw: unknown = useConvexQuery");
+      expect(queries).toContain("raw === undefined ? undefined");
+      expect(mutations).toContain("convexConversationSchema.parse(await start");
+      expect(queries).toContain("convexMessagePageSchema.parse(raw)");
+      expect(route).toContain('from "@/features/messaging/screen"');
       expect(route).toContain("component: ConvexMessagesPage");
       expect(route).toContain("requireProtectedRoute(context.queryClient)");
       expect(route).toContain("loadInitialConversations(context)");
       expect(route).not.toContain("React.useState");
-      expect(messagingPage).toContain("useConvexConversations()");
-      expect(messagingPage).toContain("messagingConversationsQueryKey(scope)");
+      expect(messagingPage).toContain("useConvexInbox(initialConversations)");
+      expect(queries).toContain("messagingConversationsQueryKey(owner.scope)");
       expect(thread).toContain("useConvexMessages(conversationId)");
       expect(`${source}\n${queries}\n${route}\n${messagingPage}\n${thread}`).not.toMatch(
         /\bas any\b|@ts-(?:ignore|expect-error|nocheck)/,
@@ -159,7 +168,7 @@ describe("TanStack Convex web messaging attachments", () => {
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
       const root = mode === "monorepo" ? "apps/web/" : "";
       const sourceRoot = `${root}src`;
-      const componentRoot = `${sourceRoot}/routes/-components/messages`;
+      const componentRoot = `${sourceRoot}/features/messaging`;
       const paths = [
         `${sourceRoot}/routes/messages.tsx`,
         ...CLIENT_FILES.map((name) => `${componentRoot}/${name}`),
@@ -193,10 +202,11 @@ describe("TanStack Convex web messaging attachments", () => {
       const generated = generateProjectFiles(config(mode, true, true), { dryRun: true });
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
       const root = mode === "monorepo" ? "apps/web/" : "";
-      const componentRoot = `${root}src/routes/-components/messages`;
-      const upload = content(byPath, `${componentRoot}/convex-attachment-upload.ts`);
-      const composer = content(byPath, `${componentRoot}/convex-message-composer.tsx`);
-      const thread = content(byPath, `${componentRoot}/convex-message-thread.tsx`);
+      const componentRoot = `${root}src/features/messaging`;
+      const upload = content(byPath, `${componentRoot}/mutations.ts`);
+      const composer = content(byPath, `${componentRoot}/use-convex-message-form.ts`);
+      const composerView = content(byPath, `${componentRoot}/components/message-composer.tsx`);
+      const thread = content(byPath, `${componentRoot}/components/message-thread.tsx`);
       const uploadRoute = content(byPath, `${root}src/routes/api/messaging/attachments.ts`);
 
       expect(upload).toContain('fetch("/api/messaging/attachments"');
@@ -205,15 +215,16 @@ describe("TanStack Convex web messaging attachments", () => {
       expect(upload).toContain('"X-Ghostinit-Conversation-Id": String(conversationId)');
       expect(upload).toContain('body.append("file", file)');
       expect(upload).toContain('body.append("conversationId", String(conversationId))');
-      expect(composer).toContain('type="file"');
+      expect(composerView).toContain('type="file"');
       expect(composer).toContain("reusableConvexAttachmentId(");
-      expect(composer).toContain("attachmentId = await uploadConvexMessageAttachment(");
+      expect(composer).toContain("const uploaded = await upload.run(");
       expect(composer).toContain("attachmentIds = [attachmentId]");
       expect(composer).toContain("...(attachmentIds ? { attachmentIds } : {})");
-      expect(composer.indexOf("await uploadConvexMessageAttachment(")).toBeLessThan(
-        composer.indexOf("await sendMessage({"),
+      expect(composer.indexOf("await upload.run(")).toBeLessThan(
+        composer.indexOf("await send.run({"),
       );
-      expect(composer).toContain("if ((!trimmed && !file) || submitInFlight.current) return");
+      expect(composer).toContain("if (!body && !value.file) return");
+      expect(composer).toContain("if (admission.current?.()) return");
       expect(thread).toContain("href={attachment.url}");
       expect(thread).not.toContain("fetch(");
       expect(thread).not.toContain("/api/messaging/attachments");
@@ -235,7 +246,7 @@ describe("TanStack Convex web messaging attachments", () => {
           generated.some(
             ({ path }) =>
               path === `${root}src/routes/messages.tsx` ||
-              path.startsWith(`${root}src/routes/-components/messages/convex-`) ||
+              path.startsWith(`${root}src/features/messaging/`) ||
               path === `${root}src/routes/api/messaging/attachments.ts` ||
               path === `${root}src/server/http/messaging/attachments-upload.server.ts`,
           ),

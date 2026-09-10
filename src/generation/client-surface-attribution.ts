@@ -59,9 +59,10 @@ function webSurfacePaths(
     return {
       route: [next ? `${root}src/app/billing/page.tsx` : `${root}src/routes/billing.tsx`],
       adapter: [
-        next
-          ? `${root}src/app/billing/hooks/use-billing-page.ts`
-          : `${root}src/features/billing/use-billing.ts`,
+        `${root}src/features/billing/queries.ts`,
+        `${root}src/features/billing/mutations.ts`,
+        `${root}src/features/manual-payments/queries.ts`,
+        `${root}src/features/manual-payments/mutations.ts`,
       ],
     };
   }
@@ -71,14 +72,10 @@ function webSurfacePaths(
       : `${root}src/routes/messages.tsx`;
     return {
       route: [route],
-      adapter:
-        database === "convex"
-          ? [route]
-          : [
-              next
-                ? `${root}src/app/(app)/messages/hooks/use-messaging.ts`
-                : `${root}src/routes/-hooks/use-messaging.ts`,
-            ],
+      adapter: [
+        `${root}src/features/messaging/queries.ts`,
+        `${root}src/features/messaging/mutations.ts`,
+      ],
     };
   }
   if (capability === "analytics") {

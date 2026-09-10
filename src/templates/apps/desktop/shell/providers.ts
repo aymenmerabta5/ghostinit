@@ -7,14 +7,15 @@ export function desktopProvidersContent(
 ): string {
   void mode;
   const hasConvexAuth = capabilities.isConvex && capabilities.hasAuth;
+  // Local IPC branding and updates use the query owner even without a backend.
+  const hasQueries = true;
   const imports = [
     `import * as React from "react";`,
-    capabilities.hasApi
+    hasQueries
       ? `import { QueryClientProvider } from "@tanstack/react-query";\nimport { getQueryClient } from "./query-client";`
       : "",
-    capabilities.hasApi && capabilities.hasAuth
-      ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary";`
-      : "",
+    capabilities.hasAuth ? `import { QueryAuthCacheBoundary } from "./query-auth-boundary";` : "",
+    capabilities.hasAuth ? `import { Toaster } from "sonner";` : "",
     hasConvexAuth
       ? `import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";\nimport { authClient } from "./auth";`
       : "",
@@ -24,7 +25,7 @@ export function desktopProvidersContent(
     .filter(Boolean)
     .join("\n");
   const setup = [
-    capabilities.hasApi ? `  const queryClient = getQueryClient();` : "",
+    hasQueries ? `  const queryClient = getQueryClient();` : "",
     hasConvexAuth
       ? `  const convex = React.useMemo(() => {
     const url = window.desktopBridge.convexUrl;
@@ -37,11 +38,11 @@ export function desktopProvidersContent(
     .join("\n");
 
   let providerTree = `{children}`;
-  if (capabilities.hasApi && capabilities.hasAuth) {
+  if (capabilities.hasAuth) {
     providerTree = `<QueryAuthCacheBoundary queryClient={queryClient}>${providerTree}</QueryAuthCacheBoundary>`;
   }
-  providerTree = `<ThemeProvider>${providerTree}</ThemeProvider>`;
-  if (capabilities.hasApi) {
+  providerTree = `<ThemeProvider>${providerTree}${capabilities.hasAuth ? "<Toaster />" : ""}</ThemeProvider>`;
+  if (hasQueries) {
     providerTree = `<QueryClientProvider client={queryClient}>\n        ${providerTree}\n      </QueryClientProvider>`;
   }
   if (hasConvexAuth) {

@@ -677,6 +677,9 @@ export async function buildReconcilePlan(
     const belongsToDesiredPlan =
       state.sourceVersion === 1 ||
       state.generationPlan?.renderers.includes(prior.provenance.renderer) === true ||
+      // Security maintenance invalidates the previous plan attestation, but
+      // current base renderers still identify their obsolete generated files.
+      generationPlan.renderers.includes(prior.provenance.renderer) ||
       prior.provenance.renderer === "legacy-template-adapter.v2" ||
       // Compatibility for early V2 state written before renderer ids were
       // versioned. New additive generators use their own provenance below.

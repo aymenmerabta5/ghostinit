@@ -70,7 +70,7 @@ export function tanstackStartFiles(
   const hasBilling =
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
       ? hasAddon(addonsOrHasEve as AddonInstallerMap, "billing") ||
-        (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
+        (["stripe", "chargily", "paddle", "polar", "manual"] as const).some((provider) =>
           hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
         )
       : true;

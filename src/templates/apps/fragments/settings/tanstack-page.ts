@@ -1,5 +1,5 @@
 import { file, type TemplateFile } from "../../../shared.js";
-import { tanstackSettingsDataFeatureFiles } from "./tanstack-feature.js";
+import { webSettingsFeatureFiles } from "./feature.js";
 
 type SettingsMode = "monorepo" | "single";
 
@@ -15,10 +15,6 @@ function requestUserServerFn(isConvex: boolean): string {
   return isConvex
     ? `const getRequestUserFn = createServerFn({ method: "GET" }).handler(async () => getRequestUser());`
     : `const getRequestUserFn = createServerFn({ method: "GET" }).handler(async () => getRequestUser(getRequestHeaders()));`;
-}
-
-function settingsFeatureRoot(mode: SettingsMode): string {
-  return mode === "monorepo" ? "apps/web/src/features/settings" : "src/features/settings";
 }
 
 function securitySectionContent(hasEmail = true): string {
@@ -143,12 +139,13 @@ export function tanstackSettingsFeatureFiles(
   hasEmail = true,
   hasPasskey = true,
 ): TemplateFile[] {
-  return tanstackSettingsDataFeatureFiles(
-    settingsFeatureRoot(mode),
+  return webSettingsFeatureFiles(
+    mode === "monorepo" ? "apps/web/src" : "src",
+    "tanstack",
     hasIdentityTransport,
-    securitySectionContent(hasEmail),
     hasEmail,
     hasPasskey,
+    securitySectionContent(hasEmail),
   );
 }
 

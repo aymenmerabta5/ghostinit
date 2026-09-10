@@ -1,3 +1,4 @@
+import { generateProjectFiles } from "../../src/templates/default.js";
 import { describe, expect, test } from "bun:test";
 import {
   clientProviderContent,
@@ -6,17 +7,10 @@ import {
   singleComponentsProviderContent,
 } from "../../src/templates/analytics/provider.js";
 import {
-  authOAuthButtonsContent,
-  signInFormContent,
-  signInMethodsContent,
   signInPageContent,
-  signUpFormContent,
   signUpPageContent,
 } from "../../src/templates/apps/fragments/auth/index.js";
-import {
-  settingsPasskeyCardContent,
-  settingsPasskeyListContent,
-} from "../../src/templates/apps/fragments/settings/passkey-card.js";
+import { webSettingsFeatureFiles } from "../../src/templates/apps/fragments/settings/feature.js";
 import {
   headerActionsContent,
   headerFileContent,
@@ -52,6 +46,36 @@ function formattedLines({ name, source, extension = "tsx" }: SizeCase): number {
   const stderr = new TextDecoder().decode(result.stderr);
   expect(result.exitCode, `${name}: oxfmt failed\n${stderr}`).toBe(0);
   return new TextDecoder().decode(result.stdout).split(/\r?\n/).length;
+}
+
+function authSources(router: Router) {
+  const files = generateProjectFiles({
+    name: "auth-size",
+    version: "0.1.0",
+    runtime: "bun",
+    mode: "monorepo",
+    framework: router === "next" ? "nextjs" : "tanstack-start",
+    database: "postgres",
+    apps: ["web"],
+    preset: "saas",
+    billing: [],
+    features: [],
+  });
+  const root = "apps/web/src/features/auth/";
+  for (const name of [
+    "sign-in-screen.tsx",
+    "sign-up-screen.tsx",
+    "components/sign-in-form.tsx",
+    "components/sign-up-form.tsx",
+    "use-sign-in-form.ts",
+    "use-sign-up-form.ts",
+    "mutations.ts",
+  ])
+    expect(
+      files.some(({ path }) => path === root + name),
+      name,
+    ).toBe(true);
+  return files.filter(({ path }) => path.startsWith(root));
 }
 
 function casesFor(router: Router): SizeCase[] {
@@ -93,11 +117,14 @@ function casesFor(router: Router): SizeCase[] {
       source: headerUserMenuContent(router),
       maximum: 150,
     },
+    ...authSources(router).map(({ path, content }): SizeCase => ({
+      name: `${router}-${path}`,
+      source: content,
+      maximum: 150,
+      extension: path.endsWith("x") ? "tsx" : "ts",
+    })),
     { name: `${router}-sign-in-page`, source: signInPageContent(router), maximum: 120 },
-    { name: `${router}-sign-in-form`, source: signInFormContent(router), maximum: 150 },
-    { name: `${router}-sign-in-methods`, source: signInMethodsContent(router), maximum: 150 },
     { name: `${router}-sign-up-page`, source: signUpPageContent(router), maximum: 120 },
-    { name: `${router}-sign-up-form`, source: signUpFormContent(router), maximum: 150 },
     {
       name: `${router}-marketing-page`,
       source: buildMarketingPageContent(router),
@@ -164,9 +191,14 @@ describe("generated shell, analytics, marketing, and auth boundaries", () => {
         maximum: 150,
         extension: "ts",
       },
-      { name: "auth-oauth-buttons", source: authOAuthButtonsContent(), maximum: 150 },
-      { name: "auth-passkey-card", source: settingsPasskeyCardContent(), maximum: 150 },
-      { name: "auth-passkey-list", source: settingsPasskeyListContent(), maximum: 150 },
+      ...webSettingsFeatureFiles("src", "next", true, true, true)
+        .filter(({ path }) => path.includes("passkey"))
+        .map(({ path, content }): SizeCase => ({
+          name: path,
+          source: content,
+          maximum: 150,
+          extension: path.endsWith("x") ? "tsx" : "ts",
+        })),
     ];
 
     for (const sizeCase of cases) {
@@ -178,9 +210,13 @@ describe("generated shell, analytics, marketing, and auth boundaries", () => {
     for (const router of ["next", "tanstack"] as const) {
       const signInPage = signInPageContent(router);
       const signUpPage = signUpPageContent(router);
-      expect(signInPage).toContain('from "@/components/auth/sign-in-form"');
-      expect(signUpPage).toContain('from "@/components/auth/sign-up-form"');
-      for (const page of [signInPage, signUpPage]) {
+      expect(signInPage).toContain('from "@/features/auth/sign-in-screen"');
+      expect(signUpPage).toContain('from "@/features/auth/sign-up-screen"');
+      const auth = authSources(router);
+      const screens = ["sign-in", "sign-up"].map(
+        (name) => auth.find(({ path }) => path.endsWith(`/${name}-screen.tsx`))!.content,
+      );
+      for (const page of screens) {
         expect(page).toContain('import { ArrowLeft } from "lucide-react"');
         expect(
           page.match(
@@ -188,7 +224,7 @@ describe("generated shell, analytics, marketing, and auth boundaries", () => {
           ),
         ).toHaveLength(1);
       }
-      expect(`${signInPage}\n${signUpPage}`).not.toMatch(/>←\s+\{t\(/);
+      expect(screens.join("\n")).not.toMatch(/>←\s+\{t\(/);
 
       const header = headerFileContent(router, true, true);
       expect(header).toContain("export function Header(");
@@ -201,8 +237,8 @@ describe("generated shell, analytics, marketing, and auth boundaries", () => {
         hasPdf: false,
         hasMessaging: false,
         navigation: {},
-      }).find(({ path }) => path.endsWith("/app-shell.tsx"))!.content;
-      expect(shell).toContain('from "./header-actions"');
+      }).find(({ path }) => path === "src/features/app-shell/app-shell.tsx")!.content;
+      expect(shell).toContain('from "@/components/header-actions"');
       expect(shell).toContain("<Header workspace={workspace}");
       expect(headerActionsContent(router, true)).toContain('from "./header-user-menu.js"');
       expect(headerUserMenuContent(router)).toContain("<DropdownMenuTrigger");

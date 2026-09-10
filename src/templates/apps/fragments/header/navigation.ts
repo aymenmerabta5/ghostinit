@@ -1,14 +1,14 @@
 import type { HeaderNavigationCapabilities, RouterType } from "./shared.js";
 
-export function workspaceNavigationContent(
+function navigationEntries(
   router: RouterType,
   hasBilling: boolean,
   hasAdminNavigation: boolean,
   hasPdf: boolean,
   hasMessaging: boolean,
   navigation: HeaderNavigationCapabilities,
-): string {
-  const entries = [
+) {
+  return [
     { path: "/dashboard", label: "dashboard", icon: "LayoutDashboard", enabled: true },
     { path: "/agent", label: "agent", icon: "Bot", enabled: router === "next" && navigation.eve },
     { path: "/messages", label: "messages", icon: "MessageSquare", enabled: hasMessaging },
@@ -36,13 +36,73 @@ export function workspaceNavigationContent(
       enabled: hasAdminNavigation,
     },
   ].filter((entry) => entry.enabled);
-  const icons = entries.map((entry) => entry.icon).join(", ");
+}
+
+export function workspaceNavigationModelContent(
+  router: RouterType,
+  hasBilling: boolean,
+  hasAdminNavigation: boolean,
+  hasPdf: boolean,
+  hasMessaging: boolean,
+  navigation: HeaderNavigationCapabilities,
+): string {
+  const entries = navigationEntries(
+    router,
+    hasBilling,
+    hasAdminNavigation,
+    hasPdf,
+    hasMessaging,
+    navigation,
+  );
+  const destinations = [
+    ...new Set([
+      ...entries.map(({ path }) => path),
+      ...(hasAdminNavigation ? ["/admin/users"] : []),
+    ]),
+  ];
   const items = entries
     .map(
-      ({ path, label, icon }) =>
-        `  { path: "${path}", label: "${label}", icon: ${icon}, match: "${path === "/billing" ? "exact" : "subtree"}" },`,
+      ({ path, label }) =>
+        `  { path: "${path}", label: "${label}", match: "${path === "/billing" ? "exact" : "subtree"}" },`,
     )
     .join("\n");
+  return `export type WorkspaceDestination = ${destinations.map((path) => JSON.stringify(path)).join(" | ")};
+
+export const WORKSPACE_NAVIGATION = [
+${items}
+] as const;
+
+export function isCurrentPath(pathname: string, destination: string, match: "exact" | "subtree"): boolean {
+  const normalized = pathname.replace(/\\/+$/, "") || "/";
+  const root = destination.startsWith("/admin") ? "/admin" : destination;
+  return normalized === root || (match === "subtree" && normalized.startsWith(root + "/"));
+}
+
+// Register custom protected routes above; unknown routes retain the public layout.
+export function workspaceSection(pathname: string): (typeof WORKSPACE_NAVIGATION)[number]["label"] | undefined {
+  return WORKSPACE_NAVIGATION.find((entry) => isCurrentPath(pathname, entry.path, entry.match))?.label;
+}
+`;
+}
+
+export function workspaceNavigationContent(
+  router: RouterType,
+  hasBilling: boolean,
+  hasAdminNavigation: boolean,
+  hasPdf: boolean,
+  hasMessaging: boolean,
+  navigation: HeaderNavigationCapabilities,
+): string {
+  const entries = navigationEntries(
+    router,
+    hasBilling,
+    hasAdminNavigation,
+    hasPdf,
+    hasMessaging,
+    navigation,
+  );
+  const icons = entries.map((entry) => entry.icon).join(", ");
+  const items = entries.map(({ label, icon }) => `  ${label}: ${icon},`).join("\n");
   return `"use client";
 
 import type * as React from "react";
@@ -52,20 +112,11 @@ import { useSurfaceTranslations } from "@/lib/translations";
 import type { WorkspaceIdentity } from "./workspace-identity";
 import { WorkspaceIdentityStatus } from "./workspace-identity-status";
 
-const NAVIGATION = [
+import { WORKSPACE_NAVIGATION, isCurrentPath } from "@/features/app-shell/navigation-model";
+
+const ICONS = {
 ${items}
-] as const;
-
-function isCurrentPath(pathname: string, destination: string, match: "exact" | "subtree"): boolean {
-  const normalized = pathname.replace(/\\/+$/, "") || "/";
-  const root = destination.startsWith("/admin") ? "/admin" : destination;
-  return normalized === root || (match === "subtree" && normalized.startsWith(root + "/"));
-}
-
-// Register custom protected routes above; unknown routes retain the public layout.
-export function workspaceSection(pathname: string): (typeof NAVIGATION)[number]["label"] | undefined {
-  return NAVIGATION.find((entry) => isCurrentPath(pathname, entry.path, entry.match))?.label;
-}
+} as const;
 
 export function WorkspaceNavigation({ pathname, identity, onNavigate }: {
   pathname: string; identity: WorkspaceIdentity; onNavigate?: () => void;
@@ -74,7 +125,8 @@ export function WorkspaceNavigation({ pathname, identity, onNavigate }: {
   if (identity.status !== "authenticated") return <WorkspaceIdentityStatus identity={identity} />;
   ${hasAdminNavigation ? 'const isAdmin = identity.user.role === "admin";' : ""}
   return <nav aria-label={t("primaryNavigation")} className="flex flex-col gap-1">
-    {NAVIGATION${hasAdminNavigation ? '.filter((item) => item.label !== "admin" || isAdmin)' : ""}.map(({ path, label, icon: Icon, match }) => {
+    {WORKSPACE_NAVIGATION${hasAdminNavigation ? '.filter((item) => item.label !== "admin" || isAdmin)' : ""}.map(({ path, label, match }) => {
+      const Icon = ICONS[label];
       const active = isCurrentPath(pathname, path, match);
       return <Link key={path} ${router === "next" ? "href" : "to"}={path} onClick={onNavigate} aria-current={active ? "page" : undefined}
         className={"flex min-h-10 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground")}>

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { realtime } from "../../packages/versions/src/index.js";
+import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import { isTrustedWebSocketOrigin } from "../../src/templates/apps/fragments/messaging/index.js";
@@ -470,7 +471,12 @@ describe("messaging and storage security generation matrix", () => {
     expect(nitro).toContain("'./server/plugins/messaging-outbox.ts'");
     expect(tanstackRpc).not.toContain("status: 101");
     expect(tanstackFiles.some((file) => file.path.includes("/routes/hooks/"))).toBe(false);
-    expect(tanstackFiles.some((file) => file.path.includes("/routes/-hooks/"))).toBe(true);
+    expect(
+      fileContent(tanstackFiles, "apps/web/src/features/messaging/use-messaging-workspace.ts"),
+    ).toContain("useMessagingWorkspace");
+    expect(fileContent(tanstackFiles, "apps/web/src/features/messaging/queries.ts")).toContain(
+      "useQuery",
+    );
 
     const singleNextFiles = generateProjectFiles(config("single", "nextjs", "postgres"));
     expect(fileContent(singleNextFiles, "src/server/transport/websocket-auth.ts")).toContain(
@@ -505,8 +511,24 @@ describe("messaging and storage security generation matrix", () => {
     );
   });
 
-  test("desktop Convex messaging keeps native reactivity behind its typed adapter", () => {
+  test("desktop Convex templates keep native reactivity in typed feature data adapters", () => {
     for (const mode of ["monorepo", "single"] as const) {
+      // Single native templates retain alias-level coverage; public creation requires a web host.
+      if (mode === "single") {
+        const resolution = resolveCreateConfig({
+          ...config(mode, "nextjs", "convex"),
+          apps: ["desktop"],
+          databaseWasExplicit: true,
+          preset: "custom",
+          cache: "none",
+          deploy: "none",
+          withMessaging: true,
+        });
+        expect(resolution.ok).toBe(false);
+        if (resolution.ok) throw new Error("Single native messaging unexpectedly resolved");
+        expect(resolution.reason).toBe("single-native-server-capabilities-unsupported");
+        expect(resolution.unsupportedSelections).toContain("messaging");
+      }
       const files = generateProjectFiles({
         ...config(mode, "nextjs", "convex"),
         apps: mode === "monorepo" ? ["web", "desktop"] : ["desktop"],
@@ -514,15 +536,18 @@ describe("messaging and storage security generation matrix", () => {
       const root = mode === "monorepo" ? "apps/desktop/" : "";
       const desktopMessages = fileContent(files, `${root}src/renderer/routes/messages.tsx`);
       const adapter = fileContent(files, `${root}src/renderer/adapters/messaging/convex.ts`);
+      const feature = `${root}src/renderer/features/messaging`;
+      const queries = fileContent(files, `${feature}/queries.ts`);
+      const mutations = fileContent(files, `${feature}/mutations.ts`);
+      const model = fileContent(files, `${feature}/model.ts`);
+      const screen = fileContent(files, `${feature}/screen.tsx`);
+      const views = files.filter(({ path }) => path.startsWith(`${feature}/components/`));
       const desktopManifest = JSON.parse(
         fileContent(files, mode === "monorepo" ? "apps/desktop/package.json" : "package.json"),
       ) as { dependencies?: Record<string, string> };
-      const adapterImport =
-        mode === "monorepo"
-          ? "@/adapters/messaging/convex"
-          : "@/renderer/adapters/messaging/convex";
+      const alias = mode === "monorepo" ? "@" : "@/renderer";
 
-      expect(desktopMessages).toContain(`from "${adapterImport}"`);
+      expect(desktopMessages).toContain(`from "${alias}/features/messaging/screen"`);
       expect(desktopMessages).not.toContain("convex/react");
       expect(desktopMessages).not.toContain("convex/_generated/api");
       expect(desktopMessages).not.toContain("api.messaging");
@@ -530,36 +555,43 @@ describe("messaging and storage security generation matrix", () => {
       expect(desktopMessages).not.toContain("@/lib/orpc");
       expect(desktopMessages).not.toMatch(/from ["']\.\.\/\.\.\/\.\.\//);
       expect(desktopMessages).not.toMatch(/\bas\s+(?:any|never|unknown)\b/);
-      expect(adapter).toContain('from "convex/react"');
-      expect(adapter).toContain('import { z } from "zod"');
-      expect(adapter).toContain(
-        mode === "monorepo"
-          ? 'from "../../../../../../convex/_generated/api"'
-          : 'from "../../../../convex/_generated/api"',
-      );
-      for (const operation of [
-        "listConversations",
-        "listMessages",
-        "listTyping",
-        "getOrCreateConversation",
-        "sendMessage",
-        "sendTyping",
-      ]) {
-        expect(adapter).toContain(`api.messaging.${operation}`);
+      for (const data of [queries, mutations]) {
+        expect(data).toContain('from "convex/react"');
+        expect(data).toContain(
+          mode === "monorepo"
+            ? 'from "../../../../../../convex/_generated/api"'
+            : 'from "../../../../convex/_generated/api"',
+        );
       }
-      expect(adapter).not.toContain("convex/server");
-      expect(adapter).not.toContain("makeFunctionReference");
-      expect(adapter).not.toMatch(/\bany\b/);
-      expect(adapter).toContain("conversationListSchema.parse(rawConversations)");
-      expect(adapter).toContain("messagePageSchema.parse(rawMessages)");
+      for (const operation of ["listConversations", "listMessages", "listTyping"]) {
+        expect(queries).toContain(`api.messaging.${operation}`);
+      }
+      for (const operation of ["getOrCreateConversation", "sendMessage", "sendTyping"]) {
+        expect(mutations).toContain(`api.messaging.${operation}`);
+      }
+      expect(model).toContain('import { z } from "zod"');
+      expect(queries).toContain("conversationListSchema.parse(rawConversations)");
+      expect(queries).toContain("messagePageSchema.parse(rawMessages)");
+      expect(mutations).toContain(`from "${alias}/adapters/messaging/convex"`);
+      for (const source of [adapter, queries, mutations, model, screen]) {
+        expect(source).not.toContain("convex/server");
+        expect(source).not.toContain("makeFunctionReference");
+        expect(source).not.toMatch(/\bany\b/);
+        expect(source).not.toMatch(/\bas\s+(?:any|never|unknown)\b/);
+      }
+      for (const source of [adapter, model, screen, ...views.map(({ content }) => content)]) {
+        expect(source).not.toContain("convex/react");
+        expect(source).not.toContain("api.messaging");
+      }
       expect(desktopManifest.dependencies?.zod).toBeDefined();
-      expect(adapter).not.toMatch(/\bas\s+(?:any|never|unknown)\b/);
       expect(desktopMessages).toContain('import { createFileRoute } from "@tanstack/react-router"');
       expect(desktopMessages).not.toContain("refetchInterval");
       expect(desktopMessages).not.toContain("stub pending");
       expect(desktopMessages).not.toContain("available in web build");
-      expect(desktopMessages).toContain("text-start");
-      expect(desktopMessages).not.toContain("text-left");
+      expect(fileContent(files, `${feature}/components/messaging-thread-view.tsx`)).toContain(
+        "text-start",
+      );
+      for (const { content } of views) expect(content).not.toContain("text-left");
     }
   });
 
@@ -569,45 +601,55 @@ describe("messaging and storage security generation matrix", () => {
       apps: ["web", "desktop"],
     });
     const desktopMessages = fileContent(files, "apps/desktop/src/renderer/routes/messages.tsx");
-    const adapter = fileContent(files, "apps/desktop/src/renderer/adapters/messaging/postgres.ts");
+    const feature = "apps/desktop/src/renderer/features/messaging";
+    const queries = fileContent(files, `${feature}/queries.ts`);
     expect(
-      adapter.match(/refetchInterval: transport === "polling" \? 5_000 : false/g),
+      queries.match(/refetchInterval: transport === "polling" \? 5_000 : false/g),
     ).toHaveLength(2);
-    expect(adapter).toContain("subscribeRealtime(conversationId");
-    expect(adapter).toContain('setTransport("polling")');
-    expect(desktopMessages).toContain("Realtime with polling fallback");
-    expect(desktopMessages).toContain("secure realtime connection is unavailable");
+    expect(queries).toContain("subscribeRealtime(conversationId");
+    expect(queries).toContain("connection.id === conversationId ? connection : null");
+    expect(queries).toContain('activeConnection?.transport ?? "polling"');
+    expect(queries).toContain('transport: connected ? "realtime" : "polling"');
+    expect(queries).toContain("catch { status(false); }");
+    expect(queries).toContain("const isCurrent = () => active && isOwner()");
+    expect(queries).toContain("active = false; unsubscribe?.()");
+    const workspace = fileContent(files, `${feature}/components/messaging-workspace-view.tsx`);
+    expect(workspace).toContain("Realtime with polling fallback");
+    expect(workspace).toContain("secure realtime connection is unavailable");
     expect(desktopMessages).not.toContain("@tanstack/react-query");
     expect(desktopMessages).not.toContain("@/lib/orpc");
-    expect(desktopMessages).toContain("text-start");
-    expect(desktopMessages).not.toContain("text-left");
+    const thread = fileContent(files, `${feature}/components/messaging-thread-view.tsx`);
+    expect(thread).toContain("text-start");
+    expect(thread).not.toContain("text-left");
+    expect(workspace).not.toContain("text-left");
   });
 
   test("web messaging emits policy-sized feature components with logical alignment", () => {
     for (const framework of ["nextjs", "tanstack-start"] as const) {
       const files = generateProjectFiles(config("monorepo", framework, "postgres"));
-      const paths =
+      const route =
         framework === "nextjs"
-          ? [
-              "apps/web/src/app/(app)/messages/page.tsx",
-              "apps/web/src/app/(app)/messages/_components/conversation-list.tsx",
-              "apps/web/src/app/(app)/messages/_components/message-composer.tsx",
-              "apps/web/src/app/(app)/messages/_components/message-list.tsx",
-              "apps/web/src/app/(app)/messages/_components/message-thread.tsx",
-            ]
-          : [
-              "apps/web/src/routes/messages.tsx",
-              "apps/web/src/routes/-components/messages/conversation-list.tsx",
-              "apps/web/src/routes/-components/messages/message-composer.tsx",
-              "apps/web/src/routes/-components/messages/message-list.tsx",
-              "apps/web/src/routes/-components/messages/message-thread.tsx",
-            ];
+          ? "apps/web/src/app/(app)/messages/page.tsx"
+          : "apps/web/src/routes/messages.tsx";
+      const feature = "apps/web/src/features/messaging";
+      const paths = [
+        route,
+        `${feature}/page.tsx`,
+        `${feature}/message-composer.tsx`,
+        `${feature}/message-thread.tsx`,
+        `${feature}/components/messaging-workspace-view.tsx`,
+        `${feature}/components/message-composer-view.tsx`,
+        `${feature}/components/message-list.tsx`,
+        `${feature}/components/message-thread-view.tsx`,
+      ];
       for (const path of paths) {
         const source = fileContent(files, path);
         expect(source.split(/\r?\n/).length, path).toBeLessThanOrEqual(150);
         expect(source, path).not.toContain("text-left");
       }
-      expect(fileContent(files, paths[1] ?? "")).toContain("text-start");
+      expect(fileContent(files, `${feature}/components/messaging-workspace-view.tsx`)).toContain(
+        "text-start",
+      );
     }
   });
 

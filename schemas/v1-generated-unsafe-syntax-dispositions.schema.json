@@ -85,15 +85,27 @@
               "type": "array",
               "prefixItems": [
                 {
-                  "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+                  "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-paddle-chargily-manual"
                 },
                 {
-                  "const": "single/nextjs/postgres/capabilities-on"
+                  "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-polar-chargily-manual"
+                },
+                {
+                  "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-stripe-chargily-manual"
+                },
+                {
+                  "const": "single/nextjs/postgres/capabilities-on/billing-paddle-chargily-manual"
+                },
+                {
+                  "const": "single/nextjs/postgres/capabilities-on/billing-polar-chargily-manual"
+                },
+                {
+                  "const": "single/nextjs/postgres/capabilities-on/billing-stripe-chargily-manual"
                 }
               ],
               "items": false,
-              "minItems": 2,
-              "maxItems": 2,
+              "minItems": 6,
+              "maxItems": 6,
               "uniqueItems": true
             },
             "removeInStabilization": {
@@ -185,7 +197,13 @@
           "const": "monorepo/nextjs/convex/capabilities-off"
         },
         {
-          "const": "monorepo/nextjs/convex/capabilities-on-all-apps"
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/nextjs/none/capabilities-off"
@@ -197,13 +215,25 @@
           "const": "monorepo/nextjs/postgres/capabilities-off"
         },
         {
-          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/tanstack-start/convex/capabilities-off"
         },
         {
-          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps"
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/tanstack-start/none/capabilities-off"
@@ -215,19 +245,43 @@
           "const": "monorepo/tanstack-start/postgres/capabilities-off"
         },
         {
-          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps"
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "single/nextjs/convex/capabilities-off"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on-desktop"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on-mobile"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/nextjs/none/capabilities-off"
@@ -245,25 +299,61 @@
           "const": "single/nextjs/postgres/capabilities-off"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on-desktop"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on-mobile"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/tanstack-start/convex/capabilities-off"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on-desktop"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on-mobile"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/tanstack-start/none/capabilities-off"
@@ -281,18 +371,36 @@
           "const": "single/tanstack-start/postgres/capabilities-off"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on-desktop"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on-mobile"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-stripe-chargily-manual"
         }
       ],
       "items": false,
-      "minItems": 38,
-      "maxItems": 38,
+      "minItems": 70,
+      "maxItems": 70,
       "uniqueItems": true
     },
     "projectionConfigKeys": {
@@ -302,7 +410,13 @@
           "const": "monorepo/nextjs/convex/capabilities-off"
         },
         {
-          "const": "monorepo/nextjs/convex/capabilities-on-all-apps"
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/convex/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/nextjs/none/capabilities-off"
@@ -314,13 +428,25 @@
           "const": "monorepo/nextjs/postgres/capabilities-off"
         },
         {
-          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps"
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/nextjs/postgres/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/tanstack-start/convex/capabilities-off"
         },
         {
-          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps"
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/convex/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "monorepo/tanstack-start/none/capabilities-off"
@@ -332,19 +458,43 @@
           "const": "monorepo/tanstack-start/postgres/capabilities-off"
         },
         {
-          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps"
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-polar-chargily-manual"
+        },
+        {
+          "const": "monorepo/tanstack-start/postgres/capabilities-on-all-apps/billing-stripe-chargily-manual"
         },
         {
           "const": "single/nextjs/convex/capabilities-off"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on-desktop"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/nextjs/convex/capabilities-on-mobile"
+          "const": "single/nextjs/convex/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/convex/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/nextjs/none/capabilities-off"
@@ -362,25 +512,61 @@
           "const": "single/nextjs/postgres/capabilities-off"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on-desktop"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/nextjs/postgres/capabilities-on-mobile"
+          "const": "single/nextjs/postgres/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/nextjs/postgres/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/tanstack-start/convex/capabilities-off"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on-desktop"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/convex/capabilities-on-mobile"
+          "const": "single/tanstack-start/convex/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/convex/capabilities-on/billing-stripe-chargily-manual"
         },
         {
           "const": "single/tanstack-start/none/capabilities-off"
@@ -398,18 +584,36 @@
           "const": "single/tanstack-start/postgres/capabilities-off"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-paddle-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on-desktop"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-polar-chargily-manual"
         },
         {
-          "const": "single/tanstack-start/postgres/capabilities-on-mobile"
+          "const": "single/tanstack-start/postgres/capabilities-on-desktop/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on-mobile/billing-stripe-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-paddle-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-polar-chargily-manual"
+        },
+        {
+          "const": "single/tanstack-start/postgres/capabilities-on/billing-stripe-chargily-manual"
         }
       ],
       "items": false,
-      "minItems": 36,
-      "maxItems": 36,
+      "minItems": 68,
+      "maxItems": 68,
       "uniqueItems": true
     },
     "nextMonorepoGate": {
@@ -446,17 +650,11 @@
             },
             {
               "const": "chargily"
-            },
-            {
-              "const": "paddle"
-            },
-            {
-              "const": "polar"
             }
           ],
           "items": false,
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 2,
+          "maxItems": 2,
           "uniqueItems": true
         },
         "apps": {
@@ -510,20 +708,11 @@
           "prefixItems": [
             {
               "const": "stripe"
-            },
-            {
-              "const": "chargily"
-            },
-            {
-              "const": "paddle"
-            },
-            {
-              "const": "polar"
             }
           ],
           "items": false,
-          "minItems": 4,
-          "maxItems": 4,
+          "minItems": 1,
+          "maxItems": 1,
           "uniqueItems": true
         },
         "apps": {

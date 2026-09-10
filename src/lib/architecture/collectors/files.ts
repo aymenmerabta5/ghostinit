@@ -1,6 +1,6 @@
 /** Deterministic root orchestration for bounded source traversal. */
 
-import { realpath } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import type { ArchitectureFinding, PackageInfo } from "../types.js";
 import { normalizePath } from "../utils.js";
@@ -94,6 +94,25 @@ export async function collectSourceFiles(
   for (const candidate of dedupeCandidates(candidates)) {
     if (state.stopped) break;
     await scanCandidate(candidate, realRoot, files, visited, findings, state);
+  }
+  if (state.options.includeDefaultRoots && !state.stopped) {
+    // This browser-facing generated protocol must contribute its own import edges.
+    const protocol = join(realRoot, "convex", "_generated", "api.js");
+    try {
+      await lstat(protocol);
+      if (consumeSourceEntry(state, findings, protocol, realRoot)) {
+        await tryAddSourceFile(protocol, realRoot, files, visited, findings, state);
+      }
+    } catch (error) {
+      if (!isMissing(error))
+        stopSourceCollection(
+          state,
+          findings,
+          "source-file-coverage-failure",
+          `Unable to inspect Convex client protocol: ${errorCode(error)}`,
+          "convex/_generated/api.js",
+        );
+    }
   }
   return files.sort(comparePaths);
 }

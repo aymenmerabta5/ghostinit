@@ -1,4 +1,6 @@
 import { createServer, type Server, type Socket } from "node:net";
+import { fileURLToPath } from "node:url";
+import { startPostgresWorker } from "../helpers/e2e-postgres-worker.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const E2E_DATABASE_NAME = "postgres";
@@ -26,60 +28,18 @@ function postgresEnvironment(port: number): Readonly<Record<string, string>> {
   });
 }
 
-function loopbackPort(endpoint: string): number {
-  const match = /^127\.0\.0\.1:(\d+)$/.exec(endpoint);
-  const port = Number(match?.[1]);
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error(`Embedded PostgreSQL returned an invalid loopback endpoint: ${endpoint}`);
-  }
-  return port;
-}
-
 /**
  * Start a real PostgreSQL engine compiled to WASM behind the official TCP
- * socket adapter. The database is memory-only, loopback-only, and receives an
- * OS-assigned port so the E2E remains hermetic on Windows, macOS, and Linux.
+ * socket adapter in a directly owned Node child. Its memory stays in the E2E
+ * process tree; loopback and an OS-assigned port keep the fixture isolated.
  */
 export async function startIsolatedE2EPostgres(): Promise<E2EPostgresRuntime> {
-  const [{ PGlite }, { PGLiteSocketServer }] = await Promise.all([
-    import("@electric-sql/pglite"),
-    import("@electric-sql/pglite-socket"),
-  ]);
-  const database = await PGlite.create();
-  const server = new PGLiteSocketServer({
-    db: database,
-    host: LOOPBACK_HOST,
-    maxConnections: 32,
-    port: 0,
+  const worker = await startPostgresWorker({
+    workerPath: fileURLToPath(new URL("./e2e-postgres-worker.mjs", import.meta.url)),
   });
-  try {
-    await server.start();
-  } catch (error) {
-    await database.close();
-    throw error;
-  }
-
-  let closed = false;
   return {
-    environment: postgresEnvironment(loopbackPort(server.getServerConn())),
-    async close() {
-      if (closed) return;
-      closed = true;
-      let stopError: unknown;
-      try {
-        await server.stop();
-      } catch (error) {
-        stopError = error;
-      }
-      try {
-        await database.close();
-      } catch (error) {
-        if (stopError)
-          throw new AggregateError([stopError, error], "Embedded PostgreSQL cleanup failed");
-        throw error;
-      }
-      if (stopError) throw stopError;
-    },
+    environment: postgresEnvironment(worker.port),
+    close: worker.close,
   };
 }
 

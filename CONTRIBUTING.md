@@ -53,6 +53,43 @@ Single and monorepo packaging have the same module rules. A use case may import 
 
 Do not add a pass-through layer just to traverse every category. Next.js server reads call application services directly; client islands use typed transports. The architecture should make dependencies and authorization easier to understand, not increase the number of files a developer must visit.
 
+### Frontend responsibility boundaries
+
+This contract applies to every generated frontend feature and platform, including
+single and monorepo Next.js, TanStack Start, Expo, and Electron projects.
+
+| Responsibility                              | Owns                                                                     | Boundary                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Framework route                             | Route registration, params/search, loading and access guards             | Delegates to feature screens and the appropriate server boundary                                                            |
+| Feature-root TSX composition                | Screens, sections and controllers                                        | Combines semantic feature hooks and focused views; raw state/effect/form/data-library ownership stays in workflows/adapters |
+| Query/mutation adapters                     | Remote clients, query keys, subscriptions, mutations and invalidation    | Feature-root `queries.ts` and `mutations.ts` expose typed operations                                                        |
+| Feature-root `use-*.ts` workflow/form hooks | A coherent interaction, selected form state, submission and cancellation | DOM uses existing `useAppForm`; native uses a typed adapter/workflow over the declared form library                         |
+| Pure models/utilities                       | Types, validation, formatting and deterministic transformations          | No React state, routing, networking or platform I/O                                                                         |
+| Focused views                               | Typed data/callback props and presentation                               | Tiny local disclosure/focus/menu state is allowed; business workflows and remote access are not                             |
+| Shared primitives/infrastructure            | Reusable controls, tokens, providers and transport setup                 | Feature workflows cannot be relocated here to escape their boundaries                                                       |
+
+Extract by responsibility. Renaming a large component, scattering one workflow
+among arbitrary helpers, or introducing empty pass-through layers does not
+satisfy the contract. Keep query ownership, late-response cancellation,
+authorization and behavior intact while moving code. Native code must use actual
+emitted APIs; it must not import a DOM `useAppForm` presenter that is not provided.
+Several cohesive feature-root TSX composition containers are valid; do not force
+every feature through one giant screen. Focused views live in feature
+`components/` and app component modules.
+
+Run the actual `ghostinit check --json` rules and the required installed-project
+checks. A passing static scan does not prove every semantic boundary is correct.
+Review imports, data ownership and interaction behavior as well. Agents must not
+report work acceptable or complete while architecture findings or required gates
+fail, and must identify unrun gates. Never raise limits, disable checks, widen
+exclusions or add broad exceptions to hide a violation. Validate and fix an
+incorrect detector without removing its positive controls.
+
+The project owner may change or remove GhostInit and its policies. Generated lint/typecheck commands remain independently usable. Agents must not silently remove or weaken safeguards to make work pass; changing those safeguards requires explicit developer authorization.
+
+The [frontend architecture reference](./skills/ghostinit-use/references/frontend-architecture.md)
+lists supported paths, checker identifiers and the verification workflow.
+
 ### Managed updates
 
 `upgrade` can replace unchanged tracked manifests and other managed infrastructure.
@@ -84,6 +121,36 @@ Violation examples:
 Run: `ghostinit check` or `bun run build && node dist/cli.js check`.
 
 ---
+
+## Dependency security maintenance
+
+`src/domain/dependency-security/` owns compatible-version and declaration contracts;
+`src/lib/dependency-security/` owns isolated repair, canonical audit, installation,
+publication, and recovery. CLI `security`, automatic create/upgrade, and generated
+install/security scripts share that runtime. The build embeds it for generated
+projects without a GhostInit dependency; preserve the bundler's boundary checks.
+
+Keep repairs within supported stable version families and the seven-day policy
+with empty exclusions. The complete candidate graph must pass age, integrity,
+patch, and installed-audit verification before transactional source publication.
+Unknown/high/critical unresolved findings block publication; unreviewed low/moderate
+findings remain visible as `partial`. Dedicated fix and upgrade also run the
+project's `typecheck`, `lint:all`, and `test`; ordinary `check` never mutates dependencies.
+`--no-install` on create/upgrade explicitly skips security verification.
+
+Persist verified declaration floors in `ghostinit.config.json.dependencySecurity`
+and apply them before generation-plan hashing. Keep higher compatible pins and do
+not recreate removed declarations. Guard changed and unchanged source inputs with
+`FsTransaction` and the enclosing project lease. Standalone maintenance invalidates
+obsolete plan attestation. Post-publication failure retains a recovery journal;
+installed dependencies are not rolled back. Unverified child cleanup blocks all
+mutations, including forced/stale lease takeover, until independently reconciled.
+See the [user workflow and recovery contract](./skills/ghostinit-use/references/dependency-security.md).
+
+Dependency-security changes require parser/range/declaration controls, source and
+lease races, recovery/cleanup controls, persistence through reconciliation, and
+real direct/workspace/catalog repair runs. Mocked audit reports alone do not prove
+installed behavior. Preserve required fixture, generated, runtime, and release gates.
 
 ## Project Structure (Host)
 
@@ -293,10 +360,10 @@ and dry-run output all describe the same project.
   `DOQueueHandler`; additive `v2` owns `DOShardedTagCache`. The named R2 bucket
   must be created once before the first deploy.
 
-Any Cloudflare template change must run the four release-blocking Worker corners
+Any Cloudflare template change must run the eight release-blocking Worker corners
 with `bun run test:workers`. They cover Next/TanStack x monorepo/single across
 Convex and database-free profiles. Both Convex monorepos select the full reviewed
-all four billing providers, i18n, messaging/storage, notifications, feature-flags, jobs, and
+billing selection with one global provider, Chargily and manual payments, i18n, messaging/storage, notifications, feature-flags, jobs, and
 Redis-cache surface; the monorepos select Bun and the single projects select Node.
 Each corner must install, audit, format, pass architecture, typecheck, lint and
 test; then build/secret-scan, run `wrangler deploy --dry-run`, and return HTTP
@@ -341,6 +408,8 @@ Same pattern as billing but simpler — feature flags.
   - Next commands executed by Bun use the supported Webpack development/build profile; Node keeps Turbopack. This avoids Bun 1.4's cold-start resolution failure for newly created Turbopack external-package links. PDF-enabled Bun commands preload the explicitly declared renderer before Next initializes, without changing React module conditions.
   - Next 16.3 configurations use `experimental.turbopackMemoryEviction: "full"` for local development (`NODE_ENV=development` with `CI` unset), retaining `"auto"` for CI and production. This releases eligible compiler cache after filesystem snapshots; keep Next's default development filesystem cache enabled. Eviction can increase rebuild work and does not impose a hard memory cap, so local process/tree/RAM guards still apply.
   - Generated Next builds set `experimental.cpus` to `2` when `CI` is unset or empty. A non-empty `CI` omits the setting so Next uses its default parallelism. This bounds local static-generation worker copies while retaining every route and the complete build workload; keep memory guards and installed production validation.
+  - Native Next configurations set `experimental.webpackBuildWorker: true`. This lets compiler workers end before the mandatory TypeScript phase even when plugins add a Webpack hook. Keep full typechecking and installed plugin/build/runtime verification; Cloudflare configuration remains separate.
+  - PostgreSQL authentication imports its initializer from `better-auth/minimal` with the explicit transactional Drizzle adapter. Root `Auth` imports remain type-only, so unused built-in Kysely initialization is not pulled into the runtime graph. Keep Drizzle migrations and existing session, verification, authorization and plugin settings.
   - Native Next configurations keep selected billing SDKs in `serverExternalPackages`. Node/Bun load their public package entries instead of making Next compile the vendor graphs for account pages. The provider/package map is shared with dependency emission; unselected providers and Cloudflare Worker configurations do not receive these externals. Installed runtime and production gates must verify this boundary.
   - Host, generated, deployment, temporary-test, and compatibility-fixture installs use the typed `supplyChain.minimumReleaseAgeSeconds` policy: seven days (`604800` seconds), with `minimumReleaseAgeExcludes = []` so there is no default bypass.
 
@@ -377,11 +446,11 @@ bun run test:fixtures
 bun run test:convex-codegen # real local Convex root/component codegen and strict type contracts
 
 # Real generated projects: verified bootstrap + installed dependency audit + format/check + architecture + typecheck + lint:all + root tests
-bun run test:generated -- --all # all 24 configured representative corners
-bun run test:workers            # four Cloudflare Worker build/dry-run/runtime corners
+bun run test:generated -- --all # all 38 configured representative corners
+bun run test:workers            # eight Cloudflare Worker build/dry-run/runtime corners
 
 # Full CI
-bun run test:ci # static + host/fixtures + Convex codegen + generated --all + oRPC WS runtime + six audited production builds
+bun run test:ci # static + host/fixtures + Convex codegen + generated --all + oRPC WS runtime + nine audited production builds
 ```
 
 For local checks under a strict RAM budget, use `bun --smol test <file>` in a
@@ -408,8 +477,8 @@ Every generated corner and every frozen fixture lock runs a blocking
 `bun audit --audit-level=high`. The separate heavy `test:e2e-build` lifecycle
 also audits each installed dependency graph, then verifies
 format, an explicit typecheck, fail-closed `lint:all`, production build/start,
-health, and the exact local CLI architecture check across default, billing-all,
-TanStack messaging, TanStack Convex, custom capability-heavy, and web/Expo/Electron projects.
+health, and the exact local CLI architecture check across default, each global provider with Chargily/manual,
+TanStack messaging, TanStack Convex, single and monorepo custom capability-heavy, and web/Expo/Electron projects.
 `test:ci` also runs the real typed oRPC WebSocket runtime probe.
 
 **Generation smoke test (manual QA):**

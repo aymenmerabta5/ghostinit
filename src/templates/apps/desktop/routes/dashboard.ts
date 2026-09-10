@@ -1,7 +1,8 @@
+import { file, type TemplateFile } from "../../../shared.js";
 import { fullDesktopCapabilities, type DesktopCapabilities, type DesktopMode } from "../model.js";
 import { nativeI18nImportPath, nativeI18nTemplate } from "../../fragments/native-i18n.js";
 
-export function desktopRouteDashboardContent(
+function desktopDashboardScreenContent(
   capabilities: DesktopCapabilities = fullDesktopCapabilities,
   mode: DesktopMode = "monorepo",
 ): string {
@@ -19,15 +20,6 @@ export function desktopRouteDashboardContent(
           .filter(Boolean)
           .join("\n")
       : "";
-  const apiImports = capabilities.hasApi
-    ? `import { useQuery } from "@tanstack/react-query";\nimport { desktopQueryOptions${capabilities.hasBilling ? ", orpc" : ""} } from "../lib/orpc";`
-    : "";
-  const apiQueries = capabilities.hasApi
-    ? `  const me = useQuery({ ...desktopQueryOptions.me(), enabled: isAuthenticated });`
-    : "";
-  const billingQuery = capabilities.hasBilling
-    ? `  const subscriptions = useQuery(orpc.billing.subscriptions.queryOptions({ enabled: isAuthenticated }));`
-    : "";
   const profileActions = [
     `<Button render={<Link to="/settings" />} nativeButton={false} size="sm" variant="outline">${i18n.child("identity.editProfile", "Edit profile")}</Button>`,
     capabilities.hasBilling
@@ -50,24 +42,19 @@ export function desktopRouteDashboardContent(
     ? `<Card><CardHeader><div className="flex items-center justify-between gap-3"><div><CardTitle>${capabilities.hasI18n ? '{billingT("subscriptions")}' : "Subscriptions"}</CardTitle><CardDescription>${i18n.child("desktop.subscriptionDescription", "Cached and invalidated through typed oRPC keys.")}</CardDescription></div><Button render={<Link to="/billing" />} nativeButton={false} size="sm" variant="outline">${i18n.child("actions.manageBilling", "Manage")}</Button></div></CardHeader><CardContent><pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap">{${subscriptionsResult}}</pre></CardContent></Card>`
     : "";
 
-  return `import { createFileRoute, Link } from "@tanstack/react-router";
+  return `import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "../hooks/useAuth";
-import { authClient } from "../lib/auth";
-${apiImports}
+import { useDesktopDashboard } from "./queries";
+import { signOutDashboard } from "./mutations";
 ${i18n.importLine}
 
-export const Route = createFileRoute("/dashboard")({ component: DashboardComponent });
-
-function DashboardComponent() {
+export function DashboardScreen() {
 ${i18n.hookLine}
 ${supportingHooks}
-  const { user, isPending, isAuthenticated } = useAuth();
-${apiQueries}
-${billingQuery}
+  const { user, isPending, isAuthenticated${capabilities.hasApi ? ", me" : ""}${capabilities.hasBilling ? ", subscriptions" : ""} } = useDesktopDashboard();
 
   if (isPending) return <main className="mx-auto flex max-w-5xl flex-col gap-3 p-6" aria-label={${i18n.value("desktop.checkingSession", "Checking session…")}}><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></main>;
   if (!isAuthenticated || !user) {
@@ -80,7 +67,7 @@ ${billingQuery}
     <main className="mx-auto flex max-w-5xl flex-col gap-6">
       <header className="flex flex-col gap-3 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div><h1 className="text-2xl font-semibold tracking-tight">${i18n.child("title", "Dashboard")}</h1><p className="mt-1 max-w-[65ch] text-sm text-muted-foreground">${i18n.child("authenticatedDescription", "Account context and enabled application capabilities.")}</p></div>
-        <Button type="button" variant="outline" onClick={() => authClient.signOut()}>${i18n.child("desktop.signOut", "Sign out")}</Button>
+        <Button type="button" variant="outline" onClick={() => void signOutDashboard()}>${i18n.child("desktop.signOut", "Sign out")}</Button>
       </header>
 
       <section className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]">
@@ -96,4 +83,71 @@ ${billingQuery}
   );
 }
 `;
+}
+
+export function desktopRouteDashboardContent(
+  _capabilities: DesktopCapabilities = fullDesktopCapabilities,
+  mode: DesktopMode = "monorepo",
+): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { DashboardScreen } from "${mode === "single" ? "@/renderer" : "@"}/features/dashboard/screen";
+export const Route = createFileRoute("/dashboard")({ component: DashboardScreen });
+`;
+}
+export function desktopDashboardFeatureFiles(
+  capabilities: DesktopCapabilities,
+  mode: DesktopMode,
+): TemplateFile[] {
+  const root = `${mode === "single" ? "src" : "apps/desktop/src"}/renderer/features/dashboard`;
+  const i18n = nativeI18nTemplate(
+    capabilities.hasI18n,
+    "dashboard",
+    nativeI18nImportPath("desktop", mode),
+  );
+  let screen = desktopDashboardScreenContent(capabilities, mode);
+  const identityStart = screen.indexOf('      <section className="grid gap-5');
+  const identityEnd = screen.indexOf("      </section>", identityStart) + "      </section>".length;
+  const identity = screen.slice(identityStart, identityEnd);
+  screen =
+    screen.slice(0, identityStart) +
+    "      <DashboardIdentity user={user} />" +
+    screen.slice(identityEnd);
+  screen = screen.replace(
+    'import { useDesktopDashboard } from "./queries";',
+    'import { useDesktopDashboard } from "./queries";\nimport { DashboardIdentity } from "./components/dashboard-identity";',
+  );
+  return [
+    file(`${root}/screen.tsx`, screen),
+    file(
+      `${root}/components/dashboard-identity.tsx`,
+      `import type * as React from "react";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+${i18n.importLine}
+export function DashboardIdentity({ user }: { user: { name?: string | null; email?: string | null } }): React.JSX.Element {
+${i18n.hookLine}
+  return (${identity});
+}
+`,
+    ),
+    file(
+      `${root}/mutations.ts`,
+      `import { authClient } from "../../lib/auth";
+export async function signOutDashboard(): Promise<void> { await authClient.signOut(); }
+`,
+    ),
+    file(
+      `${root}/queries.ts`,
+      `import { useAuth } from "../../hooks/useAuth";
+${capabilities.hasApi ? 'import { useQuery } from "@tanstack/react-query";\nimport { desktopQueryOptions' + (capabilities.hasBilling ? ", orpc" : "") + ' } from "../../lib/orpc";' : ""}
+export function useDesktopDashboard() {
+  const identity = useAuth();
+${capabilities.hasApi ? "  const me = useQuery({ ...desktopQueryOptions.me(), enabled: identity.isAuthenticated });" : ""}
+${capabilities.hasBilling ? "  const subscriptions = useQuery(orpc.billing.subscriptions.queryOptions({ enabled: identity.isAuthenticated }));" : ""}
+  return { ...identity${capabilities.hasApi ? ", me" : ""}${capabilities.hasBilling ? ", subscriptions" : ""} };
+}
+`,
+    ),
+  ];
 }

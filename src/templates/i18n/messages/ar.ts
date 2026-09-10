@@ -1,5 +1,7 @@
+import { AR_BILLING_STATUS_MESSAGES } from "./billing-status.js";
 // @allow-long 1326: typed locale catalog mirrors the complete English message shape
 import type { EN_MESSAGES } from "./en.js";
+import { AR_MANUAL_BILLING_MESSAGES } from "./manual-billing.js";
 
 export const AR_MESSAGES = {
   common: {
@@ -275,6 +277,9 @@ export const AR_MESSAGES = {
     desktopDescription: "أدر مؤسساتك وأعضاءك وفرقك ودعواتك.",
     settings: "الإعدادات",
     operationError: "فشلت عملية مساحة العمل",
+    operationErrorDescription: "تحقق من الحالة الحالية لمساحة العمل، ثم أعد محاولة الإجراء.",
+    organizationsReadError: "تعذر تحميل المؤسسات",
+    organizationsReadErrorDescription: "أعد المحاولة لتحميل قائمة مؤسساتك.",
     organizations: "المؤسسات",
     organizationsDescription: "اختر المؤسسة التي تريد العمل ضمنها.",
     loadingOrganizations: "جارٍ تحميل المؤسسات",
@@ -899,7 +904,7 @@ export const AR_MESSAGES = {
       revokingOthers: "جارٍ إلغاء الجلسات الأخرى...",
       loading: "جارٍ تحميل الجلسات...",
       refresh: "تحديث",
-      empty: "لا توجد جلسات نشطة أخرى - هذا الجهاز فقط.",
+      empty: "لم يتم العثور على جلسات نشطة.",
       current: "الحالية",
       revoke: "إلغاء",
       revoking: "جارٍ الإلغاء...",
@@ -1072,6 +1077,8 @@ export const AR_MESSAGES = {
     manifestDescription: "نظامك الأحادي المعياري المنظم.",
   },
   billing: {
+    ...AR_BILLING_STATUS_MESSAGES,
+    ...AR_MANUAL_BILLING_MESSAGES,
     checkoutReturnTitle: "العودة من صفحة الدفع",
     checkoutReturnDescription:
       "يؤكد مزود الدفع النتيجة. راجع صفحة الفوترة للاطلاع على آخر حالة للدفع والاشتراك.",

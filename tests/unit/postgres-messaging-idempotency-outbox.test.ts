@@ -199,47 +199,53 @@ describe("Postgres messaging idempotency and durable realtime outbox", () => {
   test("requires and reuses one client key for each Postgres send attempt", () => {
     const files = generateProjectFiles(project("monorepo", ["web", "mobile", "desktop"]));
     const contract = content(files, "packages/api/src/procedures/messaging/send-message.ts");
-    const web = content(files, "apps/web/src/app/(app)/messages/hooks/use-messaging.ts");
-    const webComposer = content(
-      files,
-      "apps/web/src/app/(app)/messages/_components/message-composer.tsx",
-    );
-    const mobile = content(files, "apps/mobile/src/adapters/messaging/postgres.ts");
-    const desktop = content(files, "apps/desktop/src/renderer/adapters/messaging/postgres.ts");
+    const web = content(files, "apps/web/src/features/messaging/mutations.ts");
+    const webComposer = content(files, "apps/web/src/features/messaging/use-message-composer.ts");
 
     expect(contract).toContain("clientMessageKey: z.string().trim().min(16).max(128)");
-    for (const client of [web, mobile, desktop]) {
-      expect(client).toContain("createClientMessageKey()");
-      expect(client).toContain("pendingSend.current?.signature === signature");
-      expect(client).toContain("clientMessageKey: attempt.clientMessageKey");
-    }
-    for (const client of [mobile, desktop]) {
-      expect(client).toContain("const signature = JSON.stringify([");
-      expect(client).toContain(": { signature, clientMessageKey: createClientMessageKey() };");
-      expect(client).toContain("pendingSend.current = attempt;");
-      expect(client.indexOf("pendingSend.current = attempt;")).toBeLessThan(
-        client.indexOf("await sendMutation.mutateAsync({"),
+    expect(web).toContain("createClientMessageKey()");
+    expect(web).toContain("pendingSend.current?.signature === signature");
+    expect(web).toContain("clientMessageKey: attempt.clientMessageKey");
+    for (const root of [
+      "apps/mobile/src/features/messaging",
+      "apps/desktop/src/renderer/features/messaging",
+    ]) {
+      const model = content(files, `${root}/send-model.ts`);
+      const workflow = content(files, `${root}/use-message-composer.ts`);
+      const mutation = content(files, `${root}/mutations.ts`);
+      expect(model).toContain(
+        "previous?.signature === signature && previous.attachment === attachment",
       );
-      expect(client.indexOf("await sendMutation.mutateAsync({")).toBeLessThan(
-        client.indexOf(
-          "if (pendingSend.current?.clientMessageKey === attempt.clientMessageKey) pendingSend.current = null;",
-        ),
+      expect(model).toContain("clientMessageKey: createClientMessageKey()");
+      expect(workflow.indexOf("attempt.current = request;")).toBeLessThan(
+        workflow.indexOf("await send.run(request)"),
+      );
+      expect(workflow).toContain('result.status === "success" && result.isCurrent()');
+      expect(workflow.indexOf("form.reset()")).toBeGreaterThan(
+        workflow.indexOf("await send.run(request)"),
+      );
+      expect(mutation).toContain("clientMessageKey: input.clientMessageKey");
+      expect(mutation).toContain("attachmentIds = [previous.attachmentId]");
+      expect(mutation.indexOf("prepared.current = null")).toBeGreaterThan(
+        mutation.indexOf("await orpcClient.messaging.sendMessage"),
       );
     }
-    expect(webComposer).toContain("pendingAttachmentUpload.current");
-    expect(webComposer).toContain("messageAttachmentFingerprint(file)");
+    expect(webComposer).toContain("pendingUpload.current");
+    expect(webComposer).toContain("messageAttachmentFingerprint(input.file)");
     expect(webComposer).toContain("reusablePendingAttachmentId(");
-    expect(webComposer).toContain("attachmentId = attachmentIdFrom(await response.json())");
-    expect(
-      webComposer.indexOf("pendingAttachmentUpload.current = null;\n      setBody"),
-    ).toBeGreaterThan(webComposer.indexOf("await send(body.trim(), attachmentIds)"));
+    expect(webComposer).toContain(
+      "attachmentId = await uploadMessageAttachment(conversationId, input.file)",
+    );
+    expect(webComposer.indexOf("pendingUpload.current = null;")).toBeGreaterThan(
+      webComposer.indexOf("return sender.send(input.body.trim(), attachmentIds)"),
+    );
   });
 
   test("reuses an uploaded attachment only for the same conversation and file fingerprint", async () => {
     const files = generateProjectFiles(project("monorepo"));
-    const web = content(files, "apps/web/src/app/(app)/messages/hooks/use-messaging.ts");
+    const web = content(files, "apps/web/src/features/messaging/model.ts");
     const start = web.indexOf("export interface PendingMessageAttachmentUpload");
-    const end = web.indexOf("export function useConversations");
+    const end = web.length;
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(web.slice(start, end));

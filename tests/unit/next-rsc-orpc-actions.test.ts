@@ -158,9 +158,9 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         }
         const settingsActions = content(files, `${root}src/app/settings/actions.ts`);
         const settingsClients = [
-          content(files, `${root}src/app/settings/components/profile-card.tsx`),
-          content(files, `${root}src/app/settings/components/password-card.tsx`),
-          content(files, `${root}src/app/settings/components/danger-zone-card.tsx`),
+          content(files, `${root}src/features/settings/mutations.ts`),
+          content(files, `${root}src/features/account-deletion/mutations.ts`),
+          content(files, `${root}src/features/settings/use-profile-form.ts`),
         ].join("\n");
         expect(settingsActions).not.toContain("auth.api.changePassword");
         expect(settingsActions).not.toContain("auth.api.deleteUser");
@@ -168,12 +168,13 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         expect(settingsClients).not.toContain("deleteAccountAction");
         expect(settingsClients).toContain("identityClient.changePassword");
         expect(settingsClients).toContain("identityClient.deleteAccount");
-        expect(settingsClients).toContain("transitionQueryAuthScope(getQueryClient(), null)");
+        expect(settingsClients).toContain("transitionQueryAuthScope(queryClient, null)");
         expect(settingsActions).not.toContain("auth.api");
         expect(settingsActions).not.toContain("import { auth }");
         expect(settingsActions).toContain("revokeIdentitySessionAction");
         expect(settingsClients).toContain("identityClient.updateProfile");
-        expect(settingsClients).toContain("requestQueryAuthScopeRefresh(getQueryClient())");
+        expect(settingsClients).toContain("requestQueryAuthScopeRefresh(queryClient)");
+        expect(settingsClients).toContain("const queryClient = useQueryClient()");
         expect(settingsClients).not.toMatch(
           /updateProfileAction|changePasswordAction|deleteAccountAction/,
         );
@@ -183,7 +184,7 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         expect(content(files, `${root}src/features/identity-workspace/mutations.ts`)).toContain(
           "createOrganizationAction",
         );
-        expect(content(files, `${root}src/app/billing/hooks/use-billing-page.ts`)).toContain(
+        expect(content(files, `${root}src/features/billing/mutations.ts`)).toContain(
           "createBillingCheckoutAction",
         );
         expect(content(files, `${root}src/features/notifications/mutations.ts`)).toContain(
@@ -207,26 +208,29 @@ describe("Next RSC-first application and Server Action boundaries", () => {
 
         const messagesPage = content(files, `${root}src/app/(app)/messages/page.tsx`);
         expect(messagesPage).not.toMatch(/^["']use client["'];/);
-        expect(messagesPage).toContain(
-          `createRequestApplicationForRequest, type ConversationDto } from "${applicationModule}"`,
-        );
+        expect(messagesPage).toContain(`from "${applicationModule}"`);
         expect(messagesPage).toContain("application.messaging.listConversations()");
         expect(messagesPage).toContain("initialConversations={");
         expect(messagesPage).toContain("<Suspense");
         expect(messagesPage).not.toMatch(FORBIDDEN_SERVER_UI_TRANSPORT);
 
-        const messagesClient = content(files, `${root}src/app/(app)/messages/client.tsx`);
+        const messagingRoot = `${root}src/features/messaging`;
+        const messagesClient = content(
+          files,
+          `${messagingRoot}/${database === "postgres" ? "page" : "screen"}.tsx`,
+        );
         expect(messagesClient).toMatch(/^["']use client["'];/);
         expect(messagesClient).toContain("initialConversations");
         if (database === "postgres") {
-          expect(content(files, `${root}src/app/(app)/messages/hooks/use-messaging.ts`)).toContain(
+          expect(content(files, `${messagingRoot}/queries.ts`)).toContain(
             "orpc.messaging.listMessages",
           );
         } else {
-          expect(messagesClient).toContain('from "convex/react"');
-          expect(messagesClient).toContain("const liveValue: unknown = useQuery(");
-          expect(messagesClient).toContain("liveValue.filter(isLiveConversation)");
-          expect(messagesClient).toContain("liveId: null");
+          const queries = content(files, `${messagingRoot}/queries.ts`);
+          expect(queries).toContain('from "convex/react"');
+          expect(queries).toContain("useConvexQuery(api.messaging.listConversations)");
+          expect(queries).toContain("convexConversationListSchema.parse(raw)");
+          expect(queries).toContain("liveId: null");
         }
 
         const flagsPage = content(files, `${root}src/app/feature-flags/page.tsx`);
@@ -259,13 +263,13 @@ describe("Next RSC-first application and Server Action boundaries", () => {
         const root = prefix(mode);
 
         const storage = content(files, `${root}src/features/storage/mutations.ts`);
-        expect(storage).toContain("no collection/list use case to preload");
         expect(storage).toContain("orpcClient.storage.uploadBase64");
-        expect(storage).toContain("orpcClient.storage.downloadBase64");
+        expect(content(files, `${root}src/features/storage/queries.ts`)).toContain(
+          "orpcClient.storage.downloadBase64",
+        );
 
         const jobsQuery = content(files, `${root}src/features/jobs/queries.ts`);
         const jobsMutation = content(files, `${root}src/features/jobs/mutations.ts`);
-        expect(jobsQuery).toContain("there is no list-runs contract");
         expect(jobsQuery).toContain("orpcClient.jobs.getRun");
         expect(jobsMutation).toContain("orpcClient.jobs.enqueue");
         expect(jobsMutation).toContain("orpcClient.jobs.cancelRun");
@@ -290,23 +294,22 @@ describe("Next RSC-first application and Server Action boundaries", () => {
           /await previous;\s+preparePdfFonts\(sources\);\s+const buf = await renderToBuffer\(/,
         );
 
-        const agentPage = content(files, `${root}src/app/agent/page.tsx`);
-        expect(agentPage).toContain('useEveAgent({ host: "/api/agent" })');
+        const agentQueries = content(files, `${root}src/features/agent/queries.ts`);
+        expect(agentQueries).toContain('useEveAgent({ host: "/api/agent" })');
         expect(content(files, `${root}src/app/api/agent/[...path]/route.ts`)).toContain(
           "handleEveFacadeRequest",
         );
 
         if (database === "postgres") {
-          const messaging = content(files, `${root}src/app/(app)/messages/hooks/use-messaging.ts`);
+          const messaging = content(files, `${root}src/features/messaging/queries.ts`);
           expect(messaging).toContain("subscribeRealtime(conversationId");
-          expect(messaging).toContain("orpc.messaging.sendMessage");
-          expect(
-            content(files, `${root}src/app/(app)/messages/_components/message-composer.tsx`),
-          ).toContain('fetch("/api/messaging/attachments"');
+          const mutations = content(files, `${root}src/features/messaging/mutations.ts`);
+          expect(mutations).toContain("orpcClient.messaging.sendMessage");
+          expect(mutations).toContain('fetch("/api/messaging/attachments"');
         } else {
-          expect(
-            content(files, `${root}src/app/(app)/messages/_components/convex-message-thread.tsx`),
-          ).toContain("useMutation(api.messaging.sendMessage)");
+          expect(content(files, `${root}src/features/messaging/mutations.ts`)).toContain(
+            "useConvexMutation(api.messaging.sendMessage)",
+          );
         }
 
         const arbitraryFlagEvaluation = content(
@@ -322,9 +325,10 @@ describe("Next RSC-first application and Server Action boundaries", () => {
     for (const mode of ["monorepo", "single"] as const) {
       const files = generatedRemainingCapabilities(mode, "convex");
       const root = prefix(mode);
-      const clientPath = `${root}src/app/(app)/messages/client.tsx`;
-      const sidebarPath = `${root}src/app/(app)/messages/_components/convex-conversation-sidebar.tsx`;
-      const threadPath = `${root}src/app/(app)/messages/_components/convex-message-thread.tsx`;
+      const feature = `${root}src/features/messaging`;
+      const clientPath = `${feature}/screen.tsx`;
+      const sidebarPath = `${feature}/components/conversation-sidebar.tsx`;
+      const threadPath = `${feature}/components/message-thread.tsx`;
       const client = content(files, clientPath);
       const sidebar = content(files, sidebarPath);
       const thread = content(files, threadPath);
@@ -332,10 +336,11 @@ describe("Next RSC-first application and Server Action boundaries", () => {
       expect(client.split(/\r?\n/).length, clientPath).toBeLessThanOrEqual(120);
       expect(sidebar.split(/\r?\n/).length, sidebarPath).toBeLessThanOrEqual(150);
       expect(thread.split(/\r?\n/).length, threadPath).toBeLessThanOrEqual(150);
-      expect(client).toContain('from "./_components/convex-conversation-sidebar"');
-      expect(client).toContain('from "./_components/convex-message-thread"');
-      expect(client).toContain("liveValue.filter(isLiveConversation)");
-      expect(client).toContain("liveId: null");
+      expect(client).toContain('from "./components/conversation-sidebar"');
+      expect(client).toContain('from "./message-thread"');
+      const queries = content(files, `${feature}/queries.ts`);
+      expect(queries).toContain("convexConversationListSchema.parse(raw)");
+      expect(queries).toContain("liveId: null");
       expect(sidebar).toContain("disabled={conversation.liveId === null}");
       expect(`${client}\n${sidebar}\n${thread}`).not.toMatch(
         /\bas never\b|\bas Array<|import type \{ Doc/,
@@ -343,8 +348,9 @@ describe("Next RSC-first application and Server Action boundaries", () => {
       for (const source of [sidebar, thread]) {
         expect(source).toContain('from "@/components/ui/');
       }
-      expect(thread).toContain("useMutation(api.messaging.sendMessage)");
-      expect(thread).toContain("useMutation(api.messaging.sendTyping)");
+      const mutations = content(files, `${feature}/mutations.ts`);
+      expect(mutations).toContain("useConvexMutation(api.messaging.sendMessage)");
+      expect(mutations).toContain("useConvexMutation(api.messaging.sendTyping)");
     }
   });
 

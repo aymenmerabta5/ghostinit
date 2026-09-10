@@ -101,7 +101,7 @@ describe("single Next boundary contracts", () => {
     expect(viteConfig).toContain("from 'node:url'");
     expect(viteConfig).toContain("'@': fileURLToPath(new URL('./src', import.meta.url))");
     const notFound =
-      tanstackFiles.find(({ path }) => path === "src/routes/$notFound.tsx")?.content ?? "";
+      tanstackFiles.find(({ path }) => path === "src/features/system/not-found.tsx")?.content ?? "";
     expect(notFound).toContain("import { Button } from '@/components/ui/button'");
     expect(notFound).toContain("render={<Link to='/' />}");
     expect(notFound).not.toContain("asChild");
@@ -276,15 +276,20 @@ describe("single Next boundary contracts", () => {
       "src/app/forgot-password/page.tsx",
       "src/app/reset-password/page.tsx",
       "src/app/2fa/page.tsx",
-      "src/app/settings/components/profile-card.tsx",
-      "src/app/settings/components/two-factor-card.tsx",
-      "src/app/settings/components/use-two-factor-settings.ts",
+      "src/features/settings/profile-card.tsx",
+      "src/features/settings/two-factor-card.tsx",
+      "src/features/settings/use-two-factor-settings.ts",
+      "src/features/settings/components/profile-view.tsx",
+      "src/features/settings/components/two-factor-view.tsx",
+      "src/features/settings/queries.ts",
+      "src/features/settings/mutations.ts",
+      "src/features/settings/model.ts",
       "src/features/admin-users/schema.ts",
       "src/features/admin-users/types.ts",
       "src/features/admin-users/translations.ts",
       "src/features/admin-users/queries.ts",
       "src/features/admin-users/mutations.ts",
-      "src/features/admin-users/hooks/use-admin-users.ts",
+      "src/features/admin-users/use-admin-users.ts",
       "src/features/admin-users/components/filters.tsx",
       "src/features/admin-users/components/user-table.tsx",
       "src/features/admin-users/components/user-row.tsx",
@@ -293,22 +298,20 @@ describe("single Next boundary contracts", () => {
       "src/features/admin-users/components/create-user-form.tsx",
     ];
     const owned = files
-      .filter(({ path }) => affectedPaths.includes(path))
+      .filter(
+        ({ path }) =>
+          affectedPaths.includes(path) ||
+          path.startsWith("src/features/auth/") ||
+          path.startsWith("src/features/account-deletion/"),
+      )
       .map(({ content }) => content)
       .join("\n");
     expect(owned).not.toMatch(/\bas unknown as\b|:\s*any\b|@ts-ignore/);
-    expect(read("src/app/forgot-password/page.tsx")).toContain(
-      "identityClient.requestPasswordReset",
-    );
-    expect(read("src/components/auth/sign-in-form.tsx")).toContain(
-      '"twoFactorRedirect" in result.data',
-    );
-    expect(read("src/app/settings/components/use-two-factor-settings.ts")).toContain(
-      "result.data.totpURI",
-    );
-    expect(read("src/app/settings/components/use-two-factor-settings.ts")).toContain(
-      "result.data.backupCodes",
-    );
+    expect(read("src/features/auth/mutations.ts")).toContain("identityClient.requestPasswordReset");
+    expect(read("src/features/auth/use-sign-in-form.ts")).toContain("const data = result.data");
+    expect(read("src/features/auth/use-sign-in-form.ts")).toContain('"twoFactorRedirect" in data');
+    expect(read("src/features/settings/mutations.ts")).toContain("result.data.totpURI");
+    expect(read("src/features/settings/mutations.ts")).toContain("result.data.backupCodes");
   });
 
   test("owns admin roles, validation, and fields inside the feature boundary", () => {
@@ -338,17 +341,20 @@ describe("single Next boundary contracts", () => {
       expect(createForm, mode).toContain("<form.AppForm>");
       expect(createForm, mode).toContain("<form.AppField");
       expect(createForm, mode).toContain("<field.SelectField");
-      expect(createForm, mode).toContain(
+      expect(readGenerated(`${featureRoot}/use-create-admin-user.ts`), mode).toContain(
         "validators: { onSubmit: createAdminUserSchema(translate) }",
       );
       expect(createForm, mode).toContain('{ label: translate("roles.user"), value: "user" }');
       expect(createForm, mode).toContain('{ label: translate("roles.admin"), value: "admin" }');
       expect(createForm, mode).toContain("options={roleOptions}");
       expect(createForm, mode).not.toContain("<select");
-      expect(userRow, mode).toContain('from "../types"');
+      expect(userRow, mode).toContain('from "../use-admin-user-action"');
+      expect(readGenerated(`${featureRoot}/use-admin-user-action.ts`), mode).toContain(
+        'from "./types"',
+      );
       expect(userRow, mode).not.toContain("@repo/kernel");
       expect(paths, mode).not.toContain(`${root}/app/admin/users/components/user-row.tsx`);
-      expect(paths, mode).not.toContain(`${root}/app/admin/users/hooks/use-admin-users.ts`);
+      expect(paths, mode).not.toContain(`${root}/app/admin/users/use-admin-users.ts`);
     }
   });
 
@@ -465,7 +471,7 @@ describe("single Next boundary contracts", () => {
           const mutations = readGenerated(`${featureRoot}/mutations.ts`);
           const actionsPath = `${root}/app/admin/users/actions.ts`;
           const actions = readGenerated(actionsPath);
-          const hook = readGenerated(`${featureRoot}/hooks/use-admin-users.ts`);
+          const hook = readGenerated(`${featureRoot}/use-admin-users.ts`);
           const index = readGenerated(`${featureRoot}/index.tsx`);
           const presentation = [
             "components/filters.tsx",
@@ -488,7 +494,7 @@ describe("single Next boundary contracts", () => {
             "translations.ts",
             "queries.ts",
             "mutations.ts",
-            "hooks/use-admin-users.ts",
+            "use-admin-users.ts",
             "components/filters.tsx",
             "components/user-table.tsx",
             "components/user-row.tsx",
@@ -550,12 +556,13 @@ describe("single Next boundary contracts", () => {
           }),
         );
         const root = mode === "monorepo" ? "apps/desktop/" : "";
-        const users =
-          generated.find(({ path }) => path === `${root}src/renderer/routes/admin.users.tsx`)
+        const readFeature = (name: string) =>
+          generated.find(({ path }) => path === `${root}src/renderer/features/admin-users/${name}`)
             ?.content ?? "";
-        const create =
-          generated.find(({ path }) => path === `${root}src/renderer/routes/admin.users.create.tsx`)
-            ?.content ?? "";
+        const users = ["queries.ts", "mutations.ts", "screen.tsx"].map(readFeature).join("\n");
+        const create = ["mutations.ts", "use-create-admin-user.ts", "create-screen.tsx"]
+          .map(readFeature)
+          .join("\n");
         const providers =
           generated.find(({ path }) => path === `${root}src/renderer/lib/providers.tsx`)?.content ??
           "";

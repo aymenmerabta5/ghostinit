@@ -7,6 +7,7 @@ export {
 } from "./imports.js";
 export { signInNavigateLogic, signUpNavigateLogic, authBackLink, linkTo } from "./navigation.js";
 export { authOAuthButtonsContent } from "./controls.js";
+export { authFeatureFiles, type AuthFeatureOptions } from "./feature.js";
 export { signInFormContent, signInPageContent } from "./sign-in.js";
 export { signInMethodsContent } from "./sign-in-methods.js";
 export { signUpFormContent, signUpPageContent } from "./sign-up.js";

@@ -114,7 +114,7 @@ export function resolveCreateConfig(input: CreateResolutionInput): CreateResolut
     if (input.withNotifications === true) notifications = true;
     if (input.withJobs === true) jobs = true;
   }
-  storage = storage || messaging;
+  storage = storage || messaging || input.billing.includes("manual");
   if (storage || notifications || jobs) {
     auth = true;
     api = true;

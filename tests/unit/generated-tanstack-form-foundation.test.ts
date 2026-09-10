@@ -34,9 +34,12 @@ describe("generated TanStack Form foundation", () => {
     expect(form).toContain("createFormHook({");
     expect(form).toContain("useAppForm");
     expect(form).toContain("withForm");
-    expect(form).toContain("export { TanStackField as Field, useForm }");
+    expect(form).toContain("export { TanStackField as Field, useForm, useStore }");
     expect(form).toContain("export function Form(");
-    expect(form).toContain("export function SubmitButton(");
+    expect(form).toContain('from "./form-submit"');
+    expect(source(monorepoFiles, "apps/web/src/components/ui/form-submit.tsx")).toContain(
+      "export function SubmitButton(",
+    );
     for (const component of [
       "AppTextField",
       "AppTextAreaField",
@@ -50,12 +53,12 @@ describe("generated TanStack Form foundation", () => {
   });
 
   test("composes subscribed submit state from Spinner and disabled semantics", () => {
-    const form = source(monorepoFiles, "apps/web/src/components/ui/form.tsx");
+    const form = source(monorepoFiles, "apps/web/src/components/ui/form-submit.tsx");
 
     expect(form).toContain("<form.Subscribe");
     expect(form).toContain("state.canSubmit");
     expect(form).toContain("state.isSubmitting");
-    expect(form).toContain("disabled={!canSubmit || isSubmitting}");
+    expect(form).toContain("disabled={disabled || !canSubmit || isSubmitting}");
     expect(form).toContain("aria-busy={isSubmitting}");
     expect(form).toContain('<Spinner data-icon="inline-start" />');
     expect(form).not.toContain("isPending");

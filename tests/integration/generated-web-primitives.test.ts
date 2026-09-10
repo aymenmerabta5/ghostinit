@@ -14,10 +14,15 @@ import { generateProjectFiles } from "../../src/templates/default.js";
 import { desktopUiAlertContent } from "../../src/templates/apps/desktop/ui/surfaces.js";
 import { adminFiltersFile } from "../../src/templates/apps/fragments/admin/filters.js";
 import { adminSchemaFiles } from "../../src/templates/apps/fragments/admin/feature-schema.js";
-import { adminTranslationsFile } from "../../src/templates/apps/fragments/admin/translations.js";
+import { adminFormWorkflowFiles } from "../../src/templates/apps/fragments/admin/form-workflows.js";
+import {
+  adminTranslationsFile,
+  adminTranslationsHookFile,
+} from "../../src/templates/apps/fragments/admin/translations.js";
 import {
   adminUserRowFile,
   adminUserRowConfirmationFile,
+  adminUserRowControllerFile,
 } from "../../src/templates/apps/fragments/admin/user-row.js";
 import { adminUserTableFile } from "../../src/templates/apps/fragments/admin/user-table.js";
 import { createGeneratedProcessEnv } from "../helpers/generated-web-primitives-env.js";
@@ -81,6 +86,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Alert as DesktopAlert, AlertTitle as DesktopAlertTitle, AlertDescription as DesktopAlertDescription } from "@/components/desktop-alert-contract";
 import { AdminUserFilters } from "@/features/admin-users/components/filters";
+import { useAdminUserFilters } from "@/features/admin-users/use-admin-user-filters";
 import { UserTable } from "@/features/admin-users/components/user-table";
 import type { AdminUser } from "@/features/admin-users/types";
 import { TriangleAlert } from "lucide-react";
@@ -117,6 +123,12 @@ export default function PrimitiveContractPage(): React.JSX.Element {
   const [adminUser, setAdminUser] = useState(initialAdminUser);
   const [adminMutations, setAdminMutations] = useState<string[]>([]);
   const [hydrationState, setHydrationState] = useState("waiting");
+  const filters = useAdminUserFilters({
+    search: appliedSearch,
+    isFetching: false,
+    onApply: (input) => setAppliedSearch(input.search),
+    onClear: () => setAppliedSearch(""),
+  });
   useEffect(() => setHydrationState("ready"), []);
 
   return (
@@ -155,13 +167,13 @@ export default function PrimitiveContractPage(): React.JSX.Element {
         </SelectContent>
       </Select>
       <PasswordField id="disabled-password" label="Disabled password" disabled defaultValue="secret" />
-      <NotificationBell notifications={notifications} onMarkRead={setMarked} />
+      <NotificationBell notifications={notifications} onActivate={(notification) => setMarked(notification.id)} />
       <output data-testid="role-value">{role}</output>
       <output data-testid="disabled-role-value">user</output>
       <output data-testid="marked-value">{marked}</output>
       <output data-testid="hydration-state" className="sr-only">{hydrationState}</output>
       <section data-testid="admin-layout" aria-label="Admin filter alignment">
-        <AdminUserFilters search={appliedSearch} isFetching={false} onApply={(input) => setAppliedSearch(input.search)} onClear={() => setAppliedSearch("")} />
+        <AdminUserFilters {...filters} />
         <output data-testid="applied-search">{appliedSearch}</output>
       </section>
       <section id="layout-controls" className="grid gap-4">
@@ -180,7 +192,7 @@ export default function PrimitiveContractPage(): React.JSX.Element {
       </div>
       <section data-testid="admin-row-layout" className="grid gap-3 p-6" aria-label="Admin row actions">
         <Button data-testid="before-admin-actions" onClick={() => { setAdminUser(initialAdminUser); setAdminMutations([]); }}>Reset admin row</Button>
-        <UserTable users={[adminUser]} total={1} totalIsExact rolePendingId={null} banPendingId={null}
+        <UserTable translate={filters.translate} users={[adminUser]} total={1} totalIsExact rolePendingId={null} banPendingId={null}
           onToggleRole={async (identityId, currentRole) => {
             setAdminMutations((actions) => [...actions, "role:" + identityId + ":" + currentRole]);
             setAdminUser((user) => ({ ...user, role: currentRole === "admin" ? "user" : "admin" }));
@@ -520,7 +532,13 @@ async function writeGeneratedFixture(
     adminFiltersFile(adminOptions),
     ...adminSchemaFiles(adminOptions),
     adminTranslationsFile(adminOptions),
+    adminTranslationsHookFile(adminOptions),
+    ...adminFormWorkflowFiles(adminOptions).filter(
+      ({ path }) =>
+        path.endsWith("/use-admin-user-filters.ts") || path.endsWith("/use-admin-user-action.ts"),
+    ),
     adminUserRowFile(adminOptions),
+    adminUserRowControllerFile(adminOptions),
     adminUserRowConfirmationFile(adminOptions),
     adminUserTableFile(adminOptions),
   ]) {

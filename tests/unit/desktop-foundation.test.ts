@@ -95,7 +95,8 @@ describe("generated desktop capability foundation", () => {
       const aliasRoot = mode === "monorepo" ? "./src/renderer" : "./src";
       const vite = files.find(({ path }) => path === `${appRoot}electron.vite.config.ts`)?.content;
       const magicLink = files.find(
-        ({ path }) => path === `${appRoot}src/renderer/routes/magic-link.tsx`,
+        ({ path }) =>
+          path === `${appRoot}src/renderer/features/auth/components/magic-link-form.tsx`,
       )?.content;
 
       expect(vite, mode).toContain('import { fileURLToPath } from "node:url"');
@@ -105,7 +106,8 @@ describe("generated desktop capability foundation", () => {
       expect(vite, mode).toContain('alias: { "@": sourceRoot }');
       expect(vite, mode).not.toContain("`nimport");
       expect(parseFile(vite ?? "", ".ts").diagnostics, mode).toEqual([]);
-      expect(magicLink, mode).toContain('from "@/components/ui/button"');
+      expect(magicLink, mode).toContain('from "@/components/ui/form"');
+      expect(magicLink, mode).toContain("<form.SubmitButton");
       expect(unresolvedDesktopAliasImports(files, mode), mode).toEqual([]);
     }
   });
@@ -277,7 +279,6 @@ describe("generated desktop capability foundation", () => {
     for (const path of [
       "src/renderer/lib/auth.ts",
       "src/renderer/lib/orpc.ts",
-      "src/renderer/lib/query-client.ts",
       "src/renderer/hooks/useAuth.ts",
       "src/renderer/routes/dashboard.tsx",
       "src/renderer/routes/settings.tsx",
@@ -293,7 +294,6 @@ describe("generated desktop capability foundation", () => {
       "@orpc/server",
       "@repo/api",
       "better-auth",
-      "@tanstack/react-query",
     ]) {
       expect(manifest.dependencies?.[dependency], dependency).toBeUndefined();
     }
@@ -305,7 +305,14 @@ describe("generated desktop capability foundation", () => {
     const providers =
       files.find(({ path }) => path === `${prefix}src/renderer/lib/providers.tsx`)?.content ?? "";
     expect(`${root}\n${routeTree}`).not.toMatch(/\/(?:dashboard|settings|billing|admin|sign-in)/);
-    expect(providers).not.toContain("QueryClientProvider");
+    expect(manifest.dependencies?.["@tanstack/react-query"]).toBeDefined();
+    expect(paths.has(`${prefix}src/renderer/lib/query-client.ts`)).toBe(true);
+    expect(providers).toContain("<QueryClientProvider client={queryClient}>");
+    const localQueries =
+      files.find(({ path }) => path === `${prefix}src/renderer/features/app-shell/queries.ts`)
+        ?.content ?? "";
+    expect(localQueries).toContain("window.desktopBridge.getAppBranding()");
+    expect(localQueries).not.toContain("orpc");
     const desktopSource = files
       .filter(({ path }) => path.startsWith(prefix))
       .map(({ content }) => content)
@@ -356,7 +363,11 @@ describe("generated desktop capability foundation", () => {
     expect(root).toContain("requireAuthenticatedDesktopRoute");
     expect(root).toContain('new Set(["/dashboard","/settings"])');
     expect(root).toContain('throw redirect({ to: "/sign-in" })');
-    expect(root).toContain("{isAuthenticated ? <>");
+    expect(
+      files.find(
+        ({ path }) => path === `${prefix}src/renderer/features/app-shell/components/navigation.tsx`,
+      )?.content,
+    ).toContain("{isAuthenticated ? <>");
   });
 
   test("API-only output keeps transport without inventing identity", () => {

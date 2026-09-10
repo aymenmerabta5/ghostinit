@@ -1,8 +1,9 @@
 // @allow-long 345: one configuration-aware agent-document template keeps every conditional claim in one audited place
 import * as v from "../../versions.js";
 import { customNextServerCommand, nextRuntimeCommand } from "../../root/next-server-runtime.js";
-import type { TemplateFile } from "../../shared.js";
-import { file } from "../../shared.js";
+import { file, type TemplateFile } from "../../shared.js";
+import { frontendArchitectureInstructionLines } from "../../shared/frontend-architecture.js";
+import { dependencySecurityInstructionLines } from "../../shared/dependency-security-docs.js";
 import type {
   AppName,
   BillingProviderName,
@@ -105,9 +106,11 @@ function buildAgentsMdContent(
     : `${routeRoot}/api/auth/[...all]/route.ts`;
   const publicPrefix = isTanstack ? "VITE_" : "NEXT_PUBLIC_";
   const clientPrefixes = [
-    ...(hasWeb ? [publicPrefix] : []),
-    ...(apps.includes("mobile") ? ["EXPO_PUBLIC_"] : []),
-    ...(apps.includes("desktop") ? ["VITE_", "DESKTOP_"] : []),
+    ...new Set([
+      ...(hasWeb ? [publicPrefix] : []),
+      ...(apps.includes("mobile") ? ["EXPO_PUBLIC_"] : []),
+      ...(apps.includes("desktop") ? ["VITE_"] : []),
+    ]),
   ];
 
   const lines: string[] = [
@@ -135,13 +138,15 @@ function buildAgentsMdContent(
     "",
     "## Architecture",
     "",
-    "Keep the dependency direction: presentation -> typed transport/contracts -> application services -> domain and application-owned ports -> adapters -> supporting infrastructure.",
+    "Keep domain policies and contracts independent of frameworks, application services, and vendor implementations. Presentation uses the appropriate transport/application boundary, and adapters implement inward-facing contracts. These responsibilities do not require a six-hop call chain.",
     "",
     "- `packages/services` owns application policies and ports. Transport handlers call services; they do not reimplement business rules.",
     "- `packages/modules` owns domain/application modules. Provider SDKs stay in adapters or provider packages.",
     "- `packages/config`, `packages/contracts`, `packages/kernel`, `packages/observability`, and `packages/database` are supporting packages.",
     "- Import public package entry points. Do not reach into another package's private source path.",
     "",
+    ...frontendArchitectureInstructionLines(),
+    ...dependencySecurityInstructionLines(),
     "## Package Roles",
     "",
   ];
@@ -208,7 +213,7 @@ function buildAgentsMdContent(
           : `- Admin routes: \`${routeRoot}/admin/page.tsx\`, \`${routeRoot}/admin/users/page.tsx\`, and \`${routeRoot}/admin/users/create/page.tsx\`, protected by the generated admin guard.`,
       );
     }
-    if (selectedBilling.length > 0) {
+    if (selectedBilling.some((provider) => provider !== "manual")) {
       const providerPattern = isTanstack
         ? `${routeRoot}/api/webhooks/<provider>.ts`
         : `${routeRoot}/api/webhooks/<provider>/route.ts`;
@@ -300,7 +305,7 @@ function buildAgentsMdContent(
         ]
       : []),
     "- Preserve logical CSS properties, keyboard access, visible focus, reduced-motion behavior, and EN/FR/AR layout safety.",
-    "- Split large components by responsibility. The 300-line policy is a review guideline, not a claim that every generated file is below a fixed maximum.",
+    "- Follow the frontend responsibility boundaries and the checker's role-specific limits. A host template's length guideline does not excuse a frontend architecture finding.",
     "",
     "## Quality Gates",
     "",
@@ -310,7 +315,7 @@ function buildAgentsMdContent(
     "bun run install:verified # use bun run install:bootstrap only for fresh --no-install output",
     "bun run dev",
     "bun run typecheck",
-    "bun run lint",
+    "bun run lint:all",
     "bun run format:check",
     "bun run test",
     isCloudflare ? "bun run build:worker" : "bun run build",
@@ -319,7 +324,7 @@ function buildAgentsMdContent(
       : usesProductionSupervisor
         ? "bun run start:production"
         : "bun run start",
-    "ghostinit check",
+    "ghostinit check --json",
     "```",
     "",
     isCloudflare
@@ -334,6 +339,11 @@ function buildAgentsMdContent(
       ? "- Never commit `.env*` or `.dev.vars`. Cloudflare builds reject runtime dotenv files; runtime values belong in Worker bindings and build variables are configured separately."
       : "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
     `- Client-visible variables use only these generated prefixes: ${clientPrefixes.map((prefix) => `\`${prefix}\``).join(", ") || "none"}. Keep all other credentials server-only.`,
+    ...(apps.includes("desktop")
+      ? [
+          "- `DESKTOP_*` belongs only to private Electron main/server configuration. The renderer uses `VITE_*`; never expose desktop-private values through Vite.",
+        ]
+      : []),
     "- Preserve raw-body verification, deterministic webhook idempotency, actor-derived resource ownership, auth guards, and secret-safe logging.",
     "",
   );

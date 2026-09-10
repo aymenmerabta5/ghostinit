@@ -367,11 +367,11 @@ describe("ticket-authenticated realtime parity", () => {
       expect(fallbackStatuses).toEqual([false]);
       expect(source).toContain("MAX_NATIVE_REALTIME_SUBSCRIPTIONS = 32");
       expect(source).not.toContain("?ticket=");
-      const adapterPath =
+      const queriesPath =
         target === "mobile"
-          ? "apps/mobile/src/adapters/messaging/postgres.ts"
-          : "apps/desktop/src/renderer/adapters/messaging/postgres.ts";
-      expect(read(files, adapterPath)).toContain(
+          ? "apps/mobile/src/features/messaging/queries.ts"
+          : "apps/desktop/src/renderer/features/messaging/queries.ts";
+      expect(read(files, queriesPath)).toContain(
         'refetchInterval: transport === "polling" ? 5_000 : false',
       );
     }

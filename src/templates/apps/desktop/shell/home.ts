@@ -1,7 +1,8 @@
+import { file, type TemplateFile } from "../../../shared.js";
 import { fullDesktopCapabilities, type DesktopCapabilities, type DesktopMode } from "../model.js";
 import { nativeI18nImportPath, nativeI18nTemplate } from "../../fragments/native-i18n.js";
 
-export function desktopRouteIndexContent(
+function desktopHomeScreenContent(
   capabilities: DesktopCapabilities = fullDesktopCapabilities,
   mode: DesktopMode = "monorepo",
 ): string {
@@ -10,13 +11,7 @@ export function desktopRouteIndexContent(
     "desktopHome",
     nativeI18nImportPath("desktop", mode),
   );
-  const routerImport = capabilities.hasAuth
-    ? `import { createFileRoute, Link } from "@tanstack/react-router";`
-    : `import { createFileRoute } from "@tanstack/react-router";`;
-  const authImports = capabilities.hasAuth ? `import { useAuth } from "../hooks/useAuth";` : "";
-  const apiImports = capabilities.hasApi
-    ? `import { useQuery } from "@tanstack/react-query";\nimport { desktopQueryOptions } from "../lib/orpc";`
-    : "";
+  const routerImport = capabilities.hasAuth ? `import { Link } from "@tanstack/react-router";` : "";
   const actionImports = capabilities.hasAuth
     ? 'import { Button } from "@/components/ui/button";'
     : 'import { Badge } from "@/components/ui/badge";';
@@ -24,12 +19,6 @@ export function desktopRouteIndexContent(
     capabilities.hasAuth || capabilities.hasApi
       ? 'import { Skeleton } from "@/components/ui/skeleton";'
       : "";
-  const authState = capabilities.hasAuth
-    ? `  const { user, isAuthenticated, isPending } = useAuth();`
-    : "";
-  const apiState = capabilities.hasApi
-    ? `  const health = useQuery(desktopQueryOptions.health());`
-    : "";
   const primaryAction = capabilities.hasAuth
     ? `<Button render={<Link to="/dashboard" />} nativeButton={false}>${i18n.child("openDashboard", "Open dashboard")}</Button>`
     : `<Badge variant="secondary">${i18n.child("frontendOnlyWorkspace", "Frontend-only workspace")}</Badge>`;
@@ -63,20 +52,16 @@ export function desktopRouteIndexContent(
   ].join("");
 
   return `${routerImport}
-${authImports}
-${apiImports}
+${capabilities.hasAuth || capabilities.hasApi ? 'import { useDesktopHome } from "./queries";' : ""}
 ${actionImports}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 ${skeletonImport}
 ${i18n.importLine}
 
-export const Route = createFileRoute("/")({ component: IndexComponent });
-
-function IndexComponent() {
+export function HomeScreen() {
 ${i18n.hookLine}
-${authState}
-${apiState}
+${capabilities.hasAuth || capabilities.hasApi ? `  const { ${[capabilities.hasAuth ? "user, isAuthenticated, isPending" : "", capabilities.hasApi ? "health" : ""].filter(Boolean).join(", ")} } = useDesktopHome();` : ""}
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-8">
@@ -110,4 +95,38 @@ ${apiState}
   );
 }
 `;
+}
+
+export function desktopRouteIndexContent(
+  _capabilities: DesktopCapabilities = fullDesktopCapabilities,
+  mode: DesktopMode = "monorepo",
+): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { HomeScreen } from "${mode === "single" ? "@/renderer" : "@"}/features/home/screen";
+export const Route = createFileRoute("/")({ component: HomeScreen });
+`;
+}
+export function desktopHomeFeatureFiles(
+  capabilities: DesktopCapabilities,
+  mode: DesktopMode,
+): TemplateFile[] {
+  const root = `${mode === "single" ? "src" : "apps/desktop/src"}/renderer/features/home`;
+  return [
+    file(`${root}/screen.tsx`, desktopHomeScreenContent(capabilities, mode)),
+    ...(capabilities.hasAuth || capabilities.hasApi
+      ? [
+          file(
+            `${root}/queries.ts`,
+            `${capabilities.hasAuth ? 'import { useAuth } from "../../hooks/useAuth";' : ""}
+${capabilities.hasApi ? 'import { useQuery } from "@tanstack/react-query";\nimport { desktopQueryOptions } from "../../lib/orpc";' : ""}
+export function useDesktopHome() {
+${capabilities.hasAuth ? "  const identity = useAuth();" : ""}
+${capabilities.hasApi ? "  const health = useQuery(desktopQueryOptions.health());" : ""}
+  return { ${[capabilities.hasAuth ? "...identity" : "", capabilities.hasApi ? "health" : ""].filter(Boolean).join(", ")} };
+}
+`,
+          ),
+        ]
+      : []),
+  ];
 }

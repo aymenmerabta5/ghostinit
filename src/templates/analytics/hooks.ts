@@ -1,3 +1,4 @@
+import { featureFlagHooksContent } from "./flag-hooks.js";
 import type { ProjectMode } from "../../lib/addons.js";
 
 export function clientHooksContent(mode: ProjectMode): string {
@@ -5,8 +6,8 @@ export function clientHooksContent(mode: ProjectMode): string {
   const contextImport = mode === "monorepo" ? "./provider.js" : "./posthog-provider.js";
   return `"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { JsonType } from "posthog-js";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
+import type { JsonType, PostHogInterface } from "posthog-js";
 import { usePostHogContext } from "${contextImport}";
 import { captureClientEvent } from "${clientImport}";
 import type { AnalyticsEventName, EventProperties, ExperimentKey, FeatureFlagKey } from "${mode === "monorepo" ? "../types.js" : "../server/analytics/types.js"}";
@@ -60,73 +61,7 @@ export function useAnalytics() {
   };
 }
 
-export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefined {
-  const client = usePostHog();
-  const [value, setValue] = useState<string | boolean | undefined>(undefined);
-
-  useEffect(() => {
-    if (!client) return;
-    try {
-      const v = client.getFeatureFlag(key);
-      setValue(v);
-      const unsub = client.onFeatureFlags((_flagKeys, variants) => {
-        setValue(variants[key]);
-      });
-      return () => {
-        try {
-          unsub?.();
-        } catch {}
-      };
-    } catch {
-      return;
-    }
-  }, [client, key]);
-
-  return value;
-}
-
-export function useFeatureFlagEnabled(key: FeatureFlagKey): boolean {
-  const flag = useFeatureFlag(key);
-  if (typeof flag === "boolean") return flag;
-  return flag !== undefined;
-}
-
-export function useFeatureFlagPayload(key: FeatureFlagKey): JsonType | undefined {
-  const client = usePostHog();
-  const [payload, setPayload] = useState<JsonType | undefined>(undefined);
-
-  useEffect(() => {
-    if (!client) return;
-    try {
-      setPayload(client.getFeatureFlagPayload(key));
-    } catch {}
-  }, [client, key]);
-
-  return payload;
-}
-
-export function useActiveFeatureFlags(): Record<string, string | boolean> {
-  const client = usePostHog();
-  const [flags, setFlags] = useState<Record<string, string | boolean>>({});
-
-  useEffect(() => {
-    if (!client) return;
-    try {
-      const unsubscribe = client.onFeatureFlags((_flagKeys, variants) => {
-        setFlags(variants);
-      });
-      return () => {
-        try {
-          unsubscribe();
-        } catch {}
-      };
-    } catch {
-      return;
-    }
-  }, [client]);
-
-  return flags;
-}
+${featureFlagHooksContent("usePostHog()")}
 
 export function useFeatureFlags(): Record<string, string | boolean> {
   return useActiveFeatureFlags();

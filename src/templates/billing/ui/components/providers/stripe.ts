@@ -11,11 +11,11 @@ import { useSurfaceTranslations } from "@/lib/translations";
 import { CopyIcon, CreditCardIcon, ExternalLinkIcon } from "../icons";
 import { StripeInvoices } from "./stripe-invoices";
 import { StripeSubscriptions } from "./stripe-subscriptions";
-import { useBillingPage } from "${hookImportPath}";
+import type { BillingPageState } from "${hookImportPath}";
 
-export function StripePanel(): React.JSX.Element {
+export function StripePanel({ billing }: { billing: BillingPageState }): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
-  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal, copyText } = useBillingPage();
+  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal, copySuccessUrl } = billing;
   const stripeSubs = subscriptions.filter((subscription) => subscription.provider === "stripe");
   const stripeInvs = invoices.filter((invoice) => invoice.provider === "stripe");
   return (
@@ -32,8 +32,8 @@ export function StripePanel(): React.JSX.Element {
       <CardContent className="flex flex-col gap-6">
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void handleCheckout("stripe")} disabled={isCheckoutLoading}>{isCheckoutLoading ? <Spinner data-icon="inline-start" /> : <CreditCardIcon data-icon="inline-start" />}{t("checkout")}</Button>
-          <Button variant="outline" onClick={() => void handlePortal("stripe")}><ExternalLinkIcon data-icon="inline-start" />{t("customerPortal")}</Button>
-          <Button variant="outline" onClick={() => void copyText(window.location.origin)}><CopyIcon data-icon="inline-start" />{t("copySuccessUrl")}</Button>
+          <Button variant="outline" disabled={isCheckoutLoading} onClick={() => void handlePortal("stripe")}><ExternalLinkIcon data-icon="inline-start" />{t("customerPortal")}</Button>
+          <Button variant="outline" onClick={() => void copySuccessUrl()}><CopyIcon data-icon="inline-start" />{t("copySuccessUrl")}</Button>
         </div>
         {pastDue ? <Alert><AlertTitle>{t("paymentPastDue")}</AlertTitle><AlertDescription className="max-w-[65ch]">{t("paymentPastDueDescription")}</AlertDescription></Alert> : null}
         <StripeSubscriptions subscriptions={stripeSubs} loading={subsLoading} />

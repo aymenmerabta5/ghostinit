@@ -10,12 +10,16 @@
 export function mainPageContent(selected: string[], mode: "monorepo" | "single"): string {
   const applicationModule =
     mode === "monorepo" ? "@repo/services/application" : "@/server/services/application";
-  const hasProviders = selected.length > 0;
+  const hasManual = selected.includes("manual");
+  const online = selected.filter((provider) => provider !== "manual");
+  const hasProviders = online.length > 0;
   const bodyImport = hasProviders
-    ? `import { BillingTabs } from "./components/billing-tabs";`
-    : `import { BillingEmpty } from "./components/billing-empty";`;
+    ? `import { BillingClientScreen } from "@/features/billing/screen";`
+    : hasManual
+      ? ""
+      : `import { BillingEmpty } from "@/features/billing/components/billing-empty";`;
   const providersConst = hasProviders
-    ? `const PROVIDERS: string[] = ${JSON.stringify(selected)};\n`
+    ? `const PROVIDERS: string[] = ${JSON.stringify(online)};\n`
     : "";
   const serverImports = hasProviders
     ? `import { headers } from "next/headers";
@@ -24,7 +28,7 @@ import { Suspense } from "react";
 import { createRequestApplicationForRequest } from "${applicationModule}";
 import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
 import { QueryAuthStatus } from "@/components/query-auth-boundary";
-import type { BillingInitialData } from "./hooks/use-billing-page";`
+import type { BillingInitialData } from "@/features/billing/model";`
     : "";
   const dataComponent = hasProviders
     ? `async function BillingData(): Promise<React.JSX.Element> {
@@ -36,24 +40,28 @@ import type { BillingInitialData } from "./hooks/use-billing-page";`
   const snapshot = await application.billing.subscriptions();
   const initialData = JSON.parse(JSON.stringify(snapshot)) as BillingInitialData;
   initialData.canCreatePaymentLinks = me.user.role === "admin" || me.user.role === "superAdmin";
-  return <RequestOwnedSnapshot scope={scope}><BillingTabs providers={PROVIDERS} initialData={initialData} /></RequestOwnedSnapshot>;
+  return <RequestOwnedSnapshot scope={scope}><BillingClientScreen providers={PROVIDERS} initialData={initialData} /></RequestOwnedSnapshot>;
 }
 `
     : "";
   const body = hasProviders
     ? `<Suspense fallback={<QueryAuthStatus />}><BillingData /></Suspense>`
-    : `<BillingEmpty />`;
+    : hasManual
+      ? ""
+      : `<BillingEmpty />`;
 
   return `import type * as React from "react";
 ${serverImports}
-import { BillingHeader } from "./components/billing-header";
+import { BillingHeader } from "@/features/billing/components/billing-header";
 ${bodyImport}
+${hasManual ? 'import { ManualBillingPanel } from "@/features/manual-payments/screen";' : ""}
 ${providersConst}${dataComponent}export default function BillingPage(): React.JSX.Element {
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <div className="flex min-w-0 flex-col gap-7">
         <BillingHeader />
         ${body}
+        ${hasManual ? "<ManualBillingPanel />" : ""}
       </div>
     </main>
   );

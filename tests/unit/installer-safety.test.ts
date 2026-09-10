@@ -285,7 +285,7 @@ describe("installer process-tree and init isolation", () => {
 
   test("Windows ancestry capture rejects PID-reuse edges before tree termination", () => {
     const source = readFileSync(
-      resolve(import.meta.dir, "../../src/commands/create/installer.ts"),
+      resolve(import.meta.dir, "../../src/lib/process-supervisor.ts"),
       "utf8",
     );
     expect(source).toContain("$processCreatedAt -ge $parentCreatedAt");
@@ -298,7 +298,7 @@ describe("installer process-tree and init isolation", () => {
 
   test("Windows Job Object admission uses the pinned Bun FFI controller over private IPC", () => {
     const source = readFileSync(
-      resolve(import.meta.dir, "../../src/commands/create/installer.ts"),
+      resolve(import.meta.dir, "../../src/lib/process-supervisor.ts"),
       "utf8",
     );
     expect(source).toContain('await import("bun:ffi")');

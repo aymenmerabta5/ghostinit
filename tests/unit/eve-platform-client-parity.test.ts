@@ -117,8 +117,15 @@ describe("Eve Expo and Electron client parity", () => {
     expect(`${adapter}\n${protocol}`).not.toContain("EVE_INTERNAL_AUTH_SECRET");
     expect(protocol).toContain('"/api/agent/eve/v1/session"');
     expect(protocol).toContain('"&includeTailIndex=1"');
-    expect(route).toContain("eveClient.invoke(message, session");
-    expect(route).toContain("useAuth()");
+    expect(route).toContain("features/agent/screen");
+    expect(route).not.toMatch(/useState|useEffect|eveClient/);
+    expect(read(files, "apps/mobile/src/features/agent/mutations.ts")).toContain(
+      "eveClient.invoke(message, session",
+    );
+    expect(read(files, "apps/mobile/src/features/agent/queries.ts")).toContain("useAuth()");
+    expect(read(files, "apps/mobile/src/features/agent/use-agent-conversation.ts")).toContain(
+      "controller.current?.abort()",
+    );
     expect(manifest.scripts?.test).toContain("bun test");
     expect(
       manifest.dependencies?.eve,
@@ -145,7 +152,10 @@ describe("Eve Expo and Electron client parity", () => {
     const adapter = read(files, expected.adapter);
     const main = read(files, mainPath);
     const preload = read(files, preloadPath);
-    const rootRoute = read(files, `${root}src/renderer/routes/__root.tsx`);
+    const shell = files
+      .filter((entry) => entry.path.startsWith(`${root}src/renderer/features/app-shell/`))
+      .map((entry) => entry.content)
+      .join("\n");
     const routeTree = read(files, `${root}src/renderer/routeTree.gen.ts`);
     const manifest = JSON.parse(read(files, expected.manifest)) as {
       scripts?: Record<string, string>;
@@ -161,7 +171,7 @@ describe("Eve Expo and Electron client parity", () => {
     expect(preload).toContain(
       'eveRequest: (input) => ipcRenderer.invoke("desktop:eve-request", input)',
     );
-    expect(rootRoute).toContain('to="/agent"');
+    expect(shell).toContain('to="/agent"');
     expect(routeTree).toContain('from "./routes/agent"');
     expect(`${adapter}\n${main}\n${preload}`).not.toContain("EVE_INTERNAL_AUTH_SECRET");
     expect(manifest.scripts?.test).toBe("bun test tests");

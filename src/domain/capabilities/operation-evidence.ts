@@ -60,6 +60,12 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
   ),
   behavioralEvidence(
     "billing",
+    "billing.balance.v1",
+    "tests/integration/manual-payments-postgres.test.ts",
+    "emitted PostgreSQL manual payment repository isolates receipts and credits each reviewed payment once",
+  ),
+  behavioralEvidence(
+    "billing",
     "billing.checkout.v1",
     "tests/unit/billing-port-contract.test.ts",
     "checkout creates one owned provider customer and reuses it on the next request",
@@ -69,6 +75,30 @@ export const CAPABILITY_OPERATION_EVIDENCE = [
     "billing.invoices.v1",
     "tests/unit/billing-ownership-event-order.test.ts",
     "Convex upgrades created invoices to paid and never downgrades paid invoices",
+  ),
+  behavioralEvidence(
+    "billing",
+    "billing.manual.list.v1",
+    "tests/integration/manual-payments-postgres.test.ts",
+    "emitted PostgreSQL manual payment repository isolates receipts and credits each reviewed payment once",
+  ),
+  behavioralEvidence(
+    "billing",
+    "billing.manual.receipt.v1",
+    "tests/unit/manual-billing-transport.test.ts",
+    "receipts are transported as authenticated bytes without a storage URL",
+  ),
+  behavioralEvidence(
+    "billing",
+    "billing.manual.review.v1",
+    "tests/integration/manual-payments-postgres.test.ts",
+    "emitted PostgreSQL manual payment repository isolates receipts and credits each reviewed payment once",
+  ),
+  behavioralEvidence(
+    "billing",
+    "billing.manual.submit.v1",
+    "tests/unit/manual-billing-transport.test.ts",
+    "oRPC validates bounded integer amounts, rejects identity injection, and decodes a private receipt",
   ),
   behavioralEvidence(
     "billing",

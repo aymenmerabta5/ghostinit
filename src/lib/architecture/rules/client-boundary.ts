@@ -11,6 +11,7 @@ import {
   isFeatureDataAdapterFile,
   isFeatureFile,
   isFeatureRemoteAdapterImport,
+  isFeatureProviderViewFile,
   isVendorDirectImport,
 } from "./vendor.js";
 
@@ -38,6 +39,7 @@ export function checkServerOnlyClient(
   pkg: PackageInfo | undefined,
   directives: Set<string>,
   _source?: string,
+  resolvedTarget?: string,
 ): void {
   const normalizedFile = file.replace(/\\/g, "/");
   const isFeature = isFeatureFile(normalizedFile);
@@ -45,7 +47,7 @@ export function checkServerOnlyClient(
   // Feature components are prop-driven presentation. Enforce this whether or not
   // the author remembered a `use client` directive and before any server-route
   // exemption, so adding createServerFn text cannot turn a component into an adapter.
-  if (isFeatureComponentFile(normalizedFile) && isPresentationDataImport(imp)) {
+  if (isFeatureComponentFile(normalizedFile) && isPresentationDataImport(imp, resolvedTarget)) {
     findings.push({
       id: "feature-presentation-imports-data-access",
       severity: "HIGH",
@@ -67,7 +69,7 @@ export function checkServerOnlyClient(
     return;
   }
 
-  if (isFeature && isFeatureServerImport(imp)) {
+  if (isFeature && isFeatureServerImport(imp, resolvedTarget)) {
     findings.push({
       id: "client-imports-server-only",
       severity: "HIGH",
@@ -153,7 +155,7 @@ function isOrpcClientAdapter(file: string): boolean {
   return /(?:^|\/)(?:apps\/[^/]+\/)?src\/(?:renderer\/)?lib\/orpc\.[cm]?[jt]sx?$/.test(file);
 }
 
-function isFeatureServerImport(imp: string): boolean {
+function isFeatureServerImport(imp: string, resolvedTarget?: string): boolean {
   const normalized = imp.replace(/\\/g, "/");
   const base = getBasePackage(normalized);
   return (
@@ -163,7 +165,8 @@ function isFeatureServerImport(imp: string): boolean {
     normalized.startsWith("bun:") ||
     normalized === "next/headers" ||
     normalized === "next/server" ||
-    /(?:^|\/)(?:server|services|db|database|providers)(?:\/|$)/.test(normalized) ||
+    /(?:^|\/)(?:server|services|db|database)(?:\/|$)/.test(normalized) ||
+    (/(?:^|\/)providers(?:\/|$)/.test(normalized) && !isFeatureProviderViewFile(resolvedTarget)) ||
     normalized.includes("/billing/providers/") ||
     normalized.includes("convex/_generated/server") ||
     normalized === "convex/server" ||
@@ -171,9 +174,9 @@ function isFeatureServerImport(imp: string): boolean {
   );
 }
 
-function isPresentationDataImport(imp: string): boolean {
+function isPresentationDataImport(imp: string, resolvedTarget?: string): boolean {
   const normalized = imp.replace(/\\/g, "/");
-  if (isFeatureServerImport(normalized)) return true;
+  if (isFeatureServerImport(normalized, resolvedTarget)) return true;
   if (isFeatureRemoteAdapterImport(normalized)) return true;
 
   return (
@@ -181,6 +184,6 @@ function isPresentationDataImport(imp: string): boolean {
     /(?:^|\/)lib\/(?:orpc|query-client|auth-client)(?:\.[cm]?[jt]sx?)?$/.test(normalized) ||
     normalized.includes("convex/_generated/api") ||
     normalized.includes("/services/") ||
-    normalized.includes("/providers/")
+    (normalized.includes("/providers/") && !isFeatureProviderViewFile(resolvedTarget))
   );
 }

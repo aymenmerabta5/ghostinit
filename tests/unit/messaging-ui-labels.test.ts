@@ -21,11 +21,18 @@ describe("web messaging explains ID-based recipients honestly", () => {
       test(`${mode}/${name} has an associated visible label and neutral conversation name`, () => {
         const files = render(mode);
         const content = files.map((file) => file.content).join("\n");
-        expect(content).toContain(
-          '<FieldLabel htmlFor="message-recipient">{t("peerUserId")}</FieldLabel>',
-        );
-        expect(content).toContain('id="message-recipient"');
-        expect(content).toContain('aria-describedby="message-recipient-help"');
+        if (name.includes("/convex")) {
+          expect(content).toContain('<form.AppField name="peerUserId">');
+          expect(content).toContain(
+            '<field.TextField label={t("peerUserId")} description={t("peerUserIdHelp")}',
+          );
+        } else {
+          expect(content).toContain(
+            '<FieldLabel htmlFor="message-recipient">{t("peerUserId")}</FieldLabel>',
+          );
+          expect(content).toContain('id="message-recipient"');
+          expect(content).toContain('aria-describedby="message-recipient-help"');
+        }
         expect(content).toContain('t("peerUserIdHelp")');
         expect(content).toContain('t("conversation")');
         expect(content).not.toContain("peerName");

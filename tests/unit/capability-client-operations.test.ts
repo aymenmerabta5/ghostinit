@@ -6,7 +6,9 @@ import {
   featureRoot,
   type CapabilityClientOptions,
 } from "../../src/templates/apps/capability-clients/shared.js";
-import { authOwnedActionContent } from "../../src/templates/apps/fragments/auth-owned-action.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { capabilityOperationQueryHarness } from "../helpers/capability-operation-query-harness.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
 import {
   deferred,
   elements,
@@ -26,6 +28,23 @@ const components = {
   storage: "StoragePage",
   "feature-flags": "FeatureFlagsPage",
 };
+const featureFiles = {
+  jobs: {
+    workflow: "use-job-workspace.ts",
+    view: "components/job-workspace.tsx",
+    component: "JobWorkspace",
+  },
+  storage: {
+    workflow: "use-storage-workspace.ts",
+    view: "components/storage-workspace.tsx",
+    component: "StorageWorkspace",
+  },
+  "feature-flags": {
+    workflow: "use-feature-flag-evaluation.ts",
+    view: "components/feature-flag-workspace.tsx",
+    component: "FeatureFlagWorkspace",
+  },
+} as const;
 const errors: Record<string, string> = {
   enqueue: "enqueueError",
   refresh: "lookupError",
@@ -37,7 +56,7 @@ const errors: Record<string, string> = {
 };
 const outputs: Record<string, unknown> = {
   enqueue: { run: { id: "completed-run" } },
-  refresh: { run: { id: "completed-run" } },
+  refresh: { id: "completed-run" },
   cancel: { run: { id: "completed-run" } },
   upload: { id: "completed-object" },
   download: { base64: btoa("completed-text") },
@@ -48,34 +67,77 @@ const outputs: Record<string, unknown> = {
 function harness(options: CapabilityClientOptions, feature: Feature) {
   const target = options.apps[0]!;
   const files = capabilityClientFiles(options);
-  const source = files.find(
-    (file) => file.path === `${featureRoot(options.mode, target, feature)}/page.tsx`,
-  )!.content;
+  const root = featureRoot(options.mode, target, feature);
+  const read = (path: string) => {
+    const file = files.find((entry) => entry.path === `${root}/${path}`);
+    if (!file) throw new Error(`Missing emitted ${feature}/${path}`);
+    return file.content;
+  };
+  const selected = featureFiles[feature];
+  const source = [
+    authOwnedMutationContent(),
+    read("queries.ts"),
+    ...(feature === "feature-flags" ? [] : [read("mutations.ts")]),
+    read(selected.workflow),
+    read(selected.view),
+    read("page.tsx"),
+  ].join("\n");
   const first = deferred<unknown>();
   const second = deferred<unknown>();
   const queue = [first, second];
   let calls = 0;
+  const invoked: string[] = [];
   let generation = 0;
-  const invoke = () => {
+  const invoke = (operation: string) => {
     calls += 1;
+    invoked.push(operation);
     const next = queue.shift();
     if (!next) throw new Error("Unexpected duplicate operation");
     return next.promise;
   };
-  const ui = generatedFormHarness(`${authOwnedActionContent()}\n${source}`, [components[feature]], {
+  const queries = capabilityOperationQueryHarness();
+  const mutation = queryMutationHarness();
+  const ui = generatedFormHarness(source, [components[feature], selected.component], {
     useAuthOwnedEffect: () => () => {
       const captured = generation;
       return () => captured === generation;
     },
-    useInitialUserFeatureFlag: () => ({ data: null }),
+    useQueryClient: () => queries.client,
+    useQuery: queries.useQuery,
+    useMutation: mutation.useMutation,
+    currentQueryAuthGeneration: () => generation,
+    subscribeQueryAuthGeneration: () => () => {},
+    currentQueryAuthScope: () => ({
+      userId: `owner-${generation}`,
+      sessionId: `session-${generation}`,
+    }),
+    authScopedQueryKey: (scope: { userId: string; sessionId: string }, key: readonly unknown[]) => [
+      "auth",
+      scope.userId,
+      scope.sessionId,
+      ...key,
+    ],
+    initialUserFeatureFlagQueryKey: (scope: { userId: string; sessionId: string }) => [
+      "auth",
+      scope.userId,
+      scope.sessionId,
+      "feature-flags",
+      "new-dashboard",
+    ],
+    orpcClient: {
+      jobs: {
+        enqueue: () => invoke("enqueue"),
+        getRun: () => invoke("refresh"),
+        cancelRun: () => invoke("cancel"),
+      },
+      storage: {
+        uploadBase64: () => invoke("upload"),
+        downloadBase64: () => invoke("download"),
+        remove: () => invoke("remove"),
+      },
+      featureFlags: { evaluate: () => invoke("evaluate") },
+    },
     useTranslations: () => (key: string) => key,
-    enqueueOwnedJob: invoke,
-    getOwnedJobRun: invoke,
-    cancelOwnedJob: invoke,
-    uploadTextObject: invoke,
-    downloadObjectBase64: invoke,
-    removeStoredObject: invoke,
-    evaluateRemoteFeatureFlag: invoke,
     base64ToUtf8: atob,
     ...Object.fromEntries(
       ["ScrollView", "View", "Text", "Field", "FieldLabel", "Input", "Textarea"].map((name) => [
@@ -84,7 +146,13 @@ function harness(options: CapabilityClientOptions, feature: Feature) {
       ]),
     ),
   });
-  const render = () => ui.render(components[feature], { initialResult: null });
+  const render = () => {
+    const screen = ui.render(components[feature], { initialResult: null });
+    const view = elements(screen).find((node) => node.type === ui.module[selected.component]);
+    if (!view)
+      throw new Error(`Emitted ${components[feature]} did not compose ${selected.component}`);
+    return ui.render(selected.component, view.props);
+  };
   function click(action: string, tree = render()) {
     if (feature === "feature-flags" && target !== "mobile") {
       const form = elements(tree).find((node) => node.type === "form")!;
@@ -102,6 +170,7 @@ function harness(options: CapabilityClientOptions, feature: Feature) {
     render,
     click,
     calls: () => calls,
+    invoked: () => [...invoked],
     loseOwner: () => {
       generation += 1;
     },
@@ -196,6 +265,52 @@ describe("capability operation ownership", () => {
 
   for (const options of variants) {
     const label = `${options.mode}/${options.framework}/${options.apps[0]}`;
+    for (const firstAction of operations.jobs) {
+      for (const conflictingAction of operations.jobs) {
+        if (firstAction === conflictingAction) continue;
+        test(`${label}/jobs serializes ${firstAction} -> ${conflictingAction} and admits the next action after completion`, async () => {
+          const ui = harness(options, "jobs");
+          const initial = ui.render();
+          ui.click(firstAction, initial);
+          ui.click(conflictingAction, initial);
+          expect(ui.invoked()).toEqual([firstAction]);
+          expect(
+            elements(ui.render())
+              .filter((node) => node.type === "Button")
+              .every((node) => node.props.disabled === true),
+          ).toBe(true);
+          ui.first.resolve(outputs[firstAction]);
+          await flush();
+          expect(textContent(ui.render())).not.toContain("pending");
+          ui.click(conflictingAction);
+          expect(ui.invoked()).toEqual([firstAction, conflictingAction]);
+          ui.second.resolve(outputs[conflictingAction]);
+          await flush();
+          expect(textContent(ui.render())).not.toContain("pending");
+          expect(textContent(ui.render())).not.toContain(errors[conflictingAction]!);
+        });
+      }
+    }
+    for (const rejected of [false, true]) {
+      test(`${label}/jobs/refresh suppresses ${rejected ? "error" : "success"} after its read owner changes`, async () => {
+        const ui = harness(options, "jobs");
+        ui.click("refresh");
+        expect(ui.invoked()).toEqual(["refresh"]);
+        ui.loseOwner();
+        if (rejected) ui.first.reject(new Error("Previous owner's lookup failed"));
+        else ui.first.resolve(outputs.refresh);
+        await flush();
+        const tree = ui.render();
+        expect(textContent(tree)).not.toContain("completed-");
+        expect(textContent(tree)).not.toContain("lookupError");
+        expect(textContent(tree)).not.toContain("pending");
+        expect(
+          elements(tree)
+            .filter((node) => node.type === "Input")
+            .some((node) => String(node.props.value).includes("completed-")),
+        ).toBe(false);
+      });
+    }
     for (const feature of Object.keys(operations) as Feature[]) {
       for (const action of operations[feature]) {
         test(`${label}/${feature}/${action} prevents duplicate/conflicting requests, shows pending and permits retry`, async () => {
@@ -204,7 +319,7 @@ describe("capability operation ownership", () => {
           ui.click(action, initial);
           ui.click(action, initial);
           ui.click(operations[feature][0], initial);
-          expect(ui.calls()).toBe(1);
+          expect(ui.calls(), ui.invoked().join(" -> ")).toBe(1);
           const pending = ui.render();
           expect(
             elements(pending)

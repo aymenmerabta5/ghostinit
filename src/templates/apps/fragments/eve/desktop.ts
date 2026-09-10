@@ -1,6 +1,7 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { nativeI18nImportPath, nativeI18nTemplate } from "../native-i18n.js";
 import type { EvePlatformMode } from "./protocol.js";
+import { nativeEveFeatureFiles, nativeEveRouteContent } from "./native-feature.js";
 
 export function desktopEveMainHelpers(): string {
   return `type DesktopEveRequest = { readonly body?: string; readonly method: "GET" | "POST"; readonly path: string };
@@ -136,10 +137,7 @@ export type { EveInvokeOptions, EveInvokeResult, EveSessionCursor } from "./eve-
 `;
 }
 
-export function desktopEveRouteContent(
-  mode: EvePlatformMode = "monorepo",
-  hasI18n = false,
-): string {
+function desktopEveViewSource(mode: EvePlatformMode = "monorepo", hasI18n = false): string {
   const i18n = nativeI18nTemplate(hasI18n, "agent", nativeI18nImportPath("desktop", mode));
   return `import { createFileRoute, Link } from "@tanstack/react-router";
 import * as React from "react";
@@ -208,7 +206,7 @@ ${i18n.hookLine}
       <CardHeader><CardTitle>${i18n.child("title", "Eve durable agent")}</CardTitle><CardDescription>${i18n.child("desktopDescription", "The preload bridge forwards only authenticated /api/agent requests; Eve credentials never enter the renderer.")}</CardDescription></CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
         <MessageScrollerProvider autoScroll><MessageScroller><MessageScrollerViewport><MessageScrollerContent role="log" aria-live="polite" aria-label={${i18n.value("conversationLabel", "Conversation with Eve")}}>
-          {messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>${i18n.child("empty", "Ask Eve to inspect architecture, scaffold a module, or run a workflow.")}</EmptyTitle><EmptyDescription>${i18n.child("desktopDescription", "The preload bridge forwards only authenticated agent requests.")}</EmptyDescription></EmptyHeader></Empty> : messages.map((message) => <MessageScrollerItem key={String(message.id)} messageId={String(message.id)} scrollAnchor={message.role === "user"}><Message align={message.role === "user" ? "end" : "start"}><MessageContent><MessageHeader>{message.role}</MessageHeader><Bubble align={message.role === "user" ? "end" : "start"} variant={message.role === "user" ? "default" : "muted"}><BubbleContent>{message.text}</BubbleContent></Bubble></MessageContent></Message></MessageScrollerItem>)}{submitting ? <MessageScrollerItem messageId="streaming"><Marker><MarkerContent className="shimmer">${i18n.child("working", "Working…")}</MarkerContent></Marker></MessageScrollerItem> : null}
+          {messages.length === 0 ? <Empty><EmptyHeader><EmptyTitle>${i18n.child("empty", "Ask Eve to inspect architecture, scaffold a module, or run a workflow.")}</EmptyTitle><EmptyDescription>${i18n.child("desktopDescription", "The preload bridge forwards only authenticated agent requests.")}</EmptyDescription></EmptyHeader></Empty> : messages.map((message) => <MessageScrollerItem key={String(message.id)} messageId={String(message.id)} scrollAnchor={message.role === "user"}><Message align={message.role === "user" ? "end" : "start"}><MessageContent><MessageHeader>{message.role}</MessageHeader><Bubble align={message.role === "user" ? "end" : "start"} variant={message.role === "user" ? "default" : "muted"}><BubbleContent dir="auto">{message.text}</BubbleContent></Bubble></MessageContent></Message></MessageScrollerItem>)}{submitting ? <MessageScrollerItem messageId="streaming"><Marker><MarkerContent className="shimmer">${i18n.child("working", "Working…")}</MarkerContent></Marker></MessageScrollerItem> : null}
         </MessageScrollerContent></MessageScrollerViewport><MessageScrollerButton /></MessageScroller></MessageScrollerProvider>
         {error ? <Alert variant="destructive"><AlertTitle>${i18n.child("requestError", "Eve request failed.")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
         <form onSubmit={(event) => { event.preventDefault(); void send(); }}><FieldGroup><Field><FieldLabel className="sr-only" htmlFor="desktop-agent-message">${i18n.child("messageLabel", "Message Eve")}</FieldLabel><div className="flex gap-2"><Input id="desktop-agent-message" className="min-h-11 flex-1" disabled={submitting} value={input} onChange={(event) => setInput(event.target.value)} placeholder={submitting ? ${i18n.value("workingPlaceholder", "Eve is working…")} : ${i18n.value("messagePlaceholder", "Message Eve")}} /><Button type="submit" className="min-h-11" disabled={submitting || !input.trim()}>{submitting ? ${i18n.value("working", "Working…")} : ${i18n.value("send", "Send")}}</Button></div></Field></FieldGroup></form>
@@ -223,6 +221,13 @@ export function desktopEveFiles(mode: EvePlatformMode, hasI18n = false): Templat
   const root = mode === "monorepo" ? "apps/desktop/" : "";
   return [
     file(`${root}src/renderer/lib/eve-client.ts`, desktopEveClientContent()),
-    file(`${root}src/renderer/routes/agent.tsx`, desktopEveRouteContent(mode, hasI18n)),
+    ...nativeEveFeatureFiles("desktop", mode, hasI18n, desktopEveViewSource(mode, hasI18n)),
   ];
+}
+
+export function desktopEveRouteContent(
+  mode: EvePlatformMode = "monorepo",
+  _hasI18n = false,
+): string {
+  return nativeEveRouteContent("desktop", mode);
 }

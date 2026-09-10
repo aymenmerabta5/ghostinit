@@ -6,17 +6,15 @@ export function identityWorkspaceInvitationRowContent(hasI18n = false): string {
 import type * as React from "react";
 import { Button } from "@/components/ui/button";
 ${i18n.importLine}
-import type { IdentityWorkspaceController } from "../controller";
-
-type Invitation = NonNullable<IdentityWorkspaceController["invitations"]["data"]>[number];
+import type { IdentityInvitation } from "../types";
 
 interface InvitationRowProps {
-  invitation: Invitation;
+  invitation: IdentityInvitation;
   pending: boolean;
   canAccept: boolean;
   canCancel: boolean;
-  onAccept(invitationId: string): Promise<void>;
-  onCancel(invitationId: string): Promise<void>;
+  onAccept(): void;
+  onCancel(): void;
 }
 
 export function InvitationRow({
@@ -52,10 +50,10 @@ ${i18n.hookLine}
       </div>
       {invitation.status === "pending" ? (
         <div className="flex gap-2">
-          {canAccept ? <Button size="sm" variant="outline" disabled={pending} onClick={() => void onAccept(invitation.id)}>
+          {canAccept ? <Button size="sm" variant="outline" disabled={pending} onClick={onAccept}>
             ${i18n.child("accept")}
           </Button> : null}
-          {canCancel ? <Button size="sm" variant="destructive" disabled={pending} onClick={() => void onCancel(invitation.id)}>
+          {canCancel ? <Button size="sm" variant="destructive" disabled={pending} onClick={onCancel}>
             ${i18n.child("cancel")}
           </Button> : null}
         </div>

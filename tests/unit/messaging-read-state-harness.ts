@@ -1,3 +1,4 @@
+import { generatedFormHarness } from "../helpers/generated-form-harness.js";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 
@@ -35,7 +36,10 @@ export function generatedMessaging(
     desiredConfig: result.desiredConfig,
   });
   return (suffix: string): string => {
-    const files = plan.files.filter((file) => file.physicalPath.endsWith(suffix));
+    const expected = suffix.startsWith("/")
+      ? `${mode === "monorepo" ? "apps/web/src" : "src"}${suffix}`
+      : suffix;
+    const files = plan.files.filter((file) => file.physicalPath === expected);
     if (files.length !== 1)
       throw new Error(`Expected one generated ${suffix}, found ${files.length}`);
     return files[0]!.content;
@@ -179,4 +183,56 @@ export function retryButton(tree: unknown): Element {
   );
   if (!button) throw new Error("Missing retry button");
   return button;
+}
+
+/** Execute the emitted query adapters and workflows instead of copying their state mapping. */
+export function postgresReadWorkflows(
+  read: (path: string) => string,
+  query: ReturnType<typeof readState>,
+) {
+  let enabled: boolean | undefined;
+  const harness = generatedFormHarness(
+    [
+      "/features/messaging/queries.ts",
+      "/features/messaging/use-messaging-workspace.ts",
+      "/features/messaging/use-message-thread.ts",
+    ]
+      .map(read)
+      .join("\n"),
+    ["useMessagingWorkspace", "useMessageThread", "useMessageQuery"],
+    {
+      useQuery: (options: { enabled?: boolean }) => {
+        enabled = options.enabled;
+        return query;
+      },
+      useQueryClient: () => ({}),
+      window: {},
+      useCallback: (callback: unknown) => callback,
+      currentQueryAuthScope: () => ({
+        userId: "member",
+        sessionId: "session",
+        tenantId: null,
+        teamId: null,
+      }),
+      authScopedQueryKey: (_scope: unknown, key: unknown) => key,
+      messagingConversationsQueryKey: () => ["messaging", "conversations"],
+      orpc: {
+        messaging: {
+          listConversations: { queryOptions: () => ({ queryKey: ["messaging", "conversations"] }) },
+          listMessages: { queryOptions: () => ({ queryKey: ["messaging", "messages"] }) },
+        },
+      },
+      useAuthOwnedEffect: () => () => () => true,
+      useStartConversation: () => ({ isPending: false, error: null }),
+      useMessageTyping: () => new Set(),
+    },
+  );
+  return {
+    workspace: () => harness.render("useMessagingWorkspace") as Record<string, unknown>,
+    thread: (id: string) => harness.render("useMessageThread", id) as Record<string, unknown>,
+    queryEnabledFor(id: string): boolean | undefined {
+      harness.render("useMessageQuery", id);
+      return enabled;
+    },
+  };
 }

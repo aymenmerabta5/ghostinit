@@ -1,12 +1,21 @@
-export function convexHttpContent(hasAuth = true): string {
+export function convexHttpContent(hasAuth = true, hasManualBilling = false): string {
   return [
     'import { httpRouter } from "convex/server";',
     'import { httpAction } from "./_generated/server";',
     ...(hasAuth ? ['import { authComponent, createAuth } from "./auth";'] : []),
+    ...(hasManualBilling
+      ? ['import { uploadReceipt, downloadReceipt } from "./manualPaymentsHttp";']
+      : []),
     "",
     "const http = httpRouter();",
     "",
     ...(hasAuth ? ["authComponent.registerRoutes(http, createAuth);"] : []),
+    ...(hasManualBilling
+      ? [
+          'http.route({ path: "/api/manual-payments", method: "POST", handler: uploadReceipt });',
+          'http.route({ path: "/api/manual-payments/receipt", method: "GET", handler: downloadReceipt });',
+        ]
+      : []),
     "",
     "// Health check — used by @repo/database healthCheck() and load balancers",
     "http.route({",

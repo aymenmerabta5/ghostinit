@@ -1,33 +1,32 @@
 import { file, type TemplateFile } from "../../../shared.js";
+import { authRouteContent } from "../auth/feature-routes.js";
 
 export type RouterType = "next" | "tanstack";
 
-export function forgotPasswordPageContent(router: RouterType = "next"): string {
+export function forgotPasswordViewContent(router: RouterType = "next"): string {
   const isTanstack = router === "tanstack";
   const imports = isTanstack
     ? `"use client";
 import type * as React from "react";
 import { ArrowLeft } from "lucide-react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createEmailSchema, identityClient } from "@/lib/auth-client";
+import { Form } from "@/components/ui/form";
+import type { ForgotPasswordFormState } from "../types";
 import { useSurfaceTranslations } from "@/lib/translations";
 
-export const Route = createFileRoute("/forgot-password")({ component: ForgotPasswordPage });`
+`
     : `"use client";
 import type * as React from "react";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createEmailSchema, identityClient } from "@/lib/auth-client";
+import { Form } from "@/components/ui/form";
+import type { ForgotPasswordFormState } from "../types";
 import { useSurfaceTranslations } from "@/lib/translations";`;
   const backHome = isTanstack
     ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />{t("forgotPassword.backHome")}</Link>`
@@ -38,30 +37,9 @@ import { useSurfaceTranslations } from "@/lib/translations";`;
 
   return `${imports}
 
-${isTanstack ? "function" : "export default function"} ForgotPasswordPage(): React.JSX.Element {
+export function ForgotPasswordView({ state }: { state: ForgotPasswordFormState }): React.JSX.Element {
   const t = useSurfaceTranslations("recovery");
-  const authT = useSurfaceTranslations("auth");
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const form = useAppForm({
-    defaultValues: { email: "" },
-    validators: { onSubmit: createEmailSchema(authT("validation.invalidEmail")) },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      setSuccess(false);
-      const result = await identityClient.requestPasswordReset({
-        email: value.email,
-        redirectTo: "/reset-password",
-      });
-      if (result.error) {
-        setError(t("forgotPassword.genericError"));
-        return;
-      }
-      setSuccess(true);
-      form.reset();
-    },
-  });
-
+  const { form, error, success } = state;
   return (
     <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14">
       <div className="flex w-full max-w-[440px] flex-col gap-8">
@@ -92,6 +70,10 @@ ${isTanstack ? "function" : "export default function"} ForgotPasswordPage(): Rea
   );
 }
 `;
+}
+
+export function forgotPasswordPageContent(router: RouterType = "next"): string {
+  return authRouteContent(router, "forgot-password", "ForgotPasswordScreen");
 }
 
 export function forgotPasswordPage(router: RouterType = "next"): TemplateFile {

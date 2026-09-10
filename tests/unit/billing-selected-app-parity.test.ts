@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { parseSync } from "oxc-parser";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
@@ -150,9 +151,22 @@ function isProvider(value: unknown): value is Provider {
 }
 
 function clientOptions(source: string): ClientOption[] {
-  const encoded = source.match(/const SELECTED_PROVIDERS = (\[[^\n]*\]) satisfies/)?.[1];
-  expect(encoded).toBeDefined();
-  const parsed: unknown = JSON.parse(encoded ?? "[]");
+  const program = parseSync("billing-model.ts", source);
+  expect(program.errors).toEqual([]);
+  const declarations = program.program.body.flatMap((statement) =>
+    statement.type === "ExportNamedDeclaration" &&
+    statement.declaration?.type === "VariableDeclaration"
+      ? statement.declaration.declarations
+      : [],
+  );
+  const selected = declarations.filter(
+    ({ id }) => id.type === "Identifier" && id.name === "selectedProviders",
+  );
+  expect(selected).toHaveLength(1);
+  const initializer = selected[0]?.init;
+  if (initializer?.type !== "ArrayExpression")
+    throw new Error("Selected provider options were not an exported array");
+  const parsed: unknown = JSON.parse(source.slice(initializer.start, initializer.end));
   if (!Array.isArray(parsed)) throw new Error("Selected provider options were not an array");
   return parsed.map((value) => {
     const id = typeof value === "object" && value !== null ? Reflect.get(value, "id") : undefined;
@@ -194,7 +208,7 @@ function loadReturnUrl(
 describe("selected Expo and Electron billing parity", () => {
   it("builds only configured same-origin or application deep-link returns", () => {
     const mobile = generate("postgres", "mobile", ["stripe"]);
-    const mobileSource = contentAt(mobile, "apps/mobile/app/billing.tsx");
+    const mobileSource = contentAt(mobile, "apps/mobile/src/features/billing/mutations.ts");
     expect(
       loadReturnUrl(mobileSource, "billingReturnUrl", {
         EXPO_PUBLIC_APP_URL: "https://app.example.test/base",
@@ -229,7 +243,8 @@ describe("selected Expo and Electron billing parity", () => {
     for (const app of ["mobile", "desktop"] as const) {
       for (const selected of [
         ["stripe", "chargily"],
-        ["paddle", "polar"],
+        ["chargily", "paddle"],
+        ["chargily", "polar"],
       ] as const) {
         it(`monorepo/${database}/web+${app}/${selected.join("+")} exposes only selected secure capabilities`, () => {
           const files = generate(database, app, [...selected]);
@@ -239,7 +254,18 @@ describe("selected Expo and Electron billing parity", () => {
               ? `${prefix}app/billing.tsx`
               : `${prefix}src/renderer/routes/billing.tsx`;
           const billing = contentAt(files, billingPath);
-          const options = clientOptions(billing);
+          const featureRoot =
+            app === "mobile"
+              ? `${prefix}src/features/billing`
+              : `${prefix}src/renderer/features/billing`;
+          const model = contentAt(files, `${featureRoot}/model.ts`);
+          const queries = contentAt(files, `${featureRoot}/queries.ts`);
+          const mutations = contentAt(files, `${featureRoot}/mutations.ts`);
+          const snapshot = contentAt(files, `${featureRoot}/use-billing-snapshot.ts`);
+          const actions = contentAt(files, `${featureRoot}/use-billing-actions.ts`);
+          const screen = contentAt(files, `${featureRoot}/screen.tsx`);
+          const providerCard = contentAt(files, `${featureRoot}/components/provider-card.tsx`);
+          const options = clientOptions(model);
 
           expect(options.map(({ id }) => id)).toEqual([...selected]);
           expect(options.every(({ checkout }) => checkout)).toBe(true);
@@ -254,32 +280,54 @@ describe("selected Expo and Electron billing parity", () => {
             true,
           );
 
-          expect(billing).toContain("orpc.billing.subscriptions.queryOptions");
-          expect(billing).toContain("orpc.billing.createCheckout.mutationOptions");
-          expect(billing).toContain("orpc.billing.createPortalSession.mutationOptions");
-          expect(billing).toContain("orpc.billing.createPaymentLink.mutationOptions");
-          expect(billing).toContain("snapshot.data?.invoices");
-          expect(billing).toContain('typeof value._id === "string"');
-          expect(billing).toContain("Start checkout");
-          expect(billing).toContain("Open portal");
-          expect(billing).not.toContain("customerId");
-          expect(billing).not.toMatch(/fetch\(["']\/api\/billing/);
-          expect(billing).not.toContain("Start checkout from the web application");
+          expect(billing).toContain('import { BillingScreen } from "@/features/billing/screen"');
+          expect(billing).not.toMatch(/useQuery|useMutation|orpc|useBilling/);
+          expect(screen).toContain('import { selectedProviders } from "./model"');
+          expect(screen).toContain("selectedProviders.map");
+          expect(screen).toContain("disabled={!snapshot.isAuthenticated || actions.isPending}");
+          expect(screen).toContain("paymentLink={provider.paymentLink ? snapshot.isAdmin");
+          expect(providerCard).toContain("{provider.portal ?");
+          expect(queries).toContain("orpc.billing.subscriptions.queryOptions");
+          expect(mutations).toContain("orpcClient.billing.createCheckout(");
+          expect(mutations).toContain("orpcClient.billing.createPortalSession(");
+          expect(mutations).toContain("orpcClient.billing.createPaymentLink(");
+          expect(actions).toContain("useAuthOwnedMutation(performBillingAction");
+          expect(actions).toContain("if (isCurrent()) refresh()");
+          expect(snapshot).toContain("snapshot.data?.invoices");
+          expect(snapshot).toContain("useBillingSnapshotQuery(isAuthenticated)");
+          expect(model).toContain('typeof value._id === "string"');
+          expect(screen).toContain("Start checkout");
+          expect(screen).toContain("Open portal");
+          for (const file of files.filter(
+            ({ path }) => path === billingPath || path.startsWith(`${featureRoot}/`),
+          )) {
+            expect(file.content, file.path).not.toContain("customerId");
+            expect(file.content, file.path).not.toMatch(/fetch\(["']\/api\/billing/);
+            expect(file.content, file.path).not.toContain(
+              "Start checkout from the web application",
+            );
+            expect(file.content, file.path).not.toContain("Math.random");
+            expect(file.content, file.path).not.toContain('useAuth } from "../hooks/useAuth"');
+            expect(file.content, file.path).not.toContain("isRecord(user)");
+          }
 
           if (app === "mobile") {
-            expect(billing).toContain("env.EXPO_PUBLIC_APP_URL");
-            expect(billing).toContain("configured billing deep link must target /billing");
-            expect(billing).toContain("Linking.canOpenURL");
-            expect(billing).toContain("WebBrowser.openAuthSessionAsync");
-            expect(billing).toContain('Reflect.get(cryptoValue, "getRandomValues")');
-            expect(billing).not.toContain("Math.random");
+            expect(mutations).toContain("env.EXPO_PUBLIC_APP_URL");
+            expect(mutations).toContain("configured billing deep link must target /billing");
+            expect(mutations).toContain("Linking.canOpenURL");
+            expect(mutations).toContain("WebBrowser.openAuthSessionAsync");
+            expect(mutations).toContain('Reflect.get(cryptoValue, "getRandomValues")');
           } else {
-            expect(billing).toContain("desktopBillingReturnUrl");
-            expect(billing).toContain("window.desktopBridge.shellOpenExternal");
-            expect(billing).toContain("const identity = useQuery(desktopQueryOptions.me())");
-            expect(billing).toContain("const role = user?.banned ? null : user?.role");
-            expect(billing).not.toContain('useAuth } from "../hooks/useAuth"');
-            expect(billing).not.toContain("isRecord(user)");
+            expect(mutations).toContain("desktopBillingReturnUrl");
+            expect(mutations).toContain("window.desktopBridge.shellOpenExternal");
+            expect(queries).toContain("orpc.me.queryOptions({ enabled })");
+            expect(snapshot).toContain("const identity = useBillingIdentityQuery(true)");
+            expect(snapshot).toContain(
+              "Boolean(identity.data?.user && !identity.data.user.banned)",
+            );
+            expect(snapshot).toContain(
+              "const role = identity.data?.user?.banned ? null : identity.data?.user?.role",
+            );
             const orpc = contentAt(files, `${prefix}src/renderer/lib/orpc.ts`);
             expect(orpc).toContain("export function desktopBillingReturnUrl");
             expect(orpc).toContain("env.VITE_APP_URL");
@@ -301,7 +349,8 @@ describe("selected Expo and Electron billing parity", () => {
     for (const app of ["mobile", "desktop"] as const) {
       for (const selected of [
         ["stripe", "chargily"],
-        ["paddle", "polar"],
+        ["chargily", "paddle"],
+        ["chargily", "polar"],
       ] as const) {
         it(`rejects single/${database}/${app}/${selected.join("+")} without a backend host`, () => {
           const result = resolveBillingProject("single", database, app, [...selected]);

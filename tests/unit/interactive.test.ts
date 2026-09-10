@@ -76,14 +76,9 @@ describe("parseCreateArgs billing", () => {
     expect(result.billing.sort()).toEqual(["chargily", "stripe"]);
   });
 
-  it("parses all -> all 4 providers", () => {
-    const result = parseCreateArgs({ billing: "all" });
-    expect(result.billing.sort()).toEqual(["chargily", "paddle", "polar", "stripe"]);
-  });
-
-  it("parses comma-separated billing", () => {
-    const result = parseCreateArgs({ billing: "stripe,polar" });
-    expect(result.billing.sort()).toEqual(["polar", "stripe"]);
+  it("rejects all and comma-separated global conflicts", () => {
+    expect(() => parseCreateArgs({ billing: "all" })).toThrow("at most one global");
+    expect(() => parseCreateArgs({ billing: "stripe,polar" })).toThrow("at most one global");
   });
 
   it("parses none -> empty", () => {
@@ -106,9 +101,9 @@ describe("parseCreateArgs billing", () => {
 
   it("handles repeat plus comma", () => {
     const result = parseCreateArgs({
-      billing: ["stripe,polar", "chargily"] as unknown as string,
+      billing: ["stripe,manual", "chargily"] as unknown as string,
     });
-    expect(result.billing.sort()).toEqual(["chargily", "polar", "stripe"]);
+    expect(result.billing.sort()).toEqual(["chargily", "manual", "stripe"]);
   });
 });
 
@@ -171,6 +166,15 @@ describe("parseCreateArgs capability switches", () => {
 });
 
 describe("normalizeBillingSelection (multiselect checkbox result)", () => {
+  it("rejects conflicting global choices even with none selected", () => {
+    expect(() => normalizeBillingSelection(["stripe", "polar"])).toThrow("at most one global");
+    expect(() => normalizeBillingSelection(["stripe", "polar", "none"])).toThrow(
+      "at most one global",
+    );
+    expect(() => normalizeBillingSelection(["none", "all"])).toThrow("at most one global");
+    expect(() => parseCreateArgs({ billing: ["stripe", "polar"] })).toThrow("at most one global");
+  });
+
   it("returns [] for empty", () => {
     expect(normalizeBillingSelection([])).toEqual([]);
   });
@@ -185,8 +189,8 @@ describe("normalizeBillingSelection (multiselect checkbox result)", () => {
   });
 
   it("parses multiple providers as array", () => {
-    const result = normalizeBillingSelection(["stripe", "polar"]);
-    expect(result.sort()).toEqual(["polar", "stripe"]);
+    const result = normalizeBillingSelection(["manual", "polar", "chargily"]);
+    expect(result.sort()).toEqual(["chargily", "manual", "polar"]);
   });
 });
 

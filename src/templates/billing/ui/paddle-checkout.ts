@@ -3,6 +3,8 @@ import { file, type TemplateFile } from "../../shared.js";
 import {
   paddleCheckoutComponentContent,
   paddleCheckoutControllerContent,
+  paddleCheckoutHookContent,
+  paddleCheckoutViewContent,
 } from "./paddle-checkout-client.js";
 import {
   paddleCheckoutServerContent,
@@ -17,6 +19,12 @@ export function paddleCheckoutFiles(mode: ProjectMode, framework: FrameworkName)
     file(`${root}src/server/billing/paddle-checkout.ts`, paddleCheckoutServerContent(mode)),
     file(`${root}src/adapters/billing/paddle.ts`, paddleCheckoutControllerContent),
     file(`${base}/paddle-checkout-page.tsx`, paddleCheckoutComponentContent(mode, framework)),
+    file(`${base}/use-paddle-checkout.ts`, paddleCheckoutHookContent(mode, framework)),
+    file(`${base}/components/paddle-checkout.tsx`, paddleCheckoutViewContent()),
+    file(
+      `${base}/paddle-types.ts`,
+      `import type { usePaddleCheckout } from "./use-paddle-checkout";\nexport type PaddleCheckoutState = ReturnType<typeof usePaddleCheckout>;\n`,
+    ),
     file(
       "docs/PADDLE_CHECKOUT.md",
       `# Paddle checkout setup

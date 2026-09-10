@@ -4,7 +4,7 @@ import { databasePackage, startDatabaseFiles } from "../../database.js";
 import { convexDatabaseFiles, convexStartDatabaseFiles } from "../../database/convex.js";
 import { convexMessagingDatabaseFiles } from "../../messaging/convex.js";
 import type { AddonInstallerMap, DatabaseProvider } from "../../../lib/addons.js";
-import { hasAddon } from "../../../lib/addons.js";
+import { BILLING_PROVIDERS, hasAddon } from "../../../lib/addons.js";
 import * as v from "../../versions.js";
 
 type Runtime = "node" | "bun";
@@ -22,9 +22,7 @@ export function databaseComposerFiles(
   const hasMobile = Boolean(addons && hasAddon(addons, "mobile"));
   const hasBilling = addons
     ? hasAddon(addons, "billing") ||
-      (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
-        hasAddon(addons, provider),
-      )
+      BILLING_PROVIDERS.some((provider) => hasAddon(addons, provider))
     : true;
   const hasMessaging = Boolean(addons && hasAddon(addons, "messaging"));
 
@@ -33,6 +31,7 @@ export function databaseComposerFiles(
       ...convexDatabaseFiles(projectName, runtime, "monorepo", {
         auth: hasAuth,
         billing: hasBilling,
+        manualBilling: Boolean(addons && hasAddon(addons, "manual")),
         email: hasEmail,
         i18n: hasI18n,
         mobile: hasMobile,
@@ -124,6 +123,7 @@ export function databaseComposerFiles(
     ...databasePackage(projectName, runtime, {
       auth: hasAuth,
       billing: hasBilling,
+      manualBilling: Boolean(addons && hasAddon(addons, "manual")),
       posts: hasAuth,
     }),
     ...startDatabaseFiles(projectName),

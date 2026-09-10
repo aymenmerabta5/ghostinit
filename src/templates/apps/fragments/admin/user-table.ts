@@ -13,14 +13,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UserRow } from "./user-row";
+import { UserRow } from "../user-row";
 import {
   formatAdminUsersAccountCount,
-  useAdminUsersTranslations,
 } from "../translations";
+import type { AdminUsersTranslate } from "../translations";
 import type { AdminUser, AdminUserRole } from "../types";
 
 export interface UserTableProps {
+  translate: AdminUsersTranslate;
   users: readonly AdminUser[];
   total: number;
   totalIsExact: boolean;
@@ -38,8 +39,8 @@ export function UserTable({
   banPendingId,
   onToggleRole,
   onToggleBanned,
+  translate,
 }: UserTableProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
   return (
     <Table className="bg-card">
         <TableCaption>{formatAdminUsersAccountCount(translate, total, totalIsExact)}</TableCaption>
@@ -56,6 +57,7 @@ export function UserTable({
             <UserRow
               key={user.id}
               user={user}
+              translate={translate}
               rolePending={user.identityId !== null && rolePendingId === user.identityId}
               banPending={user.identityId !== null && banPendingId === user.identityId}
               onToggleRole={onToggleRole}
@@ -67,8 +69,7 @@ export function UserTable({
   );
 }
 
-export function UserTableSkeleton(): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
+export function UserTableSkeleton({ translate }: { translate: AdminUsersTranslate }): React.JSX.Element {
   return (
     <div className="overflow-hidden rounded-lg border bg-card" aria-busy="true" aria-label={translate("table.loading")}>
       <div className="grid grid-cols-[minmax(12rem,1fr)_6rem_6rem_10rem] gap-4 border-b px-4 py-3">

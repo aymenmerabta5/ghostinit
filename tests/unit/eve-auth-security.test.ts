@@ -112,8 +112,23 @@ describe("Eve browser authentication and durable ownership", () => {
         expect(channel).not.toContain("vercelOidc");
         expect(channel).not.toContain("localDev");
 
-        expect(source(files, pagePath)).toContain('useEveAgent({ host: "/api/agent" })');
-        expect(source(files, pagePath)).not.toContain("Cookie auth flows Better Auth");
+        const clientRoot = mode === "monorepo" ? "apps/web/src" : "src";
+        expect(source(files, pagePath)).toContain('from "@/features/agent/page"');
+        expect(source(files, `${clientRoot}/features/agent/page.tsx`)).toContain(
+          "useAgentConversation()",
+        );
+        expect(source(files, `${clientRoot}/features/agent/use-agent-conversation.ts`)).toContain(
+          "useAgentSession()",
+        );
+        expect(source(files, `${clientRoot}/features/agent/queries.ts`)).toContain(
+          'useEveAgent({ host: "/api/agent" })',
+        );
+        expect(
+          files
+            .filter(({ path }) => path.startsWith(`${clientRoot}/features/agent/`))
+            .map(({ content }) => content)
+            .join("\n"),
+        ).not.toContain("Cookie auth flows Better Auth");
         const route = source(files, routePath);
         expect(route).toContain("handleEveFacadeRequest");
         // Cache Components rejects route-segment runtime overrides. Next's

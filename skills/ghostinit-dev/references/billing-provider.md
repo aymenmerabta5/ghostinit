@@ -25,9 +25,14 @@ Reference files: `src/templates/billing/providers/stripe/`
 ## Paddle / Polar Differences
 
 - Paddle uses a public client-side token for Paddle.js and separate server API/webhook credentials. Never put an API key or notification secret in a public client-token variable.
-- Polar's provider modules include usage and licensing APIs; server credentials remain private.
+- Polar usage ingestion is a trusted-server adapter, not a browser operation. License keys are created by configured benefit grants; manual license issuance explicitly returns `NOT_SUPPORTED`. Existing license/usage records may appear in account snapshots. Server credentials remain private.
 
-## Step-by-Step Adding 5th Provider `myprovider`
+## Adding an online provider `myprovider`
+
+Manual payments are a separate receipt-review workflow, not an online SDK or
+webhook provider. Keep manual out of provider factories and SDK dependency maps.
+Classify a new online provider explicitly in the selection policy: global
+providers are mutually exclusive, with optional Chargily and manual payments.
 
 1. `packages/versions/src/index.ts` billing group:
 
@@ -43,10 +48,26 @@ export const billing = {
 } as const;
 ```
 
-2. `src/lib/constants.ts`:
+2. Provider choices live in `src/domain/project/choices.ts`; `src/lib/constants.ts`
+   re-exports them. For a new global provider, extend both online and global choices
+   without dropping the manual workflow:
 
 ```ts
-export const BILLING_PROVIDERS = ["stripe","chargily","paddle","polar","myprovider"] as const;
+export const ONLINE_BILLING_PROVIDERS = [
+  "stripe",
+  "chargily",
+  "paddle",
+  "polar",
+  "myprovider",
+] as const;
+export const GLOBAL_BILLING_PROVIDERS = ["stripe", "paddle", "polar", "myprovider"] as const;
+export const BILLING_PROVIDERS = [...ONLINE_BILLING_PROVIDERS, "manual"] as const;
+```
+
+Keep `src/domain/project/billing-selection.ts`, config schemas and public support
+metadata consistent. Add vendor placeholders to the environment manifest:
+
+```ts
 export const ENV_PLACEHOLDERS = {
   ...,
   MYPROVIDER_API_KEY: "REPLACE_WITH_MYPROVIDER_API_KEY",

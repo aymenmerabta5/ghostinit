@@ -59,7 +59,7 @@ describe("messaging navigation discoverability", () => {
     for (const framework of ["nextjs", "tanstack-start"] as const) {
       test(`${mode}/${framework} workspace navigation links to the emitted messages route only when enabled`, () => {
         const root = mode === "monorepo" ? "apps/web/" : "";
-        const headerPath = `${root}src/components/workspace-navigation.tsx`;
+        const headerPath = `${root}src/features/app-shell/navigation-model.ts`;
         const userMenuPath = `${root}src/components/header-user-menu.tsx`;
         const routePath =
           framework === "nextjs"
@@ -67,16 +67,20 @@ describe("messaging navigation discoverability", () => {
             : `${root}src/routes/messages.tsx`;
         const on = generated(mode, "web", true, framework);
         const off = generated(mode, "web", false, framework);
-        const header = source(on, headerPath);
+        const model = source(on, headerPath);
+        const header = source(on, `${root}src/components/workspace-navigation.tsx`);
         const userMenu = source(on, userMenuPath);
         const linkAttribute = framework === "nextjs" ? "href={path}" : "to={path}";
-        const menuNavigation =
+        const menuNavigation = 'onNavigate("/messages")';
+        const actions = source(on, `${root}src/features/app-shell/use-shell-actions.ts`);
+        expect(actions).toContain(
           framework === "nextjs"
-            ? 'router.push("/messages")'
-            : 'router.navigate({ to: "/messages" })';
+            ? "router.push(destination)"
+            : "router.navigate({ to: destination })",
+        );
 
         expect(header).toContain(linkAttribute);
-        expect(header).toContain('path: "/messages", label: "messages"');
+        expect(model).toContain('path: "/messages", label: "messages"');
         expect(header).toContain("{t(label)}");
         expect(userMenu).toContain(menuNavigation);
         expect(userMenu).toContain('t("messages")');
@@ -88,7 +92,8 @@ describe("messaging navigation discoverability", () => {
         expect(off.find(({ path }) => path === userMenuPath)?.content ?? "").not.toContain(
           menuNavigation,
         );
-        expectParses(header, headerPath);
+        expectParses(model, headerPath);
+        expectParses(header, `${root}src/components/workspace-navigation.tsx`);
         expectParses(userMenu, userMenuPath);
         expectParses(source(on, routePath), routePath);
       });
@@ -97,7 +102,7 @@ describe("messaging navigation discoverability", () => {
 
   test("monorepo/Expo dashboard links to its typed messages screen only when enabled", () => {
     const root = "apps/mobile/";
-    const dashboardPath = `${root}app/dashboard.tsx`;
+    const dashboardPath = `${root}src/features/dashboard/screen.tsx`;
     const routePath = `${root}app/(app)/messages.tsx`;
     const on = generated("monorepo", "mobile", true);
     const off = generated("monorepo", "mobile", false);
@@ -115,7 +120,7 @@ describe("messaging navigation discoverability", () => {
 
   test("monorepo/Electron header links to its typed messages route only when enabled", () => {
     const root = "apps/desktop/";
-    const headerPath = `${root}src/renderer/routes/__root.tsx`;
+    const headerPath = `${root}src/renderer/features/app-shell/components/navigation.tsx`;
     const routePath = `${root}src/renderer/routes/messages.tsx`;
     const on = generated("monorepo", "desktop", true);
     const off = generated("monorepo", "desktop", false);

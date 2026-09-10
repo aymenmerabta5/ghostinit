@@ -1,3 +1,4 @@
+import { file, type TemplateFile } from "../../../shared.js";
 import { nativeI18nTemplate } from "../native-i18n.js";
 
 export interface ExpoMarketingOptions {
@@ -7,7 +8,7 @@ export interface ExpoMarketingOptions {
   readonly hasI18n?: boolean;
 }
 
-export function buildExpoMarketingContent(options: ExpoMarketingOptions): string {
+function expoMarketingScreenContent(options: ExpoMarketingOptions): string {
   const { hasAuth, hasApi, hasBilling } = options;
   const hasI18n = options.hasI18n ?? false;
   const i18n = nativeI18nTemplate(hasI18n, "marketing");
@@ -42,7 +43,7 @@ ${hasAuth ? "" : "import { BrandWordmark } from '@/components/brand-wordmark';"}
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 ${i18nImport}
 
-export default function MarketingScreen() {
+export function MarketingScreen() {
 ${i18n.hookLine}
   return (
     <ScrollView className="flex-1 bg-background">
@@ -64,4 +65,18 @@ ${authActions}
   );
 }
 `;
+}
+
+export function buildExpoMarketingContent(_options: ExpoMarketingOptions): string {
+  return 'export { MarketingScreen as default } from "@/features/marketing/screen";\n';
+}
+export function expoMarketingFiles(
+  packageRoot: string,
+  options: ExpoMarketingOptions,
+): TemplateFile[] {
+  const prefix = packageRoot ? packageRoot + "/" : "";
+  return [
+    file(`${prefix}app/index.tsx`, buildExpoMarketingContent(options)),
+    file(`${prefix}src/features/marketing/screen.tsx`, expoMarketingScreenContent(options)),
+  ];
 }

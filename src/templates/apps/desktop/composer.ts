@@ -13,10 +13,14 @@ import {
 } from "../fragments/query-auth.js";
 import { queryAuthRegressionFile } from "../fragments/query-auth-tests.js";
 import { authOwnedEffectFile } from "../fragments/auth-owned-effect.js";
+import { authOwnedMutationFile } from "../fragments/auth-owned-mutation.js";
 import { desktopQueryClientContent } from "./clients.js";
 import { desktopIdentityFiles } from "./identity-files.js";
+import { desktopHomeFeatureFiles } from "./shell/home.js";
+import { desktopShellFeatureFiles } from "./shell/root.js";
 import { desktopApiTransportContent, desktopRendererFetchContent } from "./api-transport.js";
 import { desktopUiChatFiles } from "./ui/chat.js";
+import { desktopFormFiles, desktopTranslationFiles } from "./ui/form.js";
 import { desktopMainContent } from "./main.js";
 import { resolveDesktopBillingProviders, resolveDesktopCapabilities } from "./model.js";
 import { desktopOrpcContent } from "./orpc.js";
@@ -25,12 +29,14 @@ import { desktopPreloadContent } from "./preload.js";
 import { desktopRuntimeConfigContent } from "./runtime-config.js";
 import { desktopConvexStorageTransportContent } from "./convex-storage-transport.js";
 import { desktopRouteAdminContent } from "./routes/admin-overview.js";
+import { desktopAdminFeatureFiles } from "./routes/admin-feature.js";
 import {
   desktopRouteAdminCreateUserContent,
   desktopRouteAdminUsersContent,
 } from "./routes/admin-users.js";
-import { desktopRouteBillingContent } from "./routes/billing.js";
+import { nativeBillingFeatureFiles } from "../fragments/billing/native.js";
 import { billingMoneyFile } from "../../billing/ui/money.js";
+import { manualDesktopUiFiles } from "../../billing/ui/manual/index.js";
 import { desktopRouteTreeGenContent } from "./routes/route-tree.js";
 import {
   desktopProvidersContent,
@@ -76,6 +82,8 @@ export function desktopCoreFiles(
   const hasConvexStorage = hasConvexAuth && capabilities.hasMessaging;
   const rpcPath = "/api/rpc";
   const files: TemplateFile[] = [
+    ...desktopHomeFeatureFiles(capabilities, "monorepo"),
+    ...desktopShellFeatureFiles(capabilities, "monorepo"),
     file("apps/desktop/package.json", desktopPackageJsonContent(runtime, addons, "monorepo")),
     file("apps/desktop/tests/smoke.test.ts", desktopSmokeTestContent()),
     file("apps/desktop/tsr.config.json", desktopRouterConfigContent()),
@@ -213,8 +221,30 @@ export function desktopCoreFiles(
       queryAuthRegressionFile("apps/desktop", "../src/renderer/lib/query-client"),
     );
   }
+  if (capabilities.hasAuth && !capabilities.hasApi) {
+    files.push(
+      file("apps/desktop/src/renderer/lib/query-client.ts", desktopQueryClientContent()),
+      file(
+        "apps/desktop/src/renderer/lib/query-auth-boundary.tsx",
+        queryAuthCacheBoundaryContent("./auth", "./query-client", {
+          hasApi: false,
+          translationsImport: capabilities.hasI18n ? "./i18n" : "",
+          nativeTranslations: true,
+        }),
+      ),
+      queryAuthRegressionFile("apps/desktop", "../src/renderer/lib/query-client"),
+    );
+  }
+  if (!capabilities.hasAuth && !capabilities.hasApi)
+    files.push(file("apps/desktop/src/renderer/lib/query-client.ts", desktopQueryClientContent()));
   files.push(...desktopIdentityFiles(capabilities));
+  if (capabilities.hasAuth)
+    files.push(
+      ...desktopFormFiles("apps/desktop/src/renderer"),
+      ...desktopTranslationFiles("apps/desktop/src/renderer", capabilities.hasI18n),
+    );
   if (
+    capabilities.hasAuth ||
     capabilities.hasBilling ||
     capabilities.hasNotifications ||
     capabilities.hasJobs ||
@@ -223,18 +253,20 @@ export function desktopCoreFiles(
     capabilities.hasPdf
   ) {
     files.push(authOwnedEffectFile("apps/desktop/src/renderer"));
+    files.push(authOwnedMutationFile("apps/desktop/src/renderer"));
   }
   if (capabilities.hasBilling) {
     files.push(
+      ...(selectedBilling.includes("manual")
+        ? manualDesktopUiFiles("apps/desktop/src/renderer", capabilities.hasI18n)
+        : []),
       billingMoneyFile("apps/desktop/src/renderer"),
-      file(
-        "apps/desktop/src/renderer/routes/billing.tsx",
-        desktopRouteBillingContent(selectedBilling, capabilities.hasI18n, "monorepo"),
-      ),
+      ...nativeBillingFeatureFiles("desktop", "monorepo", selectedBilling, capabilities.hasI18n),
     );
   }
   if (capabilities.hasAdmin) {
     files.push(
+      ...desktopAdminFeatureFiles("monorepo", capabilities.hasI18n),
       file(
         "apps/desktop/src/renderer/routes/admin.tsx",
         desktopRouteAdminContent(hasConvexAuth, "monorepo", capabilities.hasI18n),

@@ -1,7 +1,14 @@
 import { uiUtilsContent } from "../ui/utils.js";
 import { file, type TemplateFile } from "../shared.js";
 import { expoAuthClientContent, expoOrpcClientContent } from "./fragments/expo/orpc.js";
-import { expoHeaderContent, expoSignOutButtonContent } from "./fragments/expo/header.js";
+import { identityPureClientFiles } from "./fragments/auth/client-validation.js";
+import { platformSurfaceTranslationFiles } from "./fragments/platform-surface-translations.js";
+import { nativeFormFieldFiles } from "./fragments/native-form-fields.js";
+import {
+  expoHeaderContent,
+  expoSignOutButtonContent,
+  expoShellFeatureFiles,
+} from "./fragments/expo/header.js";
 import { rnrAllFiles } from "./fragments/expo/rnr/index.js";
 import {
   expoNativeQueryClientContent,
@@ -9,7 +16,7 @@ import {
   expoPushHookContent,
 } from "./fragments/expo/native.js";
 import { convexClientProviderExpoContent } from "./fragments/convex-providers.js";
-import { expoAnalyticsFile } from "./fragments/expo/analytics.js";
+import { expoAnalyticsFiles } from "./fragments/expo/analytics.js";
 import { expoEveFiles, eveProtocolAcceptanceFile, eveProtocolFile } from "./fragments/eve/index.js";
 import { platformI18nFiles } from "./fragments/platform-i18n.js";
 import { resolveExpoCapabilities, type ExpoFeatureInput } from "./expo-core.js";
@@ -26,7 +33,7 @@ function headerContent(
   if (hasBilling) return content;
   const billingLabel = hasI18n ? '{t("billing")}' : "Billing";
   return content.replace(
-    `              <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>${billingLabel}</Text></Button></Link>\n`,
+    `          <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>${billingLabel}</Text></Button></Link>\n`,
     "",
   );
 }
@@ -44,6 +51,9 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
 
   if (capabilities.hasAuth) {
     files.push(
+      ...identityPureClientFiles("apps/mobile/src"),
+      ...platformSurfaceTranslationFiles("apps/mobile/src", capabilities.hasI18n),
+      ...nativeFormFieldFiles("apps/mobile/src"),
       file(
         "apps/mobile/src/lib/auth-client.ts",
         expoAuthClientContent(
@@ -53,14 +63,15 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
           capabilities.hasEmail,
         ),
       ),
-      file(
-        "apps/mobile/src/components/header.tsx",
+      ...expoShellFeatureFiles(
+        "apps/mobile/src",
         headerContent(
           capabilities.hasBilling,
           capabilities.hasI18n,
           capabilities.hasEve,
           capabilities.hasPdf,
         ),
+        capabilities.hasI18n,
       ),
       file(
         "apps/mobile/src/components/sign-out-button.tsx",
@@ -81,7 +92,7 @@ export function expoComponentFiles(input: ExpoFeatureInput = false): TemplateFil
     files.push(file("apps/mobile/src/hooks/use-billing.ts", expoUseBillingHook()));
   }
   if (capabilities.hasAnalytics) {
-    files.push(expoAnalyticsFile("monorepo"));
+    files.push(...expoAnalyticsFiles("monorepo"));
   }
   if (capabilities.hasEve) {
     files.push(

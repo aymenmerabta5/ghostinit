@@ -6,6 +6,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSurfaceTranslations } from "@/lib/translations";
+import { formatBillingSubscriptionStatus } from "../../status-labels";
 import type { Sub } from "${hookImportPath}";
 
 export function StripeSubscriptions({ subscriptions, loading }: { subscriptions: Sub[]; loading: boolean }): React.JSX.Element {
@@ -40,7 +41,7 @@ export function StripeSubscriptions({ subscriptions, loading }: { subscriptions:
               {subscriptions.map((subscription) => (
                 <TableRow key={subscription.id}>
                   <TableCell><Badge variant="secondary">{subscription.provider}</Badge></TableCell>
-                  <TableCell><Badge variant={subscription.status === "active" ? "secondary" : subscription.status === "past_due" ? "destructive" : "outline"} className="capitalize">{subscription.status}</Badge></TableCell>
+                  <TableCell><Badge variant={subscription.status === "active" ? "secondary" : subscription.status === "past_due" ? "destructive" : "outline"} className="capitalize">{formatBillingSubscriptionStatus(subscription.status, t)}</Badge></TableCell>
                   <TableCell className="text-muted-foreground">{subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd as string).toLocaleDateString() : "—"}</TableCell>
                   <TableCell className="truncate max-w-[18ch]">{subscription.customerId ?? "—"}</TableCell>
                 </TableRow>

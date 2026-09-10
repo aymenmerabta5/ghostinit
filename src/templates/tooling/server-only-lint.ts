@@ -1,4 +1,7 @@
 import { isPaddleBrowserAdapterFile } from "../../lib/architecture/rules/vendor.js";
+import { isConvexClientProtocolImport } from "../../lib/architecture/protocols/convex.js";
+import { DEFAULT_MAX_SOURCE_FILE_BYTES } from "../../lib/architecture/analyzer-helpers.js";
+import { isSingleExpoClientFile } from "../../lib/architecture/rules/platform-clients.js";
 
 // @allow-long 510: emitted server-only policy keeps resolution, taint propagation, and dominance analysis together
 
@@ -12,7 +15,7 @@ const TYPESCRIPT_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
 const JAVASCRIPT_EXTENSIONS = [".js", ".jsx", ".mjs", ".cjs"];
 const CODE_EXTENSIONS = [...TYPESCRIPT_EXTENSIONS, ...JAVASCRIPT_EXTENSIONS];
 const DECLARATION_EXTENSIONS = [".d.ts", ".d.mts", ".d.cts"];
-const SOURCE_ROOTS = ["src", "apps", "packages", "convex"];
+const SOURCE_ROOTS = ["src", "app", "apps", "packages", "convex"];
 const SKIPPED_DIRECTORIES = new Set([
   ".git",
   ".next",
@@ -61,7 +64,16 @@ function isCodeFile(file) {
 }
 function collect(directory, files) {
   if (!fs.existsSync(directory)) return;
-  if (path.resolve(directory) === path.join(process.cwd(), "convex", "_generated")) return;
+  if (path.resolve(directory) === path.join(process.cwd(), "convex", "_generated")) {
+    const protocol = path.join(directory, "api.js");
+    try { fs.lstatSync(protocol); } catch (error) { if (error.code === "ENOENT") return; throw error; }
+    const canonical = fs.realpathSync(protocol);
+    const relativeProtocol = path.relative(fs.realpathSync(process.cwd()), canonical);
+    if (relativeProtocol === ".." || relativeProtocol.startsWith(".." + path.sep) || path.isAbsolute(relativeProtocol)) throw new Error("Convex client protocol escapes project root");
+    if (!fs.statSync(canonical).isFile()) throw new Error("Convex client protocol must be a regular file");
+    files.push(protocol);
+    return;
+  }
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     if (SKIPPED_DIRECTORIES.has(entry.name)) continue;
     const target = path.join(directory, entry.name);
@@ -201,7 +213,17 @@ function isClientSurface(file, program) {
   return program.body.some((statement) => statement.directive === "use client") ||
     normalized.startsWith("apps/mobile/") ||
     normalized.startsWith("apps/desktop/src/renderer/") ||
-    normalized.startsWith("src/renderer/");
+    normalized.startsWith("src/renderer/") ||
+    isSingleExpoClientFile(normalized, rootDependencies());
+}
+const isSingleExpoClientFile = ${isSingleExpoClientFile.toString()};
+let rootDependencyNames;
+function rootDependencies() {
+  if (rootDependencyNames) return rootDependencyNames;
+  const manifestPath = path.join(process.cwd(), "package.json");
+  if (!fs.existsSync(manifestPath)) return rootDependencyNames = new Set();
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  return rootDependencyNames = new Set(["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"].flatMap((field) => Object.keys(manifest[field] || {})));
 }
 function isServerAction(program) {
   if (!program.body.some((statement) => statement.directive === "use server")) return false;
@@ -234,6 +256,7 @@ function isTanStackServerFunctionReference(file, program, source) {
           reference.specifier === "@/server/services/application")));
 }
 const isPaddleBrowserAdapterFile = ${isPaddleBrowserAdapterFile.toString()};
+const isConvexClientProtocolImport = ${isConvexClientProtocolImport.toString()};
 function isServerPackage(file, specifier) {
   if (specifier === "@paddle/paddle-js" && isPaddleBrowserAdapterFile(relative(file))) return false;
   return SERVER_PACKAGES.has(specifier) || SERVER_PREFIXES.some((prefix) => specifier.startsWith(prefix));
@@ -384,6 +407,7 @@ function main() {
   const resolutionErrors = [];
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
+    if (relative(file) === "convex/_generated/api.js" && Buffer.byteLength(source, "utf8") > ${DEFAULT_MAX_SOURCE_FILE_BYTES}) throw new Error("Convex client protocol exceeds source byte limit");
     const program = parseOwned(file, source);
     const node = {
       file,
@@ -423,7 +447,7 @@ function main() {
             publicEnvironmentOnly: !typeOnly && publicEnvironmentImport(program, reference, target),
           });
         }
-      } else if (!typeOnly && isServerPackage(file, reference.specifier)) {
+      } else if (!typeOnly && isServerPackage(file, reference.specifier) && !isConvexClientProtocolImport(relative(file), reference.node)) {
         node.directReason ??= "imports server runtime " + JSON.stringify(reference.specifier);
       }
     }

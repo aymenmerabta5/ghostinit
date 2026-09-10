@@ -4,33 +4,28 @@ export function identityWorkspaceInvitationsCardContent(hasI18n = false): string
   const i18n = identityWorkspaceWebI18n(hasI18n);
   return `"use client";
 import type * as React from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FieldGroup } from "@/components/ui/field";
+import { Form } from "@/components/ui/form";
 ${i18n.importLine}
-import type { IdentityWorkspaceController } from "../controller";
-import { organizationRole } from "../types";
+import type { WorkspaceInvitations } from "../use-workspace-invitations";
 import { InvitationRow } from "./invitation-row";
 
 interface InvitationsCardProps {
-  workspace: IdentityWorkspaceController;
+  model: WorkspaceInvitations;
 }
 
-export function InvitationsCard({ workspace }: InvitationsCardProps): React.JSX.Element {
+export function InvitationsCard({ model }: InvitationsCardProps): React.JSX.Element {
 ${i18n.hookLine}
-  const { acceptInvitation, access, cancelInvitation, invitations, inviteEmail, inviteMember, inviteRole,
-    organizationId, pending, permissions, run, setInviteEmail, setInviteRole } = workspace;
+  const { form, invitations, pending, permissions } = model;
   const roleItems = [{ label: t("roles.admin"), value: "admin" }, { label: t("roles.member"), value: "member" }] as const;
   return <Card><CardHeader><CardTitle>${i18n.child("invitations")}</CardTitle><CardDescription>${i18n.child("invitationsDescription")}</CardDescription></CardHeader><CardContent className="flex flex-col gap-3">
-    {access.canWriteInvitations ? <FieldGroup className="grid sm:grid-cols-[1fr_9rem_auto] sm:items-end">
-      <Field><FieldLabel htmlFor="invitation-email">${i18n.child("inviteEmail")}</FieldLabel><Input id="invitation-email" type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder={${i18n.value("inviteEmailPlaceholder")}} /></Field>
-      <Field><FieldLabel htmlFor="invitation-role">${i18n.child("roleLabel")}</FieldLabel><Select items={roleItems} value={inviteRole} onValueChange={(value) => setInviteRole(organizationRole(value))}><SelectTrigger id="invitation-role"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{roleItems.map((role) => <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-      <Button disabled={pending || !organizationId || !inviteEmail.includes("@")} onClick={() => organizationId && void run(() => inviteMember.mutateAsync({ organizationId, email: inviteEmail.trim(), role: inviteRole }))}>${i18n.child("invite")}</Button>
-    </FieldGroup> : null}
+    {model.canWrite ? <form.AppForm><Form form={form} className="flex flex-col gap-3"><FieldGroup className="grid sm:grid-cols-[1fr_9rem] sm:items-end">
+      <form.AppField name="email">{(field) => <field.TextField type="email" label={t("inviteEmail")} placeholder={t("inviteEmailPlaceholder")} required />}</form.AppField>
+      <form.AppField name="role">{(field) => <field.SelectField label={t("roleLabel")} options={roleItems} />}</form.AppField>
+    </FieldGroup><form.SubmitButton disabled={pending}>${i18n.child("invite")}</form.SubmitButton></Form></form.AppForm> : null}
     {!permissions.isPending && !permissions.hasError && !permissions.canReadInvitations ? <p className="text-sm text-muted-foreground">${i18n.child("invitationsRestricted")}</p> : null}
-    {permissions.canReadInvitations ? (invitations.data ?? []).map((invitation) => <InvitationRow key={invitation.id} invitation={invitation} pending={pending} canCancel={access.canWriteInvitations && invitations.isSuccess} canAccept={invitations.isSuccess && invitation.email.trim().toLocaleLowerCase("en-US") === permissions.currentUser?.email.trim().toLocaleLowerCase("en-US")} onAccept={(invitationId) => run(() => acceptInvitation.mutateAsync({ invitationId }))} onCancel={(invitationId) => run(() => cancelInvitation.mutateAsync({ invitationId }))} />) : null}
+    {permissions.canReadInvitations ? invitations.map((invitation) => <InvitationRow key={invitation.id} invitation={invitation} pending={pending} canCancel={model.canCancel} canAccept={model.canAccept(invitation)} onAccept={() => model.accept(invitation)} onCancel={() => model.cancel(invitation)} />) : null}
   </CardContent></Card>;
 }
 `;

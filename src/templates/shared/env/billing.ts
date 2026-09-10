@@ -21,7 +21,7 @@ export function billingEnvLines(
   const has = (n: BillingProviderName) => selected.includes(n);
   if (selected.length === 0) {
     out.push(
-      "# Billing: none selected — add via ghostinit add billing --provider stripe|chargily|paddle|polar|all",
+      "# Billing: none selected — choose up to one of stripe/paddle/polar, plus optional chargily and manual",
     );
     out.push("# Example when enabled:");
     out.push(`# STRIPE_SECRET_KEY=${ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`);
@@ -43,7 +43,13 @@ export function billingEnvLines(
     out.push(`# BILLING_POLAR_PRO_PRODUCT_ID=${ENV_PLACEHOLDERS.BILLING_POLAR_PRO_PRODUCT_ID}`);
     return out;
   }
-  out.push("# Billing (flexible any combo none/both/one/all) — selected providers only");
+  out.push(
+    "# Billing: one global provider, optional Chargily and manual payments — selected providers only",
+  );
+  if (has("manual"))
+    out.push(
+      "# Configure manual payment recipient instructions before enabling submissions (see docs/manual-payments.md).",
+    );
   if (has("stripe")) {
     out.push("# Stripe global cards");
     out.push(`STRIPE_SECRET_KEY=${ENV_PLACEHOLDERS.STRIPE_SECRET_KEY}`);

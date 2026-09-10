@@ -1,12 +1,16 @@
+import { convexManualSchemaContent } from "./manual-schema.js";
+
 export interface ConvexSchemaFeatures {
   auth?: boolean;
   billing?: boolean;
+  manualBilling?: boolean;
   posts?: boolean;
 }
 
 export function convexSchemaContent(features: ConvexSchemaFeatures = {}): string {
   const hasAuth = features.auth ?? true;
   const hasBilling = features.billing ?? true;
+  const hasManualBilling = hasAuth && (features.manualBilling ?? false);
   const hasPosts = hasAuth && (features.posts ?? true);
   const hasTables = hasAuth || hasBilling || hasPosts;
   return [
@@ -64,6 +68,7 @@ export function convexSchemaContent(features: ConvexSchemaFeatures = {}): string
       : []),
     "",
     "export default defineSchema({",
+    ...(hasManualBilling ? [convexManualSchemaContent()] : []),
     ...(hasAuth
       ? [
           "  users: defineTable({",

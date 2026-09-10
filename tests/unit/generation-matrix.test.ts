@@ -41,7 +41,7 @@ function cfg(partial: Partial<ProjectConfig>): ProjectConfig {
   } as ProjectConfig;
 }
 
-const CORNERS: Corner[] = [
+const CORNER_DEFINITIONS: Corner[] = [
   {
     label: "monorepo/next/postgres/all-billing",
     config: cfg({ billing: ["stripe", "chargily", "paddle", "polar"] }),
@@ -110,6 +110,35 @@ const CORNERS: Corner[] = [
       analytics: false,
     } as Partial<ProjectConfig>),
   },
+];
+
+const GLOBAL_PROVIDERS = ["stripe", "paddle", "polar"] as const;
+const CORNERS: Corner[] = [
+  ...CORNER_DEFINITIONS.flatMap((corner): Corner[] => {
+    const globals = GLOBAL_PROVIDERS.filter((provider) =>
+      corner.config.billing?.includes(provider),
+    );
+    if (globals.length < 2) return [corner];
+    return globals.map((provider) => ({
+      label: `${corner.label}/${provider}`,
+      config: { ...corner.config, billing: [provider, "chargily"] },
+    }));
+  }),
+  ...(["monorepo", "single"] as const).flatMap((mode) =>
+    (["nextjs", "tanstack-start"] as const).flatMap((framework) =>
+      (["postgres", "convex"] as const).flatMap((database) =>
+        (["manual-only", "manual-with-online"] as const).map((variant) => ({
+          label: `${mode}/${framework}/${database}/${variant}`,
+          config: cfg({
+            mode,
+            framework,
+            database,
+            billing: variant === "manual-only" ? ["manual"] : ["manual", "chargily", "stripe"],
+          }),
+        })),
+      ),
+    ),
+  ),
 ];
 
 function filesFor(config: ProjectConfig): TemplateFile[] {
@@ -249,7 +278,8 @@ describe("generation matrix — structural invariants across every mode/framewor
           if (!root) continue;
           for (const spec of importsOf(f.content)) {
             if (!spec.startsWith("@/")) continue;
-            const target = `${root}/${spec.slice(2)}`;
+            // Vite's asset query changes the imported value, not the source file.
+            const target = `${root}/${spec.slice(2).replace(/\?(?:url|raw)$/, "")}`;
             const candidates = [
               target,
               `${target}.ts`,
@@ -350,15 +380,30 @@ describe("generation matrix — structural invariants across every mode/framewor
     const adapter = files.find(
       ({ path }) => path === "apps/desktop/src/renderer/adapters/messaging/convex.ts",
     );
+    const queries = files.find(
+      ({ path }) => path === "apps/desktop/src/renderer/features/messaging/queries.ts",
+    );
+    const mutations = files.find(
+      ({ path }) => path === "apps/desktop/src/renderer/features/messaging/mutations.ts",
+    );
 
     expect(route, "desktop messages route").toBeDefined();
     expect(adapter, "desktop messaging adapter").toBeDefined();
+    expect(queries, "desktop messaging query adapter").toBeDefined();
+    expect(mutations, "desktop messaging mutation adapter").toBeDefined();
     expect(route?.content).not.toContain("convex/react");
     expect(route?.content).not.toContain("convex/_generated/api");
     expect(route?.content).not.toMatch(/from ["']\.\.\/\.\.\/\.\.\//);
-    expect(route?.content).toContain('from "@/adapters/messaging/convex"');
-    expect(adapter?.content).toContain('from "convex/react"');
-    expect(adapter?.content).toContain("convex/_generated/api");
+    expect(route?.content).toContain('from "@/features/messaging/screen"');
+    for (const dataAdapter of [queries, mutations]) {
+      expect(dataAdapter?.content).toContain('from "convex/react"');
+      expect(dataAdapter?.content).toContain("convex/_generated/api");
+      expect(dataAdapter?.content).not.toContain("convex/server");
+    }
+    expect(mutations?.content).toContain('from "@/adapters/messaging/convex"');
+    expect(adapter?.content).toContain("desktopBridgeFetch");
+    expect(adapter?.content).not.toContain("convex/react");
+    expect(adapter?.content).not.toContain("convex/_generated");
     expect(adapter?.content).not.toContain("convex/server");
   });
 

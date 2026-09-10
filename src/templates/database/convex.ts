@@ -11,6 +11,11 @@ import { convexBillingContent } from "./convex/billing.js";
 import { convexBillingServerContent } from "./convex/billing-server.js";
 import { convexGeneratedBootstrapFiles } from "./convex/generated.js";
 import { convexTypeScriptConfigFile } from "./convex/config.js";
+import { convexManualPaymentsContent } from "./convex/manual-payments.js";
+import { convexManualHttpContent } from "./convex/manual-http.js";
+import { convexManualUploadsContent } from "./convex/manual-uploads.js";
+import { convexManualRetentionContent } from "./convex/manual-retention.js";
+import { manualPaymentConfigContent } from "../billing/manual/config.js";
 import * as v from "../versions.js";
 import type { ProjectMode } from "../../lib/addons.js";
 
@@ -19,6 +24,7 @@ type Runtime = "node" | "bun";
 export interface ConvexDatabaseFeatures {
   auth?: boolean;
   billing?: boolean;
+  manualBilling?: boolean;
   email?: boolean;
   i18n?: boolean;
   mobile?: boolean;
@@ -57,6 +63,7 @@ export function convexDatabaseFiles(
   void runtime;
   const hasAuth = features.auth ?? true;
   const hasBilling = features.billing ?? true;
+  const hasManualBilling = hasAuth && (features.manualBilling ?? false);
   const hasEmail = features.email ?? true;
   const hasI18n = features.i18n ?? false;
   const hasMobile = features.mobile ?? false;
@@ -68,6 +75,7 @@ export function convexDatabaseFiles(
   const schemaContent = convexSchemaContent({
     auth: hasAuth,
     billing: hasBilling,
+    manualBilling: hasManualBilling,
     posts: hasPosts,
   });
 
@@ -94,7 +102,9 @@ export function convexDatabaseFiles(
     "",
   ].join("\n");
 
-  const authTsContent = hasAuth ? convexAuthContent(mode, hasEmail, hasI18n, hasMobile) : "";
+  const authTsContent = hasAuth
+    ? convexAuthContent(mode, hasEmail, hasI18n, hasMobile, hasManualBilling)
+    : "";
 
   const authAdapterContent = [
     'import { createApi } from "@convex-dev/better-auth";',
@@ -116,7 +126,7 @@ export function convexDatabaseFiles(
     "",
   ].join("\n");
 
-  const httpRouterContent = convexHttpContent(hasAuth);
+  const httpRouterContent = convexHttpContent(hasAuth, hasManualBilling);
 
   const libAuthContent = hasAuth ? convexLibAuthContent() : "";
 
@@ -306,6 +316,15 @@ export function convexDatabaseFiles(
     ...(hasPosts ? [file("convex/posts.ts", postsContent)] : []),
     ...(hasBilling ? [file("convex/billing.ts", billingContent)] : []),
     ...(hasBilling ? [file("convex/billingServer.ts", convexBillingServerContent())] : []),
+    ...(hasManualBilling
+      ? [
+          file("convex/manualPayments.ts", convexManualPaymentsContent()),
+          file("convex/manualPaymentsHttp.ts", convexManualHttpContent()),
+          file("convex/manualPaymentUploads.ts", convexManualUploadsContent()),
+          file("convex/manualPaymentRetention.ts", convexManualRetentionContent()),
+          file("convex/manualPaymentConfig.ts", manualPaymentConfigContent()),
+        ]
+      : []),
     ...convexGeneratedBootstrapFiles(),
     convexTypeScriptConfigFile(),
     file("convex.json", `${convexJsonContent}\n`),

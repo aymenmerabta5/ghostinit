@@ -59,20 +59,25 @@ describe("projectConfigSchema", () => {
     expect(parsed.billing).toEqual(["stripe"]);
   });
 
-  it("accepts multiple billing providers", () => {
-    const parsed = projectConfigSchema.parse({
-      name: "my-app",
-      billing: ["stripe", "polar"],
-    });
-    expect(parsed.billing).toEqual(["stripe", "polar"]);
+  it("accepts manual, Chargily, and one global provider", () => {
+    for (const global of ["stripe", "paddle", "polar"]) {
+      const billing = ["manual", "chargily", global];
+      expect(projectConfigSchema.parse({ name: "my-app", billing }).billing).toEqual(billing);
+    }
+    expect(projectConfigSchema.parse({ name: "my-app", billing: ["manual"] }).billing).toEqual([
+      "manual",
+    ]);
   });
 
-  it("accepts all billing providers", () => {
-    const parsed = projectConfigSchema.parse({
-      name: "my-app",
-      billing: [...billingProviders],
-    });
-    expect(parsed.billing.sort()).toEqual([...billingProviders].sort());
+  it("rejects multiple global providers and the full provider registry", () => {
+    for (const billing of [
+      ["stripe", "polar"],
+      ["stripe", "paddle"],
+      ["polar", "paddle"],
+      [...billingProviders],
+    ]) {
+      expect(projectConfigSchema.safeParse({ name: "my-app", billing }).success).toBe(false);
+    }
   });
 
   it("rejects invalid billing provider", () => {
@@ -81,6 +86,13 @@ describe("projectConfigSchema", () => {
       billing: ["invalid-provider"],
     });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects explicit storage disablement for manual payment receipts", () => {
+    expect(
+      projectConfigSchema.safeParse({ name: "my-app", billing: ["manual"], storage: false })
+        .success,
+    ).toBe(false);
   });
 
   it("accepts valid features", () => {
@@ -185,7 +197,7 @@ describe("stateSchema backward compat", () => {
         runtime: "bun",
         version: "0.1.0",
         mode: "single",
-        billing: ["stripe", "polar"],
+        billing: ["stripe", "chargily"],
         features: ["eve"],
         database: "postgres",
       },

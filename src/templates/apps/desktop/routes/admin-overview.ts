@@ -2,7 +2,7 @@ import { nativeI18nImportPath, nativeI18nTemplate } from "../../fragments/native
 import type { DesktopMode } from "../model.js";
 import { desktopOrpcSpecifier } from "./specifiers.js";
 
-export function desktopRouteAdminContent(
+export function desktopAdminOverviewSource(
   _isConvex = false,
   mode: DesktopMode = "monorepo",
   hasI18n = false,
@@ -54,5 +54,16 @@ ${errorsHook}
     </main>
   );
 }
+`;
+}
+
+export function desktopRouteAdminContent(
+  _isConvex = false,
+  mode: DesktopMode = "monorepo",
+  _hasI18n = false,
+): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { AdminOverviewScreen } from "${mode === "single" ? "@/renderer" : "@"}/features/admin-users/overview-screen";
+export const Route = createFileRoute("/admin")({ component: AdminOverviewScreen });
 `;
 }

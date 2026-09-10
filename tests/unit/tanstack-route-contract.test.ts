@@ -163,7 +163,12 @@ describe("generated TanStack route contracts", () => {
         }
       }
       expect(aliasEdges, `${database} emitted no @/ imports`).not.toEqual([]);
-      expect(aliasEdges).toContain("apps/web/src/routes/forbidden.tsx -> @/components/ui/button");
+      expect(aliasEdges).toContain(
+        "apps/web/src/routes/forbidden.tsx -> @/features/system/forbidden",
+      );
+      expect(aliasEdges).toContain(
+        "apps/web/src/features/system/forbidden.tsx -> @/components/ui/button",
+      );
       expect(byPath.has("apps/web/src/components/ui/button.tsx")).toBe(true);
       expect(unresolved).toEqual([]);
     }
@@ -201,9 +206,15 @@ describe("generated TanStack route contracts", () => {
       ].join("\n");
       expect(combined).toContain("createRequiredPasswordSchema");
       expect(combined).toContain("orpc.identity.sessions.list.queryOptions");
-      expect(combined).toContain("orpc.identity.sessions.revoke.mutationOptions");
-      expect(combined).toContain("orpc.identity.sessions.revokeOthers.mutationOptions");
-      expect(combined).toContain("invalidateIdentitySessions(queryClient)");
+      expect(combined).toContain("orpc.identity.sessions.revoke.call(input)");
+      expect(combined).toContain("orpc.identity.sessions.revokeOthers.call({})");
+      expect(combined).toContain(
+        "return useAuthOwnedMutation(async (input: { sessionId: string } | { others: true })",
+      );
+      expect(combined).toContain("const scope = currentQueryAuthScope(queryClient)");
+      expect(combined).toContain(
+        "if (scope) await queryClient.invalidateQueries({ queryKey: identitySessionsQueryKey(scope) })",
+      );
       expect(combined).not.toContain("authClient.revokeSession");
       expect(combined).not.toContain("authClient.revokeOtherSessions");
       expect(combined).not.toContain("errorMap");

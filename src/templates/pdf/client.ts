@@ -1,6 +1,7 @@
 export function usePdfHookContent(_basePath: string): string {
   return `"use client";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
+import { useMutation } from "@tanstack/react-query";
 
 export interface UsePdfOptions {
   endpoint?: string;
@@ -37,8 +38,6 @@ function resolvePdfEndpoint(value: string): string {
 export function usePdf(options: UsePdfOptions = {}) {
   const endpoint = options.endpoint ?? "/api/pdf";
   const captureOwner = options.captureOwner;
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const lifetime = useRef({ mounted: false, generation: 0 });
   useLayoutEffect(() => {
     lifetime.current.mounted = true;
@@ -51,11 +50,12 @@ export function usePdf(options: UsePdfOptions = {}) {
     return () => lifetime.current.mounted && lifetime.current.generation === generation && (ownsAuth?.() ?? true);
   }, [captureOwner]);
 
-  const generate = useCallback(async (input: { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string }) => {
-    const isCurrent = ownOperation();
-    requirePdfOwner(isCurrent);
-    setLoading(true); setError(null);
-    try {
+  type PdfInput = { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string };
+  const mutation = useMutation({
+    retry: false,
+    networkMode: "always",
+    mutationFn: async ({ input, preview, isCurrent }: { input: PdfInput; preview: boolean; isCurrent: () => boolean }) => {
+      requirePdfOwner(isCurrent);
       const res = await fetch(resolvePdfEndpoint(endpoint), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       if (!res.ok) throw new Error(\`PDF generation failed: \${res.status}\`);
       const json: unknown = await res.json();
@@ -64,43 +64,41 @@ export function usePdf(options: UsePdfOptions = {}) {
       const bytes = Uint8Array.from(atob(json.pdfBase64), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = safePdfFileName(typeof json.fileName === "string" ? json.fileName : input.fileName ?? \`\${input.template}.pdf\`);
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-      return json;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (isCurrent()) setError(msg); throw e;
-    } finally { if (isCurrent()) setLoading(false); }
-  }, [endpoint, ownOperation]);
+      if (!preview) {
+        const a = document.createElement("a");
+        a.href = url; a.download = safePdfFileName(typeof json.fileName === "string" ? json.fileName : input.fileName ?? \`\${input.template}.pdf\`);
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }
+      return { response: json, url };
+    },
+  });
+
+  const generate = useCallback(async (input: PdfInput) => {
+    const isCurrent = ownOperation();
+    requirePdfOwner(isCurrent);
+    const { response: json } = await mutation.mutateAsync({ input, preview: false, isCurrent });
+    requirePdfOwner(isCurrent);
+    return json;
+  }, [mutation.mutateAsync, ownOperation]);
 
   const preview = useCallback(async (input: Parameters<typeof generate>[0]) => {
     const isCurrent = ownOperation();
     requirePdfOwner(isCurrent);
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch(resolvePdfEndpoint(endpoint), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-      if (!res.ok) throw new Error(\`Preview failed: \${res.status}\`);
-      const json: unknown = await res.json();
-      requirePdfOwner(isCurrent);
-      if (!isRecord(json) || typeof json.pdfBase64 !== "string") throw new Error("Invalid PDF response");
-      const bytes = Uint8Array.from(atob(json.pdfBase64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      return URL.createObjectURL(blob);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (isCurrent()) setError(msg); throw e;
-    } finally { if (isCurrent()) setLoading(false); }
-  }, [endpoint, ownOperation]);
+    const { url } = await mutation.mutateAsync({ input, preview: true, isCurrent });
+    requirePdfOwner(isCurrent);
+    return url;
+  }, [mutation.mutateAsync, ownOperation]);
 
-  return { generate, preview, loading, error };
+  const ownsState = mutation.variables?.isCurrent() ?? true;
+  return { generate, preview, loading: ownsState && mutation.isPending, error: ownsState ? mutation.error?.message ?? null : null };
 }
 `;
 }
 
 export function usePdfMobileContent(mode: "monorepo" | "single" = "monorepo"): string {
-  return `import { useCallback, useState } from "react";
+  return `import { useCallback } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
@@ -145,14 +143,12 @@ function safePdfFileName(value: string): string {
 export function usePdfMobile(options: { endpoint?: string } = {}) {
   const endpoint = resolvePdfEndpoint(options.endpoint);
   const ownOperation = useAuthOwnedEffect();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const generateAndShare = useCallback(async (input: { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string }) => {
-    const isCurrent = ownOperation();
-    requirePdfOwner(isCurrent);
-    setLoading(true); setError(null);
-    try {
+  type PdfInput = { template: "invoice" | "certificate" | "agreement"; data: unknown; locale?: string; fileName?: string };
+  const mutation = useMutation({
+    retry: false,
+    networkMode: "always",
+    mutationFn: async ({ input, isCurrent }: { input: PdfInput; isCurrent: () => boolean }) => {
+      requirePdfOwner(isCurrent);
       const cookie = Platform.OS === "web" ? null : await authClient.getCookie();
       requirePdfOwner(isCurrent);
       const headers: Record<string, string> = { "Content-Type": "application/json", ...(cookie ? { cookie } : {}) };
@@ -186,13 +182,16 @@ export function usePdfMobile(options: { endpoint?: string } = {}) {
       }
       requirePdfOwner(isCurrent);
       return file.uri;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (isCurrent()) setError(msg); throw e;
-    } finally { if (isCurrent()) setLoading(false); }
-  }, [endpoint, ownOperation]);
+    },
+  });
+  const generateAndShare = useCallback(async (input: PdfInput) => {
+    const isCurrent = ownOperation();
+    requirePdfOwner(isCurrent);
+    return mutation.mutateAsync({ input, isCurrent });
+  }, [mutation.mutateAsync, ownOperation]);
 
-  return { generateAndShare, loading, error };
+  const ownsState = mutation.variables?.isCurrent() ?? true;
+  return { generateAndShare, loading: ownsState && mutation.isPending, error: ownsState ? mutation.error?.message ?? null : null };
 }
 `;
 }

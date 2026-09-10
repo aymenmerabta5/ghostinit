@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import { parseSync } from "oxc-parser";
 import { file, type TemplateFile } from "../../shared.js";
+import { isDirectClientPageWrapper, requestMetadataBinding } from "./request-localized-wrapper.js";
 
 type Program = ReturnType<typeof parseSync>["program"];
 type ExportStatement = Extract<Program["body"][number], { type: "ExportNamedDeclaration" }>;
@@ -109,15 +110,23 @@ function resolveSource(
     .find((entry) => entry !== undefined);
 }
 
-function wrapper(importStatement: string, preserved: readonly string[] = []): string {
+function metadataImport(binding: string): string {
+  const specifier =
+    binding === "RequestLocalizedMetadataBoundary"
+      ? binding
+      : `RequestLocalizedMetadataBoundary as ${binding}`;
+  return `import { ${specifier} } from "@/lib/request-localized-metadata";`;
+}
+
+function wrapper(importStatement: string, preserved: readonly string[], boundary: string): string {
   return `import type { ComponentProps as GhostinitPageProps } from "react";
-import { RequestLocalizedMetadataBoundary } from "@/lib/request-localized-metadata";
+${metadataImport(boundary)}
 ${importStatement}
 ${preserved.join("\n")}
 
 export default function RequestLocalizedPage(props: GhostinitPageProps<typeof GhostinitPageContent> & object) {
   return <>
-    <RequestLocalizedMetadataBoundary />
+    <${boundary} />
     <GhostinitPageContent {...props} />
   </>;
 }
@@ -161,7 +170,7 @@ function clientReexport(
           ]
         : [];
     });
-    return wrapper(importStatement, preserved);
+    return wrapper(importStatement, preserved, requestMetadataBinding(program));
   }
   return null;
 }
@@ -202,12 +211,14 @@ function staticServerPage(entry: TemplateFile, program: Program): string {
   if (!argument || (argument.type !== "JSXElement" && argument.type !== "JSXFragment")) {
     throw new Error(`Static localized page must return one JSX tree: ${entry.path}`);
   }
+  const boundary = requestMetadataBinding(program);
   // OXC's UTF-16 ranges preserve imports, metadata exports, and the original
-  // page tree. This explicit composition applies only to declared static pages.
+  // page tree. Callers identify declared static pages or direct client wrappers.
   return (
-    'import { RequestLocalizedMetadataBoundary } from "@/lib/request-localized-metadata";\n' +
+    metadataImport(boundary) +
+    "\n" +
     entry.content.slice(0, argument.start) +
-    "<><RequestLocalizedMetadataBoundary />" +
+    `<><${boundary} />` +
     entry.content.slice(argument.start, argument.end) +
     "</>" +
     entry.content.slice(argument.end)
@@ -248,13 +259,20 @@ export function composeRequestLocalizedPages(
           wrapper(
             'import GhostinitPageContent from "./page.client";',
             namedClientExports(program, entry.path),
+            requestMetadataBinding(program),
           ),
         ),
       );
       composed = true;
       continue;
     }
-    const content = clientReexport(entry, program, files, sourceRoot);
+    const directClientWrapper = isDirectClientPageWrapper(program, (source) => {
+      const target = resolveSource(files, entry.path, source, sourceRoot);
+      return target !== undefined && isClient(parse(target));
+    });
+    const content = directClientWrapper
+      ? staticServerPage(entry, program)
+      : clientReexport(entry, program, files, sourceRoot);
     result.push(content === null ? entry : file(entry.path, content));
     composed ||= content !== null;
   }

@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
     inputs:
       billing:
-        description: "Billing providers"
-        default: "all"
+        description: "At most one of stripe, paddle, polar; optional chargily and manual"
+        default: "stripe,chargily,manual"
         required: false
         type: string
       framework:
@@ -115,13 +115,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - id: tanstack-all
+          - id: tanstack-polar-manual
             framework: tanstack-start
-            billing: all
+            billing: polar,chargily,manual
             features: eve
-          - id: next-all
+          - id: next-paddle-manual
             framework: nextjs
-            billing: all
+            billing: paddle,chargily,manual
             features: eve,i18n
           - id: next-dual
             framework: nextjs

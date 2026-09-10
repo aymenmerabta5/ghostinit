@@ -1,42 +1,37 @@
-/** Shared browser form; the request application remains the merchant authority. */
-export function billingPaymentLinkFormContent(hookImport: string): string {
+export function billingPaymentLinkFormContent(_hookImport = ""): string {
   return `"use client";
-import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useSurfaceTranslations } from "@/lib/translations";
-import { useBillingPage, type ProviderName } from "${hookImport}";
-import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";
+import type * as React from "react";
+import { usePaymentLinkForm } from "./use-payment-link-form";
+import { BillingPaymentLinkView } from "./components/payment-link-form";
 
-export function BillingPaymentLinkForm({ provider }: { provider: ProviderName }): React.JSX.Element {
-  const t = useSurfaceTranslations("billing");
-  const captureEffect = useAuthOwnedEffect();
-  const { canCreatePaymentLinks, handlePaymentLink, isPaymentLinkLoading } = useBillingPage();
-  const [name, setName] = React.useState("");
-  const [price, setPrice] = React.useState("");
-  const [url, setUrl] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  if (!canCreatePaymentLinks) return <p className="text-sm text-muted-foreground">{t("adminPaymentLinks")}</p>;
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const isCurrent = captureEffect();
-    if (!isCurrent()) return;
-    setError(null); setUrl(null);
-    try { const result = await handlePaymentLink(provider, name.trim(), price.trim()); if (isCurrent()) setUrl(result); }
-    catch { if (isCurrent()) setError(t("paymentLinkError")); }
-  }
-  return <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3">
-    <FieldGroup><Field><FieldLabel htmlFor={provider + "-payment-link-name"}>{t("paymentLinkName")}</FieldLabel><Input id={provider + "-payment-link-name"} value={name} maxLength={120} required onChange={(event) => setName(event.target.value)} /></Field><Field><FieldLabel htmlFor={provider + "-payment-link-price"}>{t("providerPriceId")}</FieldLabel><Input id={provider + "-payment-link-price"} value={price} maxLength={200} required onChange={(event) => setPrice(event.target.value)} /></Field></FieldGroup>
-    <Button type="submit" variant="outline" disabled={isPaymentLinkLoading || !name.trim() || !price.trim()}>{t("createPaymentLink")}</Button>
-    {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
-    {url ? <a className="break-all text-sm underline" href={url} target="_blank" rel="noreferrer">{url}</a> : null}
-  </form>;
+export function BillingPaymentLinkForm({ allowed }: { allowed: boolean }): React.JSX.Element {
+  const state = usePaymentLinkForm(allowed);
+  return <BillingPaymentLinkView state={state} />;
 }
 `;
 }
+export function billingPaymentLinkViewContent(): string {
+  return `"use client";
+import type * as React from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Form } from "@/components/ui/form";
+import { FieldGroup } from "@/components/ui/field";
+import { useSurfaceTranslations } from "@/lib/translations";
+import type { PaymentLinkFormState } from "../types";
 
+export function BillingPaymentLinkView({ state }: { state: PaymentLinkFormState }): React.JSX.Element {
+  const t = useSurfaceTranslations("billing");
+  const { form, allowed, error, url } = state;
+  if (!allowed) return <p className="text-sm text-muted-foreground">{t("adminPaymentLinks")}</p>;
+  return <form.AppForm><Form form={form} className="flex flex-col gap-3">
+    <FieldGroup><form.AppField name="name">{(field) => <field.TextField label={t("paymentLinkName")} maxLength={120} required />}</form.AppField><form.AppField name="price">{(field) => <field.TextField label={t("providerPriceId")} maxLength={200} required />}</form.AppField></FieldGroup>
+    <form.SubmitButton variant="outline">{t("createPaymentLink")}</form.SubmitButton>
+    {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
+    {url ? <a className="break-all text-sm underline" href={url} target="_blank" rel="noreferrer">{url}</a> : null}
+  </Form></form.AppForm>;
+}
+`;
+}
 export const billingProviderUrlContent = `export function safeBillingProviderUrl(value: string): string {
   const url = new URL(value);
   const localHttp = url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);

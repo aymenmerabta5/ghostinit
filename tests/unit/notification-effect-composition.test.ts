@@ -48,7 +48,19 @@ describe("shared notification effect guard composition", () => {
               plan.files.find(
                 (file) => file.physicalPath === `${sourceRoot}/features/notifications/page.tsx`,
               )?.content,
-            ).toContain('from "@/hooks/use-auth-owned-effect"');
+            ).toContain('from "./use-notification-workspace"');
+            expect(
+              plan.files.find(
+                (file) =>
+                  file.physicalPath ===
+                  `${sourceRoot}/features/notifications/use-notification-workspace.ts`,
+              )?.content,
+            ).toContain('from "@/hooks/use-auth-owned-mutation"');
+            const mutationGuards = plan.files.filter(
+              (file) => file.physicalPath === `${sourceRoot}/hooks/use-auth-owned-mutation.ts`,
+            );
+            expect(mutationGuards).toHaveLength(1);
+            expect(mutationGuards[0]!.content).toContain('from "./use-auth-owned-effect"');
           }
           if (withBilling) return;
           const root = mkdtempSync(join(tmpdir(), "ghostinit-notification-effects-"));

@@ -1,3 +1,4 @@
+// @allow-long 500: shared four-platform fixture executes emitted ownership guards, query state, mutations, workflows, and native URL effects together
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 
@@ -154,6 +155,7 @@ export function billingHarness(target: Target, mode: "single" | "monorepo" = "mo
     },
     useCallback: (callback: unknown) => callback,
     useMemo: (factory: () => unknown) => factory(),
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
     useEffect() {},
     useLayoutEffect(effect: () => () => void, deps: unknown[]) {
       const index = cursor++;
@@ -181,19 +183,78 @@ export function billingHarness(target: Target, mode: "single" | "monorepo" = "mo
   const snapshot = { data: { subscriptions: [], invoices: [] }, refetch: async () => {} };
   const location = {
     origin: "https://app.example.test",
+    assign(value: string) {
+      opened.push(value);
+    },
     set href(value: string) {
       opened.push(value);
     },
   };
   const bindings: Record<string, unknown> = {
     React: react,
+    useQueryClient: () => client,
+    currentQueryAuthGeneration: ownership.currentQueryAuthGeneration,
+    subscribeQueryAuthGeneration: () => () => {},
     useAuthOwnedEffect: guard.useAuthOwnedEffect,
     useAuth: () => ({ isAuthenticated: true }),
     useQuery: () => ({ ...snapshot, data: { ...snapshot.data, user: { role: "admin" } } }),
-    useMutation: ({ operation }: { operation: Operation }) => ({
-      isPending: false,
-      mutateAsync: () => invoke(operation),
-    }),
+    useMutation: (options: {
+      mutationFn(input: unknown): Promise<unknown>;
+      onSuccess?(data: unknown, input: unknown): Promise<void>;
+      onError?(error: unknown, input: unknown): Promise<void>;
+    }) => {
+      const cell = react.useRef({
+        options,
+        variables: undefined,
+        data: undefined,
+        error: null,
+        isPending: false,
+        isSuccess: false,
+      }) as {
+        current: {
+          options: typeof options;
+          variables?: unknown;
+          data?: unknown;
+          error: unknown;
+          isPending: boolean;
+          isSuccess: boolean;
+        };
+      };
+      const state = cell.current;
+      state.options = options;
+      return {
+        ...state,
+        reset: () =>
+          Object.assign(state, {
+            variables: undefined,
+            data: undefined,
+            error: null,
+            isPending: false,
+            isSuccess: false,
+          }),
+        mutateAsync: async (input: unknown) => {
+          const selected = state.options;
+          Object.assign(state, {
+            variables: input,
+            error: null,
+            data: undefined,
+            isPending: true,
+            isSuccess: false,
+          });
+          try {
+            const data = await selected.mutationFn(input);
+            await selected.onSuccess?.(data, input);
+            Object.assign(state, { data, isPending: false, isSuccess: true });
+            return data;
+          } catch (error) {
+            await selected.onError?.(error, input);
+            Object.assign(state, { error, isPending: false });
+            throw error;
+          }
+        },
+      };
+    },
+    createPaymentLinkSchema: () => ({}),
     useBillingSnapshot: () => snapshot,
     useBillingIdentity: () => ({ data: { user: { role: "admin" } } }),
     createBillingCheckoutAction: () => invoke("checkout"),
@@ -247,6 +308,13 @@ export function billingHarness(target: Target, mode: "single" | "monorepo" = "mo
         createPaymentLink: mutation("paymentLink"),
       },
     },
+    orpcClient: {
+      billing: {
+        createCheckout: () => invoke("checkout"),
+        createPortalSession: () => invoke("portal"),
+        createPaymentLink: () => invoke("paymentLink"),
+      },
+    },
     createFileRoute: () => (options: unknown) => options,
     useSurfaceTranslations: () => (key: string) => key,
   };
@@ -275,49 +343,91 @@ export function billingHarness(target: Target, mode: "single" | "monorepo" = "mo
     "EmptyDescription",
   ])
     bindings[component] = component;
-  const sourcePath =
-    target === "next"
-      ? `${root}/app/billing/hooks/use-billing-page.ts`
-      : target === "tanstack"
-        ? `${root}/features/billing/use-billing.ts`
-        : target === "expo"
-          ? "apps/mobile/app/billing.tsx"
-          : `${root}/routes/billing.tsx`;
-  const name =
-    target === "next" || target === "tanstack"
-      ? "useBillingPage"
-      : target === "expo"
-        ? "BillingScreen"
-        : "BillingPage";
-  const loaded = load<Record<string, () => unknown>>(read(sourcePath), name, bindings);
-  const render = () => {
-    cursor = 0;
-    return loaded[name]!();
+  interface FormOptions {
+    defaultValues: Record<string, string>;
+    onSubmit(input: { value: Record<string, string> }): Promise<void>;
+  }
+  interface Form {
+    values: Record<string, string>;
+    options: FormOptions;
+    pending: boolean;
+    handleSubmit(): Promise<void>;
+    reset(): void;
+  }
+  const useForm = (options: FormOptions): Form => {
+    const ref = react.useRef(null) as { current: Form | null };
+    ref.current ??= {
+      values: { ...options.defaultValues },
+      options,
+      pending: false,
+      async handleSubmit() {
+        const form = ref.current!;
+        if (form.pending) return;
+        form.pending = true;
+        try {
+          await form.options.onSubmit({ value: form.values });
+        } finally {
+          form.pending = false;
+        }
+      },
+      reset() {
+        ref.current!.values = { ...ref.current!.options.defaultValues };
+      },
+    };
+    ref.current.options = options;
+    return ref.current;
   };
-  const form =
-    target === "next" || target === "tanstack"
-      ? load<{ BillingPaymentLinkForm(props: unknown): unknown }>(
-          read(
-            target === "next"
-              ? `${root}/app/billing/components/payment-link-form.tsx`
-              : `${root}/features/billing/payment-link-form.tsx`,
-          ),
-          "BillingPaymentLinkForm",
-          { ...bindings, useBillingPage: loaded[name] },
-        )
-      : null;
+  bindings.useAppForm = useForm;
+  bindings.useForm = useForm;
+  const web = target === "next" || target === "tanstack";
+  const source = [
+    read(root + "/hooks/use-auth-owned-mutation.ts"),
+    read(root + "/features/billing/mutations.ts"),
+    read(root + "/features/billing/use-billing-actions.ts"),
+    read(root + "/features/billing/use-payment-link-form.ts"),
+  ].join("\n");
+  const probe = web
+    ? "\nfunction Probe() { const actions = useBillingActions(); const model = usePaymentLinkForm(true); return { actions, model, form: model.form }; }"
+    : "\nfunction Probe() { const actions = useBillingActions(() => {}); const form = usePaymentLinkForm('chargily', actions.submit, { defaultName: 'Plan', required: 'Required', completed: 'Payment received' }); return { actions, form }; }";
+  type Model = {
+    actions: {
+      handleCheckout?(provider: string): Promise<void>;
+      handlePortal?(provider: string): Promise<void>;
+      copyText?(value: string): Promise<void>;
+      run?(input: unknown): Promise<unknown>;
+      error?: unknown;
+      isCheckoutLoading?: boolean;
+    };
+    form: Form;
+    model?: { url: string | null };
+  };
+  const loaded = load<{ Probe(): Model }>(source + probe, "Probe", bindings);
+  const model = () => {
+    cursor = 0;
+    return loaded.Probe();
+  };
   return {
     request,
     calls,
     opened,
     copied,
     notices,
-    render,
-    renderForm() {
-      if (!form) throw new Error("No web form");
-      cursor = 0;
-      return form.BillingPaymentLinkForm({ provider: "chargily" });
+    render: () => model().actions,
+    async start(operation: Operation): Promise<unknown> {
+      const current = model();
+      if (operation === "paymentLink") {
+        current.form.values.name = "Plan";
+        current.form.values.price = "price-current";
+        await current.form.handleSubmit();
+        return web ? (model().model?.url ?? null) : undefined;
+      }
+      if (web)
+        return operation === "checkout"
+          ? current.actions.handleCheckout!("stripe")
+          : current.actions.handlePortal!("stripe");
+      return current.actions.run!({ kind: operation, provider: "stripe" });
     },
+    paymentLinkUrl: () => model().model?.url ?? null,
     changeOwner(id = "owner-b") {
       ownership.transitionQueryAuthScope(client, scope(id));
     },

@@ -1,3 +1,4 @@
+import { file, type TemplateFile } from "../../../shared.js";
 /**
  * Expo header + sign-out fragments - RNR + Uniwind className, no StyleSheet, no hardcoded hex
  */
@@ -70,27 +71,86 @@ ${i18nHook}  const router = useRouter();
 `;
 }
 
-export function expoSignOutButtonContent(hasI18n = false): string {
-  const i18nImport = hasI18n ? 'import { useTranslations } from "@/lib/i18n";' : "";
-  const i18nHook = hasI18n ? '  const t = useTranslations("navigation");\n' : "";
-  const label = hasI18n ? 't("signOut")' : '"Sign out"';
-  return `import * as React from "react";
-import { useRouter } from "expo-router";
-import { authClient } from "@/lib/auth-client";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-${i18nImport}
-
-export function SignOutButton(): React.JSX.Element {
-${i18nHook}  const router = useRouter();
-  const [pending, setPending] = useState(false);
-
-  async function handleSignOut(): Promise<void> {
-    setPending(true);
-    try { await authClient.signOut(); } finally { setPending(false); router.replace("/"); }
-  }
-
-  return <Button size="sm" variant="outline" accessibilityLabel={${label}} isLoading={pending} onPress={handleSignOut} disabled={pending}>{${label}}</Button>;
+export function expoSignOutButtonContent(_hasI18n = false): string {
+  return 'export { SignOutButton } from "@/features/app-shell/sign-out-button";\n';
 }
-`;
+export function expoShellFeatureFiles(
+  sourceRoot: string,
+  headerSource: string,
+  hasI18n: boolean,
+): TemplateFile[] {
+  const root = `${sourceRoot}/features/app-shell`;
+  const modelStart = headerSource.indexOf("function getInitials(");
+  const modelEnd = headerSource.indexOf("export function Header", modelStart);
+  const model = headerSource
+    .slice(modelStart, modelEnd)
+    .replace("function getInitials", "export function getInitials");
+  const header = (headerSource.slice(0, modelStart) + headerSource.slice(modelEnd))
+    .replace(
+      'import { useRouter, Link } from "expo-router";',
+      'import { Link } from "expo-router";',
+    )
+    .replace(
+      'import { authClient } from "@/lib/auth-client";',
+      'import { useHeaderIdentity } from "./queries";\nimport { getInitials } from "./model";',
+    )
+    .replace(
+      "  const router = useRouter();\n  const { data: session, isPending } = authClient.useSession();\n  const user = session?.user;",
+      "  const { user, isPending } = useHeaderIdentity();",
+    )
+    .replace(
+      '<Button size="icon" variant="secondary"',
+      '<Link href="/settings" asChild><Button size="icon" variant="secondary"',
+    )
+    .replace(' onPress={() => router.push("/settings")}', "")
+    .replace("{initials}</Text></Button>", "{initials}</Text></Button></Link>");
+  return [
+    file(
+      `${sourceRoot}/components/header.tsx`,
+      'export { Header } from "@/features/app-shell/header";\n',
+    ),
+    file(`${root}/header.tsx`, header),
+    file(`${root}/model.ts`, model),
+    file(
+      `${root}/queries.ts`,
+      `import { authClient } from "@/lib/auth-client";
+export function useHeaderIdentity() { const { data: session, isPending } = authClient.useSession(); return { user: session?.user, isPending }; }
+`,
+    ),
+    file(
+      `${root}/mutations.ts`,
+      `import { authClient } from "@/lib/auth-client";
+export async function signOutMobile(): Promise<void> { await authClient.signOut(); }
+`,
+    ),
+    file(
+      `${root}/use-sign-out.ts`,
+      `import { useState } from "react";
+import { useRouter } from "expo-router";
+import { signOutMobile } from "./mutations";
+export function useSignOut() {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  async function signOut(): Promise<void> {
+    setPending(true);
+    try { await signOutMobile(); } finally { setPending(false); router.replace("/"); }
+  }
+  return { pending, signOut };
+}
+`,
+    ),
+    file(
+      `${root}/sign-out-button.tsx`,
+      `import type * as React from "react";
+import { Button } from "@/components/ui/button";
+import { useSignOut } from "./use-sign-out";
+${hasI18n ? 'import { useTranslations } from "@/lib/i18n";' : ""}
+export function SignOutButton(): React.JSX.Element {
+${hasI18n ? '  const t = useTranslations("navigation");' : ""}
+  const { pending, signOut } = useSignOut();
+  return <Button size="sm" variant="outline" accessibilityLabel={${hasI18n ? 't("signOut")' : '"Sign out"'}} isLoading={pending} onPress={signOut} disabled={pending}>{${hasI18n ? 't("signOut")' : '"Sign out"'}}</Button>;
+}
+`,
+    ),
+  ];
 }

@@ -21,12 +21,7 @@ function loadGeneratedHelpers(
   const source = nativeExpoMessagingFiles(database, "monorepo").find((file) =>
     file.path.endsWith(`/${database}.ts`),
   )!.content;
-  const helpers = source
-    .slice(
-      source.indexOf("function apiUrl"),
-      source.indexOf("export async function downloadNativeAttachment"),
-    )
-    .replaceAll("export async function", "async function");
+  const helpers = source.replace(/^import[^\n]*\n/gm, "").replace(/^export /gm, "");
   const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(helpers);
   const pickerArguments: unknown[] = [];
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -57,8 +52,12 @@ function loadGeneratedHelpers(
     { EXPO_PUBLIC_API_URL: "https://native.fixture.example" },
     fetcher,
   ) as {
-    pickNativeAttachment(): Promise<AttachmentDraft | null>;
-    uploadNativeAttachment(conversationId: string, draft: AttachmentDraft): Promise<string>;
+    pickNativeAttachment(isCurrent?: () => boolean): Promise<AttachmentDraft | null>;
+    uploadNativeAttachment(
+      conversationId: string,
+      draft: AttachmentDraft,
+      isCurrent?: () => boolean,
+    ): Promise<string>;
   };
   return { adapter, pickerArguments, requests };
 }
@@ -105,6 +104,25 @@ describe("generated Expo messaging file-picker contract", () => {
           result: null,
         });
         expect(await adapter.pickNativeAttachment()).toBeNull();
+        expect(requests).toEqual([]);
+      });
+
+      test(`${database}/${platform} rejects an expired owner before opening the picker or reading a file`, async () => {
+        const { adapter, pickerArguments, requests } = loadGeneratedHelpers(database, platform, {
+          canceled: false,
+          result: { uri: "file:///device/note.txt", name: "note.txt", type: "text/plain" },
+        });
+        await expect(adapter.pickNativeAttachment(() => false)).rejects.toThrow(
+          "attachment action owner changed",
+        );
+        await expect(
+          adapter.uploadNativeAttachment(
+            "owned-conversation",
+            { uri: "file:///device/note.txt", name: "note.txt", mimeType: "text/plain" },
+            () => false,
+          ),
+        ).rejects.toThrow("attachment action owner changed");
+        expect(pickerArguments).toEqual([]);
         expect(requests).toEqual([]);
       });
     }

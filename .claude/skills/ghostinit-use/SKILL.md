@@ -26,35 +26,37 @@ ghostinit create my-app --dry-run --json --yes | jq .data.files  # machine diff:
 
 Name rule: `^[a-z][a-z0-9-]*$` — lowercase, numbers, hyphens, starts with letter.
 
+The project owner may change or remove GhostInit and its policies. Generated lint/typecheck commands remain independently usable. Agents must not silently remove or weaken safeguards to make work pass; changing those safeguards requires explicit developer authorization.
+
 ## Create Options
 
-| Flag               | Values                                                    | Default    | Guidance                                                                                                                                                                                                                                            |
-| ------------------ | --------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--preset`         | `saas`, `frontend`, `custom`                              | `saas`     | saas=full Auth+DB+API+Email+Analytics+optional billing/cache; frontend=minimal apps/web+ui+config only; custom=pick via --with-*                                                                                                                    |
-| `--mode`           | `monorepo`, `single`                                      | `monorepo` | monorepo = `apps/* + packages/* + tooling/*`                                                                                                                                                                                                        |
-| `--framework`      | `nextjs`, `tanstack-start`                                | `nextjs`   | Catalog-pinned Next 16 App Router vs TanStack Start Vite+Nitro                                                                                                                                                                                      |
-| `--apps`           | `web,mobile,desktop,both,all` comma/repeat                | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 57 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop monorepo                                           |
-| `--billing`        | `stripe,chargily,paddle,polar,both,all,none` or any combo | `none`     | `chargily` DZ checkout-only, `stripe` global cards, `chargily,stripe` dual, `all` all 4                                                                                                                                                             |
-| `--database`       | `postgres,convex,none`                                    | `postgres` | `billing` requires `postgres` or `convex`; `auth` also requires `postgres` or `convex`                                                                                                                                                              |
-| `--cache`          | `redis`, `none` (`upstash` alias for redis)               | `none`     | Optional fail-closed cache via catalog-pinned Upstash Redis; production API rate limiting may use the same credentials even when the cache package is off                                                                                           |
-| `--deploy`         | `vercel`, `fly`, `docker`, `cloudflare`, `none`           | `none`     | Cloudflare: Next via OpenNext or TanStack via native Vite plugin, with Convex/none only; all deployment targets require a regular root `bun.lock`                                                                                                   |
-| `--stack`          | `nextjs`, `tanstack-start`, `expo`, `both`                | —          | Frontend shorthand for --preset frontend: maps to --framework + --apps (expo→apps mobile)                                                                                                                                                           |
-| `--with-auth`      | flag                                                      | off        | Opt-in Better Auth (requires DB postgres or convex) — for --preset custom (saas forces on, frontend forces off)                                                                                                                                     |
-| `--with-api`       | flag                                                      | off        | Opt-in oRPC API contract-first transport — for custom preset                                                                                                                                                                                        |
-| `--with-email`     | flag                                                      | off        | Opt-in Resend email templates — for custom preset                                                                                                                                                                                                   |
-| `--with-analytics` | flag                                                      | off        | Opt-in PostHog analytics — for custom preset                                                                                                                                                                                                        |
-| `--with-cache`     | flag                                                      | off        | Opt-in Upstash Redis cache (same as --cache redis) — for custom preset                                                                                                                                                                              |
-| `--with-eve`       | flag                                                      | off        | Opt-in Eve durable AI agent hybrid via withEve() — for custom preset; --features eve is deprecated alias                                                                                                                                            |
-| `--with-i18n`      | flag                                                      | off        | Opt-in next-intl i18n routing — for custom preset; --features i18n is deprecated alias                                                                                                                                                              |
-| `--with-pdf`       | flag                                                      | off        | Opt-in PDF (React PDF) — for custom preset                                                                                                                                                                                                          |
-| `--with-messaging` | flag                                                      | off        | Opt-in DM messaging (DM-only, files/images inline, presence+typing realtime; postgres→oRPC WS + Docker volume, convex→native queries + ctx.storage; requires DB postgres/convex + auth+api) — for custom preset (opt-in for all presets, even saas) |
-| `--features`       | `eve,i18n` (deprecated)                                   | `none`     | Deprecated alias for --with-eve/--with-i18n; case-insensitive deduped, partially unknown tolerated, fully unknown throws                                                                                                                            |
-| `--cwd`            | path                                                      | `.`        | parent where `<name>` folder created                                                                                                                                                                                                                |
-| `--no-install`     | flag                                                      | installs   | skip the verified dependency bootstrap; run `bun run install:bootstrap` in the fresh output before other scripts                                                                                                                                    |
-| `--dry-run`        | flag                                                      | off        | preview without writing — emits `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` (first 100) + `hasMore` in `--json`; text shows `237 files (394 kB)` + list                                                                               |
-| `--yes` / `--ci`   | flag                                                      | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                                                                                                                   |
-| `--json`           | flag                                                      | text       | machine JSON `{success,exitCode,data\|error,meta}` — works with `--dry-run`, `status --verbose`, `add --list`                                                                                                                                       |
-| `--force`          | flag                                                      | off        | command-specific existing/dirty project checks or explicit lease takeover; managed-file hash conflicts still fail                                                                                                                                   |
+| Flag               | Values                                          | Default    | Guidance                                                                                                                                                                                                                                            |
+| ------------------ | ----------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--preset`         | `saas`, `frontend`, `custom`                    | `saas`     | saas=full Auth+DB+API+Email+Analytics+optional billing/cache; frontend=minimal apps/web+ui+config only; custom=pick via --with-*                                                                                                                    |
+| `--mode`           | `monorepo`, `single`                            | `monorepo` | monorepo = `apps/* + packages/* + tooling/*`                                                                                                                                                                                                        |
+| `--framework`      | `nextjs`, `tanstack-start`                      | `nextjs`   | Catalog-pinned Next 16 App Router vs TanStack Start Vite+Nitro                                                                                                                                                                                      |
+| `--apps`           | `web,mobile,desktop,both,all` comma/repeat      | `web`      | web=Next/TanStack via --framework, mobile=Expo SDK 57 Router+SecureStore shares backend via EXPO_PUBLIC_API_URL, desktop=Electron + TanStack Router SPA, both=web,mobile, all=web,mobile,desktop monorepo                                           |
+| `--billing`        | `stripe,paddle,polar,chargily,manual,both,none` | `none`     | `chargily` DZ checkout-only, `stripe` global cards, `chargily,stripe` dual, `manual` receipt-based DZD top-ups; at most one global provider                                                                                                         |
+| `--database`       | `postgres,convex,none`                          | `postgres` | `billing` requires `postgres` or `convex`; `auth` also requires `postgres` or `convex`                                                                                                                                                              |
+| `--cache`          | `redis`, `none` (`upstash` alias for redis)     | `none`     | Optional fail-closed cache via catalog-pinned Upstash Redis; production API rate limiting may use the same credentials even when the cache package is off                                                                                           |
+| `--deploy`         | `vercel`, `fly`, `docker`, `cloudflare`, `none` | `none`     | Cloudflare: Next via OpenNext or TanStack via native Vite plugin, with Convex/none only; all deployment targets require a regular root `bun.lock`                                                                                                   |
+| `--stack`          | `nextjs`, `tanstack-start`, `expo`, `both`      | —          | Frontend shorthand for --preset frontend: maps to --framework + --apps (expo→apps mobile)                                                                                                                                                           |
+| `--with-auth`      | flag                                            | off        | Opt-in Better Auth (requires DB postgres or convex) — for --preset custom (saas forces on, frontend forces off)                                                                                                                                     |
+| `--with-api`       | flag                                            | off        | Opt-in oRPC API contract-first transport — for custom preset                                                                                                                                                                                        |
+| `--with-email`     | flag                                            | off        | Opt-in Resend email templates — for custom preset                                                                                                                                                                                                   |
+| `--with-analytics` | flag                                            | off        | Opt-in PostHog analytics — for custom preset                                                                                                                                                                                                        |
+| `--with-cache`     | flag                                            | off        | Opt-in Upstash Redis cache (same as --cache redis) — for custom preset                                                                                                                                                                              |
+| `--with-eve`       | flag                                            | off        | Opt-in Eve durable AI agent hybrid via withEve() — for custom preset; --features eve is deprecated alias                                                                                                                                            |
+| `--with-i18n`      | flag                                            | off        | Opt-in next-intl i18n routing — for custom preset; --features i18n is deprecated alias                                                                                                                                                              |
+| `--with-pdf`       | flag                                            | off        | Opt-in PDF (React PDF) — for custom preset                                                                                                                                                                                                          |
+| `--with-messaging` | flag                                            | off        | Opt-in DM messaging (DM-only, files/images inline, presence+typing realtime; postgres→oRPC WS + Docker volume, convex→native queries + ctx.storage; requires DB postgres/convex + auth+api) — for custom preset (opt-in for all presets, even saas) |
+| `--features`       | `eve,i18n` (deprecated)                         | `none`     | Deprecated alias for --with-eve/--with-i18n; case-insensitive deduped, partially unknown tolerated, fully unknown throws                                                                                                                            |
+| `--cwd`            | path                                            | `.`        | parent where `<name>` folder created                                                                                                                                                                                                                |
+| `--no-install`     | flag                                            | installs   | skip the verified dependency bootstrap; run `bun run install:bootstrap` in the fresh output before other scripts                                                                                                                                    |
+| `--dry-run`        | flag                                            | off        | preview without writing — emits `files[]:{path,size,bytes}`, `totalBytes`, `previewFiles` (first 100) + `hasMore` in `--json`; text shows `237 files (394 kB)` + list                                                                               |
+| `--yes` / `--ci`   | flag                                            | prompt     | non-interactive, use defaults/flags; --yes defaults to saas preset unless --preset explicitly set                                                                                                                                                   |
+| `--json`           | flag                                            | text       | machine JSON `{success,exitCode,data\|error,meta}` — works with `--dry-run`, `status --verbose`, `add --list`                                                                                                                                       |
+| `--force`          | flag                                            | off        | command-specific existing/dirty project checks or explicit lease takeover; managed-file hash conflicts still fail                                                                                                                                   |
 
 Billing repeatable or comma: `--billing stripe --billing chargily` == `--billing stripe,chargily`. Addons repeatable: `--with-auth --with-api` or `--with-auth --with-eve`. Apps repeatable: `--apps web,desktop` or `--apps all` (web,mobile,desktop). Frontend preset: database defaults to `none` and disables auth/api/email/analytics/cache/eve/i18n/pdf/messaging unless explicitly enabled via --with-_. SaaS preset: enables auth/api/email/analytics true and database postgres default; messaging stays opt-in (even saas). Custom preset: all addons off by default, pick via --with-_ plus billing/database/framework/apps; interactive custom shows 8-toggle checklist (auth, api, email, analytics, cache, eve, i18n, pdf, messaging) plus apps (web/mobile/desktop) + billing.
 
@@ -85,6 +87,19 @@ Env to fill in `.env.local` (or `.dev.vars` for `--deploy cloudflare`):
 Optional helper: `bash ./start-database.sh` performs Docker/Podman detection, an `nc` port check, safe allowlisted env parsing, and reuses `*_postgres` plus its named volume. Windows requires Git Bash, WSL, or another Bash installation. Postgres 18 mounts the named volume at `/var/lib/postgresql` so its versioned `18/docker` data directory persists correctly.
 
 Deployment notes: every deployment target requires a verified regular root `bun.lock`; after `--no-install`, run `bun run install:bootstrap` with Bun `1.4.0`. Vercel accepts `bunVersion: "1.4.x"` and manages its patch, while its exact-Bun install/build commands run the shared lock guard first. `--deploy docker` emits `compose.production.yml` with a 30-second stop grace, an image health check, BuildKit-secret build configuration, and a stable named Eve Workflow volume when Eve is selected. `--deploy fly` emits the equivalent health/grace contract and a build-secret guide; Docker/Fly pin the exact runtime image. `--deploy cloudflare` supports Next/OpenNext and TanStack/native Vite in monorepo or single web mode with Convex or no database. It rejects PostgreSQL, Eve, and server-side PDF. Keep local values in `.dev.vars`, configure matching explicit production site/app origins and runtime secrets separately, provision the generated Next R2 cache bucket once, then use `bun run build`, `bun run cloudflare:dry-run`, `bun run preview`, and `bun run deploy`. Next also emits queue and sharded tag-cache Durable Objects. See `references/cloudflare.md`.
+
+## Dependency security
+
+Install/bootstrap and upgrade automatically apply compatible fixes that satisfy
+seven-day release age, integrity, and installed-audit policy. Use `ghostinit security
+audit` for read-only reporting and `ghostinit security fix --dry-run` before an
+explicit repair. `ghostinit security fix` and generated `bun run security:fix` also
+run `typecheck`, `lint:all`, and root tests. Ordinary `check` stays read-only.
+`--no-install` leaves security verification unrun.
+
+Read [dependency-security.md](references/dependency-security.md) for eligibility,
+JSON/exit status, persistent security floors, and recovery. Do not erase floors,
+journals, or policy to clear a failure; installed dependencies are not rolled back.
 
 ## Generated Structure
 
@@ -123,8 +138,23 @@ App targets: `--apps` controls which apps scaffolded:
 
 - `web` default — Next/TanStack via `--framework`
 - `mobile` — Expo SDK 57 Router file-based `app/`, metro auto monorepo, babel-preset-expo, SecureStore, expo-linking, and typedRoutes. Auth/oRPC bindings require monorepo `web,mobile`, where the web app owns the backend.
-- `both`/`all` → monorepo `apps/web + apps/mobile`
+- `both` → monorepo `apps/web + apps/mobile`; `all` additionally emits `apps/desktop`
 - `single + mobile|desktop` → flat frontend-only native app. Server-backed selections are rejected with `single-native-server-capabilities-unsupported`; use monorepo `web,mobile` or `web,desktop` for full parity.
+
+## Frontend implementation and review
+
+Before changing or reviewing any generated frontend, read
+[frontend-architecture.md](references/frontend-architecture.md). The universal
+contract is thin routes, feature screens that compose, query/mutation adapters
+for remote state, cohesive workflow/form hooks, pure models and focused views
+with typed props. Tiny local UI state is allowed; remote data and workflows must
+not be hidden inside presentation. Reuse emitted form APIs: DOM `useAppForm`, or
+the typed native form adapter/workflow over the declared library.
+
+Run `ghostinit check --json` and the project's required gates. Do not report an
+acceptable/complete result while architecture findings or required checks fail.
+Do not bypass detectors, raise budgets or create broad exceptions to make code
+pass. Preserve the user's scope and report unrun verification explicitly.
 
 ## Commands (Post-Scaffold)
 
@@ -138,7 +168,11 @@ ghostinit doctor --fix                   # auto-fix: mint BETTER_AUTH_SECRET/POS
 ghostinit check                          # architecture checker 6-layer + isolation → fails if BLOCKER/HIGH
 ghostinit check --fix                    # auto-fix turbo.json globalEnv drift (others require manual fix)
 ghostinit upgrade --dry-run              # preview hash-gated desired-state re-render and conflicts
-ghostinit upgrade                        # transactionally apply the desired-state upgrade
+ghostinit upgrade                        # reconcile, repair dependencies, verify installed project
+ghostinit upgrade --no-install           # apply source upgrade; security remains unverified
+ghostinit security audit --json          # read-only dependency report
+ghostinit security fix --dry-run --json   # preview compatible repairs
+ghostinit security fix                   # repair, install, audit, typecheck, lint:all, test
 ghostinit sync --dry-run                 # preview pending desired-state reconciliation + registry changes
 ghostinit sync                           # reconcile pending desired config, then rebuild registries
 ghostinit sync --check                   # drift detect → exit 8 if out of sync
@@ -158,15 +192,16 @@ See `references/commands.md` for full flags, exit codes, JSON envelope.
 
 ## Billing (User View)
 
-Any combo intentional Algeria+Global:
+Choose at most one global provider (Stripe, Paddle, or Polar), with optional Chargily and manual payments:
 
 - `chargily` → DZ checkout-only server-only EDAHABIA/CIB, no portal
 - `stripe` → global cards subscription-native
 - `chargily,stripe` → dual Algeria+Global common
-- `paddle`, `polar` → MoR global tax / open-source metering
-- `all` → 4 providers, `none` / `""` → no billing
+- `paddle`, `polar` → global checkout, subscriptions, invoices and customer portals; Polar usage/license sections display existing account records and require the corresponding server/provider integration
+- `manual` → receipt-based DZD balance top-ups approved or rejected by an administrator
+- `none` / `""` → no billing
 
-Includes conditional panels, webhook raw body handling, `webhook_events` idempotency. See `references/billing.md`.
+Online providers include conditional panels, webhook raw body handling, and `webhook_events` idempotency. Manual payments use private receipt review and an idempotent credit ledger. See `references/billing.md`.
 
 ## Preset & Addon System
 
@@ -240,7 +275,7 @@ Exit codes stable: `0 OK, 1 GENERAL, 2 INVALID_ARGS, 8 DRIFT, 16 MISSING_DEP, 17
 - `--fix can only be used with 'check' or 'doctor'` → move flag to correct command
 - `--verbose can only be used with 'status', 'check' or 'doctor'` / `--list can only be used with 'add' or 'status'` → use `status --verbose`, `add --list`
 - `hoist` error → ensure `bunfig.toml` `hoist=true` generated
-- `workspace:*` error → verify root `install:bootstrap`, package exports/types, and generated source aliases. Next uses the TS7 CLI; TanStack, shared tooling, and Expo use the TS6 JavaScript compiler API. Do not disable Next’s TypeScript CLI or downgrade its compiler.
+- `workspace:*` error → verify root `install:bootstrap`, package exports/types, and generated source aliases. Generated apps and shared tooling use the same catalog TypeScript 7 pin. Next uses its project-local TypeScript CLI; do not disable that CLI or downgrade its compiler. Validate compiler consumers with the required installed build/runtime gates.
 - `Reserved module name` → collides `api,auth,database,config,ui,...` or JS reserved or `openapi,contract,router,context,index`
 - `Invalid --preset value` / `Invalid --cache value` → allowed `saas,frontend,custom` / `redis,none` (upstash alias for redis)
 - `Cloudflare Workers does not support the generated PostgreSQL adapter` -> use `--database convex` or `--database none`, or choose Fly/Docker until a request-scoped Hyperdrive adapter exists
@@ -264,7 +299,7 @@ Whenever you change anything that affects HOW to use ghostinit as an abstraction
 **Checklist (same PR, mandatory):**
 
 1. Update `SKILL.md` table/workflow/commands/billing as affected + update `references/commands.md`, `billing.md`, `frameworks.md`, `workflows.md` if their topic changed.
-2. Mirror: `rm -rf .claude/skills/ghostinit-use && cp -r skills/ghostinit-use .claude/skills/` (Windows: manual copy per file).
+2. Mirror each changed file to its corresponding `.claude/skills/ghostinit-use/` path with safe per-file writes. Do not recursively delete either tree. Verify identical relative-path sets and SHA-256 hashes afterward.
 3. Update `AGENTS.md`, `README.md`, and `CONTRIBUTING.md` when the user-visible contract changes. Update `evidence/compatibility/v1-to-v2.json` and its adjacent schema when the public CLI or migration mapping changes.
 4. `bun run format && bun run build && bun run check` must pass.
 
@@ -272,8 +307,10 @@ If you skip this, agents with zero codebase knowledge will have outdated docs �
 
 ## Additional Resources
 
+- `references/dependency-security.md` — automatic and explicit security maintenance, policy, outcomes, floors, and recovery
 - `references/commands.md` — full command reference, flags, exit codes, JSON envelope, lock
 - `references/billing.md` — billing providers chooser, env vars, dual market, webhook UI
 - `references/frameworks.md` — next vs tanstack chooser, databases, features, modes, env prefixes
 - `references/workflows.md` — create→env→DB→dev→add→sync→check end-to-end, CI, remote DB, sync/check
 - `references/cloudflare.md` - supported Worker profiles, secrets/build variables, R2/DO provisioning, and deploy commands
+- `references/frontend-architecture.md` — universal frontend roles, forms/remote-state ownership, actual checker IDs and completion requirements; read for frontend implementation or review

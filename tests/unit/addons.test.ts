@@ -24,12 +24,29 @@ describe("addon registry - billing parsing", () => {
     expect(parseBillingInput("both").sort()).toEqual(["chargily", "stripe"]);
   });
 
-  it("parses all -> all 4 providers", () => {
-    expect(parseBillingInput("all").sort()).toEqual(["chargily", "paddle", "polar", "stripe"]);
+  it("rejects all and conflicting global providers", () => {
+    for (const input of [
+      "all",
+      "manual,all",
+      "stripe,polar",
+      "stripe,paddle",
+      "paddle,polar",
+      "polar,both",
+    ]) {
+      expect(() => parseBillingInput(input)).toThrow("at most one global billing provider");
+    }
   });
 
-  it("parses comma-separated", () => {
-    expect(parseBillingInput("stripe,polar").sort()).toEqual(["polar", "stripe"]);
+  it("combines manual and Chargily with each global provider", () => {
+    for (const provider of ["stripe", "paddle", "polar"]) {
+      expect(parseBillingInput(`manual,chargily,${provider}`)).toEqual([
+        "manual",
+        "chargily",
+        provider,
+      ]);
+    }
+    expect(parseBillingInput("manual")).toEqual(["manual"]);
+    expect(parseBillingInput("manual,chargily")).toEqual(["manual", "chargily"]);
   });
 
   it("parses none -> empty", () => {
@@ -41,17 +58,13 @@ describe("addon registry - billing parsing", () => {
     expect(parseBillingInput("stripe, stripe , Stripe").sort()).toEqual(["stripe"]);
   });
 
-  it("handles comma-separated with spaces and mixed case", () => {
-    expect(parseBillingInput(" Stripe ,  PADDLE , polar ").sort()).toEqual([
-      "paddle",
+  it("handles allowed selections with spaces, mixed case and a legacy alias", () => {
+    expect(parseBillingInput(" MANUAL ,  CHARGILY , polar ")).toEqual([
+      "manual",
+      "chargily",
       "polar",
-      "stripe",
     ]);
-  });
-
-  it("handles both inside comma-separated list", () => {
-    const result = parseBillingInput("polar,both");
-    expect(result.sort()).toEqual(["chargily", "polar", "stripe"]);
+    expect(parseBillingInput("manual,both")).toEqual(["manual", "stripe", "chargily"]);
   });
 
   it("returns [] for undefined and empty whitespace", () => {
@@ -83,7 +96,8 @@ describe("addon registry - constants", () => {
     expect(billingProviders).toContain("chargily");
     expect(billingProviders).toContain("paddle");
     expect(billingProviders).toContain("polar");
-    expect(billingProviders.length).toBe(4);
+    expect(billingProviders).toContain("manual");
+    expect(billingProviders.length).toBe(5);
   });
 
   it("has expected modes", () => {
@@ -175,6 +189,16 @@ describe("addon registry - database parsing", () => {
 });
 
 describe("addon registry - isValidAddonCombo", () => {
+  it("rejects global provider conflicts before generation", () => {
+    const result = isValidAddonCombo({
+      billing: ["stripe", "polar"],
+      database: "postgres",
+      mode: "monorepo",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.message).toContain("at most one global");
+  });
+
   it("invalid when billing present but database none", () => {
     const result = isValidAddonCombo({ billing: ["stripe"], database: "none", mode: "monorepo" });
     expect(result.valid).toBe(false);
@@ -308,6 +332,19 @@ describe("addon registry - buildAddonInstallerMap", () => {
     });
     expect(explicit["storage"]?.inUse).toBe(true);
     expect(implied["storage"]?.inUse).toBe(true);
+  });
+
+  it("manual billing includes receipt storage and omitted auth/API dependencies in legacy maps", () => {
+    const map = buildAddonInstallerMap({
+      billing: ["manual"],
+      features: [],
+      database: "postgres",
+      mode: "monorepo",
+      preset: "custom",
+    });
+    for (const addon of ["manual", "storage", "auth", "api"]) expect(map[addon]?.inUse).toBe(true);
+    for (const provider of ["stripe", "paddle", "polar", "chargily"])
+      expect(map[provider]?.inUse).toBe(false);
   });
 });
 

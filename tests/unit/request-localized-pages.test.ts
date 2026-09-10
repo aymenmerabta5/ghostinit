@@ -57,6 +57,148 @@ export { Screen as default, type ScreenProps } from "@/features/screen";
     expect(files.some(({ path }) => path.endsWith("page.client.tsx"))).toBe(false);
   });
 
+  for (const [kind, statement, component] of [
+    ["named", 'import { Panel as Screen } from "@/features/example";', "Screen"],
+    ["default", 'import Screen from "../../features/example";', "Screen"],
+    ["namespace", 'import * as Feature from "@/features/example";', "Feature.Panel"],
+  ] as const) {
+    test(`localizes a generic ${kind} client wrapper while preserving its server contract`, () => {
+      const path = "src/app/example/page.tsx";
+      const tree = `<${component} label={title} {...extra} />`;
+      const guard = 'if (!title.trim()) throw new Error("A title is required");';
+      const content = `// 🌍 مرحبا français route
+import type { Metadata } from "next";
+${statement}
+export const runtime = "nodejs";
+export const metadata: Metadata = { title: "المدفوعات • Paiements" };
+export default function Page({ title, ...extra }: { title: string; disabled?: boolean }) {
+  ${guard}
+  return (${tree});
+}
+`;
+      const entries = [
+        { path, content },
+        {
+          path: "src/features/example.tsx",
+          content:
+            '"use client"; export function Panel({ label }: { label: string }) { return <main>{label}</main>; } export default Panel;',
+        },
+      ];
+      const result = composeRequestLocalizedPages(entries, "src");
+      const page = result.find((entry) => entry.path === path)!.content;
+      const boundary = "<RequestLocalizedMetadataBoundary />";
+      expect(page).toContain(statement);
+      expect(page).toContain(guard);
+      expect(page.indexOf(guard)).toBeLessThan(page.indexOf(boundary));
+      expect(page).toContain(tree);
+      expect(page).toContain(
+        'export const metadata: Metadata = { title: "المدفوعات • Paiements" };',
+      );
+      expect(page).toContain('export const runtime = "nodejs";');
+      expect(page).toContain("// 🌍 مرحبا français route");
+      expect(page).toContain("{ title, ...extra }: { title: string; disabled?: boolean }");
+      expect(page.match(/<RequestLocalizedMetadataBoundary \/>/g)).toHaveLength(1);
+      expect(parseSync(path, page).errors).toEqual([]);
+      expect(result.some((entry) => entry.path.endsWith("page.client.tsx"))).toBe(false);
+      expect(result.find((entry) => entry.path === entries[1]!.path)).toEqual(entries[1]);
+      expect(composeRequestLocalizedPages(result, "src")).toEqual(result);
+    });
+  }
+
+  test("keeps server compositions, erased imports, shadows and conditional returns unchanged", () => {
+    const clientImport = 'import { Screen } from "@/features/client";';
+    const cases = [
+      `${clientImport} export default async function Page() { return <Screen />; }`,
+      `${clientImport} export default function Page() { return <main><Screen /></main>; }`,
+      'import { Screen } from "@/features/server"; export default function Page() { return <Screen />; }',
+      'import type { Screen } from "@/features/client"; export default function Page() { return <Screen />; }',
+      'import { type Screen } from "@/features/client"; export default function Page() { return <Screen />; }',
+      `${clientImport} export default function Page(Screen: () => null) { return <Screen />; }`,
+      `${clientImport} export default function Page({ Screen }: { Screen: () => null }) { return <Screen />; }`,
+      `${clientImport} export default function Page() { const Screen = () => null; return <Screen />; }`,
+      `${clientImport} export default function Page(source: { Screen: () => null }) { const { Screen } = source; return <Screen />; }`,
+      `${clientImport} export default function Page() { function Screen() { return null; } return <Screen />; }`,
+      `${clientImport} export default function Page() { try { throw new Error(); } catch (Screen) { void Screen; } return <Screen />; }`,
+      `${clientImport} export default function Page({ hidden }: { hidden: boolean }) { if (hidden) return null; return <Screen />; }`,
+    ];
+    for (const content of cases) {
+      const path = "src/app/example/page.tsx";
+      expect(parseSync(path, content).errors).toEqual([]);
+      const entries = [
+        { path, content },
+        {
+          path: "src/features/client.tsx",
+          content: '"use client"; export function Screen() { return <main />; }',
+        },
+        {
+          path: "src/features/server.tsx",
+          content: "export function Screen() { return <main />; }",
+        },
+      ];
+      expect(composeRequestLocalizedPages(entries, "src"), content).toEqual(entries);
+    }
+  });
+
+  test("keeps the actual metadata boundary when module or function bindings collide", () => {
+    const path = "src/app/example/page.tsx";
+    const declaration = "function RequestLocalizedMetadataBoundary() { return null; }";
+    for (const scope of ["module", "function"] as const) {
+      const content = `import { Screen } from "@/features/client";
+${scope === "module" ? declaration : ""}
+export default function Page() { ${scope === "function" ? declaration : ""} return <Screen />; }`;
+      const result = composeRequestLocalizedPages(
+        [
+          { path, content },
+          {
+            path: "src/features/client.tsx",
+            content: '"use client"; export function Screen() { return <main />; }',
+          },
+        ],
+        "src",
+      );
+      const page = result.find((entry) => entry.path === path)!.content;
+      const parsed = parseSync(path, page);
+      expect(parsed.errors).toEqual([]);
+      const boundary = parsed.program.body.find(
+        (entry) =>
+          entry.type === "ImportDeclaration" &&
+          entry.source.value === "@/lib/request-localized-metadata",
+      );
+      const alias =
+        boundary?.type === "ImportDeclaration" ? boundary.specifiers[0]?.local.name : null;
+      if (!alias) throw new Error("No imported metadata boundary");
+      expect(alias).not.toBe("RequestLocalizedMetadataBoundary");
+      expect(page).toContain(`<${alias} />`);
+      expect(page).toContain(declaration);
+      const javascript = new Bun.Transpiler({
+        loader: "tsx",
+        tsconfig: JSON.stringify({
+          compilerOptions: { jsx: "react", jsxFactory: "render", jsxFragmentFactory: "Fragment" },
+        }),
+      }).transformSync(page);
+      let calls = 0;
+      new Function(
+        "render",
+        "Fragment",
+        "Screen",
+        alias,
+        javascript
+          .replace(/^import .*;\n/gm, "")
+          .replace("export default function Page", "function Page") + "\nreturn Page();",
+      )(
+        (component: unknown) =>
+          typeof component === "function" ? Reflect.apply(component, undefined, []) : null,
+        "fragment",
+        () => null,
+        () => {
+          calls++;
+        },
+      );
+      expect(calls).toBe(1);
+      expect(composeRequestLocalizedPages(result, "src")).toEqual(result);
+    }
+  });
+
   test("does not wrap existing server pages or unrelated client components", () => {
     const entries = [
       {
@@ -132,26 +274,28 @@ export default function Home() { return (<main><Hero /></main>); }
             desiredConfig: resolution.desiredConfig,
           });
           const root = mode === "monorepo" ? "apps/web/src" : "src";
-          const path = `${root}/app/sign-in/page.client.tsx`;
-          expect(plan.files.some(({ physicalPath }) => physicalPath === path)).toBe(
-            framework === "nextjs" && i18n,
-          );
+          const screen = plan.files.find(
+            ({ physicalPath }) => physicalPath === `${root}/features/auth/sign-in-screen.tsx`,
+          )!;
+          expect(screen.lifecycle).toBe("generator-owned");
+          expect(screen.content).toContain('"use client"');
+          expect(
+            plan.files.some(
+              ({ physicalPath }) => physicalPath === `${root}/app/sign-in/page.client.tsx`,
+            ),
+          ).toBe(false);
           if (framework === "nextjs" && i18n) {
             const page = plan.files.find(
               ({ physicalPath }) => physicalPath === `${root}/app/sign-in/page.tsx`,
             )!;
             expect(page.content).toContain("RequestLocalizedMetadataBoundary");
             expect(page.lifecycle).toBe("seed-once");
-            expect(plan.files.find(({ physicalPath }) => physicalPath === path)?.lifecycle).toBe(
-              "seed-once",
-            );
-            expect(plan.files.find(({ physicalPath }) => physicalPath === path)?.content).toContain(
-              '"use client"',
-            );
+            expect(page.content).toContain('from "@/features/auth/sign-in-screen"');
+            expect(page.content).not.toContain('"use client"');
             expect(
               plan.files.find(
                 ({ physicalPath }) =>
-                  physicalPath === `${root}/app/billing/hooks/use-billing-page.ts`,
+                  physicalPath === `${root}/features/billing/use-billing-page.ts`,
               )?.lifecycle,
             ).toBe("generator-owned");
             expect(

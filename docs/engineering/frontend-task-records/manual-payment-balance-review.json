@@ -1,0 +1,70 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "manual-payment-balance-review",
+  "role": "implementer",
+  "recordedOn": "2026-09-08",
+  "changedGlobs": [
+    "src/templates/billing/ui/manual/**",
+    "src/templates/billing/ui/components/composer.ts",
+    "src/templates/billing/ui/components/header.ts",
+    "src/templates/billing/ui/components/main.ts",
+    "src/templates/billing/ui/components/shared.ts",
+    "src/templates/apps/fragments/billing/**",
+    "src/templates/apps/fragments/expo/billing.ts",
+    "src/templates/apps/desktop/composer.ts",
+    "src/templates/apps/desktop/routes/billing.ts",
+    "src/templates/apps/index.ts",
+    "src/templates/apps/pages.ts",
+    "src/templates/apps/tanstack-components.ts",
+    "src/templates/i18n/messages/manual-billing.ts",
+    "src/templates/i18n/messages/en.ts",
+    "src/templates/i18n/messages/fr.ts",
+    "src/templates/i18n/messages/ar.ts"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["design-taste-frontend", "playwright"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "d6cc64cf4527470d88610295b3847fc22e62ffa52dac05609c1ad42edd088653"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": ["DESIGN.md#read-and-mutation-states"],
+    "evidence": [
+      "tests/unit/manual-billing-ui.test.ts",
+      "tests/unit/manual-billing-ui-size.test.ts",
+      "tests/unit/billing-i18n-coverage.test.ts",
+      "docs/engineering/manual-payment-ui-review.md"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "design.preserve-existing-system",
+    "billing.manual-separate-from-checkout",
+    "billing.credit-after-approval",
+    "mutation.preserve-input",
+    "mutation.synchronous-duplicate-guard",
+    "feedback.action-local",
+    "feedback.empty-only-after-success",
+    "authentication.retire-private-state",
+    "receipt.authenticated-access",
+    "receipt.revoke-object-url",
+    "native.explicit-web-handoff"
+  ],
+  "selectedComponentIds": [
+    "action.button",
+    "feedback.alert",
+    "loading.skeleton",
+    "feedback.empty",
+    "form.input",
+    "status.badge",
+    "surface.card"
+  ],
+  "exceptionIds": []
+}

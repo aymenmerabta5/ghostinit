@@ -6,30 +6,19 @@ function filtersContent(): string {
 
 import { Button } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { adminUsersFilterSchema } from "../schema";
-import { useAdminUsersTranslations } from "../translations";
-import type { AdminUsersFilterInput } from "../types";
+import { Form } from "@/components/ui/form";
+import type { useAdminUserFilters } from "../use-admin-user-filters";
+import type { AdminUsersTranslate } from "../translations";
 
-export interface AdminUserFiltersProps {
-  search: string;
-  isFetching: boolean;
-  onApply(input: AdminUsersFilterInput): void;
-  onClear(): void;
-}
+export type AdminUserFiltersProps = ReturnType<typeof useAdminUserFilters>;
 
 export function AdminUserFilters({
   search,
   isFetching,
-  onApply,
-  onClear,
+  form,
+  translate,
+  clear,
 }: AdminUserFiltersProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
-  const form = useAppForm({
-    defaultValues: { search },
-    validators: { onSubmit: adminUsersFilterSchema(translate) },
-    onSubmit: ({ value }) => onApply(value),
-  });
 
   return (
     <form.AppForm>
@@ -60,10 +49,7 @@ export function AdminUserFilters({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => {
-                form.setFieldValue("search", "");
-                onClear();
-              }}
+              onClick={clear}
             >
               {translate("filters.clear")}
             </Button>
@@ -79,6 +65,7 @@ export function AdminUserFilters({
 }
 
 export interface AdminUsersPaginationProps {
+  translate: AdminUsersTranslate;
   page: number;
   totalPages: number;
   hasMore: boolean;
@@ -94,8 +81,8 @@ export function AdminUsersPagination({
   isFetching,
   onPrevious,
   onNext,
+  translate,
 }: AdminUsersPaginationProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
   const canGoNext = page < totalPages || hasMore;
   return (
     <nav className="flex flex-wrap items-center justify-between gap-4" aria-label={translate("pagination.label")}>

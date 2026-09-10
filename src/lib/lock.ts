@@ -22,6 +22,7 @@ import { link, lstat, mkdir, open, rename, rmdir, unlink } from "node:fs/promise
 import { dirname, join, resolve } from "node:path";
 import { LockError } from "./errors.js";
 import type { Logger } from "./logger.js";
+import { assertProjectMutationAdmitted } from "./lock-admission.js";
 
 export interface LockOwner {
   pid: number;
@@ -463,6 +464,7 @@ export async function acquireLock(
   options: LockOptions = {},
 ): Promise<{ release: () => Promise<void>; owner: LockOwner }> {
   const { ttlMs, heartbeatMs, claimTtlMs } = validateDurations(options);
+  await assertProjectMutationAdmitted(root);
   await mkdir(root, { recursive: true });
   const owner: LockOwner = {
     pid: process.pid,
@@ -477,6 +479,7 @@ export async function acquireLock(
   let acquisitionError: unknown;
 
   try {
+    await assertProjectMutationAdmitted(root);
     const existing = await snapshot(file, parseOwner);
     if (existing !== undefined && Date.now() - existing.mtimeMs <= ttlMs && !options.force) {
       throw new LockError("Project lock is held by another GhostInit process", {
@@ -509,6 +512,7 @@ export async function acquireLock(
 
     try {
       await guard.assertOwned();
+      await assertProjectMutationAdmitted(root);
       await publishExclusive(file, owner);
       published = true;
     } catch (error) {

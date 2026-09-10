@@ -3,7 +3,7 @@ export function rnrButtonContent(): string {
 import { Pressable, type PressableProps, ActivityIndicator, View } from "react-native";
 import { tv, type VariantProps } from "tailwind-variants";
 import { cn } from "@/lib/utils";
-import { Text } from "./text";
+import { Text, TextClassContext } from "./text";
 
 const buttonVariants = tv({
   base: "inline-flex flex-row items-center justify-center rounded-md gap-2 focus:border-ring",
@@ -57,18 +57,20 @@ export interface ButtonProps extends Omit<PressableProps, "children">, VariantPr
 export function Button({ className, textClassName, variant, size, children, isLoading, disabled, accessibilityState, ...props }: ButtonProps): React.JSX.Element {
   const isDisabled = Boolean(disabled || isLoading);
   return (
-    <Pressable
-      {...props}
-      accessibilityRole="button"
-      accessibilityState={{ ...accessibilityState, busy: Boolean(isLoading), disabled: isDisabled }}
-      className={cn(buttonVariants({ variant, size }), isDisabled && "ui-disabled opacity-50", isLoading && "ui-loading", className)}
-      disabled={isDisabled}
-    >
-      <View className="flex-row items-center justify-center gap-2">
-        {isLoading ? <ActivityIndicator size="small" /> : null}
-        {typeof children === "string" ? <Text className={cn(buttonTextVariants({ variant, size }), textClassName)}>{children}</Text> : children}
-      </View>
-    </Pressable>
+    <TextClassContext.Provider value={cn(buttonTextVariants({ variant, size }), textClassName)}>
+      <Pressable
+        {...props}
+        accessibilityRole="button"
+        accessibilityState={{ ...accessibilityState, busy: Boolean(isLoading), disabled: isDisabled }}
+        className={cn(buttonVariants({ variant, size }), isDisabled && "ui-disabled opacity-50", isLoading && "ui-loading", className)}
+        disabled={isDisabled}
+      >
+        <View className="flex-row items-center justify-center gap-2">
+          {isLoading ? <ActivityIndicator size="small" /> : null}
+          {typeof children === "string" ? <Text className={cn(buttonTextVariants({ variant, size }), textClassName)}>{children}</Text> : children}
+        </View>
+      </Pressable>
+    </TextClassContext.Provider>
   );
 }
 

@@ -21,41 +21,72 @@ import {
 } from "../domain/generation/types.js";
 import type { DesiredProjectConfig, ResolvedProjectConfig } from "../domain/project/config.js";
 import { PROJECT_NAME_PATTERN } from "../domain/project/choices.js";
+import { billingSelectionError } from "../domain/project/billing-selection.js";
+import { normalizeDependencySecurityResolutions } from "../domain/dependency-security/resolutions.js";
 
-export const projectConfigSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .regex(
-      PROJECT_NAME_PATTERN,
-      "Name must start with a lowercase letter, use only lowercase letters, numbers, and single hyphens, and end with a letter or number",
-    ),
-  runtime: z.enum(["node", "bun"]).default("bun"),
-  version: z.string().default("0.1.0"),
-  generatedAt: z.string().datetime().optional(),
-  mode: z.enum(availableModes).default("monorepo"),
-  preset: z.enum(availablePresets).default("saas"),
-  cache: z.enum(availableCacheProviders).default("none"),
-  deploy: z.enum(availableDeployTargets).default("none"),
-  auth: z.boolean().optional(),
-  api: z.boolean().optional(),
-  email: z.boolean().optional(),
-  analytics: z.boolean().optional(),
-  eve: z.boolean().optional(),
-  i18n: z.boolean().optional(),
-  pdf: z.boolean().optional(),
-  messaging: z.boolean().optional(),
-  storage: z.boolean().optional(),
-  notifications: z.boolean().optional(),
-  featureFlags: z.enum(["posthog", "none"]).optional(),
-  jobs: z.boolean().optional(),
-  jobsUserFacingApi: z.boolean().optional(),
-  billing: z.array(z.enum(billingProviders)).default([]),
-  features: z.array(z.enum(availableFeatures)).default([]),
-  database: z.enum(availableDatabases).default("postgres"),
-  framework: z.enum(availableFrameworks).default("nextjs"),
-  apps: z.array(z.enum(availableApps)).default(["web"]),
+export const dependencySecurityResolutionsSchema = z.unknown().transform((value, context) => {
+  try {
+    return normalizeDependencySecurityResolutions(value);
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return z.NEVER;
+  }
 });
+
+const billingSelectionSchema = z
+  .array(z.enum(billingProviders))
+  .superRefine((providers, context) => {
+    const message = billingSelectionError(providers);
+    if (message !== undefined) context.addIssue({ code: "custom", message });
+  });
+
+export const projectConfigSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .regex(
+        PROJECT_NAME_PATTERN,
+        "Name must start with a lowercase letter, use only lowercase letters, numbers, and single hyphens, and end with a letter or number",
+      ),
+    runtime: z.enum(["node", "bun"]).default("bun"),
+    version: z.string().default("0.1.0"),
+    generatedAt: z.string().datetime().optional(),
+    mode: z.enum(availableModes).default("monorepo"),
+    preset: z.enum(availablePresets).default("saas"),
+    cache: z.enum(availableCacheProviders).default("none"),
+    deploy: z.enum(availableDeployTargets).default("none"),
+    auth: z.boolean().optional(),
+    api: z.boolean().optional(),
+    email: z.boolean().optional(),
+    analytics: z.boolean().optional(),
+    eve: z.boolean().optional(),
+    i18n: z.boolean().optional(),
+    pdf: z.boolean().optional(),
+    messaging: z.boolean().optional(),
+    storage: z.boolean().optional(),
+    notifications: z.boolean().optional(),
+    featureFlags: z.enum(["posthog", "none"]).optional(),
+    jobs: z.boolean().optional(),
+    jobsUserFacingApi: z.boolean().optional(),
+    billing: billingSelectionSchema.default([]),
+    features: z.array(z.enum(availableFeatures)).default([]),
+    database: z.enum(availableDatabases).default("postgres"),
+    framework: z.enum(availableFrameworks).default("nextjs"),
+    apps: z.array(z.enum(availableApps)).default(["web"]),
+  })
+  .superRefine((config, context) => {
+    if (config.billing.includes("manual") && config.storage === false) {
+      context.addIssue({
+        code: "custom",
+        path: ["storage"],
+        message: "manual billing requires storage; omit storage to infer it or set storage to true",
+      });
+    }
+  });
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
 
@@ -100,10 +131,7 @@ const desiredCapabilitiesSchema = z
     transport: z.boolean().optional(),
     auth: z.boolean().optional(),
     billing: z
-      .union([
-        z.literal(false),
-        z.object({ providers: z.array(z.enum(billingProviders)).min(1) }).strict(),
-      ])
+      .union([z.literal(false), z.object({ providers: billingSelectionSchema.min(1) }).strict()])
       .optional(),
     messaging: z.boolean().optional(),
     email: z.boolean().optional(),
@@ -121,6 +149,17 @@ const desiredCapabilitiesSchema = z
   })
   .strict()
   .superRefine((capabilities, context) => {
+    if (
+      capabilities.billing &&
+      capabilities.billing.providers.includes("manual") &&
+      capabilities.storage === false
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["storage"],
+        message: "manual billing requires storage; omit storage to infer it or set storage to true",
+      });
+    }
     if (capabilities.messaging === true && capabilities.storage === false) {
       context.addIssue({
         code: "custom",
@@ -165,6 +204,7 @@ export const projectDesiredConfigSchema = z
         .strict(),
     ]),
     capabilities: desiredCapabilitiesSchema,
+    dependencySecurity: dependencySecurityResolutionsSchema.optional(),
   })
   .strict();
 

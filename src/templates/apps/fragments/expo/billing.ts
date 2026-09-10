@@ -1,6 +1,7 @@
 import type { BillingProviderName } from "../../../../lib/addons.js";
 import { billingClientProviderOptions } from "../billing/client-capabilities.js";
 import { nativeI18nTemplate } from "../native-i18n.js";
+import { manualMobileContent, manualMobilePageContent } from "../../../billing/ui/manual/mobile.js";
 
 export function expoBillingContent(
   mode: "monorepo" | "single" = "monorepo",
@@ -8,6 +9,9 @@ export function expoBillingContent(
   hasI18n = false,
 ): string {
   const providerOptions = JSON.stringify(billingClientProviderOptions(selectedProviders));
+  const hasManual = selectedProviders.includes("manual");
+  if (hasManual && selectedProviders.every((provider) => provider === "manual"))
+    return manualMobilePageContent(mode, hasI18n);
   const i18n = nativeI18nTemplate(hasI18n, "billing");
   const renews = hasI18n
     ? '{t("renews", { date: item.currentPeriodEnd })}'
@@ -30,8 +34,10 @@ import { orpc } from "@/lib/orpc";
 import { env } from "${mode === "monorepo" ? "@repo/config/expo" : "@/lib/env/expo"}";
 ${i18n.importLine.replace("{ useTranslations }", "{ usePlatformI18n, useTranslations }")}
 import { formatBillingInvoiceAmount } from "@/lib/billing-money";
+import { formatBillingSubscriptionStatus, formatBillingInvoiceStatus } from "@/features/billing/status-labels";
 
 type ProviderName = "stripe" | "chargily" | "paddle" | "polar";
+${hasManual ? manualMobileContent(hasI18n) : ""}
 type ProviderOption = { id: ProviderName; label: string; checkout: true; portal: boolean; paymentLink: boolean };
 type SubscriptionView = { id: string; provider: string; status: string; currentPeriodEnd?: string };
 type InvoiceView = { id: string; provider: string; amount: number; currency?: string; status: string; paid: boolean };
@@ -190,11 +196,12 @@ ${i18n.hookLine}
         {actionError ? <Alert variant="destructive" accessibilityRole="alert"><AlertDescription>{actionError}</AlertDescription></Alert> : null}
         {snapshot.error ? <Alert variant="destructive" accessibilityRole="alert"><AlertDescription>${i18n.child("dataUnavailable", "Billing data is unavailable")}</AlertDescription></Alert> : null}
         {!isAuthenticated ? <Card><CardHeader><CardTitle>${i18n.child("signInRequired", "Sign in required")}</CardTitle><CardDescription>${i18n.child("signInDescription", "Billing data and actions are actor-owned.")}</CardDescription></CardHeader></Card> : null}
+        ${hasManual ? "<ManualMobilePayments />" : ""}
         <View className="gap-3">
           {SELECTED_PROVIDERS.map((provider) => <Card key={provider.id}><CardHeader><CardTitle>{provider.label}</CardTitle><CardDescription>${i18n.child("providerDescription", "Only server-selected provider capabilities are exposed.")}</CardDescription></CardHeader><CardContent className="gap-3"><View className="flex-row flex-wrap gap-2"><Button disabled={!isAuthenticated || busy} onPress={() => startCheckout(provider.id)}><Text>${i18n.child("startCheckout", "Start checkout")}</Text></Button>{provider.portal ? <Button variant="outline" disabled={!isAuthenticated || busy} onPress={() => openPortal(provider.id)}><Text>${i18n.child("openPortal", "Open portal")}</Text></Button> : null}</View>{provider.paymentLink ? isAdmin ? <View className="gap-2"><Text className="text-sm font-medium">${i18n.child("paymentLinkName", "Payment-link name")}</Text><Input accessibilityLabel={${i18n.value("paymentLinkName", "Payment-link name")}} value={linkName} onChangeText={setLinkName} placeholder={${i18n.value("paymentLinkName", "Payment-link name")}} /><Text className="text-sm font-medium">${i18n.child("providerPriceId", "Provider price ID")}</Text><Input accessibilityLabel={${i18n.value("providerPriceId", "Provider price ID")}} value={linkPrice} onChangeText={setLinkPrice} placeholder={${i18n.value("providerPriceId", "Provider price ID")}} autoCapitalize="none" /><Button variant="outline" disabled={busy} onPress={() => createPaymentLink(provider.id)}><Text>${i18n.child("createPaymentLink", "Create payment link")}</Text></Button></View> : <Text className="text-xs text-muted-foreground">${i18n.child("adminPaymentLinks", "Merchant administrators can create payment links.")}</Text> : null}</CardContent></Card>)}
         </View>
-        <Card><CardHeader><CardTitle>${i18n.child("subscriptions", "Subscriptions")}</CardTitle><CardDescription>${i18n.child("subscriptionDescription", "Actor-scoped subscription state.")}</CardDescription></CardHeader><CardContent className="gap-2">{snapshot.isPending ? <ActivityIndicator accessibilityLabel={${i18n.value("loadingSubscriptions", "Loading subscriptions")}} /> : subscriptions.length === 0 ? snapshot.error ? null : <Text className="text-sm text-muted-foreground">${i18n.child("noSubscriptionsTitle", "No subscriptions yet.")}</Text> : subscriptions.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><View className="gap-1"><Text className="text-sm">{item.provider}</Text>{item.currentPeriodEnd ? <Text className="text-xs text-muted-foreground">${renews}</Text> : null}</View><Badge variant={item.status === "past_due" ? "destructive" : "secondary"}><Text className="text-xs">{item.status}</Text></Badge></View>)}</CardContent></Card>
-        <Card><CardHeader><CardTitle>${i18n.child("invoices", "Invoices")}</CardTitle><CardDescription>${i18n.child("invoiceDescription", "Recent actor-scoped invoices.")}</CardDescription></CardHeader><CardContent className="gap-2">{snapshot.isPending ? <ActivityIndicator accessibilityLabel={${i18n.value("invoices", "Invoices")}} /> : invoices.length === 0 ? snapshot.error ? null : <Text className="text-sm text-muted-foreground">${i18n.child("noInvoices", "No invoices yet.")}</Text> : invoices.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><Text className="text-sm">{item.provider} · {formatBillingInvoiceAmount(item, locale)}</Text><Badge variant={item.paid ? "secondary" : "destructive"}><Text className="text-xs">{item.status}</Text></Badge></View>)}</CardContent></Card>
+        <Card><CardHeader><CardTitle>${i18n.child("subscriptions", "Subscriptions")}</CardTitle><CardDescription>${i18n.child("subscriptionDescription", "Actor-scoped subscription state.")}</CardDescription></CardHeader><CardContent className="gap-2">{snapshot.isPending ? <ActivityIndicator accessibilityLabel={${i18n.value("loadingSubscriptions", "Loading subscriptions")}} /> : subscriptions.length === 0 ? snapshot.error ? null : <Text className="text-sm text-muted-foreground">${i18n.child("noSubscriptionsTitle", "No subscriptions yet.")}</Text> : subscriptions.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><View className="gap-1"><Text className="text-sm">{item.provider}</Text>{item.currentPeriodEnd ? <Text className="text-xs text-muted-foreground">${renews}</Text> : null}</View><Badge variant={item.status === "past_due" ? "destructive" : "secondary"}><Text className="text-xs">{formatBillingSubscriptionStatus(item.status${hasI18n ? ", t" : ""})}</Text></Badge></View>)}</CardContent></Card>
+        <Card><CardHeader><CardTitle>${i18n.child("invoices", "Invoices")}</CardTitle><CardDescription>${i18n.child("invoiceDescription", "Recent actor-scoped invoices.")}</CardDescription></CardHeader><CardContent className="gap-2">{snapshot.isPending ? <ActivityIndicator accessibilityLabel={${i18n.value("invoices", "Invoices")}} /> : invoices.length === 0 ? snapshot.error ? null : <Text className="text-sm text-muted-foreground">${i18n.child("noInvoices", "No invoices yet.")}</Text> : invoices.map((item) => <View key={item.id} className="flex-row items-center justify-between rounded-lg border border-border px-3 py-2"><Text className="text-sm">{item.provider} · {formatBillingInvoiceAmount(item, locale)}</Text><Badge variant={item.paid ? "secondary" : "destructive"}><Text className="text-xs">{formatBillingInvoiceStatus(item.status${hasI18n ? ", t" : ""})}</Text></Badge></View>)}</CardContent></Card>
         <Button variant="outline" disabled={!isAuthenticated || snapshot.isFetching} onPress={() => void snapshot.refetch()}><Text>${i18n.child("refresh", "Refresh billing")}</Text></Button>
       </View>
     </ScrollView>

@@ -85,11 +85,11 @@ describe("generated application reachability", () => {
         const enabled = generate(config(mode, framework, ["web"]));
         const disabled = generate(config(mode, framework, ["web"], false));
         const enabledNavigation = [
-          read(enabled, `${root}src/components/workspace-navigation.tsx`),
+          read(enabled, `${root}src/features/app-shell/navigation-model.ts`),
           read(enabled, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
         const disabledNavigation = [
-          read(disabled, `${root}src/components/workspace-navigation.tsx`),
+          read(disabled, `${root}src/features/app-shell/navigation-model.ts`),
           read(disabled, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
 
@@ -125,8 +125,11 @@ describe("generated application reachability", () => {
   test("monorepo Expo and Electron expose only emitted capability routes", () => {
     const files = generate(config("monorepo", "nextjs", ["web", "mobile", "desktop"]));
     const off = generate(config("monorepo", "nextjs", ["web", "mobile", "desktop"], false));
-    const dashboard = read(files, "apps/mobile/app/dashboard.tsx");
-    const desktopRoot = read(files, "apps/desktop/src/renderer/routes/__root.tsx");
+    const dashboard = read(files, "apps/mobile/src/features/dashboard/screen.tsx");
+    const desktopRoot = read(
+      files,
+      "apps/desktop/src/renderer/features/app-shell/components/navigation.tsx",
+    );
     const desktopTree = read(files, "apps/desktop/src/renderer/routeTree.gen.ts");
 
     for (const route of ["notifications", "storage", "feature-flags", "jobs", "pdf"]) {
@@ -147,8 +150,11 @@ describe("generated application reachability", () => {
       expect(desktopTree, route).toContain(`${routeName}Route`);
     }
 
-    const offDashboard = read(off, "apps/mobile/app/dashboard.tsx");
-    const offDesktopRoot = read(off, "apps/desktop/src/renderer/routes/__root.tsx");
+    const offDashboard = read(off, "apps/mobile/src/features/dashboard/screen.tsx");
+    const offDesktopRoot = read(
+      off,
+      "apps/desktop/src/renderer/features/app-shell/components/navigation.tsx",
+    );
     const offDesktopTree = read(off, "apps/desktop/src/renderer/routeTree.gen.ts");
     for (const route of ["notifications", "storage", "feature-flags", "jobs", "pdf"]) {
       expect(
@@ -223,7 +229,7 @@ describe("generated application reachability", () => {
         const files = generate(projectConfigSchema.parse({ ...input, jobsUserFacingApi: false }));
         const root = mode === "monorepo" ? "apps/web/" : "";
         const navigation = [
-          read(files, `${root}src/components/workspace-navigation.tsx`),
+          read(files, `${root}src/features/app-shell/navigation-model.ts`),
           read(files, `${root}src/components/header-user-menu.tsx`),
         ].join("\n");
         const servicePath =
@@ -264,13 +270,15 @@ describe("generated application reachability", () => {
       const mobileRoot = mode === "monorepo" ? "apps/mobile/" : "";
       const desktopRoot = mode === "monorepo" ? "apps/desktop/" : "";
       expect(mobile.some(({ path }) => path === `${mobileRoot}app/jobs.tsx`)).toBe(false);
-      expect(read(mobile, `${mobileRoot}app/dashboard.tsx`)).not.toContain('href="/jobs"');
+      expect(read(mobile, `${mobileRoot}src/features/dashboard/screen.tsx`)).not.toContain(
+        'href="/jobs"',
+      );
       expect(
         desktop.some(({ path }) => path === `${desktopRoot}src/renderer/routes/jobs.tsx`),
       ).toBe(false);
-      expect(read(desktop, `${desktopRoot}src/renderer/routes/__root.tsx`)).not.toContain(
-        'to="/jobs"',
-      );
+      expect(
+        read(desktop, `${desktopRoot}src/renderer/features/app-shell/components/navigation.tsx`),
+      ).not.toContain('to="/jobs"');
       expect(read(desktop, `${desktopRoot}src/renderer/routeTree.gen.ts`)).not.toContain(
         "JobsRoute",
       );
@@ -313,31 +321,49 @@ describe("generated application reachability", () => {
     });
     expect(module.getNotificationHref("user.note", { href: "https://evil.example" })).toBeNull();
 
-    const webInbox = read(files, "apps/web/src/features/notifications/page.tsx");
+    const webInbox = read(
+      files,
+      "apps/web/src/features/notifications/use-notification-workspace.ts",
+    );
     const bell = read(files, "apps/web/src/components/NotificationBell.tsx");
     const bellAdapter = read(files, "apps/web/src/features/notifications/bell.tsx");
     const headerActions = read(files, "apps/web/src/components/header-actions.tsx");
-    const expoInbox = read(files, "apps/mobile/src/features/notifications/page.tsx");
+    const expoInbox = read(
+      files,
+      "apps/mobile/src/features/notifications/use-notification-workspace.ts",
+    );
     const push = read(files, "apps/mobile/src/hooks/use-push.ts");
-    const mobileRoot = read(files, "apps/mobile/app/_layout.tsx");
-    const desktopInbox = read(files, "apps/desktop/src/renderer/features/notifications/page.tsx");
+    const mobileRoot = read(files, "apps/mobile/src/components/providers.tsx");
+    const desktopInbox = read(
+      files,
+      "apps/desktop/src/renderer/features/notifications/use-notification-workspace.ts",
+    );
     for (const source of [webInbox, expoInbox, desktopInbox]) {
+      expect(source).toContain("useAuthOwnedMutation(async (action:");
       expect(source).toMatch(
-        /const isCurrent = captureEffect\(\);[\s\S]*?const destination = resolveNotificationDestination\(item\.href\);[\s\S]*?if \(!destination \|\| !isCurrent\(\)\) return;[\s\S]*?if \(item\.readAt === null\) await markNotificationRead\(item\.id\);[\s\S]*?if \(!isCurrent\(\)\) return;[\s\S]*?(?:router\.push\(destination\)|navigate\(\{ to: destination \}\))/,
+        /const destination = resolveNotificationDestination\(action\.item\.href\);[\s\S]*?if \(destination && action\.item\.readAt === null\) await markNotificationRead\(action\.item\.id\);/,
+      );
+      expect(source).toMatch(
+        /onSuccess: async \(result, _action, isCurrent\) => \{[\s\S]*?await invalidateInbox\(\);[\s\S]*?if \(isCurrent\(\) && result\.destination\)/,
       );
     }
-    expect(bell).toMatch(
-      /const destination = getNotificationHref\([\s\S]*?const isCurrent = captureAction\?\.\(\) \?\? \(\(\) => true\);[\s\S]*?await onMarkRead\?\.\(notification\.id\);[\s\S]*?if \(isCurrent\(\) && destination\) onNavigate\?\.\(destination\.href\)/,
+    expect(bell).toContain("onActivate?.(notification)");
+    expect(bell).not.toContain("markNotificationRead");
+    expect(bellAdapter).toContain("<NotificationBell {...useNotificationBell()} />");
+    const bellWorkflow = read(
+      files,
+      "apps/web/src/features/notifications/use-notification-bell.ts",
     );
-    expect(bellAdapter).toContain("captureAction={captureEffect}");
-    expect(bellAdapter).toMatch(
-      /onNavigate=\{\(destination: NotificationDestination\) => \{ router\.push\(destination\); \}\}/,
+    expect(bellWorkflow).toMatch(
+      /if \(item\.readAt === null\) await markNotificationRead\(item\.id\);[\s\S]*?if \(isCurrent\(\)\) await invalidateInbox\(\);[\s\S]*?if \(isCurrent\(\) && destination\) router\.push\(destination\.href\)/,
     );
-    expect(headerActions).toContain(
+    const shell = read(files, "apps/web/src/features/app-shell/app-shell.tsx");
+    expect(shell).toContain(
       'import { NotificationInboxBell } from "@/features/notifications/bell";',
     );
+    expect(shell).toContain("notifications={<NotificationInboxBell />}");
     expect(headerActions).toMatch(
-      /\) : identity.status === "authenticated" \? \([\s\S]*?<NotificationInboxBell \/>/,
+      /\) : identity.status === "authenticated" \? \([\s\S]*?\{notifications\}/,
     );
 
     expect(push).toContain("addNotificationResponseReceivedListener(navigateResponse)");
@@ -360,7 +386,7 @@ describe("generated application reachability", () => {
     expect(offPaths.has("apps/mobile/app/notifications.tsx")).toBe(false);
     expect(offPaths.has("apps/desktop/src/renderer/routes/notifications.tsx")).toBe(false);
     const offHeaderActions = read(off, "apps/web/src/components/header-actions.tsx");
-    const offMobileRoot = read(off, "apps/mobile/app/_layout.tsx");
+    const offMobileRoot = read(off, "apps/mobile/src/components/providers.tsx");
     expect(offHeaderActions).not.toContain("NotificationInboxBell");
     expect(offMobileRoot).not.toContain("PushNotificationObserver");
   });

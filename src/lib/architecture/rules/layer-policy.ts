@@ -7,6 +7,7 @@ import { builtinModules } from "node:module";
 import type { LayerInfo } from "../types.js";
 import { getBasePackage } from "../utils.js";
 import { isPaddleBrowserAdapterFile, isVendorDirectImport } from "./vendor.js";
+import { isFrontendIdentityModelFile } from "../frontend/classify.js";
 
 export type ArchitectureLayer =
   | "UI"
@@ -60,6 +61,7 @@ export function getLayerFromFilePath(path: string): LayerInfo | null {
 
   if (/\/packages\/auth\/src\/client\.[cm]?[jt]sx?$/.test(file)) return layer("UI");
   if (isPaddleBrowserAdapterFile(file)) return layer("Transport");
+  if (isFrontendIdentityModelFile(file)) return layer("Supporting");
   if (/^\/(?:apps\/(?:web|mobile|desktop)\/)?src\/contracts(?:\/|$)/.test(file))
     return layer("Supporting");
 

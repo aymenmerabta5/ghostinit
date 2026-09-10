@@ -6,9 +6,11 @@ function queriesContent(): string {
 
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { resolveRpcError } from "@/lib/query-client";
 import type { AdminUsersFilters, AdminUsersInitialData, AdminUsersQueryState } from "./types";
 
 export interface AdminUsersQueryOptionsConfig { initialData?: AdminUsersInitialData; }
+export function resolveAdminUsersError(error: unknown) { return error ? resolveRpcError(error) ?? {} : null; }
 export function adminUsersQueryOptions(input: AdminUsersFilters, config: AdminUsersQueryOptionsConfig = {}) {
   return orpc.adminUsers.list.queryOptions({
     input,
@@ -32,11 +34,13 @@ import { orpc } from "@/lib/orpc";
 import {
   adminUsersQueryKey,
   currentQueryAuthScope,
+  resolveRpcError,
   type QueryAuthScope,
 } from "@/lib/query-client";
 import type { AdminUsersFilters, AdminUsersInitialData, AdminUsersQueryState } from "./types";
 
 export { adminUsersQueryKey } from "@/lib/query-client";
+export function resolveAdminUsersError(error: unknown) { return error ? resolveRpcError(error) ?? {} : null; }
 
 export interface AdminUsersQueryOptionsConfig { initialData?: AdminUsersInitialData; }
 export function adminUsersQueryOptions(input: AdminUsersFilters, scope: QueryAuthScope | null, config: AdminUsersQueryOptionsConfig = {}) {

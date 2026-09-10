@@ -156,7 +156,7 @@ describe("generated billing framework routing", () => {
     const generated = generateProjectFiles(config("monorepo", "tanstack-start"), { dryRun: true });
     for (const path of [
       "apps/web/src/routes/billing.tsx",
-      "apps/web/src/features/billing/billing-empty-state.tsx",
+      "apps/web/src/features/billing/components/billing-empty-state.tsx",
       "apps/web/src/features/billing/billing-page.tsx",
     ]) {
       const source = generated.find((entry) => entry.path === path)?.content;

@@ -122,6 +122,13 @@ function isRequirementActive(
   if (requirement.when === "jobs-user-facing-api") {
     return desired.jobs !== undefined && desired.jobs !== false && desired.jobs.userFacingApi;
   }
+  if (requirement.when === "manual-billing") {
+    return (
+      desired.billing !== undefined &&
+      desired.billing !== false &&
+      desired.billing.providers.includes("manual")
+    );
+  }
   return false;
 }
 

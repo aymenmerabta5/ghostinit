@@ -4,9 +4,15 @@ import {
   identityWorkspaceBrowserMutationsContent,
   identityWorkspaceNextMutationsContent,
 } from "../../src/templates/apps/fragments/identity-workspace/web-data.js";
-import { desktopWorkspaceRouteContent } from "../../src/templates/apps/fragments/identity-workspace/desktop.js";
-import { expoWorkspaceContent } from "../../src/templates/apps/fragments/identity-workspace/expo.js";
-import { identityWorkspaceControllerContent } from "../../src/templates/apps/fragments/identity-workspace/web-controller.js";
+import {
+  desktopWorkspaceFeatureFiles,
+  expoWorkspaceFeatureFiles,
+} from "../../src/templates/apps/fragments/identity-workspace/native-workspace.js";
+import {
+  workspaceSelectionContent,
+  workspaceTeamsContent,
+} from "../../src/templates/apps/fragments/identity-workspace/workspace-workflows.js";
+import { deferred, generatedFormHarness } from "../helpers/generated-form-harness.js";
 
 interface Scope {
   userId: string;
@@ -57,34 +63,33 @@ function removalSuccess(
   runtime: ScopeRuntime,
   client: QueryCache,
 ): () => void {
-  const prefix = `const ${operation} = `;
-  const declaration = source.split("\n").find((line) => line.trimStart().startsWith(prefix));
-  if (!declaration) throw new Error(`Missing emitted mutation ${operation}`);
-  const expression = declaration.trim().slice(prefix.length).replace(/;$/, "");
-  const options = (value: { onSuccess(): void }) => value;
-  const procedure = { mutationOptions: options };
+  const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(
+    source.replace(/^import[^;]+;\s*/gm, "").replace(/^export /gm, ""),
+  );
+  const options = (_operation: unknown, effects: { onSuccess(): void }) => effects;
+  const procedure = { call: async () => ({}) };
   const orpc = {
     identity: { organizations: { removeMember: procedure }, teams: { removeMember: procedure } },
   };
   const mutation = new Function(
-    "useMutation",
+    "useAuthOwnedMutation",
+    "useQueryClient",
     "orpc",
     "queryClient",
     "requestQueryAuthScopeRefresh",
+    "currentQueryAuthScope",
     "removeMemberAction",
     "removeTeamMemberAction",
-    "invalidateWorkspace",
-    "invalidate",
-    `return ${expression};`,
+    `${javascript}; return use${operation === "removeMember" ? "RemoveMember" : "RemoveTeamMember"}Mutation();`,
   )(
     options,
+    () => client,
     orpc,
     client,
     runtime.requestQueryAuthScopeRefresh,
+    runtime.currentQueryAuthScope,
     () => {},
     () => {},
-    async () => {},
-    async () => {},
   ) as {
     onSuccess(): void;
   };
@@ -94,8 +99,17 @@ function removalSuccess(
 const sources = [
   ["Next", identityWorkspaceNextMutationsContent()],
   ["TanStack", identityWorkspaceBrowserMutationsContent()],
-  ["Electron", desktopWorkspaceRouteContent()],
-  ["Expo", expoWorkspaceContent()],
+  [
+    "Electron",
+    desktopWorkspaceFeatureFiles("monorepo", false).find(({ path }) =>
+      path.endsWith("/mutations.ts"),
+    )!.content,
+  ],
+  [
+    "Expo",
+    expoWorkspaceFeatureFiles("monorepo", false).find(({ path }) => path.endsWith("/mutations.ts"))!
+      .content,
+  ],
 ] as const;
 
 describe("workspace self-removal scope recovery", () => {
@@ -158,129 +172,131 @@ describe("workspace self-removal scope recovery", () => {
   }
 });
 
-interface TeamCallbacks {
-  teamCreated(id: string, organizationId: string): void;
+interface TeamOutcome {
+  status: "success";
+  data: { team: { id: string; organizationId: string } };
+  isCurrent(): boolean;
 }
-
-interface WorkspaceView {
-  organizationId: string;
-  teamId: string | null;
-  teamName: string;
-  setSelectedOrganizationId(id: string): void;
-  setTeamName(name: string): void;
-}
-
-function workspaceController() {
-  const cells: unknown[] = [];
-  const effects: Array<() => void> = [];
-  let cursor = 0;
-  let callbacks: TeamCallbacks | undefined;
-  const react = {
-    useState<T>(initial: T): [T, (value: T) => void] {
-      const index = cursor++;
-      if (!(index in cells)) cells[index] = initial;
-      return [
-        cells[index] as T,
-        (value) => {
-          cells[index] = value;
-        },
-      ];
-    },
-    useRef<T>(initial: T): { current: T } {
-      const index = cursor++;
-      if (!(index in cells)) cells[index] = { current: initial };
-      return cells[index] as { current: T };
-    },
-    useLayoutEffect(effect: () => void): void {
-      effects.push(effect);
-    },
+interface TeamView {
+  selection: {
+    selectOrganization(id: string): void;
+    queries: { organizationId: string; teamId: string | null };
   };
-  const javascript = new Bun.Transpiler({ loader: "ts" }).transformSync(
-    identityWorkspaceControllerContent()
-      .replace(/^import .*;\n/gm, "")
-      .replace(/^export /gm, ""),
-  );
-  const renderController = new Function(
-    "React",
-    "useIdentityWorkspaceQueries",
-    "useIdentityWorkspaceMutations",
-    "workspaceAccess",
-    `${javascript}; return useIdentityWorkspaceController;`,
-  )(
-    react,
-    (organizationId: string | null, teamId: string | null) => ({
+  teams: { form: { handleSubmit(): Promise<void> } };
+}
+
+function workspaceWorkflow(native = false) {
+  const request = deferred<TeamOutcome>();
+  let dependencies = "";
+  const commitEffects: Array<() => void> = [];
+  const source =
+    workspaceSelectionContent() +
+    "\n" +
+    workspaceTeamsContent(native) +
+    "\nconst useForm = useAppForm; const useRef = React.useRef;\nexport function Probe() { const selection = useWorkspaceSelection(); return { selection, teams: useWorkspaceTeams(selection) }; }";
+  const h = generatedFormHarness(source, ["Probe"], {
+    useLayoutEffect: (effect: () => void, next: unknown[]) => {
+      const key = JSON.stringify(next);
+      if (key !== dependencies) {
+        dependencies = key;
+        commitEffects.push(effect);
+      }
+    },
+    useIdentityWorkspaceQueries: (organizationId: string | null, teamId: string | null) => ({
       organizationId: organizationId ?? "org-a",
       teamId,
       permissions: {},
+      teams: { data: [] },
       members: { data: [], isSuccess: true },
       teamMembers: { data: [], isSuccess: true },
     }),
-    (value: TeamCallbacks) => {
-      callbacks = value;
-      return {};
-    },
-    () => ({}),
-  ) as (error: string) => WorkspaceView;
+    workspaceAccess: () => ({
+      canWriteTeams: true,
+      canActivateTeam: true,
+      availableTeamMembers: [],
+    }),
+    teamSchema: {},
+    teamMemberSchema: {},
+    useCreateTeamMutation: () => ({ run: () => request.promise, isPending: false, error: null }),
+    useActivateTeamMutation: () => ({}),
+    useAddTeamMemberMutation: () => ({}),
+    useRemoveTeamMemberMutation: () => ({}),
+  });
   return {
-    render() {
-      cursor = 0;
-      const view = renderController("Failed");
-      for (const effect of effects.splice(0)) effect();
+    ...h,
+    request,
+    render: () => {
+      const view = h.render("Probe") as TeamView;
+      for (const effect of commitEffects.splice(0)) effect();
       return view;
-    },
-    callbacks: () => {
-      if (!callbacks) throw new Error("Render the workspace before starting a mutation");
-      return callbacks;
     },
   };
 }
 
-function teamCreationSuccess(source: string, callbacks: TeamCallbacks) {
-  const prefix = "const createTeam = ";
-  const declaration = source.split("\n").find((line) => line.trimStart().startsWith(prefix));
-  if (!declaration) throw new Error("Missing emitted createTeam mutation");
-  const expression = declaration.trim().slice(prefix.length).replace(/;$/, "");
-  const identity = (value: unknown) => value;
-  return (
-    new Function(
-      "useMutation",
-      "orpc",
-      "callbacks",
-      "invalidateWorkspace",
-      "createTeamAction",
-      `return ${expression};`,
-    )(
-      identity,
-      { identity: { teams: { create: { mutationOptions: identity } } } },
-      callbacks,
-      async () => {},
-      async () => {},
-    ) as { onSuccess(value: { team: { id: string; organizationId: string } }): Promise<void> }
-  ).onSuccess;
-}
-
 describe("workspace team creation selection ownership", () => {
-  for (const [platform, source] of sources.slice(0, 2)) {
-    test(`${platform} late team creation cannot replace another organization's selection or draft`, async () => {
-      const controller = workspaceController();
-      const first = controller.render();
-      const completeFirst = teamCreationSuccess(source, controller.callbacks());
-      first.setSelectedOrganizationId("org-b");
-      const second = controller.render();
-      second.setTeamName("Draft for B");
-      await completeFirst({ team: { id: "team-a", organizationId: "org-a" } });
-      const afterLateResponse = controller.render();
-      expect(afterLateResponse.organizationId).toBe("org-b");
-      expect(afterLateResponse.teamId).toBeNull();
-      expect(afterLateResponse.teamName).toBe("Draft for B");
-
-      await teamCreationSuccess(
-        source,
-        controller.callbacks(),
-      )({ team: { id: "team-b", organizationId: "org-b" } });
-      const afterCurrentResponse = controller.render();
-      expect(afterCurrentResponse.teamId).toBe("team-b");
-      expect(afterCurrentResponse.teamName).toBe("");
-    });
+  for (const native of [false, true]) {
+    test(
+      (native ? "Expo" : "Web/Electron") +
+        " rejects a late team result after an immediate selection change",
+      async () => {
+        const h = workspaceWorkflow(native);
+        const first = h.render();
+        const form = h.forms[0]!;
+        form.values.name = "Team for A";
+        const completion = form.handleSubmit();
+        // Selection changes synchronously, before a keyed child has committed its unmount.
+        first.selection.selectOrganization("org-b");
+        h.request.resolve({
+          status: "success",
+          data: { team: { id: "team-a", organizationId: "org-a" } },
+          isCurrent: () => true,
+        });
+        await completion;
+        const after = h.render();
+        expect(after.selection.queries.organizationId).toBe("org-b");
+        expect(after.selection.queries.teamId).toBeNull();
+        expect(form.resets).toBe(0);
+      },
+    );
+    test(
+      (native ? "Expo" : "Web/Electron") +
+        " accepts the current selection's team and resets its form",
+      async () => {
+        const h = workspaceWorkflow(native);
+        h.render();
+        const form = h.forms[0]!;
+        form.values.name = "Team for A";
+        const completion = form.handleSubmit();
+        h.request.resolve({
+          status: "success",
+          data: { team: { id: "team-a", organizationId: "org-a" } },
+          isCurrent: () => true,
+        });
+        await completion;
+        expect(h.render().selection.queries.teamId).toBe("team-a");
+        expect(form.values.name).toBe("");
+        expect(form.resets).toBe(1);
+      },
+    );
+    test(
+      (native ? "Expo" : "Web/Electron") +
+        " keeps a replacement draft when its old mutation is no longer current",
+      async () => {
+        const h = workspaceWorkflow(native);
+        h.render();
+        const form = h.forms[0]!;
+        form.values.name = "Old draft";
+        const completion = form.handleSubmit();
+        form.values.name = "Replacement draft";
+        h.request.resolve({
+          status: "success",
+          data: { team: { id: "team-a", organizationId: "org-a" } },
+          isCurrent: () => false,
+        });
+        await completion;
+        expect(form.values.name).toBe("Replacement draft");
+        expect(form.resets).toBe(0);
+      },
+    );
   }
 });

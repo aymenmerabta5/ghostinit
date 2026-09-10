@@ -32,23 +32,23 @@ function lineCount(content: string): number {
 const SINGLE_DASHBOARD_FILES = [
   "types.ts",
   "queries.ts",
-  "identity-state.tsx",
-  "identity-card.tsx",
-  "quick-actions.tsx",
+  "components/identity-state.tsx",
+  "components/identity-card.tsx",
+  "components/quick-actions.tsx",
   "dashboard-overview.tsx",
 ];
 const MONOREPO_DASHBOARD_FILES = [
   "types.ts",
   "queries.ts",
-  "identity-state.tsx",
-  "dashboard-header.tsx",
-  "architecture-card.tsx",
-  "checks-card.tsx",
-  "architecture-status.tsx",
-  "identity-card.tsx",
-  "actions-card.tsx",
-  "identity-actions.tsx",
-  "modules-card.tsx",
+  "components/identity-state.tsx",
+  "components/dashboard-header.tsx",
+  "components/architecture-card.tsx",
+  "components/checks-card.tsx",
+  "components/architecture-status.tsx",
+  "components/identity-card.tsx",
+  "components/actions-card.tsx",
+  "components/identity-actions.tsx",
+  "components/modules-card.tsx",
   "dashboard-view.tsx",
 ];
 
@@ -72,11 +72,11 @@ describe("generated settings and single-dashboard file budgets", () => {
           { dryRun: false },
         );
         const card = files.find(
-          ({ path }) => path === `${root}/app/settings/components/sessions-card.tsx`,
+          ({ path }) => path === `${root}/features/settings/sessions-card.tsx`,
         );
-        const data = files.find(({ path }) => path === `${root}/app/settings/sessions.ts`);
+        const data = files.find(({ path }) => path === `${root}/features/settings/queries.ts`);
         const list = files.find(
-          ({ path }) => path === `${root}/app/settings/components/session-list.tsx`,
+          ({ path }) => path === `${root}/features/settings/components/session-list.tsx`,
         );
         if (!card || !data || !list) throw new Error("Incomplete generated session feature");
         for (const generated of [card, data, list]) {
@@ -86,17 +86,23 @@ describe("generated settings and single-dashboard file budgets", () => {
           ).toBeLessThanOrEqual(150);
           expect(parseSync(generated.path, generated.content).errors, generated.path).toEqual([]);
         }
-        expect(card.content).toContain('from "../sessions"');
+        const workflow = files.find(
+          ({ path }) => path === `${root}/features/settings/use-identity-sessions.ts`,
+        )!;
+        const mutations = files.find(
+          ({ path }) => path === `${root}/features/settings/mutations.ts`,
+        )!;
+        expect(card.content).toContain('from "./use-identity-sessions"');
         expect(card.content).toContain("useIdentitySessions(initialState)");
         expect(card.content).not.toMatch(
           /@tanstack\/react-query|@\/lib\/(?:auth-client|orpc|query-client)|\.mutate\(/,
         );
-        expect(data.content).toContain('from "./actions"');
+        expect(mutations.content).toContain('from "@/app/settings/actions"');
         expect(data.content).toContain(
           "queryInitialDataForScope(scope, initialScope, initialData)",
         );
         expect(data.content).toContain("currentQueryAuthScope(queryClient)");
-        expect(data.content).toContain("session.revokedAt === null");
+        expect(workflow.content).toContain("session.revokedAt === null");
       });
     }
 
@@ -107,11 +113,12 @@ describe("generated settings and single-dashboard file budgets", () => {
         { dryRun: false },
       );
       for (const path of [
-        "sessions.ts",
-        "components/sessions-card.tsx",
+        "use-identity-sessions.ts",
+        "sessions-card.tsx",
         "components/session-list.tsx",
+        "components/sessions-view.tsx",
       ]) {
-        expect(files.some((file) => file.path === `${root}/app/settings/${path}`)).toBe(false);
+        expect(files.some((file) => file.path === `${root}/features/settings/${path}`)).toBe(false);
       }
     });
 
@@ -120,27 +127,40 @@ describe("generated settings and single-dashboard file budgets", () => {
       const files = generateProjectFiles(config(mode), { dryRun: false });
       const settings = files.filter(
         ({ path }) =>
-          path === `${root}/routes/settings.tsx` || path.startsWith(`${root}/features/settings/`),
+          path === `${root}/routes/settings.tsx` ||
+          path.startsWith(`${root}/features/settings/`) ||
+          path.startsWith(`${root}/features/account-deletion/`),
       );
       expect(settings.map(({ path }) => path).sort()).toEqual(
         [
-          `${root}/features/settings/danger-zone-section.tsx`,
-          `${root}/features/settings/mutations.ts`,
-          `${root}/features/settings/passkey-card.tsx`,
-          `${root}/features/settings/passkey-list.tsx`,
-          `${root}/features/settings/password-card.tsx`,
-          `${root}/features/settings/profile-card.tsx`,
+          `${root}/routes/settings.tsx`,
+          `${root}/features/settings/model.ts`,
           `${root}/features/settings/queries.ts`,
-          `${root}/features/settings/schema.ts`,
-          `${root}/features/settings/security-navigation-section.tsx`,
-          `${root}/features/settings/session-list.tsx`,
+          `${root}/features/settings/mutations.ts`,
+          `${root}/features/settings/profile-card.tsx`,
+          `${root}/features/settings/password-card.tsx`,
+          `${root}/features/settings/two-factor-card.tsx`,
+          `${root}/features/settings/passkey-card.tsx`,
           `${root}/features/settings/sessions-card.tsx`,
           `${root}/features/settings/settings-controller.tsx`,
-          `${root}/features/settings/two-factor-card.tsx`,
-          `${root}/features/settings/types.ts`,
+          `${root}/features/settings/use-profile-identity.ts`,
+          `${root}/features/settings/use-profile-form.ts`,
+          `${root}/features/settings/use-password-form.ts`,
           `${root}/features/settings/use-two-factor-settings.ts`,
+          `${root}/features/settings/use-identity-sessions.ts`,
           `${root}/features/settings/use-passkey-management.ts`,
-          `${root}/routes/settings.tsx`,
+          `${root}/features/settings/components/profile-view.tsx`,
+          `${root}/features/settings/components/password-view.tsx`,
+          `${root}/features/settings/components/two-factor-view.tsx`,
+          `${root}/features/settings/components/passkey-view.tsx`,
+          `${root}/features/settings/components/sessions-view.tsx`,
+          `${root}/features/settings/components/session-list.tsx`,
+          `${root}/features/settings/components/security-navigation-section.tsx`,
+          `${root}/features/account-deletion/model.ts`,
+          `${root}/features/account-deletion/mutations.ts`,
+          `${root}/features/account-deletion/use-account-deletion.ts`,
+          `${root}/features/account-deletion/account-deletion.tsx`,
+          `${root}/features/account-deletion/components/danger-zone-view.tsx`,
         ].sort(),
       );
       for (const generated of settings) {
@@ -163,7 +183,7 @@ describe("generated settings and single-dashboard file budgets", () => {
       expect(route).not.toContain("identityClient.");
       expect(controller).toContain('import { PasskeyCard } from "./passkey-card"');
       expect(controller).toContain("<PasskeyCard />");
-      expect(passkeyCard).toContain('from "./passkey-list"');
+      expect(passkeyCard).toContain('from "./components/passkey-view"');
       expect(sessionList).toContain("userAgent?: string | null");
       expect(sessionList).toContain("ipAddress?: string | null");
     });
@@ -174,9 +194,9 @@ describe("generated settings and single-dashboard file budgets", () => {
       expect(files.some(({ path }) => path === `${root}/features/settings/sessions-card.tsx`)).toBe(
         false,
       );
-      expect(files.some(({ path }) => path === `${root}/features/settings/session-list.tsx`)).toBe(
-        false,
-      );
+      expect(
+        files.some(({ path }) => path === `${root}/features/settings/components/session-list.tsx`),
+      ).toBe(false);
       expect(
         files.find(({ path }) => path === `${root}/features/settings/queries.ts`)?.content,
       ).not.toContain("@/lib/orpc");
@@ -281,7 +301,9 @@ describe("generated settings and single-dashboard file budgets", () => {
     try {
       const files = generateProjectFiles(config("single"), { dryRun: false }).filter(
         ({ path }) =>
-          path === "src/routes/settings.tsx" || path.startsWith("src/features/settings/"),
+          path === "src/routes/settings.tsx" ||
+          path.startsWith("src/features/settings/") ||
+          path.startsWith("src/features/account-deletion/"),
       );
       for (const generated of files) {
         const absolute = join(projectRoot, ...generated.path.split("/"));
@@ -292,8 +314,15 @@ describe("generated settings and single-dashboard file budgets", () => {
       expect(
         findings.filter(
           ({ file, id }) =>
-            file.includes("features/settings") &&
+            (file.includes("features/settings") || file.includes("features/account-deletion")) &&
             [
+              "frontend-remote-owner",
+              "frontend-form-owner",
+              "frontend-view-workflow",
+              "frontend-server-state-copy",
+              "frontend-derived-effect-state",
+              "frontend-model-purity",
+              "frontend-workflow-budget",
               "feature-imports-data-access-outside-adapter",
               "feature-presentation-imports-data-access",
               "client-imports-server-only",

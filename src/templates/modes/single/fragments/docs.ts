@@ -1,7 +1,14 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { generatedGitignoreContent } from "../../../gitignore.js";
+import { dependencySecurityReadmeLines } from "../../../shared/dependency-security-docs.js";
 import * as v from "../../../versions.js";
-import type { AppName, BillingProviderName, FrameworkName } from "../../../../lib/addons.js";
+import type {
+  AppName,
+  BillingProviderName,
+  DatabaseProvider,
+  DeployTarget,
+  FrameworkName,
+} from "../../../../lib/addons.js";
 import { buildAgentsMdContent } from "./agents-content.js";
 import type { SingleAgentDocsOptions } from "./agents-content.js";
 
@@ -55,6 +62,10 @@ export interface SingleReadmeOptions {
   framework?: FrameworkName;
   hasEve?: boolean;
   apps?: readonly AppName[];
+  database?: DatabaseProvider;
+  deploy?: DeployTarget;
+  billing?: readonly BillingProviderName[];
+  auth?: boolean;
 }
 
 export function readmeSingle(
@@ -95,12 +106,21 @@ export function readmeSingle(
         "bun run build",
         "```",
         "",
+        ...dependencySecurityReadmeLines(),
         structure,
         "Client-local analytics and i18n remain available when selected. Keep server credentials out of the native bundle.",
         "",
       ].join("\n"),
     );
   }
+  const database = options.database ?? "postgres";
+  const isCloudflare = options.deploy === "cloudflare";
+  const environmentFile = isCloudflare ? ".dev.vars" : ".env.local";
+  const billing = options.billing ?? [];
+  const manualConfigPath =
+    database === "convex"
+      ? "convex/manualPaymentConfig.ts"
+      : "src/server/billing/manual-payment-config.ts";
   const isTanstack = framework === "tanstack-start";
   const frameworkLabel = isTanstack ? "TanStack Start" : "Next.js";
   const applicationPaths = isTanstack
@@ -137,31 +157,59 @@ export function readmeSingle(
       "## Getting Started",
       "",
       "```bash",
-      "# GhostInit already generated .env.local; review vendor placeholders without overwriting its self-issued secrets.",
+      `# GhostInit already generated ${environmentFile}; review placeholders without overwriting its self-issued secrets.`,
       "bun run install:verified # use bun run install:bootstrap only for fresh --no-install output",
-      "docker compose --env-file .env.local up -d",
-      "bun run db:generate",
-      "bun run db:migrate",
+      ...(database === "postgres"
+        ? [
+            "docker compose --env-file .env.local up -d",
+            "bun run db:generate",
+            "bun run db:migrate",
+          ]
+        : []),
+      ...(database === "convex"
+        ? [
+            ...(isCloudflare ? ["bun run convex:bootstrap # one-time Convex setup"] : []),
+            "# Terminal 1: start Convex and wait for it to become ready.",
+            "bun run convex:dev",
+            "# Terminal 2: start the web app after Convex is ready.",
+          ]
+        : []),
       "bun run dev",
       "```",
       "",
       `Application structure: ${applicationPaths}${hasEmail ? ", including the selected email capability" : ""}.`,
-      ...(hasEmail
+      ...(hasEmail || options.auth === false
         ? []
         : [
             "Email/password signup, sign-in, verification, magic-link, and reset are disabled because the email capability is not selected. Configure Google or GitHub OAuth credentials, or regenerate with email enabled.",
           ]),
       ...eveDescription,
       "",
-      "## Billing",
-      "",
-      "Flexible billing providers any combo none/both/one/all: stripe, chargily, paddle, polar. Env placeholders REPLACE_WITH... real secrets via secret() 48-byte base64url gitignored.",
-      "",
+      ...dependencySecurityReadmeLines(),
+      ...(billing.length > 0
+        ? [
+            "## Billing",
+            "",
+            `Selected billing: ${billing.join(", ")}.`,
+            ...(billing.some((provider) => provider !== "manual")
+              ? [
+                  "Configure the selected providers with real vendor credentials; generated vendor values remain REPLACE_WITH placeholders until supplied.",
+                ]
+              : []),
+            ...(billing.includes("manual")
+              ? [
+                  `Manual DZD top-ups require private receipt upload and administrator approval. Configure \`${manualConfigPath}\` before accepting transfers; see [manual payment setup](docs/manual-payments.md).`,
+                ]
+              : []),
+            "",
+          ]
+        : []),
       "## Quality Gates",
       "",
       "- `bun run typecheck`",
-      "- `bun run lint` + `format:check`",
-      "- `bun test`",
+      "- `bun run lint:all`",
+      "- `bun run format:check`",
+      "- `bun run test`",
       "- `bun run build`",
       "- `ghostinit check`",
       "- `ghostinit sync --check`",

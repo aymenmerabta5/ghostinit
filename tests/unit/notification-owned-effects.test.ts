@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { authOwnedEffectContent } from "../../src/templates/apps/fragments/auth-owned-effect.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
 import { generatedUiOutput } from "../helpers/generated-ui-output.js";
 import {
   deferred,
@@ -28,6 +30,8 @@ function ownerHarness() {
   const capture = hook.module.useAuthOwnedEffect!() as () => () => boolean;
   return {
     capture,
+    queryClient,
+    generation: () => generation,
     changeOwner: () => {
       generation += 1;
     },
@@ -62,9 +66,15 @@ function pageHarness(
   const navigations: string[] = [];
   let marks = 0;
   let invalidations = 0;
+  const mutationState = queryMutationHarness();
   const ui = generatedFormHarness(
-    output.read(`${root}/features/notifications/page.tsx`),
-    ["NotificationsPage"],
+    [
+      authOwnedMutationContent(),
+      output.read(`${root}/features/notifications/use-notification-workspace.ts`),
+      output.read(`${root}/features/notifications/components/notifications-workspace.tsx`),
+      "function Probe() { return useNotificationWorkspace(); }",
+    ].join("\n"),
+    ["Probe", "NotificationsWorkspace"],
     {
       ...Object.fromEntries(
         [
@@ -86,6 +96,10 @@ function pageHarness(
       usePushNotifications: () => ({}),
       useTranslations: () => (key: string) => key,
       useAuthOwnedEffect: () => owner.capture,
+      useQueryClient: () => owner.queryClient,
+      currentQueryAuthGeneration: owner.generation,
+      subscribeQueryAuthGeneration: () => () => {},
+      useMutation: mutationState.useMutation,
       useRouter: () => ({ push: (destination: string) => navigations.push(destination) }),
       useNavigate:
         () =>
@@ -110,7 +124,7 @@ function pageHarness(
     },
   );
   const start = () => {
-    const tree = ui.render("NotificationsPage", { initialItems: [item] });
+    const tree = ui.render("NotificationsWorkspace", ui.render("Probe"));
     const open = elements(tree).find(
       (node) => node.type === "Button" && textContent(node) === "open",
     );
@@ -156,12 +170,21 @@ describe("notification follow-up effects remain with their initiating UI owner",
         const request = deferred<void>();
         const navigations: string[] = [];
         let marks = 0;
+        const mutationState = queryMutationHarness();
         const adapter = generatedFormHarness(
-          output.read(`${output.root}/features/notifications/bell.tsx`),
-          ["NotificationInboxBell"],
+          [
+            authOwnedMutationContent(),
+            output.read(`${output.root}/features/notifications/use-notification-bell.ts`),
+          ].join("\n"),
+          ["useNotificationBell"],
           {
             NotificationBell: "NotificationBell",
             useAuthOwnedEffect: () => owner.capture,
+            useQueryClient: () => owner.queryClient,
+            currentQueryAuthGeneration: owner.generation,
+            subscribeQueryAuthGeneration: () => () => {},
+            useMutation: mutationState.useMutation,
+            getNotificationHref: () => ({ href: "/settings" }),
             useRouter: () => ({ push: (href: string) => navigations.push(href) }),
             useNavigate:
               () =>
@@ -176,7 +199,7 @@ describe("notification follow-up effects remain with their initiating UI owner",
             },
           },
         );
-        const props = elements(adapter.render("NotificationInboxBell"))[0]!.props;
+        const props = adapter.render("useNotificationBell");
         const ui = generatedFormHarness(
           output.read(`${output.root}/components/NotificationBell.tsx`),
           ["NotificationBell"],
@@ -203,12 +226,12 @@ describe("notification follow-up effects remain with their initiating UI owner",
         const button = elements(ui.render("NotificationBell", props)).find(
           (node) => node.type === "Button" && typeof node.props.onClick === "function",
         )!;
-        const completion = (button.props.onClick as () => Promise<void>)();
+        (button.props.onClick as () => void)();
         expect(marks).toBe(1);
         if (transition === "account") owner.changeOwner();
         if (transition === "unmount") owner.unmount();
         request.resolve();
-        await completion;
+        await flush();
         expect(navigations).toEqual(transition === "none" ? ["/settings"] : []);
       });
     }

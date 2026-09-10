@@ -81,7 +81,7 @@ describe("source CLI canonical format lifecycle", () => {
       const beforeSnapshot = projectSnapshot(projectRoot);
       expect(await formatGenerationText(probe.replaceAll("\\", "/"), before)).toBe(before);
 
-      const upgraded = run(["upgrade", "--json"], projectRoot);
+      const upgraded = run(["upgrade", "--no-install", "--json"], projectRoot);
       expect(upgraded.status, `${upgraded.stdout}\n${upgraded.stderr}`).toBe(0);
       const upgradeOutput = JSON.parse(upgraded.stdout) as {
         data: {

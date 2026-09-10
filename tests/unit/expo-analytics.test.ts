@@ -32,6 +32,18 @@ function read(files: readonly TemplateFile[], path: string): string {
   return file.content;
 }
 
+function implementation(files: readonly TemplateFile[], mode: "monorepo" | "single"): string {
+  const root = mode === "monorepo" ? "apps/mobile/src/lib" : "src/lib";
+  return ["analytics-model.ts", "analytics-client.ts", "analytics.tsx"]
+    .map((name) => {
+      const path = `${root}/${name}`;
+      const source = read(files, path);
+      expect(parseSync(path, source).errors, path).toEqual([]);
+      return source;
+    })
+    .join("\n");
+}
+
 function manifest(files: readonly TemplateFile[], mode: "monorepo" | "single") {
   return JSON.parse(
     read(files, mode === "monorepo" ? "apps/mobile/package.json" : "package.json"),
@@ -48,7 +60,10 @@ describe("generated Expo PostHog analytics", () => {
       const disabled = generateMobile(mode, false);
       const path =
         mode === "monorepo" ? "apps/mobile/src/lib/analytics.tsx" : "src/lib/analytics.tsx";
-      const layoutPath = mode === "monorepo" ? "apps/mobile/app/_layout.tsx" : "app/_layout.tsx";
+      const layoutPath =
+        mode === "monorepo"
+          ? "apps/mobile/src/components/providers.tsx"
+          : "src/components/providers.tsx";
 
       expect(manifest(enabled, mode).dependencies["posthog-react-native"], mode).toBe(
         analytics["posthog-react-native"],
@@ -80,10 +95,7 @@ describe("generated Expo PostHog analytics", () => {
   test("uses only scoped public Expo config and never imports the web SDK or server secrets", () => {
     for (const mode of ["monorepo", "single"] as const) {
       const files = generateMobile(mode, true);
-      const path =
-        mode === "monorepo" ? "apps/mobile/src/lib/analytics.tsx" : "src/lib/analytics.tsx";
-      const source = read(files, path);
-      expect(parseSync(path, source).errors).toEqual([]);
+      const source = implementation(files, mode);
       expect(source).toContain(
         mode === "monorepo" ? 'from "@repo/config/expo"' : 'from "@/lib/env/expo"',
       );
@@ -97,7 +109,7 @@ describe("generated Expo PostHog analytics", () => {
   });
 
   test("implements the PostHog 4.x provider, opt-out, and manual Expo screen APIs", () => {
-    const source = read(generateMobile("monorepo", true), "apps/mobile/src/lib/analytics.tsx");
+    const source = implementation(generateMobile("monorepo", true), "monorepo");
     expect(source).toContain('PostHogProvider, usePostHog } from "posthog-react-native"');
     expect(source).toContain("new PostHog(config.apiKey");
     expect(source).toContain("clientInstance !== undefined");
@@ -117,7 +129,7 @@ describe("generated Expo PostHog analytics", () => {
   });
 
   test("fails closed for disabled, placeholder, or unsafe endpoint configuration", () => {
-    const source = read(generateMobile("single", true), "src/lib/analytics.tsx");
+    const source = implementation(generateMobile("single", true), "single");
     expect(source).toContain('env.EXPO_PUBLIC_ANALYTICS_DISABLED !== "true"');
     expect(source).toContain('!apiKey.includes("REPLACE")');
     expect(source).toContain('!apiKey.toLowerCase().includes("placeholder")');

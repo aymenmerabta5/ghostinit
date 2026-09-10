@@ -15,6 +15,8 @@ import {
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan, generateProjectFiles } from "../../src/templates/default.js";
 import { identityClientAdapterContent } from "../../src/templates/apps/fragments/auth/client-adapter.js";
+import { identityPureClientFiles } from "../../src/templates/apps/fragments/auth/client-validation.js";
+import { FsTransaction } from "../../src/lib/fs.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
 
@@ -100,24 +102,14 @@ describe("generated passkey and native OAuth parity", () => {
       const webClient = read(files, "apps/web/src/lib/auth-client.ts");
       const mobileClient = read(files, "apps/mobile/src/lib/auth-client.ts");
       const desktopClient = read(files, "apps/desktop/src/renderer/lib/auth.ts");
-      const signIn = read(files, "apps/web/src/components/auth/sign-in-methods.tsx");
-      const passkeyCard =
-        framework === "nextjs"
-          ? read(files, "apps/web/src/app/settings/components/passkey-card.tsx")
-          : read(files, "apps/web/src/features/settings/passkey-card.tsx");
-      const passkeyList =
-        framework === "nextjs"
-          ? read(files, "apps/web/src/app/settings/components/passkey-list.tsx")
-          : read(files, "apps/web/src/features/settings/passkey-list.tsx");
-      const passkeyDataAccess =
-        framework === "nextjs"
-          ? `${read(files, "apps/web/src/app/settings/passkeys.ts")}\n${read(files, "apps/web/src/app/settings/components/use-passkey-management.ts")}`
-          : `${read(files, "apps/web/src/features/settings/queries.ts")}\n${read(files, "apps/web/src/features/settings/mutations.ts")}`;
+      const signIn = read(files, "apps/web/src/features/auth/components/sign-in-methods.tsx");
+      const authActions = read(files, "apps/web/src/features/auth/mutations.ts");
+      const passkeyCard = read(files, "apps/web/src/features/settings/passkey-card.tsx");
+      const passkeyView = read(files, "apps/web/src/features/settings/components/passkey-view.tsx");
+      const passkeyDataAccess = `${read(files, "apps/web/src/features/settings/queries.ts")}\n${read(files, "apps/web/src/features/settings/mutations.ts")}`;
       const passkeyManagement = read(
         files,
-        framework === "nextjs"
-          ? "apps/web/src/app/settings/components/use-passkey-management.ts"
-          : "apps/web/src/features/settings/use-passkey-management.ts",
+        "apps/web/src/features/settings/use-passkey-management.ts",
       );
 
       expect(packageClient).toContain("passkeyClient()");
@@ -130,20 +122,20 @@ describe("generated passkey and native OAuth parity", () => {
       ]) {
         expect(webClient, call).toContain(call);
       }
-      expect(signIn).toContain("identityPasskeyClient.authenticate()");
-      expect(passkeyCard).toContain('<FieldLabel htmlFor="passkey-registration-name">');
-      expect(passkeyCard).toContain('<Input id="passkey-registration-name"');
-      expect(passkeyCard).toContain('{t("passkeys.namePlaceholder")}</FieldLabel>');
+      expect(authActions).toContain("identityPasskeyClient.authenticate()");
+      expect(signIn).toContain("state.onPasskey()");
+      expect(passkeyView).toContain('<form.AppField name="name">');
+      expect(passkeyView).toContain('label={t("passkeys.namePlaceholder")}');
+      expect(passkeyView).toContain('label={t("passkeys.renameLabel")}');
       for (const operation of ["register", "list", "rename", "delete"])
         expect(passkeyDataAccess, operation).toContain(`identityPasskeyClient.${operation}`);
       expect(webClient).not.toContain("useListPasskeys");
       expect(passkeyCard).toContain('from "./use-passkey-management"');
-      if (framework === "tanstack-start") {
-        expect(passkeyManagement).not.toContain('from "@/lib/auth-client"');
-        expect(passkeyManagement).toContain('from "./queries"');
-        expect(passkeyManagement).toContain('from "./mutations"');
-      }
-      for (const source of [signIn, passkeyCard, passkeyList]) {
+      expect(passkeyManagement).not.toContain('from "@/lib/auth-client"');
+      expect(passkeyManagement).toContain('from "./queries"');
+      expect(passkeyManagement).toContain('from "./mutations"');
+      expect(passkeyCard).toContain('from "./components/passkey-view"');
+      for (const source of [signIn, passkeyView]) {
         expect(source).toContain("<Button");
         expect(source).not.toMatch(/<(?:button|input|select)\b/);
       }
@@ -179,21 +171,37 @@ describe("generated passkey and native OAuth parity", () => {
     for (const path of interactivePaths) {
       const source = read(files, path);
       expect(parseSync(path, source).errors, path).toEqual([]);
-      expect(source, path).toContain("identityClient.signInWithOAuth");
-      expect(source, path).toContain('"google"');
-      expect(source, path).toContain('"github"');
-      expect(source, path).toContain("<Button");
-      expect(source, path).not.toMatch(/<(?:button|input|select)\b/);
-      expect(source, path).not.toMatch(/authClient\.(?:signIn|signUp)\.email/);
+      expect(source, path).toContain("features/auth/");
+      const root = path.startsWith("apps/mobile/")
+        ? "apps/mobile/src"
+        : "apps/desktop/src/renderer";
+      const feature = files.filter((entry) => entry.path.startsWith(`${root}/features/auth/`));
+      const mutations = read(files, `${root}/features/auth/mutations.ts`);
+      const methods = feature
+        .filter((entry) => entry.path.endsWith(".tsx"))
+        .map((entry) => entry.content)
+        .join("\n");
+      expect(mutations, path).toContain("identityClient.signInWithOAuth");
+      expect(methods, path).toContain('"google"');
+      expect(methods, path).toContain('"github"');
+      expect(methods, path).toContain("<Button");
+      expect(methods, path).not.toMatch(/<(?:button|input|select)\b/);
+      expect(feature.map((entry) => entry.content).join("\n"), path).not.toMatch(
+        /(?:authClient|identityClient)\.(?:signIn|signUp)(?:\.email|WithEmail)/,
+      );
     }
 
-    const mobileSettings = read(files, "apps/mobile/app/settings.tsx");
-    const desktopSettings = read(files, "apps/desktop/src/renderer/routes/settings.tsx");
-    for (const source of [mobileSettings, desktopSettings]) {
+    for (const root of ["apps/mobile/src", "apps/desktop/src/renderer"]) {
+      const source = files
+        .filter((entry) => entry.path.startsWith(`${root}/features/settings/`))
+        .map((entry) => entry.content)
+        .join("\n");
       expect(source).not.toContain("changePassword");
       expect(source).not.toContain("twoFactor.enable");
       expect(source).not.toContain("forgot-password");
-      expect(source).toContain("deleteOAuthAccount");
+      expect(read(files, `${root}/features/account-deletion/mutations.ts`)).toContain(
+        "identityClient.deleteAccount",
+      );
     }
     for (const path of ["apps/mobile/app/2fa.tsx", "apps/desktop/src/renderer/routes/2fa.tsx"])
       expect(
@@ -223,6 +231,11 @@ describe("passkey adapter behavior and GenerationPlan evidence", () => {
 
   beforeAll(async () => {
     await mkdir(tempRoot, { recursive: true });
+    const transaction = new FsTransaction(tempRoot);
+    for (const entry of identityPureClientFiles("src")) {
+      await transaction.write(entry.path.split("/").at(-1)!, entry.content);
+    }
+    await transaction.commit();
     const calls = `const calls: unknown[] = [];
 const ok = (data: unknown = null) => Promise.resolve({ data, error: null });
 const authClient = {

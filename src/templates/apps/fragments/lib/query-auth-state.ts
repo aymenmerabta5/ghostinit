@@ -35,6 +35,12 @@ export function queryAuthIdentitySignature(identity: QueryAuthIdentity | null): 
   return identity ? JSON.stringify([identity.userId, identity.sessionId]) : "anonymous";
 }
 
+export function currentQueryAuthIdentity(queryClient: QueryClient): QueryAuthIdentity | null {
+  return queryAuthIdentities.has(queryClient)
+    ? queryAuthIdentities.get(queryClient) ?? null
+    : currentQueryAuthScope(queryClient);
+}
+
 export function queryAuthScopeFromCurrentRequest(
   identity: QueryAuthIdentity | null,
   value: unknown,

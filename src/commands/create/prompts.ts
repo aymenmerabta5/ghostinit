@@ -1,4 +1,5 @@
 // @allow-long 450: preset-first wizard with branching saas/frontend/custom reads best as one sequence
+import { billingSelectionError } from "../../domain/project/billing-selection.js";
 import { ExitCode } from "../../lib/errors.js";
 import {
   electron as electronVersions,
@@ -104,6 +105,19 @@ export async function promptInteractive(
   // Clack 1.x is ESM-only. Keep the import lazy so non-interactive commands do
   // not initialize terminal prompt machinery.
   const p = await import("@clack/prompts");
+  async function selectBilling(
+    options: import("@clack/prompts").MultiSelectOptions<string>,
+  ): Promise<string[] | symbol> {
+    let selected = options.initialValues;
+    while (true) {
+      const values = await p.multiselect({ ...options, initialValues: selected });
+      if (p.isCancel(values)) return values;
+      const message = billingSelectionError(values.filter((value) => value !== "none"));
+      if (message === undefined) return values;
+      p.log.error(message);
+      selected = values;
+    }
+  }
 
   p.intro("GhostInit v0.1 — create your project");
 
@@ -355,12 +369,17 @@ export async function promptInteractive(
               ],
             }),
           billing: () =>
-            p.multiselect({
-              message: "Billing providers? (space to select, enter to confirm)",
+            selectBilling({
+              message: "Billing: one global provider, optional Chargily and manual payments?",
               initialValues: initial.billing.length > 0 ? initial.billing : [],
               required: false,
               options: [
                 { value: "none", label: "None", hint: "No billing" },
+                {
+                  value: "manual",
+                  label: "Manual payment",
+                  hint: "Transfer receipt and admin approval",
+                },
                 { value: "stripe", label: "Stripe", hint: "global cards, subscription-native" },
                 {
                   value: "chargily",
@@ -546,12 +565,17 @@ export async function promptInteractive(
               ],
             }),
           billing: () =>
-            p.multiselect({
-              message: "Billing providers? (space to select)",
+            selectBilling({
+              message: "Billing: one global provider, optional Chargily and manual payments?",
               initialValues: initial.billing.length > 0 ? initial.billing : [],
               required: false,
               options: [
                 { value: "none", label: "None", hint: "No billing" },
+                {
+                  value: "manual",
+                  label: "Manual payment",
+                  hint: "Transfer receipt and admin approval",
+                },
                 { value: "stripe", label: "Stripe", hint: "global cards" },
                 { value: "chargily", label: "Chargily", hint: "Algeria EDAHABIA/CIB" },
                 { value: "paddle", label: "Paddle", hint: "MoR" },

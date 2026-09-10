@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { agentsComposerFiles } from "../../src/templates/modes/monorepo/agents-composer.js";
 import { desktopRouteSettingsContent } from "../../src/templates/apps/desktop/index.js";
+import { desktopSettingsFeatureFiles } from "../../src/templates/apps/fragments/settings/native-desktop.js";
 import { startDatabaseFiles } from "../../src/templates/database.js";
 import { skillGhostinitWorkflow } from "../../src/templates/eve/skills/workflow.js";
 import { readmeSingle } from "../../src/templates/modes/single/fragments/docs.js";
@@ -32,11 +33,21 @@ describe("portable generated guidance", () => {
   });
 
   test("keeps desktop recovery inside its typed renderer router", () => {
-    const withEmail = desktopRouteSettingsContent(false, true);
-    expect(withEmail).toContain('<Link to="/forgot-password"');
-    expect(withEmail).not.toContain("http://localhost:3000/forgot-password");
-    expect(withEmail).not.toContain("shellOpenExternal");
-
-    expect(desktopRouteSettingsContent(false, false)).not.toContain('<Link to="/forgot-password"');
+    for (const mode of ["monorepo", "single"] as const) {
+      const route = desktopRouteSettingsContent(false, true, false, mode);
+      expect(route).toContain("<SettingsScreen />");
+      const view = (hasEmail: boolean) => {
+        const file = desktopSettingsFeatureFiles(mode, false, hasEmail, false, false).find(
+          ({ path }) => path.endsWith("/components/basic-settings-view.tsx"),
+        );
+        if (!file) throw new Error(`Missing ${mode} desktop settings view`);
+        return file.content;
+      };
+      const withEmail = view(true);
+      expect(withEmail).toContain('<Link to="/forgot-password"');
+      expect(withEmail).not.toContain("http://localhost:3000/forgot-password");
+      expect(withEmail).not.toContain("shellOpenExternal");
+      expect(view(false)).not.toContain('<Link to="/forgot-password"');
+    }
   });
 });

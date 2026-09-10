@@ -5,7 +5,16 @@ description: This skill should be used when the user asks to "develop ghostinit"
 
 # GhostInit Dev — Host CLI Contributor Guide
 
-Host = this CLI repo (`ghostinit`), single publishable package `bin: dist/cli.js`, `private:false` intentional. Internal layering: `cli.ts` (Presentation) → `commands/` (Application) → `lib/` (Supporting) → `templates/`+`generators/` (Vendors/composers).
+Host = this CLI repo (`ghostinit`), single publishable package `bin: dist/cli.js`, `private:false` intentional. Commands orchestrate domain validation and immutable plans; renderer ports/compiler implementations emit templates, while `lib/` supplies filesystem/process adapters. Domain code does not depend on commands, templates or those adapters.
+
+For frontend templates or frontend architecture reviews, read the canonical
+[frontend architecture contract](../ghostinit-use/references/frontend-architecture.md).
+It applies to every selected frontend and mode. Keep routes thin, feature-root
+TSX compositional, remote state in query/mutation adapters, form/workflow state
+in cohesive hooks, models pure, and views focused on typed props. Tiny local UI
+state is allowed. Do not report work acceptable/complete while architecture or
+required gates fail, and do not raise limits, bypass detectors or add broad
+exceptions to hide violations.
 
 ## Essential Commands
 
@@ -24,15 +33,34 @@ bun run check:versions  # verify every pinned version exists on npm (needs netwo
 
 Pretest auto-builds. `--timeout 100000` required (generation heavy).
 
+The project owner may change or remove GhostInit and its policies. Generated lint/typecheck commands remain independently usable. Agents must not silently remove or weaken safeguards to make work pass; changing those safeguards requires explicit developer authorization.
+
 ## Hard Conventions (Will Break CI)
 
 - **FsTransaction mandatory**: never `fs.writeFileSync`/`mkdirSync`/`rmSync` direct. All via `FsTransaction` (`fs.ts`) staging `.ghostinit-staging` TTL 1h cleanup ctor fire-and-forget + commit sync + rollback safety, traversal `toAbsolute()` rejects `/`, `\`, `C:`, `..`, escapes root via `resolve`. Dry-run `getStagedFiles()` returns `files[]:{path,size,bytes}` + `totalBytes` for `create --dry-run --json`.
 - **CLI flag validation**: `--fix` only on `check|doctor`, `--verbose` only on `status|check|doctor`, `--list` only on `add|status` — validated in `src/cli/main.ts` (`CREATE_ONLY_FLAGS` pattern). Adding a new flag → add to `CLI_OPTIONS` + `CreateParsed` + `GlobalOptions` + `help.ts` + validation gate + both skills.
-- **<400 LOC**: `// @allow-long <LOC>: <reason>` escape with justification. Composers <5 imports, `monorepo/index.ts` dedup+sort+`__PROJECT_NAME__`.
+- **Host/template length guidance**: prefer <300 LOC and small composers; use documented `// @allow-long <LOC>: <reason>` only for a legitimate host/template responsibility. This is not an exemption from generated frontend role boundaries or checker budgets. `monorepo/index.ts` dedup+sort+`__PROJECT_NAME__` remains intentional composition.
 - **No `export *`**: explicit named only, check `billing/webhooks/index.ts`.
 - **Secret-safe**: `SECRET_SUBSTRINGS=[secret,password,token,auth,bearer,cookie,credential,key,otp,session,signature,private]` + `SECRET_PATTERN` + `URL_SECRET_PARAM_PATTERN`. Mirrored in generated `packages/observability/src/logger.ts`. Redact via `json.ts` before envelope. Never log raw env.
 - **Typed errors+envelope**: `ValidationError`, `ExitCode`, `envelope()` → `{success,exitCode,data|error,meta:{command,durationMs}}`. Codes `0,1,2,8,16,17,18,19,20,21,22,23,130`. `printJson()` stdout parseable, logs stderr.
 - **Versions SSOT**: never hardcode `^x.y.z`. Use `* as v from "./versions.js"` (`@repo/versions`). Internal deps `workspace:*`. Paths `@/* → src/*`, `@repo/* → packages/*/src`. Canonical `packages/versions/src/index.ts` `catalog` + `ghostinitVersion` synced x3: `packages/versions/` + `package.json` version + `src/templates/versions.ts` re-export.
+
+## Dependency security maintenance
+
+Read the [maintenance contract](../ghostinit-use/references/dependency-security.md)
+when changing installs, upgrade, security commands, or dependency evidence. Domain
+contracts live in `src/domain/dependency-security/`; filesystem/process work stays
+in `src/lib/dependency-security/`. CLI and emitted standalone launchers share the
+runtime; build regenerates its bundle and checks its dependency boundary.
+
+Preserve the seven-day policy, empty exclusions, compatible ranges, exact reviewed
+patch verification, canonical installed audit, lease/read guards, and failure
+journals. Floors in `ghostinit.config.json.dependencySecurity` enter compilation
+before plan hashing, retain higher compatible pins, and do not recreate removed
+dependencies. Never attach an earlier plan's attestation to maintained source bytes.
+Unverified process cleanup blocks mutations even with force/TTL takeover. Actual
+`node_modules` installation has no rollback promise. Dedicated fix/upgrade run the
+project checks; `--no-install` and dry runs must report security as unverified.
 
 ## Adding Things — Decision Tree
 
@@ -83,7 +111,7 @@ See `references/billing-provider.md` full steps with stripe reference.
 
 Presets: `saas` (full), `frontend` (minimal), `custom` (pick). Addons are opt-in via `--with-*` flags unified: `auth`, `api`, `email`, `analytics`, `cache` (Upstash Redis), `eve`, `i18n`, `pdf`, `messaging`. `--features` is deprecated alias for `--with-eve/--with-i18n` kept for backward compat (parseCreateArgs maps `features` includes eve→withEve true). Messaging is DM-only, opt-in for all presets (`presetDefaults.*.messaging=false`), requires `auth+api+database!==none` (validated in `isValidAddonCombo`), postgres uses oRPC WS (`@orpc/server/ws` + `crossws` + `bun-ws` + `@repo/realtime` + `@repo/storage`), convex uses native `convex/messaging.ts` + `ctx.storage` (no WS).
 
-- `src/lib/addons.ts`: `coreAddons` (lint,format,t3env,ui,tanstack,zod always), `saasAddons` (auth,database,api,services,email,analytics conditional), `optionalAddons` (auth,api,email,analytics,cache,eve,i18n,pdf,messaging), `presetDefaults` (saas `email:true`, `frontend`/`custom` now also `email:true` (was false) — email is default-on for all presets; `buildAddonInstallerMap` `emailInUse = input.email ?? true`), parsers `parsePresetInput`, `parseCacheInput` (redis alias upstash), `parseStackInput`, `isValidAddonCombo` (auth→DB + messaging→DB guard), `buildAddonInstallerMap` (preset-aware: saas/no-preset true, frontend false, custom explicit booleans; database true if !=none; services follows api||auth; features/eve/i18n via withEve/withI18n or features includes; messaging opt-in all presets false). All AddonInstallerMap keys include PRESETS, CACHE_PROVIDERS, optionalAddons.
+- `src/lib/addons.ts`: `coreAddons` (lint,format,t3env,ui,tanstack,zod always), `saasAddons` (auth,database,api,services,email,analytics conditional), `optionalAddons` (auth,api,email,analytics,cache,eve,i18n,pdf,messaging), `presetDefaults` (saas `email:true`, frontend/custom `email:false`; explicit email selection takes precedence), parsers `parsePresetInput`, `parseCacheInput` (redis alias upstash), `parseStackInput`, `isValidAddonCombo` (auth→DB + messaging→DB guard), `buildAddonInstallerMap` (preset-aware: saas/no-preset true, frontend false, custom explicit booleans; database true if !=none; services follows api||auth; features/eve/i18n via withEve/withI18n or features includes; messaging opt-in all presets false). All AddonInstallerMap keys include PRESETS, CACHE_PROVIDERS, optionalAddons.
 - `src/lib/config.ts`: `projectConfigSchema` fields `preset`, `cache`, `auth?`, `api?`, `email?`, `analytics?`, `eve?`, `i18n?`, `pdf?`, `messaging?` plus `billing`, `features` (kept empty for new, filtered), `database`, `framework`, `apps`.
 - `src/lib/interactive.ts` `parseCreateArgs`: handles `with-*` + `--features` alias (if features includes eve/i18n and withEve undefined → set true), `--cache` redis alias, stack mapping.
 - `src/cli/args.ts`: `CLI_OPTIONS` with `preset`, `cache`, `stack`, `with-auth, with-api, with-email, with-analytics, with-cache, with-eve, with-i18n, with-pdf, with-messaging`, `CreateParsed` includes withEve/withI18n/withPdf/withMessaging.
@@ -119,6 +147,7 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - `src/commands/check.ts` — architecture analyzer 23x <200 LOC via oxc-parser, `--fix` (turbo.json globalEnv)
 - `src/commands/doctor/` — env, versions, checks secret strength + DB connectivity, `--fix` (mint secrets, turbo.json)
 - `src/commands/status.ts` — state + lock, `--verbose` (full config), `--list` (alias)
+- `src/commands/security.ts` — read-only audit and explicit compatible repair; create/upgrade share the verified runtime
 - `src/lib/` — see AGENTS.md list
 - `src/generators/` — module, use-case, procedure, action, shared.ts AST
 - `src/templates/root/` — `package.ts` (husky 9.1.7 + prepare + check scripts), `husky.ts` (`.husky/pre-commit` + `lefthook.yml`), `turbo.ts`/`config.ts` (turbo.json, lint configs, workflow), `secrets.ts` + `env.ts` + `shared/env/` builders
@@ -128,8 +157,8 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 ## Tooling Quirks
 
 - host `bunfig.toml` isolated hoist=false hermetic, generated hoist=true for the supported Next workspace-resolution path
-- TypeScript is runtime-scoped: Next.js uses the catalog's TS 7 CLI pin; TanStack/Vite and Expo remain on TS 6 while their tooling loads the JavaScript compiler API.
-- Email default-on: `packages/email` uses the supported unified React Email 6 package (`react-email`; components, Tailwind, and `render` share one import) + Resend, with versions from the central catalog. It includes an `EmailLayout` using Tailwind `pixelBasedPreset` and a hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, and a `MagicLink` template; `frontend`/`custom` presets use `email:true` and `buildAddonInstallerMap` defaults `emailInUse = input.email ?? true`.
+- Generated apps and shared tooling use the same catalog TypeScript 7 pin. Next uses its project-local TypeScript CLI; do not disable that CLI. Compiler-consumer changes require the relevant installed build/runtime checks because TypeScript 7 does not provide the classic JavaScript compiler API.
+- Email capability: `packages/email` uses the supported unified React Email 6 package (`react-email`; components, Tailwind, and `render` share one import) + Resend, with versions from the central catalog. It includes an `EmailLayout` using Tailwind `pixelBasedPreset` and a hex palette, `sendEmail<T>(to,subject,Component,props)` via `render()`, and a `MagicLink` template; SaaS enables email by default; frontend/custom emit it only when selected.
 - React web stack uses the npm-latest compatible pins in `packages/versions/src/index.ts` `nextStack`; Expo keeps its official React line in `expoReact`.
 - Auth P2: `better-auth` plugins `magicLink`, `passkey`, `organization` added to `src/templates/auth.ts` (server `magicLink({sendMagicLink})` + `passkey()` + `organization()` and client `magicLinkClient`, `passkeyClient`, `organizationClient`), plus OAuth `GOOGLE_CLIENT_ID/SECRET` + `GITHUB_*` (`env-manifest` + `shared/env/core.ts` + `GLOBAL_ENV_KEYS` + `turbo` + `auth.ts` `socialProviders` spread) and `accountLinking` + `changeEmail` + `emailVerification`
 - Hooks: generated `husky 9.1.7` + `.husky/pre-commit` (oxlint + oxfmt --check + ghostinit check, set -e) + `lefthook.yml` alternative (`parallel: false`, oxlint/oxfmt/arch), `package.json` scripts `check`/`check:fix`/`doctor:fix`/`prepare: husky`, CI `.github/workflows/ci.yml` now `on: [push, pull_request]` with lint+typecheck+build+ghostinit check
@@ -140,11 +169,11 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - build verifies real d.ts >10 bytes not fake `export {}` stub
 - Deployment templates: `root/deploy.ts` + `deploy-guides.ts` emit exact Bun images, an ephemeral BuildKit env secret (never `COPY .env*`), runtime `COPY --chown=1000:1000`, `/api/health` image/Fly probes, 30-second Compose/Fly shutdown grace, and explicit named Eve Workflow volumes. `root/cloudflare.ts` emits the resolved Worker profile: OpenNext for Next.js or native Cloudflare Vite for TanStack, gitignored `.dev.vars`, separate production build/runtime variables, lock enforcement, artifact secret scanning, Wrangler type/dry-run commands, and Next R2 plus queue/sharded-tag Durable Object cache bindings. Cloudflare supports Convex/none and rejects PostgreSQL/Eve/PDF. Vercel validly uses provider-managed `bunVersion: "1.4.x"` while install/build invoke exact catalog Bun. Postgres 18 volumes mount `/var/lib/postgresql`, not the pre-18 `/var/lib/postgresql/data` path.
 - Cache via catalog-pinned Upstash Redis over HTTP is fail-closed; `packages/cache` is emitted only for `cache===redis` (or `--with-cache`). The same `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair owns atomic production API rate limiting when auth+transport are selected even if the cache package is off; placeholders permit only the bounded development/test limiter fallback. Turbo `globalEnv` and capability sanitization follow that ownership.
-- Preset frontend/custom: `database: "none"` stub `packages/database` with `db: any` proxy; email is emitted only when selected by the resolved capability set; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
+- Preset frontend/custom: `database: "none"` stub `packages/database` with a typed disabled proxy whose properties are `never`; email is emitted only when selected by the resolved capability set; `auth` stripped removes `auth-client`, `trustedOrigins`, `expo()` plugin; analog for `api`/`analytics`/`eve`/`i18n`/`cache`/`billing` only
 - API RBAC: `packages/api/src/context.ts` exposes `role` + `sessionId` + `requireUser`/`requireAdmin`; `packages/api/src/middleware/auth.ts` provides `protectedProcedure(ctx)`/`adminProcedure(ctx)` (throw `ORPCError` `UNAUTHORIZED`/`FORBIDDEN`). Mutation procedures use one atomic Upstash Redis `EVAL` through the REST pipeline; only development/test may use the bounded process-local fallback, and production fails closed even when the optional cache package is off. `health` + `me` still exist, `billing/*` procedures use `listSubscriptionsUseCase`.
-- Settings: `apps/web/src/app/settings/components/sessions-card.tsx` (`useState` + `authClient.listSessions`/`revokeSession`/`revokeSessions`, `Badge current`, `Revoke`) added to `settingsFiles()` (Next) and TanStack `settings/tanstack-page.ts` `Security` now links to `Sessions` + `Passkey & Magic Link` note + `Organization` enabled.
+- Settings: `features/settings/` contains composition containers, `queries.ts`/`mutations.ts`, cohesive `use-*.ts` workflows and typed-prop views under `components/`. Session reads/revocation stay in those adapters and hooks; framework routes retain guards and server reads.
 - Admin: `admin/hooks/use-admin-users.ts` now `search`/`page`/`limit:20`/`offset` + `query:{limit,offset,search}`; `admin/users-page.tsx` search input + `Prev/Next` + `Page X/Y` + audit-log footnote.
-- Billing: `apps/web/src/app/billing/page.tsx` (and `routes/billing.tsx`) now real UI via `hooks/use-billing.ts` (`subscriptions`/`invoices`/`isCheckoutLoading`/`pastDue` + `handleCheckout(provider)` + `handlePortal`) emitted by `billing/index.ts` for both routers; `billingFiles()` emits hook for Next (`app/billing/hooks/use-billing.ts`) and TanStack (`routes/billing/hooks/use-billing.ts`).
+- Billing: thin Next/TanStack routes compose `features/billing/` and the separate `features/manual-payments/` workflow when selected. Remote mutations and ownership-aware navigation live in adapters/workflow hooks; focused provider and manual views receive typed state and callbacks.
 - Env runtimes are audience-specific: `@repo/config/next` uses `NEXT_PUBLIC_`, `/vite` uses `VITE_` for TanStack and desktop renderers, and `/expo` uses `EXPO_PUBLIC_`. `/server` alone exposes server secrets; the root barrel exposes no env values. Single mode mirrors these under `src/lib/env/`. Shared env files contain only prefixes consumed by selected apps, and each client entry validates only its own prefix.
 
 ## Testing
@@ -152,7 +181,7 @@ Miss one → env missing in generated or Turbo cache poisoned. Verify: grep glob
 - `--timeout 100000` required
 - fixtures per-fixture `bun install` slow — skip unless compat
 - `bun run build && node dist/cli.js check` after template changes
-- `bun run test:workers` after Cloudflare/support-catalog changes; four installed profiles must build/scan, dry-run, and serve `/` plus `/api/health`
+- `bun run test:workers` after Cloudflare/support-catalog changes; eight installed profiles must build/scan, dry-run, and serve `/`, `/api/health` and `/api/rpc/health`
 - QA: turbo globalEnv matches the selected manifest-derived capability/app keys, hoist=true, catalog no versions hardcoded, no `export *`, no `fs.*Sync`, husky hooks present (`.husky/pre-commit` + `lefthook.yml`), `create --dry-run --json` emits `files[]` + `totalBytes`
 - `check --fix` / `doctor --fix` tested via drift injection (turbo.json truncated + placeholder `.env.local`) → mint+rewrite
 - See `references/testing.md`
@@ -201,5 +230,6 @@ No drift. Verify `build && check`.
 - `references/framework.md` — adding framework with fragments DRY
 - `references/env-vars.md` — 5-place + skills rule, patterns, verification
 - `references/templates.md` — composition pipeline monorepoFiles, dedup, fragments triggers, DRY
-- `references/testing.md` — test org, fixtures, smoke, version sync
+- `references/testing.md` — test org, fixtures, smoke, dependency-security proof, version sync
+- `../ghostinit-use/references/dependency-security.md` — shared automatic/explicit repair contract and recovery
 - `../ghostinit-use/references/cloudflare.md` - Worker support matrix, environment boundary, cache provisioning, and user commands

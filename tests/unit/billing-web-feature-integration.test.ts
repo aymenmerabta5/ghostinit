@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
+import { settingsFeatureHarness } from "../helpers/settings-feature-harness.js";
 
 type Mode = "monorepo" | "single";
 type Framework = "nextjs" | "tanstack-start";
@@ -17,7 +18,7 @@ function generate(
   mode: Mode,
   framework: Framework,
   database: Database,
-  selected: readonly Provider[] = PROVIDERS,
+  selected: readonly Provider[] = ["stripe", "chargily"],
 ) {
   const result = resolveCreateConfig({
     name: "billing-features",
@@ -73,7 +74,10 @@ describe("billing browser feature closure", () => {
       for (const database of ["postgres", "convex"] as const) {
         test(`${mode}/${framework}/${database} completes checkout returns without asserting payment`, () => {
           const output = generate(mode, framework, database);
-          const body = output.read(`${output.root}/features/billing/return-page.tsx`);
+          const body =
+            output.read(`${output.root}/features/billing/components/return-page.tsx`) +
+            "\n" +
+            output.read(`${output.root}/features/billing/return-page.tsx`);
           const calls: string[] = [];
           const bindings: Record<string, unknown> = {
             React: { createElement: h },
@@ -110,10 +114,10 @@ describe("billing browser feature closure", () => {
           expect(
             output.read(
               framework === "nextjs"
-                ? `${output.root}/app/billing/components/providers/chargily-panel.tsx`
+                ? `${output.root}/features/billing/screen.tsx`
                 : `${output.root}/features/billing/billing-page.tsx`,
             ),
-          ).toContain('BillingPaymentLinkForm provider="chargily"');
+          ).toContain("BillingPaymentLinkForm allowed={");
         });
       }
     }
@@ -177,7 +181,14 @@ describe("billing browser feature closure", () => {
   }
 
   test("TanStack renders only selected checkout providers and exposes no Chargily portal", () => {
-    for (const selected of [["chargily"], ["stripe"], ["paddle", "polar"]] as Provider[][]) {
+    for (const selected of [
+      ["chargily"],
+      ["stripe"],
+      ["paddle"],
+      ["polar"],
+      ["chargily", "paddle"],
+      ["chargily", "polar"],
+    ] as Provider[][]) {
       const output = generate("single", "tanstack-start", "convex", selected);
       const { BILLING_PROVIDERS, supportsBillingPortal } = load<{
         BILLING_PROVIDERS: { id: Provider }[];
@@ -195,7 +206,7 @@ describe("billing browser feature closure", () => {
         );
       const checkoutCalls: Provider[] = [];
       const { BillingEmptyState } = load<{ BillingEmptyState: (props: unknown) => unknown }>(
-        output.read(`${output.root}/features/billing/billing-empty-state.tsx`),
+        output.read(`${output.root}/features/billing/components/billing-empty-state.tsx`),
         "BillingEmptyState",
         {
           React: { createElement: h },
@@ -272,49 +283,43 @@ describe("billing browser feature closure", () => {
     ).toEqual([invoice]);
   });
 
-  test("merchant form hides privileged input for ordinary users and delegates valid merchant submissions", async () => {
+  test("merchant form hides privileged input and delegates only allowed valid merchant submissions", async () => {
     const output = generate("single", "nextjs", "postgres", ["chargily"]);
-    const source = output.read(`${output.root}/app/billing/components/payment-link-form.tsx`);
+    const source = [
+      "schema.ts",
+      "provider-url.ts",
+      "mutations.ts",
+      "use-payment-link-form.ts",
+      "components/payment-link-form.tsx",
+    ]
+      .map((path) => output.read(output.root + "/features/billing/" + path))
+      .join("\n");
     for (const merchant of [false, true]) {
       const calls: unknown[] = [];
-      let stateIndex = 0;
-      const state = ["Merchant link", "price-id", null, null];
-      const bindings: Record<string, unknown> = {
-        React: { createElement: h, useState: () => [state[stateIndex++], () => {}] },
-        useSurfaceTranslations: () => (key: string) => key,
-        useAuthOwnedEffect: () => () => () => true,
-        useBillingPage: () => ({
-          canCreatePaymentLinks: merchant,
-          isPaymentLinkLoading: false,
-          handlePaymentLink: async (...args: unknown[]) => {
-            calls.push(args);
-            return "https://pay.example.test/link";
-          },
-        }),
-      };
-      for (const name of [
-        "Button",
-        "Input",
-        "Field",
-        "FieldGroup",
-        "FieldLabel",
-        "Alert",
-        "AlertDescription",
-      ])
-        bindings[name] = name;
-      const { BillingPaymentLinkForm } = load<{
-        BillingPaymentLinkForm: (props: unknown) => unknown;
-      }>(source, "BillingPaymentLinkForm", bindings);
-      const rendered = nodes(BillingPaymentLinkForm({ provider: "chargily" }));
-      const form = rendered.find(({ type }) => type === "form");
+      const ui = settingsFeatureHarness(source, ["usePaymentLinkForm", "BillingPaymentLinkView"], {
+        z,
+        createBillingPaymentLinkAction: async (input: unknown) => {
+          calls.push(input);
+          return { url: "https://pay.example.test/link" };
+        },
+      });
+      const model = () => ui.render("usePaymentLinkForm", merchant);
+      const render = () => ui.render("BillingPaymentLinkView", { state: model() });
+      const formNode = nodes(render()).find(({ type }) => type === "Form");
+      expect(Boolean(formNode)).toBe(merchant);
+      const form = ui.forms[0]!;
+      form.values.name = " Merchant link ";
+      form.values.price = " price-id ";
+      await form.handleSubmit();
       if (!merchant) {
-        expect(form).toBeUndefined();
         expect(calls).toEqual([]);
+        expect(nodes(render()).some(({ type }) => type === "a")).toBe(false);
         continue;
       }
-      (form!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} });
-      await Promise.resolve();
-      expect(calls).toEqual([["chargily", "Merchant link", "price-id"]]);
+      expect(calls).toEqual([{ provider: "chargily", name: "Merchant link", price: "price-id" }]);
+      expect(nodes(render()).find(({ type }) => type === "a")?.props.href).toBe(
+        "https://pay.example.test/link",
+      );
     }
   });
 });

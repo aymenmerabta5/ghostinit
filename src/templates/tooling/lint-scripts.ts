@@ -1,6 +1,7 @@
 import { file, type TemplateFile } from "../shared.js";
 import { checkServerOnlyContent } from "./server-only-lint.js";
 import { testEnvironmentFile } from "./test-env.js";
+import { frontendOwnershipLintFiles } from "./frontend-lint.js";
 
 // @allow-long 550: seven generated checks and their shared parser boundary remain auditable together
 // Stagio-inspired quality gates — adapted for ghostinit monorepo/single + nextjs/tanstack/expo/desktop
@@ -20,8 +21,8 @@ function language(file) {
   if (file.endsWith(".jsx")) return "jsx";
   return undefined;
 }
-function parseOwned(file, source) {
-  const result = parseSync(file, source, { sourceType: "module", lang: language(file) });
+function parseOwned(file, source, lang = language(file)) {
+  const result = parseSync(file, source, { sourceType: "module", lang });
   if (result.errors.length > 0) {
     const details = result.errors.map((error) => error.message).join("; ");
     throw new Error(\`Parser diagnostics in \${relative(file)}: \${details}\`);
@@ -166,30 +167,35 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function resolveRoots() {
-  const candidates = [
-    path.join(process.cwd(), "src", "app"),
-    path.join(process.cwd(), "apps", "web", "src", "app"),
-    path.join(process.cwd(), "apps", "web", "src"),
-  ];
-  const roots = [];
-  for (const r of candidates) if (fs.existsSync(r)) roots.push(r);
-  if (roots.length === 0) {
-    const alt = path.join(process.cwd(), "src");
-    if (fs.existsSync(alt)) roots.push(alt);
+  const candidates = [path.join(process.cwd(), "src"), path.join(process.cwd(), "app")];
+  const apps = path.join(process.cwd(), "apps");
+  if (fs.existsSync(apps)) {
+    for (const entry of fs.readdirSync(apps, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      candidates.push(path.join(apps, entry.name, "src"), path.join(apps, entry.name, "app"));
+    }
   }
-  return roots.length ? roots : [path.join(process.cwd(), "src")];
+  return candidates.filter((root) => fs.existsSync(root));
 }
 
 const MAX_STANDALONE_LINES = 150;
 const MAX_ORCHESTRATOR_LINES = 120;
 const MAX_SECTION_LINES = 200;
 
+// Only intrinsic backend roots are outside the frontend size contract.
+// Nested route/feature folders named server remain frontend sources.
+function isIntrinsicServerRoot(fp) {
+  const parts = path.relative(process.cwd(), fp).split(path.sep);
+  return (parts.length === 2 && parts[0] === "src" && parts[1] === "server") ||
+    (parts.length === 4 && parts[0] === "apps" && parts[2] === "src" && parts[3] === "server");
+}
+
 function listTsxFiles(dir, files = []) {
   if (!fs.existsSync(dir)) return files;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const e of entries) {
     const fp = path.join(dir, e.name);
-    if (e.isDirectory()) { listTsxFiles(fp, files); continue; }
+    if (e.isDirectory()) { if (!isIntrinsicServerRoot(fp)) listTsxFiles(fp, files); continue; }
     if (!e.isFile() || !e.name.endsWith(".tsx")) continue;
     if (e.name.endsWith(".test.tsx")) continue;
     files.push(fp);
@@ -322,10 +328,14 @@ function flatten(value,prefix="",out={}){ if(!value||typeof value!=="object") re
 function placeholders(message){ return [...message.matchAll(/[{]([A-Za-z_][A-Za-z0-9_]*)[}]/g)].map(match=>match[1]).sort(); }
 function checkCatalogs(root,violations){ const dir=catalogDir(root); if(!dir){ violations.push("missing en/fr/ar message catalogs under "+root); return; } const catalogs=Object.fromEntries(["en","fr","ar"].map(locale=>[locale,JSON.parse(read(path.join(dir,locale+".json")))])); const expected=leaves(catalogs.en); const flat=Object.fromEntries(Object.entries(catalogs).map(([locale,catalog])=>[locale,flatten(catalog)])); if(!expected.some(key=>key.startsWith("adminUsers."))) violations.push("English catalog is missing adminUsers keys"); for(const locale of ["fr","ar"]){ if(JSON.stringify(leaves(catalogs[locale]))!==JSON.stringify(expected)) violations.push(locale+" catalog keys differ from English"); for(const key of expected){ if(JSON.stringify(placeholders(flat[locale][key]||""))!==JSON.stringify(placeholders(flat.en[key]||""))) violations.push(locale+" catalog placeholders differ for "+key); } } }
 function requireText(source,token,label,violations){ if(!source.includes(token)) violations.push(label+" is missing "+token); }
-function headerParts(root){ return Object.fromEntries(Object.entries({root:"header.tsx",shell:"app-shell.tsx",actions:"header-actions.tsx",menu:"header-user-menu.tsx",navigation:"workspace-navigation.tsx",sidebar:"workspace-sidebar.tsx",trigger:"workspace-navigation-trigger.tsx",identity:"workspace-identity.ts",status:"workspace-identity-status.tsx"}).map(([name,file])=>[name,read(path.join(root,"components",file))])); }
+function readEntry(root,file,seen=new Set()){ const resolved=path.resolve(root,file); if(seen.has(resolved)||seen.size>=8||(!resolved.startsWith(path.resolve(root)+path.sep))) throw new Error("Invalid header re-export: "+file); seen.add(resolved); const source=read(resolved); const body=parseOwned(resolved,source).body.filter(node=>node.type!=="EmptyStatement"); if(body.length!==1||body[0].type!=="ExportNamedDeclaration"||!body[0].source) return source; const target=body[0].source.value; const base=target.startsWith("@/")?path.join(root,target.slice(2)):target.startsWith(".")?path.resolve(path.dirname(resolved),target):null; if(!base) throw new Error("Header re-export must resolve to owned source"); const next=[base,base+".tsx",base+".ts"].find(candidate=>fs.existsSync(candidate)); if(!next) throw new Error("Missing header re-export: "+target); return readEntry(root,path.relative(root,next),seen); }
+function headerParts(root){ return Object.fromEntries(Object.entries({root:"header.tsx",shell:"app-shell.tsx",actions:"header-actions.tsx",menu:"header-user-menu.tsx",navigation:"workspace-navigation.tsx",sidebar:"workspace-sidebar.tsx",trigger:"workspace-navigation-trigger.tsx",identity:"workspace-identity.ts",status:"workspace-identity-status.tsx"}).map(([name,file])=>[name,readEntry(root,path.join("components",file))])); }
 function openings(source){ return jsxOpenings(parseOwned("header-part.tsx",source)); }
 function requireMount(source,tag,label,violations){ if(openings(source).filter(opening=>jsxName(opening.name)===tag).length!==1) violations.push(label+" must mount "+tag+" exactly once"); }
 function checkHeader(parts,root,layout,violations){
+  const queries=read(path.join(root,"features","app-shell","queries.ts"));
+  const controller=read(path.join(root,"features","app-shell","use-app-shell.ts"));
+  const navigationModel=read(path.join(root,"features","app-shell","navigation-model.ts"));
   const header=Object.values(parts).join("\\n");
   requireText(header,'from "@/lib/translations"',"Translated header",violations);
   requireMount(layout,"AppShell","Root layout",violations);
@@ -337,9 +347,10 @@ function checkHeader(parts,root,layout,violations){
   const authenticated=Boolean(parts.actions||parts.menu||parts.navigation||parts.shell.includes("useAuth"));
   if(authenticated){
     for(const [source,tag,label] of [[parts.shell,"HeaderActions","AppShell"],[parts.shell,"WorkspaceSidebar","AppShell"],[parts.shell,"WorkspaceNavigationTrigger","AppShell"],[parts.actions,"HeaderUserMenu","Header actions"],[parts.sidebar,"WorkspaceNavigation","Workspace sidebar"],[parts.trigger,"WorkspaceNavigation","Workspace trigger"],[parts.navigation,"WorkspaceIdentityStatus","Workspace navigation"],[parts.trigger,"Sheet","Workspace trigger"],[parts.trigger,"SheetTrigger","Workspace trigger"],[parts.trigger,"SheetContent","Workspace trigger"]]) requireMount(source,tag,label,violations);
-    for(const token of ["useQueryAuthSession()","canonical?.hasCanonicalApi","canonical.currentRequest?.user","canonical?.retry","identity={identity}"]) requireText(parts.shell,token,"Canonical workspace identity",violations);
-    const compactShell=parts.shell.replace(/\\s+/g,"");
-    for(const token of ["resolveWorkspaceIdentity({","currentUser??null"]) requireText(compactShell,token,"Canonical workspace identity",violations);
+    for(const token of ["useQueryAuthSession()","canonical?.hasCanonicalApi","canonical.currentRequest?.user","canonical?.retry"]) requireText(queries,token,"Canonical workspace identity",violations);
+    for(const token of ['from "./queries"',"useShellIdentitySource()","resolveWorkspaceIdentity(source)"]) requireText(controller,token,"Canonical workspace identity",violations);
+    for(const token of ['from "./use-app-shell"',"useAppShell()","identity={identity}"]) requireText(parts.shell,token,"Canonical workspace identity",violations);
+    for(const token of ['from "@/features/app-shell/navigation-model"',"WORKSPACE_NAVIGATION"]) requireText(parts.navigation,token,"Workspace navigation model",violations);
     const identity=parts.identity.replace(/\\s+/g,"");
     for(const token of ["if(input.pending)","if(input.error)","if(input.user)",'status:"pending"','status:"error",retry:input.retry','status:"authenticated",user:input.user','status:"anonymous"']) requireText(identity,token,"Workspace identity states",violations);
     if(identity.indexOf("if(input.pending)")>identity.indexOf("if(input.error)")||identity.indexOf("if(input.error)")>identity.indexOf("if(input.user)")) violations.push("Workspace identity must settle pending and error before exposing its user");
@@ -352,7 +363,7 @@ function checkHeader(parts,root,layout,violations){
     requireText(parts.trigger,'t("openNavigation")',"Workspace trigger",violations);
     for(const key of ["dashboard","settings","signIn","signUp","signOut"]) requireText(header,'t("'+key+'")',"Translated header",violations);
   }
-  const labels=[...parts.navigation.matchAll(/label:\\s*"([A-Za-z][A-Za-z0-9]*)"/g)].map(match=>match[1]);
+  const labels=[...navigationModel.matchAll(/label:\\s*"([A-Za-z][A-Za-z0-9]*)"/g)].map(match=>match[1]);
   if(authenticated){
     for(const label of ["dashboard","settings"]) if(!labels.includes(label)) violations.push("Workspace navigation is missing "+label);
     if(labels.includes("admin")){
@@ -360,7 +371,7 @@ function checkHeader(parts,root,layout,violations){
       requireText(parts.navigation,'identity.user.role === "admin"',"Workspace admin admission",violations);
       requireText(parts.menu,'t("users")',"Translated admin menu",violations);
     }
-    if(labels.includes("billing")&&!/path:\\s*"\\/billing"[^}]*match:\\s*"exact"/.test(parts.navigation)) violations.push("Billing navigation must preserve public checkout return pages");
+    if(labels.includes("billing")&&!/path:\\s*"\\/billing"[^}]*match:\\s*"exact"/.test(navigationModel)) violations.push("Billing navigation must preserve public checkout return pages");
   }
   const keys=new Set([...labels,...[...header.matchAll(/\\bt\\("([A-Za-z][A-Za-z0-9]*)"\\)/g)].map(match=>match[1])]);
   const dir=catalogDir(root);
@@ -424,6 +435,7 @@ try { main(); } catch (error) {
 function checkRtlLogicalContent(): string {
   return `#!/usr/bin/env bun
 const fs=require("node:fs"), path=require("node:path");
+const {parseOwned,positionOf,walk}=require("./lib/oxc.cjs");
 const ROOTS=[
   "src/app", "src/routes", "src/components", "src/features", "src/renderer", "src/styles", "app",
   "apps/web/src/app", "apps/web/src/routes", "apps/web/src/components", "apps/web/src/features", "apps/web/src/styles",
@@ -434,7 +446,7 @@ const FILES=["global.css", "apps/mobile/global.css"];
 const EXT=/\\.(css|tsx|ts|jsx|js)$/;
 const PHYSICAL_UTILITY=/(?:^|\\s|["'\\x60])((?:[^\\s"'\\x60]+:)*-?(?:text-(?:left|right)|border-(?:l|r)(?:-[^\\s"'\\x60]+)?|rounded-(?:l|r)(?:-[^\\s"'\\x60]+)?|(?:left|right|ml|mr|pl|pr)-[^\\s"'\\x60]+))(?=$|\\s|["'\\x60])/g;
 const PHYSICAL_CSS=/(?:^|[;{]\\s*)((?:(?:margin|padding|border)-(?:left|right)|left|right)\\s*:|text-align\\s*:\\s*(?:left|right)(?=\\s*[;}]))/g;
-const PHYSICAL_STYLE=/(?:^|[{,]\\s*)((?:(?:margin|padding|border)(?:Left|Right)|left|right)\\s*:)/g;
+const PHYSICAL_STYLE_KEYS=new Set(["left","right","marginLeft","marginRight","paddingLeft","paddingRight","borderLeft","borderRight"]);
 const REGISTERED_EXCEPTIONS=[
   {
     id:"base-ui-side-state",
@@ -454,10 +466,25 @@ function matches(line,extension){
   if(extension===".css"){
     PHYSICAL_CSS.lastIndex=0;
     for(const match of line.matchAll(PHYSICAL_CSS)) found.push({kind:"css",token:match[1].trim()});
-  } else {
-    PHYSICAL_STYLE.lastIndex=0;
-    for(const match of line.matchAll(PHYSICAL_STYLE)) found.push({kind:"style",token:match[1].trim()});
   }
+  return found;
+}
+function styleKey(property){
+  const key=property.key;
+  if(!property.computed&&key?.type==="Identifier") return key.name;
+  if(typeof key?.value==="string") return key.value;
+  return key?.type==="TemplateLiteral"&&key.expressions.length===0?key.quasis.map(part=>part.value.cooked??part.value.raw).join(""):null;
+}
+function styleMatches(file,source){
+  const found=[];
+  walk(parseOwned(file,source,file.endsWith(".js")?"jsx":undefined),(node)=>{
+    if(node.type!=="ObjectExpression") return;
+    for(const property of node.properties){
+      if(property.type!=="Property"||property.method||property.kind!=="init") continue;
+      const key=styleKey(property);
+      if(PHYSICAL_STYLE_KEYS.has(key)) found.push({kind:"style",token:key+":",line:positionOf(source,property.key).line});
+    }
+  });
   return found;
 }
 function main(){
@@ -468,7 +495,8 @@ function main(){
   for(const fp of files){
     const file=path.relative(process.cwd(),fp).replaceAll("\\\\","/");
     const extension=path.extname(fp);
-    const lines=fs.readFileSync(fp,"utf8").split(/\\r?\\n/);
+    const source=fs.readFileSync(fp,"utf8"), lines=source.split(/\\r?\\n/);
+    if(extension!==".css") for(const match of styleMatches(fp,source)) viol.push({file,...match});
     for(let i=0;i<lines.length;i++) for(const match of matches(lines[i],extension)){
       if(registeredException(file,match.token)) continue;
       viol.push({file,line:i+1,kind:match.kind,token:match.token});
@@ -478,7 +506,7 @@ function main(){
   console.error("RTL violations (use start/end, text-start/end, ms/me, ps/pe, border-s/e):"); for(const v of viol) console.error(\`  \${v.file}:\${v.line} [\${v.kind}] \${v.token}\`);
   process.exit(1);
 }
-main();
+try { main(); } catch (error) { console.error(error instanceof Error ? error.message : "Unknown parser failure"); process.exit(2); }
 `;
 }
 
@@ -509,6 +537,7 @@ main();
 export function lintScriptFiles(): TemplateFile[] {
   return [
     testEnvironmentFile(),
+    ...frontendOwnershipLintFiles(),
     file("scripts/check-feature-folder.cjs", checkFeatureFolderContent()),
     file("scripts/check-server-only.cjs", checkServerOnlyContent()),
     file("scripts/check-import-aliases.cjs", checkImportAliasesContent()),

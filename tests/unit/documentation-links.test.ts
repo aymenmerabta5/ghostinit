@@ -8,8 +8,8 @@ const inlineLink = /!?\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+[^)]*)?\)/g;
 const referenceLink = /^\s*\[[^\]]+\]:\s*(?:<([^>]+)>|(\S+))/gm;
 const externalTarget = /^(?:https?:|mailto:|tel:|data:|javascript:|app:|\/\/)/i;
 const retiredDocumentation = [
-  /\b(?:docs[\\/])?ARCHITECTURE(?:_CHECKER)?\.md\b/i,
-  /\b(?:docs[\\/])?RESEARCH\.md\b/i,
+  /(?<![\w.-])(?:docs[\\/])?ARCHITECTURE(?:_CHECKER)?\.md\b/i,
+  /(?<![\w.-])(?:docs[\\/])?RESEARCH\.md\b/i,
   /(?:^|[\\/])docs[\\/]compatibility[\\/]v1-to-v2(?:\.schema)?\.json\b/i,
   /(?:^|[\\/])docs[\\/]superpowers[\\/](?:plans|specs)[\\/]/i,
 ] as const;
@@ -39,6 +39,40 @@ function markdownTargets(source: string): string[] {
   }
   return targets;
 }
+
+test("retired documentation detection matches exact filenames and preserves current references", () => {
+  for (const source of [
+    "ARCHITECTURE.md",
+    "Read ARCHITECTURE.md.",
+    "See `ARCHITECTURE_CHECKER.md`.",
+    "[architecture](./docs/ARCHITECTURE.md)",
+    "`docs\\ARCHITECTURE_CHECKER.md`",
+    "RESEARCH.md",
+    "[research](../docs/research.md)",
+    "[ledger](./docs/compatibility/v1-to-v2.json)",
+    "[schema](./docs/compatibility/v1-to-v2.schema.json)",
+    "[plan](./docs/superpowers/plans/example.md)",
+    "[spec](./docs/superpowers/specs/example.md)",
+  ]) {
+    expect(
+      retiredDocumentation.some((pattern) => pattern.test(source)),
+      source,
+    ).toBe(true);
+  }
+  for (const source of [
+    "[frontend architecture](./skills/ghostinit-use/references/frontend-architecture.md)",
+    "`references/frontend-architecture.md`",
+    "[research methods](./docs/user-research.md)",
+    "[ledger](./evidence/compatibility/v1-to-v2.json)",
+    "[schema](./evidence/compatibility/v1-to-v2.schema.json)",
+    "[record](./docs/engineering/frontend-task-records/design-system-contract-v1.json)",
+  ]) {
+    expect(
+      retiredDocumentation.some((pattern) => pattern.test(source)),
+      source,
+    ).toBe(false);
+  }
+});
 
 test("every local link in tracked Markdown resolves inside the repository", () => {
   const markdownPaths = trackedMarkdownPaths();

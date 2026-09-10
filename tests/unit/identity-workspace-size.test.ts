@@ -3,6 +3,10 @@ import { extname, posix } from "node:path";
 import { parseFile } from "../../src/lib/architecture/parsers/imports.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
+import {
+  analyzeFrontendFile,
+  classifyFrontendFile,
+} from "../../src/lib/architecture/frontend/index.js";
 
 type Framework = "nextjs" | "tanstack-start";
 type Mode = "monorepo" | "single";
@@ -18,11 +22,21 @@ const FEATURE_FILES = [
   "components/team-members.tsx",
   "components/organizations-card.tsx",
   "components/teams-card.tsx",
-  "controller.ts",
+  "components/workspace-error.tsx",
   "identity-workspace.tsx",
   "mutations.ts",
   "queries.ts",
   "types.ts",
+  "schema.ts",
+  "use-workspace-selection.ts",
+  "use-workspace-organizations.ts",
+  "use-workspace-members.ts",
+  "use-workspace-teams.ts",
+  "use-workspace-invitations.ts",
+  "workspace-organizations.tsx",
+  "workspace-members.tsx",
+  "workspace-teams.tsx",
+  "workspace-invitations.tsx",
 ] as const;
 
 function config(mode: Mode, framework: Framework): ProjectConfig {
@@ -54,14 +68,14 @@ function config(mode: Mode, framework: Framework): ProjectConfig {
   });
 }
 
-function formattedLineCount(path: string, content: string): number {
+function formatSource(path: string, content: string): string {
   const result = Bun.spawnSync([process.execPath, "x", "oxfmt", "--stdin-filepath", path], {
     stdin: new TextEncoder().encode(content),
     stdout: "pipe",
     stderr: "pipe",
   });
   expect(result.exitCode, `${path}: ${new TextDecoder().decode(result.stderr)}`).toBe(0);
-  return new TextDecoder().decode(result.stdout).split(/\r?\n/).length;
+  return new TextDecoder().decode(result.stdout);
 }
 
 function importCandidates(path: string, specifier: string, sourceRoot: string): string[] {
@@ -98,11 +112,25 @@ describe("generated identity workspace boundaries", () => {
         for (const generatedFile of featureFiles) {
           const parsed = parseFile(generatedFile.content, extname(generatedFile.path));
           expect(parsed.diagnostics, generatedFile.path).toEqual([]);
-          const maximum = generatedFile.path.endsWith("/identity-workspace.tsx") ? 120 : 150;
+          const formatted = formatSource(generatedFile.path, generatedFile.content);
+          if (generatedFile.path.endsWith(".tsx")) {
+            const maximum = generatedFile.path.endsWith("/identity-workspace.tsx") ? 120 : 150;
+            expect(formatted.split(/\r?\n/).length, generatedFile.path).toBeLessThan(maximum);
+          }
+          // Workflow ownership and the reviewed 200/20 budgets apply to formatted output.
+          const formattedAst = parseFile(formatted, extname(generatedFile.path));
           expect(
-            formattedLineCount(generatedFile.path, generatedFile.content),
+            analyzeFrontendFile({
+              file: generatedFile.path,
+              source: formatted,
+              program: formattedAst.program,
+              comments: formattedAst.comments,
+              imports: formattedAst.importReferences,
+            }),
             generatedFile.path,
-          ).toBeLessThan(maximum);
+          ).toEqual([]);
+          if (classifyFrontendFile(generatedFile.path) === "workflow")
+            expect(generatedFile.path).toMatch(/\/use-workspace-[^/]+\.ts$/);
           expect(generatedFile.content, generatedFile.path).not.toContain("@allow-long");
           if (generatedFile.path.includes("/components/")) {
             expect(parsed.imports, generatedFile.path).not.toContain("@tanstack/react-query");
@@ -124,14 +152,16 @@ describe("generated identity workspace boundaries", () => {
         expect(unresolvedImports).toEqual([]);
 
         const orchestrator = byPath.get(`${featureRoot}/identity-workspace.tsx`);
-        expect(orchestrator).toContain('from "./controller"');
+        expect(orchestrator).toContain('from "./use-workspace-selection"');
         for (const component of [
-          "InvitationsCard",
-          "MembersCard",
-          "OrganizationsCard",
-          "TeamsCard",
+          "WorkspaceInvitations",
+          "WorkspaceMembers",
+          "WorkspaceOrganizations",
+          "WorkspaceTeams",
         ]) {
-          expect(orchestrator, component).toContain(`<${component} workspace={workspace} />`);
+          expect(orchestrator, component).toMatch(
+            new RegExp(`<${component}\\b[^>]*selection=\\{selection\\}`),
+          );
         }
         expect(orchestrator).not.toMatch(/useState\(|useQuery\(|useMutation\(|orpc\.identity/);
 
@@ -143,7 +173,9 @@ describe("generated identity workspace boundaries", () => {
         expect(route, routePath).toBeDefined();
         expect(route).toContain('from "@/features/identity-workspace/identity-workspace"');
         expect(parseFile(route ?? "", ".tsx").diagnostics, routePath).toEqual([]);
-        expect(formattedLineCount(routePath, route ?? ""), routePath).toBeLessThan(120);
+        expect(formatSource(routePath, route ?? "").split(/\r?\n/).length, routePath).toBeLessThan(
+          120,
+        );
 
         const actionSource =
           framework === "nextjs"

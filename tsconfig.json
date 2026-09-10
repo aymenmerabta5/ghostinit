@@ -6,7 +6,7 @@
     "outDir": "./dist",
     "composite": false,
     "noEmit": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo/root.tsbuildinfo"
+    "tsBuildInfoFile": "./.tsbuildinfo/root.tsbuildinfo"
   },
   "include": ["src/**/*", "packages/**/src/**/*", "tooling/**/*"],
   "exclude": ["node_modules", "dist", "tests/fixtures"],

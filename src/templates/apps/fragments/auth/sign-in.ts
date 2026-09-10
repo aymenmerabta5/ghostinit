@@ -1,48 +1,9 @@
 import type { RouterType } from "./imports.js";
+import { authRouteContent } from "./feature-routes.js";
 
 /** Route/page orchestrator. The stateful form is emitted as a focused sibling component. */
 export function signInPageContent(router: RouterType, _hasEmail = true): string {
-  const isTanstack = router === "tanstack";
-  const imports = isTanstack
-    ? `"use client";
-import type * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { SignInForm } from "@/components/auth/sign-in-form";
-import { ArrowLeft } from "lucide-react";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export const Route = createFileRoute("/sign-in")({ component: SignInPage });`
-    : `"use client";
-import type * as React from "react";
-import Link from "next/link";
-import { SignInForm } from "@/components/auth/sign-in-form";
-import { ArrowLeft } from "lucide-react";
-import { useSurfaceTranslations } from "@/lib/translations";`;
-  const backLink = isTanstack
-    ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />
-          <span>{t("signIn.backHome")}</span>
-        </Link>`
-    : `<Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />
-          <span>{t("signIn.backHome")}</span>
-        </Link>`;
-
-  return `${imports}
-
-${isTanstack ? "function" : "export default function"} SignInPage(): React.JSX.Element {
-  const t = useSurfaceTranslations("auth");
-  return (
-    <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14">
-      <div className="flex w-full max-w-[440px] flex-col gap-8">
-        ${backLink}
-        <SignInForm />
-        <p className="mx-auto max-w-[48ch] text-center text-xs leading-5 text-muted-foreground">{t("signIn.securityNote")}</p>
-      </div>
-    </main>
-  );
-}
-`;
+  return authRouteContent(router, "sign-in", "SignInScreen");
 }
 
 export function signInFormContent(router: RouterType, hasEmail = true, _hasPasskey = true): string {
@@ -61,10 +22,11 @@ ${homeImport}
 import { SignInMethods } from "./sign-in-methods.js";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSurfaceTranslations } from "@/lib/translations";
+import type { SignInFormState } from "../types";
 
-export function SignInForm(): React.JSX.Element {
+export function SignInForm({ state }: { state: SignInFormState }): React.JSX.Element {
   const t = useSurfaceTranslations("auth");
-
+  const { methods } = state;
   return (
     <Card className="border-0 bg-transparent p-0 shadow-none">
       <CardHeader className="gap-2 p-0 pb-6 sm:p-0 sm:pb-6">
@@ -72,7 +34,7 @@ export function SignInForm(): React.JSX.Element {
         <CardDescription className="max-w-[60ch]">{t("signIn.emailDisabled")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6 p-0 sm:p-0">
-        <SignInMethods />
+        <SignInMethods state={methods} />
       </CardContent>
       <CardFooter className="mt-6 justify-center border-t border-border/70 p-0 pt-5 text-sm sm:p-0 sm:pt-5">${homeLink}</CardFooter>
     </Card>
@@ -81,15 +43,8 @@ export function SignInForm(): React.JSX.Element {
 `;
   }
   const routerImport = isTanstack
-    ? 'import { Link, useNavigate } from "@tanstack/react-router";'
-    : `import Link from "next/link";
-import { useRouter } from "next/navigation";`;
-  const routerHook = isTanstack
-    ? "  const navigate = useNavigate();"
-    : "  const router = useRouter();";
-  const navigate = isTanstack
-    ? `    void navigate({ to: requiresTwoFactor ? "/2fa" : "/dashboard" });`
-    : `    router.push(requiresTwoFactor ? "/2fa" : "/dashboard");`;
+    ? 'import { Link } from "@tanstack/react-router";'
+    : `import Link from "next/link";`;
   const forgotLink = !hasEmail
     ? ""
     : isTanstack
@@ -107,44 +62,17 @@ import { useRouter } from "next/navigation";`;
 
 import type * as React from "react";
 ${routerImport}
-import { useState } from "react";
 import { SignInMethods } from "./sign-in-methods.js";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createSignInSchema, identityClient } from "@/lib/auth-client";
+import { Form } from "@/components/ui/form";
 import { useSurfaceTranslations } from "@/lib/translations";
+import type { SignInFormState } from "../types";
 
-export function SignInForm(): React.JSX.Element {
-${routerHook}
+export function SignInForm({ state }: { state: SignInFormState }): React.JSX.Element {
   const t = useSurfaceTranslations("auth");
-  const [error, setError] = useState<string | null>(null);
-  const schema = createSignInSchema({
-    invalidEmail: t("validation.invalidEmail"),
-    passwordRequired: t("validation.passwordRequired"),
-    passwordTooShort: t("validation.passwordTooShort"),
-    passwordTooLong: t("validation.passwordTooLong"),
-  });
-  const form = useAppForm({
-    defaultValues: { email: "", password: "" },
-    validators: { onSubmit: schema },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const result = await identityClient.signInWithEmail({ ...value, callbackURL: "/dashboard" });
-      if (result.error) {
-        setError(t("signIn.genericError"));
-        return;
-      }
-      const requiresTwoFactor =
-        typeof result.data === "object" &&
-        result.data !== null &&
-        "twoFactorRedirect" in result.data &&
-        result.data.twoFactorRedirect === true;
-${navigate}
-    },
-  });
-
+  const { form, error, methods } = state;
   return (
     <Card className="border-0 bg-transparent p-0 shadow-none">
       <CardHeader className="gap-2 p-0 pb-6 sm:p-0 sm:pb-6">
@@ -153,7 +81,7 @@ ${navigate}
       </CardHeader>
       <CardContent className="flex flex-col gap-6 p-0 sm:p-0">
         {error ? <Alert variant="destructive"><AlertTitle>{t("signIn.errorTitle")}</AlertTitle><AlertDescription>{error}</AlertDescription></Alert> : null}
-        <SignInMethods />
+        <SignInMethods state={methods} />
         <form.AppForm>
           <Form form={form} className="flex flex-col gap-6">
             <FieldGroup>
@@ -164,7 +92,7 @@ ${navigate}
                 {(field) => <field.PasswordField label={t("signIn.passwordLabel")} autoComplete="current-password" required minLength={8} maxLength={64} />}
               </form.AppField>
             </FieldGroup>
-            <form.SubmitButton className="h-10 w-full" pendingLabel={t("signIn.submitting")}>{t("signIn.submit")}</form.SubmitButton>
+            <form.SubmitButton disabled={methods.pending} className="h-10 w-full" pendingLabel={t("signIn.submitting")}>{t("signIn.submit")}</form.SubmitButton>
           </Form>
         </form.AppForm>
       </CardContent>

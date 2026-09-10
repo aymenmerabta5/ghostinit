@@ -1,3 +1,5 @@
+import { file, type TemplateFile } from "../../../shared.js";
+import { expoSettingsRouteContent } from "../settings/native-expo.js";
 /**
  * Expo dashboard, settings, billing, not-found fragments - RNR + Uniwind className
  */
@@ -99,95 +101,11 @@ ${navigationHook}
 `;
 }
 
-export function expoSettingsContent(hasI18n = false, hasEmail = true): string {
-  const i18n = nativeI18nTemplate(hasI18n, "settings");
-  const recovery = nativeI18nTemplate(hasI18n, "recovery");
-  const recoveryHook =
-    hasEmail && hasI18n ? recovery.hookLine.replace("const t", "const recoveryT") : "";
-  const recoveryValue = (key: string, english: string): string =>
-    hasI18n ? `recoveryT(${JSON.stringify(key)})` : JSON.stringify(english);
-  const profileDescription = hasI18n
-    ? '{t("profileDescription")}'
-    : 'Signed in as {String(user?.email ?? "")}.';
-  const securityCard = hasEmail
-    ? `<Card>
-          <CardHeader>
-            <CardTitle>${i18n.child("securityTitle", "Security")}</CardTitle>
-            <CardDescription>${i18n.child("securityDescription", "Manage password and two-factor authentication.")}</CardDescription>
-          </CardHeader>
-          <CardContent className="gap-2">
-            <View className="flex-row flex-wrap gap-2">
-              <Link href="/(auth)/forgot-password" asChild><Button variant="outline"><Text>{${recoveryValue("resetPassword.title", "Reset password")}}</Text></Button></Link>
-              <Link href="/2fa" asChild><Button variant="outline"><Text>${i18n.child("twoFactor.title", "Two-factor authentication")}</Text></Button></Link>
-            </View>
-          </CardContent>
-        </Card>`
-    : "";
-  return `import * as React from "react";
-import { useState } from "react";
-import { View, ScrollView } from "react-native";
-import { Link } from "expo-router";
-import { authClient } from "@/lib/auth-client";
-import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-${i18n.importLine}
-
-export default function SettingsScreen(): React.JSX.Element {
-${i18n.hookLine}
-${recoveryHook}
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
-  const [name, setName] = useState(user?.name ?? "");
-  const [saved, setSaved] = useState<string | null>(null);
-
-  async function handleSave(): Promise<void> {
-    setSaved(null);
-    try {
-      const res = await authClient.updateUser({ name });
-      if (res.error) {
-        setSaved(res.error.message ?? ${i18n.value("genericError", "Failed to save")});
-      } else {
-        setSaved(${i18n.value("successMessage", "Saved")});
-      }
-    } catch (e) {
-      setSaved(${hasI18n ? i18n.value("genericError", "Failed to save") : 'e instanceof Error ? e.message : "Failed to save"'});
-    }
-  }
-
-  return (
-    <ScrollView className="flex-1 bg-background">
-      <View className="p-5 gap-5 max-w-[960px] w-full self-center">
-        <View className="gap-1">
-          <Text className="text-2xl font-bold tracking-tight">${i18n.child("title", "Settings")}</Text>
-          <Text className="text-sm text-muted-foreground">${i18n.child("description", "Manage your account preferences.")}</Text>
-        </View>
-        <View className="h-px bg-border" />
-        <Card>
-          <CardHeader>
-            <CardTitle>${i18n.child("profileTitle", "Profile")}</CardTitle>
-            <CardDescription>${profileDescription}</CardDescription>
-          </CardHeader>
-          <CardContent className="gap-3">
-            <View className="gap-2">
-              <Label>${i18n.child("nameLabel", "Name")}</Label>
-              <Input value={name} onChangeText={setName} placeholder={${i18n.value("namePlaceholder", "Your name")}} />
-            </View>
-            {saved ? <Text className="text-xs text-primary">{saved}</Text> : null}
-            <Button onPress={handleSave}><Text>${i18n.child("save", "Save")}</Text></Button>
-          </CardContent>
-        </Card>
-        ${securityCard}
-      </View>
-    </ScrollView>
-  );
-}
-`;
+export function expoSettingsContent(_hasI18n = false, _hasEmail = true): string {
+  return expoSettingsRouteContent();
 }
 
-export function expoNotFoundContent(hasI18n = false): string {
+function expoNotFoundScreenContent(hasI18n = false): string {
   const i18n = nativeI18nTemplate(hasI18n, "errors");
   return `import * as React from "react";
 import { View } from "react-native";
@@ -196,7 +114,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 ${i18n.importLine}
 
-export default function NotFoundScreen(): React.JSX.Element {
+export function NotFoundScreen(): React.JSX.Element {
 ${i18n.hookLine}
   return (
     <View className="flex-1 bg-background items-center justify-center p-6 gap-3">
@@ -209,4 +127,15 @@ ${i18n.hookLine}
   );
 }
 `;
+}
+
+export function expoNotFoundContent(_hasI18n = false): string {
+  return 'export { NotFoundScreen as default } from "@/features/system/not-found";\n';
+}
+export function expoSystemFiles(packageRoot: string, hasI18n: boolean): TemplateFile[] {
+  const prefix = packageRoot ? packageRoot + "/" : "";
+  return [
+    file(`${prefix}app/+not-found.tsx`, expoNotFoundContent(hasI18n)),
+    file(`${prefix}src/features/system/not-found.tsx`, expoNotFoundScreenContent(hasI18n)),
+  ];
 }

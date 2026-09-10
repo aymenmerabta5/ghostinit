@@ -6,6 +6,10 @@ import {
 } from "../../src/templates/access";
 import { authPackage } from "../../src/templates/auth";
 import {
+  serverAuthSingle,
+  serverAuthTanstackSingle,
+} from "../../src/templates/modes/single/server/auth.js";
+import {
   compiledAdminUserPermissions,
   compiledSessionPermissions,
   compiledSuperAdminUserPermissions,
@@ -99,4 +103,121 @@ export {
       postgresNoEmail.find((file) => file.path === "packages/auth/src/server.ts")?.content ?? "",
     ).not.toContain("@repo/email");
   });
+});
+
+describe("explicit Drizzle auth minimal entrypoint", () => {
+  for (const mode of ["monorepo", "single"] as const) {
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      for (const hasEmail of [false, true]) {
+        for (const hasExpo of [false, true]) {
+          it(
+            mode +
+              "/" +
+              framework +
+              "/email-" +
+              hasEmail +
+              "/expo-" +
+              hasExpo +
+              " preserves its adapter and authentication policy",
+            () => {
+              const options = hasExpo ? { expoScheme: "nativefixture" } : {};
+              const server =
+                mode === "monorepo"
+                  ? authPackage(framework, { mobile: { inUse: hasExpo } }, { hasEmail }).find(
+                      (file) => file.path === "packages/auth/src/server.ts",
+                    )?.content
+                  : framework === "nextjs"
+                    ? serverAuthSingle(hasEmail, options)
+                    : serverAuthTanstackSingle(hasEmail, options);
+              if (!server) throw new Error("Generated auth server is missing");
+              expect(server).toMatch(
+                /import \{ betterAuth, type BetterAuthOptions \} from ["']better-auth\/minimal["'];/,
+              );
+              expect(server).toMatch(
+                /import type \{ Auth as BetterAuthServer \} from ["']better-auth["'];/,
+              );
+              const runtimeSource = new Bun.Transpiler({ loader: "ts" }).transformSync(server);
+              expect(runtimeSource).toMatch(/\bfrom\s+["']better-auth\/minimal["']/);
+              expect(runtimeSource).not.toMatch(/\bfrom\s+["']better-auth["']/);
+              expect(server).toContain("BetterAuthServer<PortableAuthOptions>");
+              expect(server).toContain("const configuredAuth = betterAuth({");
+              expect(server).toContain("export const auth: Auth = configuredAuth;");
+              const adapterStart = server.indexOf("database: drizzleAdapter(db, {");
+              const adapterEnd = server.indexOf("emailAndPassword:", adapterStart);
+              expect(adapterStart).toBeGreaterThanOrEqual(0);
+              expect(adapterEnd).toBeGreaterThan(adapterStart);
+              const adapter = server.slice(adapterStart, adapterEnd);
+              expect(adapter).toMatch(/provider:\s*["']pg["']/);
+              expect(adapter).toContain("transaction: true");
+              for (const model of [
+                "user",
+                "account",
+                "session",
+                "verification",
+                "rateLimit",
+                "twoFactor",
+                "passkey",
+                "organization",
+                "member",
+                "invitation",
+                "team",
+                "teamMember",
+                "organizationRole",
+              ]) {
+                expect(adapter).toMatch(new RegExp("\\b" + model + ":"));
+              }
+              for (const plugin of [
+                "transactionalAccountDeletion",
+                "profileUpdateValidation",
+                "admin",
+                "twoFactor",
+                "passkey",
+                "organization",
+              ]) {
+                expect(server).toMatch(new RegExp("\\b" + plugin + "\\("));
+              }
+              for (const path of [
+                "better-auth/plugins/admin",
+                "better-auth/plugins/organization",
+                "better-auth/plugins/two-factor",
+                "@better-auth/passkey",
+              ]) {
+                expect(server).toContain(path);
+              }
+              const cookiePlugin = framework === "nextjs" ? "nextCookies" : "tanstackStartCookies";
+              expect(server).toContain(cookiePlugin + "()");
+              expect(server).toContain("freshAge: 60 * 5");
+              expect(server).toMatch(/cookieCache:\s*\{\s*enabled: false/);
+              expect(server).toContain("autoSignInAfterRegistration: false");
+              expect(server).toContain("revokeSessionsOnPasswordReset: true");
+              expect(server).toContain("encryptOAuthTokens: true");
+              expect(server).toContain("requireLocalEmailVerified: true");
+              expect(server).toMatch(/storage:\s*["']database["']/);
+              expect(server).toContain("disableIpTracking: false");
+              expect(server).toContain("allowUserToCreateOrganization: false");
+              expect(server).toContain("disableOrganizationDeletion: true");
+              expect(server).toMatch(/teams:\s*\{\s*enabled: true/);
+              expect(server).toMatch(/dynamicAccessControl:\s*\{\s*enabled: true/);
+              expect(server).toMatch(
+                new RegExp("emailAndPassword:\\s*\\{\\s*enabled: " + hasEmail),
+              );
+              expect(server.includes("requireEmailVerification: true")).toBe(hasEmail);
+              expect(server.includes("sendResetPassword:")).toBe(hasEmail);
+              expect(server.includes("sendVerificationEmail:")).toBe(hasEmail);
+              expect(server.includes("better-auth/plugins/magic-link")).toBe(hasEmail);
+              expect(server.includes("magicLink({")).toBe(hasEmail);
+              expect(server.includes("disableImplicitLinking: true")).toBe(!hasEmail);
+              expect(server.includes("@better-auth/expo")).toBe(hasExpo);
+              expect(/\bexpo\(\)/.test(server)).toBe(hasExpo);
+              if (hasExpo)
+                expect(server).toContain(
+                  mode === "monorepo" ? "__APP_SCHEME__://" : "nativefixture://",
+                );
+              expect(server).not.toMatch(/\b(?:runMigrations|getMigrations|kysely)\b/);
+            },
+          );
+        }
+      }
+    }
+  }
 });

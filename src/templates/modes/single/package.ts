@@ -209,7 +209,8 @@ export function singlePackageJson(
         "lint:imports": "bun scripts/check-import-aliases.cjs",
         "lint:next-parity": "bun scripts/check-next-parity.cjs",
         "lint:navigation": "bun scripts/check-navigation-imports.cjs",
-        "lint:architecture": "bun scripts/check-feature-folder.cjs",
+        "lint:architecture":
+          "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
         "lint:rtl": "bun scripts/check-rtl-logical.cjs",
         "lint:animations": "bun scripts/check-animation-imports.cjs",
         "lint:server-only": "bun scripts/check-server-only.cjs",
@@ -230,7 +231,8 @@ export function singlePackageJson(
         "lint:imports": "bun scripts/check-import-aliases.cjs",
         "lint:next-parity": "bun scripts/check-next-parity.cjs",
         "lint:navigation": "bun scripts/check-navigation-imports.cjs",
-        "lint:architecture": "bun scripts/check-feature-folder.cjs",
+        "lint:architecture":
+          "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
         "lint:rtl": "bun scripts/check-rtl-logical.cjs",
         "lint:animations": "bun scripts/check-animation-imports.cjs",
         "lint:server-only": "bun scripts/check-server-only.cjs",
@@ -303,6 +305,7 @@ export function singlePackageJson(
     },
     packageManager: `bun@${v.runtime.bun}`,
     scripts,
+    overrides: hasCloudflare ? { sharp: v.cloudflare.sharp } : undefined,
     dependencies: buildDeps(
       selectedBilling,
       hasEve,
@@ -378,7 +381,8 @@ export function singlePackageJsonTanstack(
         lint: lintAll,
         "lint:oxlint": "oxlint --deny-warnings .",
         "lint:imports": "bun scripts/check-import-aliases.cjs",
-        "lint:architecture": "bun scripts/check-feature-folder.cjs",
+        "lint:architecture":
+          "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
         "lint:rtl": "bun scripts/check-rtl-logical.cjs",
         "lint:animations": "bun scripts/check-animation-imports.cjs",
         "lint:server-only": "bun scripts/check-server-only.cjs",
@@ -397,7 +401,8 @@ export function singlePackageJsonTanstack(
         lint: lintAll,
         "lint:oxlint": "oxlint --deny-warnings .",
         "lint:imports": "bun scripts/check-import-aliases.cjs",
-        "lint:architecture": "bun scripts/check-feature-folder.cjs",
+        "lint:architecture":
+          "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
         "lint:rtl": "bun scripts/check-rtl-logical.cjs",
         "lint:animations": "bun scripts/check-animation-imports.cjs",
         "lint:server-only": "bun scripts/check-server-only.cjs",
@@ -463,6 +468,7 @@ export function singlePackageJsonTanstack(
     },
     packageManager: `bun@${v.runtime.bun}`,
     scripts,
+    overrides: hasCloudflare ? { sharp: v.cloudflare.sharp } : undefined,
     dependencies: buildDeps(
       selectedBilling,
       hasEve,
@@ -647,6 +653,10 @@ export function singlePackageJsonExpo(
               "db:push": drizzleScript(runtime, "push"),
             }),
       };
+
+  scripts["lint:architecture"] =
+    "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs";
+  scripts["lint:all"] = "bun run lint && bun run lint:architecture && bun run typecheck";
 
   return packageJson({
     name: projectName,

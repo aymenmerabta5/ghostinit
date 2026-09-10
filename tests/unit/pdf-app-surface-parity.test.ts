@@ -58,7 +58,7 @@ describe("PDF application-surface parity", () => {
         ).filter((file) =>
           /(?:features\/pdf\/|(?:app|routes)\/pdf(?:\/page)?\.tsx$)/.test(file.path),
         );
-        expect(surfaces.length).toBe(mode === "single" ? 3 : 7);
+        expect(surfaces.length).toBe(mode === "single" ? 6 : 18);
         for (const surface of surfaces) {
           const formatted = Bun.spawnSync(
             [process.execPath, "x", "--no-install", "oxfmt", "--stdin-filepath", surface.path],
@@ -104,13 +104,11 @@ describe("PDF application-surface parity", () => {
                 : "src/routes/pdf.tsx";
           adapterPath =
             mode === "monorepo" ? "packages/pdf/src/client/usePdf.ts" : "src/hooks/usePdf.ts";
-          navigation = contentAt(files, `${prefix}src/components/workspace-navigation.tsx`);
+          navigation = `${contentAt(files, `${prefix}src/components/workspace-navigation.tsx`)}\n${contentAt(files, `${prefix}src/features/app-shell/navigation-model.ts`)}`;
           expect(navigation).toContain('path: "/pdf", label: "pdf"');
           expect(navigation).toContain(framework === "nextjs" ? "href={path}" : "to={path}");
           const userMenu = contentAt(files, `${prefix}src/components/header-user-menu.tsx`);
-          expect(userMenu).toContain(
-            framework === "nextjs" ? 'router.push("/pdf")' : 'router.navigate({ to: "/pdf" })',
-          );
+          expect(userMenu).toContain('onNavigate("/pdf")');
           const routePath =
             mode === "monorepo"
               ? framework === "nextjs"
@@ -152,29 +150,30 @@ describe("PDF application-surface parity", () => {
           pagePath = `${prefix}app/pdf.tsx`;
           adapterPath =
             mode === "monorepo" ? "apps/mobile/src/hooks/usePdf.ts" : "src/hooks/usePdfMobile.ts";
-          navigation = `${contentAt(files, `${prefix}src/components/header.tsx`)}\n${contentAt(files, `${prefix}app/_layout.tsx`)}`;
+          navigation = `${contentAt(files, `${prefix}src/features/app-shell/header.tsx`)}\n${contentAt(files, `${prefix}src/components/providers.tsx`)}`;
           expect(navigation).toContain('href="/pdf"');
           expect(navigation).toContain('name="pdf"');
         } else {
           pagePath = `${prefix}src/renderer/routes/pdf.tsx`;
           adapterPath = `${prefix}src/lib/pdf.ts`;
-          navigation = `${contentAt(files, `${prefix}src/renderer/routes/__root.tsx`)}\n${contentAt(files, `${prefix}src/renderer/routeTree.gen.ts`)}`;
+          navigation = `${contentAt(files, `${prefix}src/renderer/features/app-shell/app-shell.tsx`)}\n${contentAt(files, `${prefix}src/renderer/features/app-shell/components/navigation.tsx`)}\n${contentAt(files, `${prefix}src/renderer/routeTree.gen.ts`)}`;
           expect(navigation).toContain('to="/pdf"');
           expect(navigation).toContain("Route as PdfRoute");
         }
 
         const page = contentAt(files, pagePath);
-        const presentation =
-          app === "web" ? contentAt(files, `${prefix}src/features/pdf/pdf-workspace.tsx`) : page;
+        const featureRoot = `${prefix}src/${app === "desktop" ? "renderer/" : ""}features/pdf`;
+        const presentation = contentAt(files, `${featureRoot}/components/pdf-workspace-view.tsx`);
+        const workflow = contentAt(files, `${featureRoot}/use-pdf-workspace.ts`);
         const adapter = contentAt(files, adapterPath);
         expect(parseSync(pagePath, page).errors).toEqual([]);
         expect(parseSync(adapterPath, adapter).errors).toEqual([]);
-        expect(presentation).toContain("samplePdfData");
-        expect(presentation).toContain("invoice");
-        expect(presentation).toContain("certificate");
-        expect(presentation).toContain("agreement");
-        expect(presentation).not.toContain("logoUrl:");
-        expect(presentation).not.toContain("qrCodeDataUrl:");
+        expect(workflow).toContain("samplePdfData");
+        expect(workflow).toContain("invoice");
+        expect(workflow).toContain("certificate");
+        expect(workflow).toContain("agreement");
+        expect(`${presentation}\n${workflow}`).not.toContain("logoUrl:");
+        expect(`${presentation}\n${workflow}`).not.toContain("qrCodeDataUrl:");
         if (app === "web") expect(page).toContain('from "@/features/pdf/pdf-workspace"');
         expect(adapter).toContain('credentials: "include"');
         expect(adapter).toContain(
@@ -186,7 +185,7 @@ describe("PDF application-surface parity", () => {
           expect(adapter).toContain("window.desktopBridge.apiUrl");
           expect(adapter).not.toContain("await fetch(url");
         }
-        expect(`${page}\n${presentation}\n${adapter}`).not.toMatch(
+        expect(`${page}\n${presentation}\n${workflow}\n${adapter}`).not.toMatch(
           /\bas any\b|as unknown as|@ts-(?:ignore|nocheck)/,
         );
 

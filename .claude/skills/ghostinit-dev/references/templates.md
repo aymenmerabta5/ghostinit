@@ -71,7 +71,7 @@ with `--keep-vars`.
 Support-catalog bindings allow Cloudflare only for web + Convex/none. Reject
 PostgreSQL until Hyperdrive is request-scoped, Eve until its runtime is
 Workers-native, and PDF until admission is globally coordinated. Any change
-must preserve owner/lifecycle/provenance records and the four installed Worker
+must preserve owner/lifecycle/provenance records and the eight installed Worker
 corners; do not patch the final template array post hoc.
 
 Maintain <300 LOC guideline per file with `// @allow-long <LOC>: <reason>` escape if aggregation legit.

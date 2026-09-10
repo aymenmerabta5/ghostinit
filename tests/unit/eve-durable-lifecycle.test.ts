@@ -92,7 +92,17 @@ describe("Eve server-authoritative admission lifecycle", () => {
       expect(facadeRoute).toContain("createServerOnlyFn");
       expect(callbackRoute).toContain('createFileRoute("/api/agent/internal/eve-lifecycle")');
       expect(`${facadeRoute}\n${callbackRoute}`).not.toContain('from "next/');
-      expect(sourceFrom(files, `${root}/routes/agent.tsx`)).toContain(
+      const clientRoute = sourceFrom(files, `${root}/routes/agent.tsx`);
+      expect(clientRoute).toContain('import { AgentPage } from "@/features/agent/page"');
+      expect(clientRoute).toContain("component: AgentPage");
+      expect(clientRoute).toContain("requireProtectedRoute(context.queryClient)");
+      expect(sourceFrom(files, `${root}/features/agent/page.tsx`)).toContain(
+        "<AgentWorkspace {...useAgentConversation()} />",
+      );
+      expect(sourceFrom(files, `${root}/features/agent/use-agent-conversation.ts`)).toContain(
+        "const agent = useAgentSession();",
+      );
+      expect(sourceFrom(files, `${root}/features/agent/queries.ts`)).toContain(
         'useEveAgent({ host: "/api/agent" })',
       );
       expect(sourceFrom(files, ".env.local")).toContain(

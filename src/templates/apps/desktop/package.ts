@@ -1,5 +1,6 @@
 import type { AddonInstallerMap, BillingProviderName } from "../../../lib/addons.js";
 import { packageJson } from "../../shared.js";
+import { DEPENDENCY_SECURITY_INTEGRITY_PATH } from "../../../domain/dependency-security/artifacts.js";
 import * as v from "../../versions.js";
 import { resolveDesktopCapabilities, type DesktopMode } from "./model.js";
 
@@ -48,9 +49,9 @@ export function desktopPackageJsonContent(
       react: `^${v.nextStack.react}`,
       "react-dom": `^${v.nextStack["react-dom"]}`,
       "@tanstack/react-router": `^${v.tanstackStart["@tanstack/react-router"]}`,
+      "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
       ...(hasApi
         ? {
-            "@tanstack/react-query": `^${v.tanstack["@tanstack/react-query"]}`,
             "@orpc/client": `^${v.orpc["@orpc/client"]}`,
             "@orpc/react-query": `^${v.orpc["@orpc/react-query"]}`,
             ...(mode === "single"
@@ -70,6 +71,7 @@ export function desktopPackageJsonContent(
           }
         : {}),
       ...(hasAnalytics ? { "posthog-js": `^${v.analytics["posthog-js"]}` } : {}),
+      ...(hasAuth ? { sonner: `^${v.ui.sonner}` } : {}),
       zod: `^${v.validation.zod}`,
       "@t3-oss/env-core": `^${v.validation["@t3-oss/env-core"]}`,
       "@t3-oss/env-nextjs": `^${v.validation["@t3-oss/env-nextjs"]}`,
@@ -114,7 +116,11 @@ export function desktopPackageJsonContent(
   });
 }
 
-export function desktopSmokeTestContent(): string {
+export function desktopSmokeTestContent(mode: DesktopMode = "monorepo"): string {
+  const lint =
+    mode === "single"
+      ? "bun " + DEPENDENCY_SECURITY_INTEGRITY_PATH + " && oxlint --deny-warnings ."
+      : "oxlint --deny-warnings .";
   return `import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -123,7 +129,7 @@ test("declares an Electron main artifact and native quality scripts", () => {
   const manifest = JSON.parse(readFileSync(resolve(import.meta.dir, "../package.json"), "utf8"));
   expect(manifest.main).toBe("dist/main.js");
   expect(manifest.scripts.typecheck).toContain("tsc --noEmit");
-  expect(manifest.scripts.lint).toBe("oxlint --deny-warnings .");
+  expect(manifest.scripts.lint).toBe(${JSON.stringify(lint)});
 });
 `;
 }

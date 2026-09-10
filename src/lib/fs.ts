@@ -1,4 +1,4 @@
-// @allow-long 1307: path-safe staging, atomic rename, CAS rollback, and stale-staging GC share one transaction boundary
+// @allow-long 1352: path-safe staging, read dependencies, atomic rename, CAS rollback, and stale-staging GC share one transaction boundary
 /**
  * Transactional filesystem helpers.
  *
@@ -135,6 +135,7 @@ export class FsTransaction {
   private readonly createdDirs: string[] = [];
   private readonly pendingWrites: Map<string, PendingWrite> = new Map();
   private readonly pendingDeletes: Map<string, Buffer> = new Map();
+  private readonly readDependencies: Map<string, Buffer | null> = new Map();
   private committed = false;
   private rolledBack = false;
   private rollbackResult?: RollbackResult;
@@ -452,6 +453,45 @@ export class FsTransaction {
     }
     const content = await this.readDiskFile(relPath);
     return content?.toString("utf8");
+  }
+
+  /**
+   * Keep a text input (or its absence) in the commit's read set without writing
+   * it. Guards are checked before publication and against the transaction's
+   * final bytes after publication, so guarded paths may also be written/deleted.
+   */
+  async assertUnchanged(relPath: string, expected: string | null): Promise<void> {
+    if (this.committed || this.rolledBack) throw new Error("Transaction is no longer active");
+    const bytes = expected === null ? null : Buffer.from(expected, "utf8");
+    if (this.readDependencies.has(relPath)) {
+      const previous = this.readDependencies.get(relPath)!;
+      if (previous === null ? bytes !== null : bytes === null || !previous.equals(bytes)) {
+        throw new Error(`Read dependency has conflicting expected bytes: ${relPath}`);
+      }
+    }
+    await this.assertReadDependency(relPath, bytes);
+    this.readDependencies.set(relPath, bytes);
+  }
+
+  private async assertReadDependency(relPath: string, expected: Buffer | null): Promise<void> {
+    const current = await this.readDiskFile(relPath);
+    if (
+      expected === null ? current !== undefined : current === undefined || !current.equals(expected)
+    ) {
+      throw new Error(`Read dependency changed during transaction: ${relPath}`);
+    }
+  }
+
+  private async assertReadDependencies(afterPublication: boolean): Promise<void> {
+    const published = new Map<string, Buffer | null>();
+    if (afterPublication) {
+      for (const operation of this.operations) {
+        published.set(operation.path, operation.kind === "write" ? operation.writtenContent : null);
+      }
+    }
+    for (const [path, expected] of this.readDependencies) {
+      await this.assertReadDependency(path, published.has(path) ? published.get(path)! : expected);
+    }
   }
 
   private async stageWrite(
@@ -1025,6 +1065,8 @@ export class FsTransaction {
       throw new Error("Transaction already committed");
     }
 
+    await this.assertReadDependencies(false);
+
     if (this.pendingWrites.size === 0 && this.pendingDeletes.size === 0) {
       this.committed = true;
       return { written: this.operations.map((op) => op.path) };
@@ -1157,8 +1199,10 @@ export class FsTransaction {
         const quarantineIndex = appliedQuarantines.indexOf(quarantine);
         if (quarantineIndex >= 0) appliedQuarantines.splice(quarantineIndex, 1);
       }
+      await this.assertReadDependencies(true);
       this.pendingWrites.clear();
       this.pendingDeletes.clear();
+      this.readDependencies.clear();
       this.committed = true;
       return { written: this.operations.map((op) => op.path) };
     } catch (err) {
@@ -1219,6 +1263,7 @@ export class FsTransaction {
     this.forgetCompletedOperations(rollbackAttempt.completed);
     this.pendingWrites.clear();
     this.pendingDeletes.clear();
+    this.readDependencies.clear();
 
     const uniqueDirs = [...new Set(this.createdDirs)];
     uniqueDirs.sort((a, b) => b.length - a.length);

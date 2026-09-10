@@ -5,6 +5,7 @@ import { APIError, createAuthMiddleware, isAPIError } from "better-auth/api";
 import { createAuthClient } from "better-auth/client";
 import { z } from "zod";
 import { identityClientAdapterContent } from "../../src/templates/apps/fragments/auth/client-adapter.js";
+import { identityModelContent } from "../../src/templates/apps/fragments/auth/client-validation.js";
 import { profileUpdateValidationContent } from "../../src/templates/auth-profile.js";
 import { generatedFormHarness } from "../helpers/generated-form-harness.js";
 
@@ -69,10 +70,11 @@ describe("public profile update server validation", () => {
         },
       },
     });
-    const adapter = generatedFormHarness(identityClientAdapterContent(), ["identityClient"], {
-      authClient: client,
-      z,
-    }).module.identityClient as unknown as {
+    const adapter = generatedFormHarness(
+      identityModelContent() + "\n" + identityClientAdapterContent(),
+      ["identityClient"],
+      { authClient: client, z },
+    ).module.identityClient as unknown as {
       updateProfile(input: { name: string }): Promise<{ error?: { code?: string } | null }>;
     };
     const names: Array<string | undefined> = [];

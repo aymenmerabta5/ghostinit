@@ -54,7 +54,9 @@ describe("optional shadcn and Base UI surface composition", () => {
           .filter(
             ({ path }) =>
               path.startsWith("apps/web/src/") &&
-              /(?:app\/(?:\(app\)\/)?messages|routes\/(?:-components\/)?messages)/.test(path) &&
+              /(?:features\/messaging\/|app\/(?:\(app\)\/)?messages|routes\/(?:-components\/)?messages)/.test(
+                path,
+              ) &&
               path.endsWith(".tsx"),
           )
           .map(({ content }) => content)
@@ -64,6 +66,11 @@ describe("optional shadcn and Base UI surface composition", () => {
           read(files, "apps/web/src/features/feature-flags/page.tsx"),
           read(files, "apps/web/src/features/jobs/page.tsx"),
           read(files, "apps/web/src/features/pdf/pdf-workspace.tsx"),
+          ...files
+            .filter(({ path }) =>
+              /^apps\/web\/src\/features\/(?:storage|feature-flags|jobs|pdf)\/.+\.tsx$/.test(path),
+            )
+            .map(({ content }) => content),
           webMessages,
         ].join("\n");
         const desktop = [
@@ -72,6 +79,13 @@ describe("optional shadcn and Base UI surface composition", () => {
           read(files, "apps/desktop/src/renderer/features/jobs/page.tsx"),
           read(files, "apps/desktop/src/renderer/routes/pdf.tsx"),
           read(files, "apps/desktop/src/renderer/routes/messages.tsx"),
+          ...files
+            .filter(({ path }) =>
+              /^apps\/desktop\/src\/renderer\/features\/(?:storage|feature-flags|jobs|pdf|messaging)\/.+\.tsx$/.test(
+                path,
+              ),
+            )
+            .map(({ content }) => content),
         ].join("\n");
 
         for (const [target, source] of [
@@ -103,11 +117,14 @@ describe("optional shadcn and Base UI surface composition", () => {
           "apps/web/src/features/feature-flags/page.tsx",
           "apps/desktop/src/renderer/features/feature-flags/page.tsx",
         ]) {
-          const featureFlags = read(files, path);
-          const resultDeclaration = featureFlags.indexOf("const [result, setResult]");
-          const displayedResult = featureFlags.indexOf("const displayedResult");
-          expect(resultDeclaration, path).toBeGreaterThan(-1);
-          expect(displayedResult, path).toBeGreaterThan(resultDeclaration);
+          expect(read(files, path)).toContain("useFeatureFlagEvaluation(");
+          const workflowPath = path.replace("page.tsx", "use-feature-flag-evaluation.ts");
+          const featureFlags = read(files, workflowPath);
+          const queryDeclaration = featureFlags.indexOf("const query = useFeatureFlagQuery(");
+          const displayedResult = featureFlags.indexOf("result: query.data");
+          expect(queryDeclaration, workflowPath).toBeGreaterThan(-1);
+          expect(displayedResult, workflowPath).toBeGreaterThan(queryDeclaration);
+          expect(featureFlags).not.toContain("const [result, setResult]");
         }
         expect(desktopManifest.dependencies?.["@base-ui/react"]).toBeDefined();
         expect(desktopManifest.dependencies?.["lucide-react"]).toBeDefined();

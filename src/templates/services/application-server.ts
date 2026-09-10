@@ -107,6 +107,9 @@ async function resolvePrincipal(headers: Headers): Promise<RequestPrincipal | nu
   };
 }`;
   const imports = [
+    selection.manualBilling
+      ? `import { manualPaymentService } from "${importPath(mode, "@repo/billing/manual", "@/server/billing/manual")}";`
+      : "",
     `import { auth${database === "convex" ? ", getRequestUser" : ""}${database === "convex" && selection.messaging ? ", fetchAuthQuery" : ""} } from "${authImport}";`,
     database === "convex" && selection.messaging
       ? `import { api } from "../../../../convex/_generated/api";`
@@ -216,6 +219,7 @@ const billing: BillingApplicationPort = {
     selection.admin ? "    admin: createAdminServiceForRequest(headers)," : "",
     selection.identity ? "    identity: createIdentityServiceForRequest()," : "",
     selection.billing ? "    billing," : "",
+    selection.manualBilling ? "    manualBilling: manualPaymentService," : "",
     selection.messaging ? "    messaging," : "",
     selection.notifications ? "    notifications: createNotificationServiceForRequest()," : "",
   ]

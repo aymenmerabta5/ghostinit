@@ -6,6 +6,7 @@
 
 - Catalog-pinned Next 16 + React 19, RSC, Tailwind v4 + Base UI + shadcn, oRPC via route handlers `apps/web/src/app/api/`, client via `@orpc/client` + `@orpc/react-query`, env `NEXT_PUBLIC_*` client, output `.next/**`, turbo tasks Next.
 - Generated installs use `bunfig.toml` hoist=true for the supported Next workspace resolution path. Next uses the catalog TS7 CLI by default; do not set `experimental.useTypeScriptCli` to false.
+- Native Next output enables `experimental.webpackBuildWorker` to end compiler workers before its mandatory TypeScript phase, including when plugins add a Webpack hook. Preserve full build/runtime checks when changing plugins. Cloudflare keeps its separate configuration.
 
 ### tanstack-start
 
@@ -84,9 +85,15 @@ bun run dev              # expo start (single expo mode)
 
 - `postgres` default — Drizzle ORM 0.45.2 + pg 8.23.0 + drizzle-kit 0.31.10, postgres:18.6 via the cross-platform `docker compose --env-file .env.local up -d` path (optional `bash ./start-database.sh` when Bash is installed). The named volume mounts `/var/lib/postgresql`, the required parent for Postgres 18's versioned `18/docker` data directory. Pool config prefers `DATABASE_URL`, otherwise `POSTGRES_USER/PASSWORD/HOST/PORT/DB`; SSL uses `DATABASE_SSL=true` and optional `DATABASE_SSL_CA`.
 - `convex` — realtime serverless alternative, scaffold uses Convex packages (check versions catalog).
-- `none` — no database, invalid if billing selected (needs subscriptions table).
+- `none` — no database, invalid if billing is selected (billing needs persistent storage).
 - Cloudflare supports `convex` and `none`; the generated PostgreSQL adapter is
   rejected until it has a request-scoped Hyperdrive implementation.
+
+PostgreSQL auth uses `better-auth/minimal` with the explicit Drizzle adapter. Keep
+that adapter and its transaction support; the minimal initializer does not accept
+direct database objects or provide built-in auth migrations. Use the generated
+Drizzle migration commands, retain root `Auth` imports as type-only, and preserve
+the emitted session, verification, authorization and plugin settings.
 
 ```bash
 ghostinit create my-app --database postgres
@@ -145,11 +152,11 @@ All addons optional, false default (except saas preset forces auth/api/email/ana
 - **email**: Resend templates; when off, `packages/email` omitted.
 - **analytics**: PostHog; when off, `packages/analytics` omitted.
 - **cache**: Upstash Redis; when off, `packages/cache` omitted.
-- **billing**: Any combo none|stripe|chargily|paddle|polar|all; when none, billing UI shows empty state.
+- **billing**: Select at most one of Stripe/Paddle/Polar, plus optional Chargily and manual payments. Manual and Chargily are each valid alone or together; `none` disables billing. `all` and multiple global providers are rejected.
 
 ## Modes
 
-- `monorepo` default — workspaces `apps/*, packages/*, tooling/*`, turbo tasks, root composer 12+ groups, recommended for AI/codebase split bounded contexts. Supports `apps web, mobile, both`.
+- `monorepo` default — workspaces `apps/*, packages/*, tooling/*`, turbo tasks, root composer 12+ groups, recommended for AI/codebase split bounded contexts. Supports `web`, `mobile`, `desktop`, `both` and `all` app selections.
 - `single` — one project without workspaces. Web uses Next.js `src/app/` or TanStack Start `src/routes/`, with selected backend capabilities under `src/server/`. Single Expo/Electron is a frontend-only native layout with no generated server or external host contract.
 
 ```bash
@@ -164,7 +171,7 @@ ghostinit create my-app --mode single --apps mobile --preset frontend --database
 - Algeria SaaS local: `chargily + postgres + nextjs + monorepo + apps web`
 - Algeria+Global dual: `chargily,stripe + postgres + nextjs + monorepo + eve + apps web`
 - Global open-source MoR: `polar + postgres + nextjs + eve + apps web`
-- Global full: `all billing + postgres + nextjs + monorepo + eve,i18n + apps web`
+- Global plus Algeria/manual: `stripe,chargily,manual + postgres + nextjs + monorepo + eve,i18n + apps web`
 - TanStack edge: `tanstack-start + postgres + stripe + monorepo + apps web`
 - Minimal: `none billing + postgres + nextjs + single + apps web` or `none + none DB + nextjs + single`
 - Mobile-only: `none database + preset frontend + apps mobile` → Expo SDK 57 without a backend; select monorepo `web,mobile` for server-backed capabilities
@@ -203,7 +210,7 @@ If you add new client var manually, add to turbo globalEnv too to invalidate cac
 - Starting new production app → `monorepo + nextjs + postgres + chosen billing + apps web`
 - Need realtime sync → consider `convex` (or postgres + realtime addon later)
 - Algeria market → include `chargily` + `stripe` dual
-- Global SaaS → `stripe` or `paddle` or `polar` or combo
+- Global SaaS → choose one of `stripe`, `paddle` or `polar`; optionally add `chargily` and/or `manual`
 - Need AI durable agents → `eve`
 - Need multi-language → `i18n`
 - Experiment quickly → `single + postgres + nextjs + none billing + apps web`

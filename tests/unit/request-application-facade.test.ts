@@ -322,8 +322,27 @@ describe("generated request application facade", () => {
           "conversations: await dependencies.messaging.listConversations(principal.userId)",
         );
         expect(facade, key).not.toContain("listConversations(principal.userId)).map(publicRecord)");
-        expect(messagesPage, key).toContain("type ConversationDto");
-        expect(messagesPage, key).toContain("conversationSummary(value: ConversationDto)");
+        if (database === "convex") {
+          expect(messagesPage, key).toContain(
+            "result.conversations.map((conversation) => ({ id: conversation.id }))",
+          );
+          expect(read(files, `${webRoot}src/features/messaging/model.ts`), key).toContain(
+            "export interface InitialConversation { id: string }",
+          );
+          expect(read(files, `${webRoot}src/features/messaging/queries.ts`), key).toContain(
+            "initialConversations: InitialConversation[]",
+          );
+        } else {
+          expect(messagesPage, key).toContain("type ConversationDto");
+          expect(messagesPage, key).toContain("conversationSummary(value: ConversationDto)");
+        }
+        expect(messagesPage, key).toContain(
+          'if (!current.user || !principal) redirect("/sign-in")',
+        );
+        expect(messagesPage.indexOf('redirect("/sign-in")'), key).toBeLessThan(
+          messagesPage.indexOf("application.messaging.listConversations()"),
+        );
+        expect(messagesPage, key).toContain("<RequestOwnedSnapshot scope={scope}>");
         expect(messagesPage, key).not.toContain("Readonly<Record<string, unknown>>");
         expect(server, key).toContain("createdAt:");
         expect(server, key).toContain(".toISOString()");

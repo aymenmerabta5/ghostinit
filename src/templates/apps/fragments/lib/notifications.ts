@@ -77,7 +77,7 @@ export function getNotificationHref(_type: string, payload: unknown): Notificati
 `;
 
   const bellComponent = `"use client";
-import * as React from "react";
+import type * as React from "react";
 import { Bell } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,16 +96,13 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { formatNotification, getNotificationHref, type NotificationDestination, type NotificationItem as BellNotificationItem } from "@/lib/notifications";
+import { formatNotification, type NotificationItem as BellNotificationItem } from "@/lib/notifications";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export type NotificationItem = BellNotificationItem;
 
-export function NotificationBell({ notifications, onMarkRead, onNavigate, loading = false, loadError = false, onRetry, captureAction }: { notifications: NotificationItem[]; onMarkRead?: (id: string) => void | Promise<void>; onNavigate?: (destination: NotificationDestination) => void; loading?: boolean; loadError?: boolean; onRetry?: () => void; captureAction?: () => () => boolean }) {
+export function NotificationBell({ notifications, onActivate, loading = false, loadError = false, onRetry, pendingId = null, actionError = false }: { notifications: NotificationItem[]; onActivate?(notification: NotificationItem): void; loading?: boolean; loadError?: boolean; onRetry?(): void; pendingId?: string | null; actionError?: boolean }): React.JSX.Element {
   const t = useSurfaceTranslations("notifications");
-  const actionInFlight = React.useRef(false);
-  const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [actionError, setActionError] = React.useState(false);
   const unread = notifications.filter((notification) => notification.readAt === null).length;
   return (
     <Popover>
@@ -136,7 +133,6 @@ export function NotificationBell({ notifications, onMarkRead, onNavigate, loadin
           <div className="flex max-h-80 flex-col gap-1 overflow-y-auto pt-3">
             {notifications.map((notification) => {
               const formatted = formatNotification(notification.type, notification.payload);
-              const destination = getNotificationHref(notification.type, notification.payload);
               return (
                 <Button
                   key={notification.id}
@@ -146,22 +142,12 @@ export function NotificationBell({ notifications, onMarkRead, onNavigate, loadin
                   disabled={pendingId !== null}
                   focusableWhenDisabled
                   aria-busy={pendingId === notification.id}
-                  onClick={async () => {
-                    const isCurrent = captureAction?.() ?? (() => true);
-                    if (actionInFlight.current || !isCurrent()) return;
-                    actionInFlight.current = true;
-                    setPendingId(notification.id); setActionError(false);
-                    try {
-                      if (notification.readAt === null) await onMarkRead?.(notification.id);
-                      if (isCurrent() && destination) onNavigate?.(destination.href);
-                    } catch { if (isCurrent()) setActionError(true); }
-                    finally { actionInFlight.current = false; if (isCurrent()) setPendingId(null); }
-                  }}
+                  onClick={() => onActivate?.(notification)}
                 >
                   <span className="flex min-w-0 flex-col items-start gap-1">
-                    <span className="truncate font-medium">{formatted.title}</span>
+                    <span dir="auto" className="truncate font-medium">{formatted.title}</span>
                     {formatted.message ? (
-                      <span className="line-clamp-2 text-muted-foreground">{formatted.message}</span>
+                      <span dir="auto" className="line-clamp-2 text-muted-foreground">{formatted.message}</span>
                     ) : null}
                   </span>
                 </Button>

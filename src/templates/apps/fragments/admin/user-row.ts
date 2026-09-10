@@ -4,45 +4,33 @@ import { adminFeatureRoot, type AdminTemplateOptions } from "./model.js";
 function userRowContent(): string {
   return `"use client";
 
-import * as React from "react";
+import type * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
   UserRowConfirmationDialog,
-  type UserRowConfirmation,
 } from "./user-row-confirmation";
-import { useAdminUsersTranslations } from "../translations";
-import type { AdminUser, AdminUserRole } from "../types";
+import type { AdminUsersTranslate } from "../translations";
+import type { AdminUserActionOptions, useAdminUserAction } from "../use-admin-user-action";
 
-export interface UserRowProps {
-  user: AdminUser;
-  rolePending: boolean;
-  banPending: boolean;
-  onToggleRole(identityId: string, currentRole: AdminUserRole): Promise<boolean>;
-  onToggleBanned(identityId: string, currentlyBanned: boolean): Promise<boolean>;
+export interface UserRowProps extends Pick<AdminUserActionOptions, "user" | "rolePending" | "banPending">, ReturnType<typeof useAdminUserAction> {
+  translate: AdminUsersTranslate;
 }
 
 export function UserRow({
   user,
   rolePending,
   banPending,
-  onToggleRole,
-  onToggleBanned,
+  confirmation,
+  canManage,
+  pending,
+  chooseRole,
+  chooseBan,
+  cancel,
+  confirmAction,
+  translate,
 }: UserRowProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
-  const [confirmation, setConfirmation] = React.useState<UserRowConfirmation>(null);
-  const canManage = user.identityId !== null;
-  const pending = confirmation === "role" ? rolePending : banPending;
-  const changingRole = confirmation === "role";
-
-  async function confirmAction(): Promise<void> {
-    if (!user.identityId || !confirmation) return;
-    const succeeded = changingRole
-      ? await onToggleRole(user.identityId, user.role)
-      : await onToggleBanned(user.identityId, user.banned);
-    if (succeeded) setConfirmation(null);
-  }
 
   return (
     <>
@@ -73,7 +61,7 @@ export function UserRow({
               size="sm"
               variant="outline"
               disabled={!canManage || rolePending || banPending}
-              onClick={() => setConfirmation("role")}
+              onClick={chooseRole}
             >
               {rolePending
                 ? translate("actions.updating")
@@ -84,7 +72,7 @@ export function UserRow({
               size="sm"
               variant="outline"
               disabled={!canManage || rolePending || banPending}
-              onClick={() => setConfirmation("ban")}
+              onClick={chooseBan}
             >
               {banPending
                 ? translate("actions.updating")
@@ -95,11 +83,12 @@ export function UserRow({
       </TableRow>
 
       <UserRowConfirmationDialog
+        translate={translate}
         confirmation={confirmation}
         user={user}
         pending={pending}
         canManage={canManage}
-        onCancel={() => setConfirmation(null)}
+        onCancel={cancel}
         onConfirm={() => void confirmAction()}
       />
     </>
@@ -120,12 +109,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { useAdminUsersTranslations } from "../translations";
+import type { AdminUsersTranslate } from "../translations";
 import type { AdminUser } from "../types";
-
-export type UserRowConfirmation = "role" | "ban" | null;
+import type { UserRowConfirmation } from "../use-admin-user-action";
+export type { UserRowConfirmation } from "../use-admin-user-action";
 
 export interface UserRowConfirmationDialogProps {
+  translate: AdminUsersTranslate;
   confirmation: UserRowConfirmation;
   user: AdminUser;
   pending: boolean;
@@ -141,8 +131,8 @@ export function UserRowConfirmationDialog({
   canManage,
   onCancel,
   onConfirm,
+  translate,
 }: UserRowConfirmationDialogProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
   const changingRole = confirmation === "role";
   const nextRole = user.role === "admin" ? "user" : "admin";
   return (
@@ -193,6 +183,21 @@ export function UserRowConfirmationDialog({
 
 export function adminUserRowFile(options: AdminTemplateOptions): TemplateFile {
   return file(`${adminFeatureRoot(options)}/components/user-row.tsx`, userRowContent());
+}
+
+export function adminUserRowControllerFile(options: AdminTemplateOptions): TemplateFile {
+  return file(
+    `${adminFeatureRoot(options)}/user-row.tsx`,
+    `"use client";
+import { UserRow as UserRowView } from "./components/user-row";
+import { useAdminUserAction, type AdminUserActionOptions } from "./use-admin-user-action";
+import type { AdminUsersTranslate } from "./translations";
+export function UserRow(props: AdminUserActionOptions & { translate: AdminUsersTranslate }): React.JSX.Element {
+  const action = useAdminUserAction(props);
+  return <UserRowView user={props.user} rolePending={props.rolePending} banPending={props.banPending} translate={props.translate} {...action} />;
+}
+`,
+  );
 }
 
 export function adminUserRowConfirmationFile(options: AdminTemplateOptions): TemplateFile {

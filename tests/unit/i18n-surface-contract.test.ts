@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { projectConfigSchema } from "../../src/lib/config.js";
-import { desktopI18nContent } from "../../src/templates/apps/fragments/platform-i18n.js";
+import { platformI18nModelContent } from "../../src/templates/apps/fragments/platform-i18n.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import { AR_MESSAGES } from "../../src/templates/i18n/messages/ar.js";
 import { EN_MESSAGES } from "../../src/templates/i18n/messages/en.js";
@@ -94,18 +94,18 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           mode === "monorepo"
             ? [
                 `${root}/app/dashboard/page.tsx`,
-                `${root}/features/dashboard/dashboard-header.tsx`,
-                `${root}/features/dashboard/architecture-card.tsx`,
-                `${root}/features/dashboard/checks-card.tsx`,
-                `${root}/features/dashboard/identity-card.tsx`,
-                `${root}/features/dashboard/actions-card.tsx`,
-                `${root}/features/dashboard/modules-card.tsx`,
+                `${root}/features/dashboard/components/dashboard-header.tsx`,
+                `${root}/features/dashboard/components/architecture-card.tsx`,
+                `${root}/features/dashboard/components/checks-card.tsx`,
+                `${root}/features/dashboard/components/identity-card.tsx`,
+                `${root}/features/dashboard/components/actions-card.tsx`,
+                `${root}/features/dashboard/components/modules-card.tsx`,
               ]
             : [
                 `${root}/app/dashboard/page.tsx`,
                 `${root}/features/dashboard/dashboard-overview.tsx`,
-                `${root}/features/dashboard/identity-card.tsx`,
-                `${root}/features/dashboard/quick-actions.tsx`,
+                `${root}/features/dashboard/components/identity-card.tsx`,
+                `${root}/features/dashboard/components/quick-actions.tsx`,
               ],
         settings: [
           `${root}/app/settings/page.tsx`,
@@ -126,6 +126,12 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           `${root}/features/identity-workspace/components/invitation-row.tsx`,
         ],
         errors: [
+          `${root}/features/system/not-found.tsx`,
+          `${root}/features/system/route-fallbacks.tsx`,
+          `${root}/features/system/unexpected-error.tsx`,
+          `${root}/features/system/global-error.tsx`,
+          `${root}/features/system/unauthorized.tsx`,
+          `${root}/features/system/forbidden.tsx`,
           `${root}/app/error.tsx`,
           `${root}/app/global-error.tsx`,
           `${root}/app/not-found.tsx`,
@@ -154,17 +160,17 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
             ? [
                 `${root}/routes/dashboard.tsx`,
                 `${root}/features/dashboard/dashboard-overview.tsx`,
-                `${root}/features/dashboard/identity-card.tsx`,
-                `${root}/features/dashboard/quick-actions.tsx`,
+                `${root}/features/dashboard/components/identity-card.tsx`,
+                `${root}/features/dashboard/components/quick-actions.tsx`,
               ]
             : [
                 `${root}/routes/dashboard.tsx`,
-                `${root}/features/dashboard/dashboard-header.tsx`,
-                `${root}/features/dashboard/architecture-card.tsx`,
-                `${root}/features/dashboard/checks-card.tsx`,
-                `${root}/features/dashboard/identity-card.tsx`,
-                `${root}/features/dashboard/actions-card.tsx`,
-                `${root}/features/dashboard/modules-card.tsx`,
+                `${root}/features/dashboard/components/dashboard-header.tsx`,
+                `${root}/features/dashboard/components/architecture-card.tsx`,
+                `${root}/features/dashboard/components/checks-card.tsx`,
+                `${root}/features/dashboard/components/identity-card.tsx`,
+                `${root}/features/dashboard/components/actions-card.tsx`,
+                `${root}/features/dashboard/components/modules-card.tsx`,
               ],
         settings: [`${root}/routes/settings.tsx`],
         workspace: [
@@ -178,6 +184,12 @@ function surfacePaths(mode: Mode, framework: Framework, surface: Surface): strin
           `${root}/features/identity-workspace/components/invitation-row.tsx`,
         ],
         errors: [
+          `${root}/features/system/not-found.tsx`,
+          `${root}/features/system/route-fallbacks.tsx`,
+          `${root}/features/system/unexpected-error.tsx`,
+          `${root}/features/system/global-error.tsx`,
+          `${root}/features/system/unauthorized.tsx`,
+          `${root}/features/system/forbidden.tsx`,
           `${root}/routes/$notFound.tsx`,
           `${root}/routes/unauthorized.tsx`,
           `${root}/routes/forbidden.tsx`,
@@ -192,7 +204,22 @@ function surfaceSource(
   framework: Framework,
   surface: Surface,
 ): string {
-  return surfacePaths(mode, framework, surface)
+  const featureRoots: Record<Surface, string[]> = {
+    marketing: ["marketing"],
+    auth: ["auth"],
+    recovery: ["auth", "recovery"],
+    dashboard: ["dashboard"],
+    settings: ["settings", "account-deletion"],
+    workspace: ["identity-workspace"],
+    errors: ["system"],
+  };
+  const root = sourceRoot(mode);
+  const paths = new Set(surfacePaths(mode, framework, surface));
+  for (const { path } of files) {
+    if (featureRoots[surface].some((feature) => path.startsWith(`${root}/features/${feature}/`)))
+      paths.add(path);
+  }
+  return [...paths]
     .map((path) => read(files, path))
     .filter(Boolean)
     .join("\n");
@@ -237,7 +264,7 @@ describe("generated surface translation boundary", () => {
     const webTypes = webSource.match(
       /export interface SurfaceMessageKeys \{[\s\S]*?export type SurfaceTranslate<[\s\S]*?\) => string;\n/,
     )?.[0];
-    const platformTypes = desktopI18nContent().match(
+    const platformTypes = platformI18nModelContent().match(
       /type TranslationPath<Value> = \{[\s\S]*?\}\[keyof Value & string\];/,
     )?.[0];
     expect(webTypes).toBeDefined();
@@ -373,7 +400,10 @@ describe("generated locale control reachability", () => {
           read(files, `${root}/components/workspace-navigation-trigger.tsx`),
           read(files, `${root}/components/workspace-identity-status.tsx`),
         ].join("\n");
-        const appShell = read(files, `${root}/components/app-shell.tsx`);
+        const appShell = read(files, `${root}/features/app-shell/app-shell.tsx`);
+        expect(read(files, `${root}/components/app-shell.tsx`)).toContain(
+          'export { AppShell } from "@/features/app-shell/app-shell"',
+        );
         const marketing = surfaceSource(files, mode, framework, "marketing");
 
         expect(shell).toMatch(

@@ -18,6 +18,16 @@ export const BILLING_PROVIDER_CLIENT_BINDINGS = deepFreeze([
   { provider: "chargily", operationIds: [...commonOperations, "billing.payment-link.v1"] },
   { provider: "paddle", operationIds: [...commonOperations, "billing.portal.v1"] },
   { provider: "polar", operationIds: [...commonOperations, "billing.portal.v1"] },
+  {
+    provider: "manual",
+    operationIds: [
+      "billing.balance.v1",
+      "billing.manual.submit.v1",
+      "billing.manual.list.v1",
+      "billing.manual.receipt.v1",
+      "billing.manual.review.v1",
+    ],
+  },
 ] satisfies BillingProviderClientBinding[]);
 
 export function billingProviderSupportsClientOperation(

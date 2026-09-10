@@ -6,8 +6,9 @@ import type { ResolvedImport } from "./resolution/index.js";
 export const DEFAULT_MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024;
 export const DEFAULT_MAX_TOTAL_SOURCE_BYTES = 256 * 1024 * 1024;
 
-const SERVER_ONLY_PACKAGES = new Set([
+const SERVER_ONLY_PACKAGES = /* @__PURE__ */ new Set([
   "server-only",
+  "convex/server",
   "@repo/database",
   "@repo/config/server",
   "@orpc/server",

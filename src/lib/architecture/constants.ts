@@ -3,7 +3,7 @@
  * <5 imports, no logic.
  */
 
-export const FRAMEWORK_PACKAGES = new Set([
+export const FRAMEWORK_PACKAGES = /* @__PURE__ */ new Set([
   "react",
   "react-dom",
   "next",
@@ -34,9 +34,14 @@ export const FRAMEWORK_PACKAGES = new Set([
   "nitro",
 ]);
 
-export const DATABASE_PACKAGES = new Set(["@repo/database", "drizzle-orm", "drizzle-kit", "pg"]);
+export const DATABASE_PACKAGES = /* @__PURE__ */ new Set([
+  "@repo/database",
+  "drizzle-orm",
+  "drizzle-kit",
+  "pg",
+]);
 
-export const SERVER_ONLY_BILLING_PACKAGES = new Set([
+export const SERVER_ONLY_BILLING_PACKAGES = /* @__PURE__ */ new Set([
   "@chargily/chargily-pay",
   "stripe",
   "@paddle/paddle-node-sdk",
@@ -52,7 +57,7 @@ export const VENDOR_ISOLATION_SUBSTRINGS = [
   "billing/providers",
 ];
 
-export const RESERVED_NAMES = new Set([
+export const RESERVED_NAMES = /* @__PURE__ */ new Set([
   "node_modules",
   "dist",
   ".next",

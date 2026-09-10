@@ -20,7 +20,6 @@ export function expoAuthClientContent(
 import { expoClient } from "@better-auth/expo/client";
 ${isConvex ? 'import { convexClient } from "@convex-dev/better-auth/client/plugins";\n' : ""}import * as SecureStore from "expo-secure-store";
 import { ${isConvex ? "twoFactorClient" : "adminClient, twoFactorClient"}${hasEmail ? ", magicLinkClient" : ""} } from "better-auth/client/plugins";
-import { z } from "zod";
 import { env } from "${mode === "monorepo" ? "@repo/config/expo" : "@/lib/env/expo"}";
 
 function getBaseUrl(): string {

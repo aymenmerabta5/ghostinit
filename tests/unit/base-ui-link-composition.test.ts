@@ -62,39 +62,39 @@ const TARGETS: Record<Mode, Record<Framework, Record<string, number>>> = {
   monorepo: {
     nextjs: {
       "apps/web/src/components/marketing/hero.tsx": 2,
-      "apps/web/src/features/dashboard/dashboard-header.tsx": 0,
-      "apps/web/src/features/dashboard/checks-card.tsx": 1,
-      "apps/web/src/features/dashboard/identity-card.tsx": 2,
-      "apps/web/src/features/dashboard/actions-card.tsx": 0,
-      "apps/web/src/app/not-found.tsx": 1,
-      "apps/web/src/app/unauthorized.tsx": 1,
-      "apps/web/src/app/forbidden.tsx": 1,
+      "apps/web/src/features/dashboard/components/dashboard-header.tsx": 0,
+      "apps/web/src/features/dashboard/components/checks-card.tsx": 1,
+      "apps/web/src/features/dashboard/components/identity-card.tsx": 2,
+      "apps/web/src/features/dashboard/components/actions-card.tsx": 0,
+      "apps/web/src/features/system/not-found.tsx": 1,
+      "apps/web/src/features/system/unauthorized.tsx": 1,
+      "apps/web/src/features/system/forbidden.tsx": 1,
     },
     "tanstack-start": {
       "apps/web/src/components/marketing/hero.tsx": 2,
-      "apps/web/src/features/dashboard/dashboard-header.tsx": 0,
-      "apps/web/src/features/dashboard/checks-card.tsx": 1,
-      "apps/web/src/features/dashboard/identity-card.tsx": 2,
-      "apps/web/src/features/dashboard/actions-card.tsx": 0,
-      "apps/web/src/routes/$notFound.tsx": 1,
-      "apps/web/src/routes/unauthorized.tsx": 1,
-      "apps/web/src/routes/forbidden.tsx": 1,
+      "apps/web/src/features/dashboard/components/dashboard-header.tsx": 0,
+      "apps/web/src/features/dashboard/components/checks-card.tsx": 1,
+      "apps/web/src/features/dashboard/components/identity-card.tsx": 2,
+      "apps/web/src/features/dashboard/components/actions-card.tsx": 0,
+      "apps/web/src/features/system/not-found.tsx": 1,
+      "apps/web/src/features/system/unauthorized.tsx": 1,
+      "apps/web/src/features/system/forbidden.tsx": 1,
     },
   },
   single: {
     nextjs: {
       "src/components/marketing/hero.tsx": 2,
       "src/features/dashboard/dashboard-overview.tsx": 0,
-      "src/features/dashboard/identity-card.tsx": 2,
-      "src/features/dashboard/quick-actions.tsx": 0,
-      "src/app/not-found.tsx": 1,
+      "src/features/dashboard/components/identity-card.tsx": 2,
+      "src/features/dashboard/components/quick-actions.tsx": 0,
+      "src/features/system/not-found.tsx": 1,
     },
     "tanstack-start": {
       "src/components/marketing/hero.tsx": 2,
       "src/features/dashboard/dashboard-overview.tsx": 0,
-      "src/features/dashboard/identity-card.tsx": 2,
-      "src/features/dashboard/quick-actions.tsx": 0,
-      "src/routes/$notFound.tsx": 1,
+      "src/features/dashboard/components/identity-card.tsx": 2,
+      "src/features/dashboard/components/quick-actions.tsx": 0,
+      "src/features/system/not-found.tsx": 1,
     },
   },
 };
@@ -299,7 +299,7 @@ describe("generated Base UI link-button composition", () => {
 
       const targets = { ...TARGETS[entry.mode][entry.framework] };
       if (entry.billing.length > 0 && entry.mode === "monorepo" && entry.framework === "nextjs") {
-        targets["apps/web/src/app/billing/components/billing-empty.tsx"] = 1;
+        targets["apps/web/src/features/billing/components/billing-empty.tsx"] = 1;
       }
       if (
         entry.billing.length > 0 &&
@@ -311,7 +311,7 @@ describe("generated Base UI link-button composition", () => {
           violations.push("src/routes/billing.tsx: real shared BillingPage is not mounted");
         }
         targets["src/features/billing/billing-page.tsx"] = 0;
-        targets["src/features/billing/billing-empty-state.tsx"] = 0;
+        targets["src/features/billing/components/billing-empty-state.tsx"] = 0;
       }
       for (const [path, expectedCount] of Object.entries(targets)) {
         const source = byPath.get(path);

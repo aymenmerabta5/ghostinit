@@ -111,7 +111,10 @@ describe("generated i18n runtime matrix", () => {
           const manifest = JSON.parse(read(files, manifestPath(mode))) as {
             dependencies?: Record<string, string>;
           };
-          const adapter = read(files, `${root}/features/admin-users/translations.ts`);
+          const adapter =
+            read(files, `${root}/features/admin-users/translations.ts`) +
+            "\n" +
+            read(files, `${root}/features/admin-users/use-admin-users-translations.ts`);
           const surfaceAdapter = read(files, `${root}/lib/translations.ts`);
           const header = [
             read(files, `${root}/components/header.tsx`),
@@ -200,7 +203,10 @@ describe("generated i18n runtime matrix", () => {
               expect(header).toContain(`t(${JSON.stringify(key)})`);
             }
             const navigation = read(files, `${root}/components/workspace-navigation.tsx`);
-            expect(navigation).toContain('label: "admin"');
+            expect(navigation).toContain('from "@/features/app-shell/navigation-model"');
+            expect(read(files, `${root}/features/app-shell/navigation-model.ts`)).toContain(
+              'label: "admin"',
+            );
             expect(navigation).toContain("{t(label)}");
             expect(navigation).toContain('item.label !== "admin" || isAdmin');
             expect(switcher).toContain("<Select");

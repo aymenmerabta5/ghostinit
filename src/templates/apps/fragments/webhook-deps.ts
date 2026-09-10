@@ -12,7 +12,8 @@
  */
 
 import * as v from "../../versions.js";
-import { BILLING_PROVIDERS, hasAddon, type AddonInstallerMap } from "../../../lib/addons.js";
+import { hasAddon, type AddonInstallerMap } from "../../../lib/addons.js";
+import { ONLINE_BILLING_PROVIDERS } from "../../../domain/project/choices.js";
 import { BILLING_PROVIDER_PACKAGES } from "../../billing/provider-packages.js";
 
 export function webhookRuntimeDeps(
@@ -23,7 +24,7 @@ export function webhookRuntimeDeps(
   const deps: Record<string, string> = {};
 
   let anyProvider = false;
-  for (const provider of BILLING_PROVIDERS) {
+  for (const provider of ONLINE_BILLING_PROVIDERS) {
     if (!hasAddon(map, provider)) continue;
     const pkg = BILLING_PROVIDER_PACKAGES[provider];
     const version = v.billing[pkg];

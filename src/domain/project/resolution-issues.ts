@@ -13,6 +13,7 @@ export const RESOLUTION_ISSUE_CODES = [
   "backend-host-target-unsupported",
   "unsupported-execution-runtime",
   "billing-provider-required",
+  "billing-provider-conflict",
   "duplicate-selection",
   "capability-implied",
   "capability-explicitly-disabled",
@@ -22,6 +23,7 @@ export const RESOLUTION_ISSUE_CODES = [
   "capability-client-target-unsupported",
   "capability-deploy-binding-unsupported",
   "database-deploy-binding-unsupported",
+  "invalid-dependency-security",
 ] as const;
 
 export type ResolutionIssueCode = (typeof RESOLUTION_ISSUE_CODES)[number];

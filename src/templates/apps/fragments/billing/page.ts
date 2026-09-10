@@ -8,9 +8,21 @@ export function billingPresentationContent(
   router: RouterType = "next",
   selected: readonly BillingProviderName[] = BILLING_PROVIDERS,
 ): string {
-  const hookImport = router === "tanstack" ? "./use-billing" : "@/app/billing/hooks/use-billing.js";
+  const hookImport = "./use-billing-page";
   const hasPaymentLinks = router === "tanstack" && selected.includes("chargily");
   const hasSnapshotState = router === "tanstack";
+  const hasManual = selected.includes("manual");
+  if (hasManual && selected.every((provider) => provider === "manual")) {
+    return `"use client";
+import type * as React from "react";
+import { ManualBillingPanel } from "@/features/manual-payments/screen";
+import { useSurfaceTranslations } from "@/lib/translations";
+export function BillingPage(): React.JSX.Element {
+  const t = useSurfaceTranslations("billing");
+  return <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10"><div className="flex min-w-0 flex-col gap-7"><h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1><ManualBillingPanel /></div></main>;
+}
+`;
+  }
   return `"use client";
 import * as React from "react";
 ${hasSnapshotState ? 'import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";' : ""}
@@ -19,17 +31,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BillingEmptyState } from "./billing-empty-state";
-import { BillingInvoices } from "./billing-invoices";
+import { BillingEmptyState } from "./components/billing-empty-state";
+import { BillingInvoices } from "./components/billing-invoices";
 import { useBillingPage } from "${hookImport}";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { supportsBillingPortal } from "./provider-options";
+import { formatBillingSubscriptionStatus } from "./status-labels";
 ${hasPaymentLinks ? 'import { BillingPaymentLinkForm } from "./payment-link-form";' : ""}
+${hasManual ? 'import { ManualBillingPanel } from "@/features/manual-payments/screen";' : ""}
 
 function BillingContent(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
-  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal${hasSnapshotState ? ", snapshotError, refresh" : ""} } = useBillingPage();
-${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransition();" : ""}
+  const { subscriptions, invoices, subsLoading, isCheckoutLoading, pastDue, handleCheckout, handlePortal${hasSnapshotState ? ", snapshotError, refresh, refreshing" : ""}${hasPaymentLinks ? ", canCreatePaymentLinks" : ""} } = useBillingPage();
   const hasSubs = subscriptions.length > 0;
   return (
     <div className="flex flex-col gap-6">
@@ -40,9 +53,9 @@ ${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransiti
         </div>
         {!subsLoading${hasSnapshotState ? " && !snapshotError" : ""} ? <Badge variant={pastDue ? "destructive" : hasSubs ? "secondary" : "outline"}>{pastDue ? t("paymentPastDue") : hasSubs ? t("activeSubscriptions", { count: subscriptions.length }) : t("noSubscriptionsBadge")}</Badge> : null}
       </div>
-      ${hasSnapshotState ? '{snapshotError ? <Alert variant="destructive" role="alert"><AlertTitle>{t("dataUnavailable")}</AlertTitle><AlertDescription><Button type="button" size="sm" variant="outline" disabled={refreshPending} aria-busy={refreshPending} onClick={() => startRefresh(async () => { await refresh(); })}>{t("refresh")}</Button></AlertDescription></Alert> : null}' : ""}
+      ${hasSnapshotState ? '{snapshotError ? <Alert variant="destructive" role="alert"><AlertTitle>{t("dataUnavailable")}</AlertTitle><AlertDescription><Button type="button" size="sm" variant="outline" disabled={refreshing} aria-busy={refreshing} onClick={() => void refresh()}>{t("refresh")}</Button></AlertDescription></Alert> : null}' : ""}
       <BillingEmptyState disabled={isCheckoutLoading} onCheckout={handleCheckout} />
-      ${hasPaymentLinks ? '<BillingPaymentLinkForm provider="chargily" />' : ""}
+      ${hasPaymentLinks ? "<BillingPaymentLinkForm allowed={canCreatePaymentLinks} />" : ""}
       {subsLoading ? <div className="flex flex-col gap-3" aria-label={t("loadingSubscriptions")}><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : (
         <div className="grid gap-4">
           ${hasSnapshotState ? "{!snapshotError || hasSubs ? (" : ""}<Card>
@@ -50,7 +63,7 @@ ${hasSnapshotState ? "  const [refreshPending, startRefresh] = React.useTransiti
             <CardContent className="flex flex-col gap-2">
               {subscriptions.length === 0 ? <Empty><EmptyHeader><EmptyTitle>{t("noSubscriptionsTitle")}</EmptyTitle><EmptyDescription>{t("noSubscriptionsDescription")}</EmptyDescription></EmptyHeader></Empty> : subscriptions.map((subscription) => (
                 <div key={subscription.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-                  <div className="flex items-center gap-2"><Badge variant="secondary">{subscription.provider}</Badge><span className="font-mono text-xs">{subscription.status}</span></div>
+                  <div className="flex items-center gap-2"><Badge variant="secondary">{subscription.provider}</Badge><span className="font-mono text-xs">{formatBillingSubscriptionStatus(subscription.status, t)}</span></div>
                   {supportsBillingPortal(subscription.provider) ? <Button size="sm" variant="outline" onClick={() => handlePortal(subscription.provider)}>{t("customerPortal")}</Button> : null}
                 </div>
               ))}
@@ -68,6 +81,7 @@ export function BillingPage(): React.JSX.Element {
     <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
       <div className="flex min-w-0 flex-col gap-7">
         <BillingContent />
+        ${hasManual ? "<ManualBillingPanel />" : ""}
       </div>
     </main>
   );
@@ -83,8 +97,8 @@ import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSurfaceTranslations } from "@/lib/translations";
-import type { ProviderName } from "./queries";
-import { BILLING_PROVIDERS } from "./provider-options";
+import type { ProviderName } from "../model";
+import { BILLING_PROVIDERS } from "../provider-options";
 
 export function BillingEmptyState({ disabled, onCheckout }: { disabled: boolean; onCheckout: (provider: ProviderName) => void }): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
@@ -105,30 +119,45 @@ export function BillingEmptyState({ disabled, onCheckout }: { disabled: boolean;
 const nextBillingContent = `export { BillingPage as default } from "@/features/billing/billing-page";
 `;
 
-function tanstackBillingContentInternal(_isConvex = false): string {
+function tanstackBillingContentInternal(_isConvex = false, hasOnline = true): string {
   return `import { createFileRoute } from '@tanstack/react-router'
 import { BillingPage } from "@/features/billing/billing-page";
-import { loadInitialBillingSnapshot, loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
+import { ${hasOnline ? "loadInitialBillingSnapshot, " : ""}loadProtectedRoute, requireProtectedRoute } from "@/lib/protected-route";
 
 export const Route = createFileRoute('/billing')({
   beforeLoad: ({ context }) => requireProtectedRoute(context.queryClient),
-  loader: ({ context }) => Promise.all([
+  loader: ({ context }) => ${
+    hasOnline
+      ? `Promise.all([
     loadProtectedRoute(context),
     loadInitialBillingSnapshot(context),
-  ]),
+  ])`
+      : "loadProtectedRoute(context)"
+  },
   component: BillingPage,
 })
 `;
 }
 
-export function billingPageContent(router: RouterType = "next", isConvex = false): string {
-  if (router === "tanstack") return tanstackBillingContentInternal(isConvex);
+export function billingPageContent(
+  router: RouterType = "next",
+  isConvex = false,
+  hasOnline = true,
+): string {
+  if (router === "tanstack") return tanstackBillingContentInternal(isConvex, hasOnline);
   return nextBillingContent;
 }
 
-export function billingPage(router: RouterType = "next", isConvex = false): TemplateFile {
+export function billingPage(
+  router: RouterType = "next",
+  isConvex = false,
+  hasOnline = true,
+): TemplateFile {
   if (router === "tanstack") {
-    return file("apps/web/src/routes/billing.tsx", tanstackBillingContentInternal(isConvex));
+    return file(
+      "apps/web/src/routes/billing.tsx",
+      tanstackBillingContentInternal(isConvex, hasOnline),
+    );
   }
   return file("apps/web/src/app/billing/page.tsx", nextBillingContent);
 }

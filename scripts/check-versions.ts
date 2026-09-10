@@ -13,9 +13,16 @@ import * as versions from "../packages/versions/src/index.js";
 import type { ProjectConfig } from "../src/lib/config.js";
 import { generateProjectFiles } from "../src/templates/default.js";
 import {
+  exactLockedReleaseAuditWindow,
+  exactPinAuditWindow,
+  type LockedReleaseEvidence,
+  type PinAuditWindow,
+} from "./dependency-audit-window.js";
+import {
   collectRepositoryLockedPins,
   isSha512Integrity,
   releaseAgeWindow,
+  type LockedPin,
 } from "./lock-age-policy.js";
 
 export { lockedRegistryPinsFromText, releaseAgeWindow } from "./lock-age-policy.js";
@@ -49,6 +56,7 @@ export interface RegistryReleaseFacts {
 }
 
 interface EvidencePin {
+  auditWindow?: PinAuditWindow;
   scope: string;
   group: string;
   key: string;
@@ -93,12 +101,7 @@ interface VersionEvidence {
     reason: string;
   }>;
   nonNpm: Array<{ scope: string; value: string; reason: string }>;
-  lockedReleases: Array<{
-    package: string;
-    version: string;
-    publishedAt: string;
-    integrity: string;
-  }>;
+  lockedReleases: LockedReleaseEvidence[];
   pins: EvidencePin[];
   summary: {
     auditedScopes: number;
@@ -332,7 +335,7 @@ function generatedPins(): CollectedPins {
     runtime: "bun",
     version: "0.1.0",
     mode: "monorepo",
-    billing: ["stripe", "chargily", "paddle", "polar"],
+    billing: ["stripe", "chargily", "manual"],
     features: ["eve", "i18n"],
     database: "postgres",
     framework: "nextjs",
@@ -381,7 +384,15 @@ function generatedPins(): CollectedPins {
 
   const pins = new Map<string, Pin>();
   const failures: string[] = [];
-  for (const config of corners) {
+  const billingCorners = corners.flatMap((config) =>
+    config.billing.length === 0
+      ? [config]
+      : (["stripe", "paddle", "polar"] as const).map((provider) => ({
+          ...config,
+          billing: ["manual", "chargily", provider] as ProjectConfig["billing"],
+        })),
+  );
+  for (const config of billingCorners) {
     for (const generated of generateProjectFiles(config, { dryRun: false })) {
       if (!generated.path.endsWith("package.json")) continue;
       let manifest: ManifestDependencies;
@@ -434,6 +445,40 @@ export interface RegistryVersionSnapshot {
   publishedAt: string;
   publishedAtMilliseconds: number;
   integrity: string;
+}
+
+/** Check every actual lock tuple against both the reviewed row and live npm facts. */
+export function lockedReleaseSnapshotFailures(
+  pin: LockedPin,
+  recorded: LockedReleaseEvidence | undefined,
+  metadata: RegistryVersionSnapshot,
+  baselineAuditedAt: string,
+  minimumReleaseAgeSeconds: number,
+  nowMilliseconds = Date.now(),
+): string[] {
+  const prefix = `${pin.lockfile}:${pin.key}: `;
+  if (
+    !recorded ||
+    recorded.publishedAt !== metadata.publishedAt ||
+    recorded.integrity !== metadata.integrity ||
+    pin.integrity !== metadata.integrity
+  )
+    return [
+      prefix +
+        `locked publication or integrity evidence is missing or stale for ${pin.package}@${pin.version}`,
+    ];
+  try {
+    exactLockedReleaseAuditWindow(
+      pin,
+      recorded,
+      baselineAuditedAt,
+      minimumReleaseAgeSeconds,
+      nowMilliseconds,
+    );
+    return [];
+  } catch (error) {
+    return [prefix + (error instanceof Error ? error.message : String(error))];
+  }
 }
 
 export interface RecordedReleaseSnapshot {
@@ -489,6 +534,7 @@ export function releaseSnapshotFailures(
 
 interface RegistrySnapshot {
   release: RegistryReleaseFacts | null;
+  releases: ReadonlyMap<number, RegistryReleaseFacts>;
   versions: ReadonlyMap<string, RegistryVersionSnapshot>;
 }
 
@@ -498,6 +544,7 @@ function createRegistryLoader(
   requestedVersions: ReadonlyMap<string, ReadonlySet<string>>,
   releaseMetadataPackages: ReadonlySet<string>,
   cutoffMilliseconds: number,
+  additionalCutoffs: ReadonlyMap<string, ReadonlySet<number>>,
 ): (pkg: string) => Promise<RegistryLookup> {
   const cache = new Map<string, Promise<RegistryLookup>>();
   return (pkg: string): Promise<RegistryLookup> => {
@@ -517,10 +564,14 @@ function createRegistryLoader(
         const release = releaseMetadataPackages.has(pkg)
           ? registryReleaseFacts(pkg, registry, cutoffMilliseconds)
           : null;
+        const releases = new Map<number, RegistryReleaseFacts>();
+        if (release) releases.set(cutoffMilliseconds, release);
+        for (const cutoff of additionalCutoffs.get(pkg) ?? [])
+          releases.set(cutoff, registryReleaseFacts(pkg, registry, cutoff));
         const versionsToKeep = new Set(requestedVersions.get(pkg) ?? []);
-        if (release) {
-          versionsToKeep.add(release.registryLatest);
-          versionsToKeep.add(release.eligibleLatest);
+        for (const facts of releases.values()) {
+          versionsToKeep.add(facts.registryLatest);
+          versionsToKeep.add(facts.eligibleLatest);
         }
         const projected = new Map<string, RegistryVersionSnapshot>();
         for (const version of versionsToKeep) {
@@ -536,7 +587,7 @@ function createRegistryLoader(
             integrity,
           });
         }
-        return { snapshot: { release, versions: projected } };
+        return { snapshot: { release, releases, versions: projected } };
       } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) };
       }
@@ -624,6 +675,31 @@ async function main(): Promise<void> {
 
   const audited = [...catalog.pins, ...hostDependencies.pins];
   const emitted = [...generated.pins, ...fixtures.pins];
+  const baselineWindow = { auditedAtMilliseconds, cutoffMilliseconds, cutoffAt };
+  const scopedWindows = new Map<string, typeof baselineWindow>();
+  const emittedWindows = new Map<string, typeof baselineWindow>();
+  const additionalCutoffs = new Map<string, Set<number>>();
+  for (const recorded of evidence.pins) {
+    if (!recorded.auditWindow) continue;
+    const current = audited.find((pin) => pin.scope === recorded.scope);
+    if (!current)
+      throw new Error(`Incremental dependency audit contains stale scope ${recorded.scope}`);
+    const window = exactPinAuditWindow(
+      current,
+      { ...recorded, auditWindow: recorded.auditWindow },
+      evidence.auditedAt,
+      versions.supplyChain.minimumReleaseAgeSeconds,
+    );
+    scopedWindows.set(recorded.scope, window);
+    const releaseKey = `${current.package}@${current.version}`;
+    const prior = emittedWindows.get(releaseKey);
+    if (prior && prior.cutoffAt !== window.cutoffAt)
+      throw new Error(`Conflicting incremental audit windows for ${releaseKey}`);
+    emittedWindows.set(releaseKey, window);
+    const cutoffs = additionalCutoffs.get(current.package) ?? new Set<number>();
+    cutoffs.add(window.cutoffMilliseconds);
+    additionalCutoffs.set(current.package, cutoffs);
+  }
   const currentLockedVersions = new Map(
     locks.pins.map((pin) => [`${pin.package}@${pin.version}`, pin]),
   );
@@ -670,6 +746,7 @@ async function main(): Promise<void> {
     requestedVersions,
     releaseMetadataPackages,
     cutoffMilliseconds,
+    additionalCutoffs,
   );
   for (let index = 0; index < registryPackages.length; index += 16) {
     await Promise.all(registryPackages.slice(index, index + 16).map((pkg) => fetchRegistry(pkg)));
@@ -766,13 +843,14 @@ async function main(): Promise<void> {
   );
 
   for (const pin of audited) {
+    const window = scopedWindows.get(pin.scope) ?? baselineWindow;
     const lookup = await fetchRegistry(pin.package);
     if ("error" in lookup) {
       failures.push(`${pin.scope}: registry lookup failed for ${pin.package}: ${lookup.error}`);
       continue;
     }
     const metadata = lookup.snapshot.versions.get(pin.version);
-    const release = lookup.snapshot.release;
+    const release = lookup.snapshot.releases.get(window.cutoffMilliseconds);
     if (!release) {
       failures.push(`${pin.scope}: registry release metadata is unavailable for ${pin.package}`);
       continue;
@@ -785,9 +863,9 @@ async function main(): Promise<void> {
       failures.push(`${pin.scope}: ${pin.package}@${pin.version} does not exist`);
       continue;
     }
-    if (metadata.publishedAtMilliseconds > cutoffMilliseconds) {
+    if (metadata.publishedAtMilliseconds > window.cutoffMilliseconds) {
       failures.push(
-        `${pin.scope}: ${pin.package}@${pin.version} was published ${metadata.publishedAt}, after release-age cutoff ${cutoffAt}`,
+        `${pin.scope}: ${pin.package}@${pin.version} was published ${metadata.publishedAt}, after release-age cutoff ${window.cutoffAt}`,
       );
     }
     const recorded = evidencePins.get(pin.scope);
@@ -812,8 +890,8 @@ async function main(): Promise<void> {
       recorded,
       release,
       lookup.snapshot.versions,
-      cutoffMilliseconds,
-      auditedAtMilliseconds,
+      window.cutoffMilliseconds,
+      window.auditedAtMilliseconds,
     )) {
       failures.push(`${pin.scope}: ${failure}`);
     }
@@ -850,6 +928,7 @@ async function main(): Promise<void> {
 
   const knownPinVersions = new Set(audited.map((pin) => `${pin.package}@${pin.version}`));
   for (const pin of emitted) {
+    const window = emittedWindows.get(`${pin.package}@${pin.version}`) ?? baselineWindow;
     const lookup = await fetchRegistry(pin.package);
     if ("error" in lookup) {
       failures.push(`${pin.scope}: registry lookup failed for ${pin.package}: ${lookup.error}`);
@@ -862,14 +941,14 @@ async function main(): Promise<void> {
       );
       continue;
     }
-    if (metadata.publishedAtMilliseconds > cutoffMilliseconds) {
+    if (metadata.publishedAtMilliseconds > window.cutoffMilliseconds) {
       failures.push(
-        `${pin.scope}: emitted ${pin.package}@${pin.spec} was published ${metadata.publishedAt}, after release-age cutoff ${cutoffAt}`,
+        `${pin.scope}: emitted ${pin.package}@${pin.spec} was published ${metadata.publishedAt}, after release-age cutoff ${window.cutoffAt}`,
       );
       continue;
     }
     if (knownPinVersions.has(`${pin.package}@${pin.version}`)) continue;
-    const release = lookup.snapshot.release;
+    const release = lookup.snapshot.releases.get(window.cutoffMilliseconds);
     if (!release) {
       failures.push(`${pin.scope}: registry release metadata is unavailable for ${pin.package}`);
       continue;
@@ -900,22 +979,15 @@ async function main(): Promise<void> {
       continue;
     }
     const recorded = lockedReleaseEvidence.get(`${pin.package}@${pin.version}`);
-    if (
-      !recorded ||
-      recorded.publishedAt !== metadata.publishedAt ||
-      recorded.integrity !== metadata.integrity ||
-      pin.integrity !== metadata.integrity
-    ) {
-      failures.push(
-        `${pin.lockfile}:${pin.key}: locked publication or integrity evidence is missing or stale for ${pin.package}@${pin.version}`,
-      );
-      continue;
-    }
-    if (metadata.publishedAtMilliseconds > cutoffMilliseconds) {
-      failures.push(
-        `${pin.lockfile}:${pin.key}: locked ${pin.package}@${pin.version} was published ${metadata.publishedAt}, after release-age cutoff ${cutoffAt}`,
-      );
-    }
+    failures.push(
+      ...lockedReleaseSnapshotFailures(
+        pin,
+        recorded,
+        metadata,
+        evidence.auditedAt,
+        versions.supplyChain.minimumReleaseAgeSeconds,
+      ),
+    );
   }
 
   if (failures.length > 0) {

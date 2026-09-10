@@ -1,14 +1,14 @@
+import { desktopShellDataFiles } from "./data.js";
+import { file, type TemplateFile } from "../../../shared.js";
 import * as v from "../../../versions.js";
 import { fullDesktopCapabilities, type DesktopCapabilities, type DesktopMode } from "../model.js";
 import { nativeI18nImportPath, nativeI18nTemplate } from "../../fragments/native-i18n.js";
 
-export function desktopRouteRootContent(
+function desktopAppShellContent(
   capabilities: DesktopCapabilities = fullDesktopCapabilities,
   mode: DesktopMode = "monorepo",
 ): string {
-  const authImport = capabilities.hasAuth
-    ? `import { useAuth } from "../hooks/useAuth";\nimport { authClient } from "../lib/auth";`
-    : "";
+  const authImport = capabilities.hasAuth ? 'import { useShellIdentity } from "./queries";' : "";
   const i18n = nativeI18nTemplate(
     capabilities.hasI18n,
     "header",
@@ -18,15 +18,16 @@ export function desktopRouteRootContent(
     ? `${i18n.importLine.replace("useTranslations", "LocaleSwitcher, useTranslations")}`
     : "";
   const analyticsImport = capabilities.hasAnalytics
-    ? `import { DesktopAnalyticsProvider } from "../lib/analytics";`
+    ? `import { DesktopAnalyticsProvider } from "../../lib/analytics";`
     : "";
   const analyticsOpen = capabilities.hasAnalytics ? "<DesktopAnalyticsProvider>" : "<>";
   const analyticsClose = capabilities.hasAnalytics ? "</DesktopAnalyticsProvider>" : "</>";
   const i18nState = capabilities.hasI18n ? `${i18n.hookLine}\n` : "";
   const translated = (key: string, fallback: string): string =>
     capabilities.hasI18n ? `{t("${key}")}` : fallback;
-  const translationDependency = capabilities.hasI18n ? "[t]" : "[]";
-  const authState = capabilities.hasAuth ? `  const { user, isAuthenticated } = useAuth();` : "";
+  const authState = capabilities.hasAuth
+    ? `  const { user, isAuthenticated } = useShellIdentity();`
+    : "";
   const accountStatus = capabilities.hasAuth
     ? capabilities.hasI18n
       ? `{isAuthenticated ? user?.email : t("notSignedIn")}`
@@ -65,33 +66,6 @@ export function desktopRouteRootContent(
   const navigation = capabilities.hasAuth
     ? `${publicNavigation}{isAuthenticated ? <>${authenticatedNavigation}</> : <>${anonymousNavigation}</>}`
     : publicNavigation;
-  const protectedRoutePaths = [
-    ...(capabilities.hasAuth ? ["/dashboard", "/settings"] : []),
-    ...(capabilities.hasAuth && capabilities.hasApi ? ["/workspace"] : []),
-    ...(capabilities.hasMessaging ? ["/messages"] : []),
-    ...(capabilities.hasNotifications ? ["/notifications"] : []),
-    ...(capabilities.hasStorage ? ["/storage"] : []),
-    ...(capabilities.hasJobs ? ["/jobs"] : []),
-    ...(capabilities.hasBilling ? ["/billing"] : []),
-    ...(capabilities.hasPdf ? ["/pdf"] : []),
-    ...(capabilities.hasEve ? ["/agent"] : []),
-    ...(capabilities.hasAdmin ? ["/admin", "/admin/users", "/admin/users/create"] : []),
-  ];
-  const routeAdmission = capabilities.hasAuth
-    ? `const authenticatedDesktopRoutes = new Set(${JSON.stringify(protectedRoutePaths)});
-
-async function requireAuthenticatedDesktopRoute(pathname: string): Promise<void> {
-  if (!authenticatedDesktopRoutes.has(pathname)) return;
-  const result = await authClient.getSession();
-  if (!result.data?.user) throw redirect({ to: "/sign-in" });
-}`
-    : "";
-  const routeDeclaration = capabilities.hasAuth
-    ? `export const Route = createRootRoute({
-  beforeLoad: ({ location }) => requireAuthenticatedDesktopRoute(location.pathname),
-  component: RootComponent,
-});`
-    : "export const Route = createRootRoute({ component: RootComponent });";
   const footerCapabilities = [
     capabilities.hasApi ? "oRPC + TanStack Query" : translated("localRenderer", "Local renderer"),
     capabilities.hasAuth ? "Better Auth" : translated("noIdentityRuntime", "No identity runtime"),
@@ -103,61 +77,39 @@ async function requireAuthenticatedDesktopRoute(pathname: string): Promise<void>
     ? `<span className="hidden sm:inline">VITE_API_URL</span>`
     : "";
 
-  return `import { createRootRoute, Outlet, Link${capabilities.hasAuth ? ", redirect" : ""} } from "@tanstack/react-router";
+  return `import { Outlet, Link } from "@tanstack/react-router";
 import * as React from "react";
-import { ThemeToggle } from "../components/theme-toggle";
+import { ThemeToggle } from "../../components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { BrandWordmark } from "@/components/brand-wordmark";
 ${authImport}
 ${i18nImport}
 ${analyticsImport}
 
-${routeAdmission}
-
-type Branding = { name: string; version: string };
+import { useDesktopBranding } from "./queries";
+import { minimizeWindow, maximizeWindow, closeWindow } from "./mutations";
+import { useUpdateCheck } from "./use-update-check";
 
 function WindowControls() {
-${i18nState}  const bridge = window.desktopBridge;
+${i18nState}
   return (
     <div className="flex items-center gap-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-      <Button type="button" size="icon" variant="ghost" onClick={() => bridge.windowMinimize()} aria-label={${capabilities.hasI18n ? 't("windowMinimize")' : '"Minimize"'}}>−</Button>
-      <Button type="button" size="icon" variant="ghost" onClick={() => bridge.windowMaximize()} aria-label={${capabilities.hasI18n ? 't("windowMaximize")' : '"Maximize"'}}>□</Button>
-      <Button type="button" size="icon" variant="destructive" onClick={() => bridge.windowClose()} aria-label={${capabilities.hasI18n ? 't("windowClose")' : '"Close"'}}>×</Button>
+      <Button type="button" size="icon" variant="ghost" onClick={minimizeWindow} aria-label={${capabilities.hasI18n ? 't("windowMinimize")' : '"Minimize"'}}>−</Button>
+      <Button type="button" size="icon" variant="ghost" onClick={maximizeWindow} aria-label={${capabilities.hasI18n ? 't("windowMaximize")' : '"Maximize"'}}>□</Button>
+      <Button type="button" size="icon" variant="destructive" onClick={closeWindow} aria-label={${capabilities.hasI18n ? 't("windowClose")' : '"Close"'}}>×</Button>
     </div>
   );
 }
 
 function UpdateAction() {
-${i18nState}  const [status, setStatus] = React.useState<string | null>(null);
-  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  React.useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
-
-  const check = React.useCallback(async () => {
-    setStatus(${capabilities.hasI18n ? 't("updatesChecking")' : '"Checking…"'});
-    try {
-      const result = await window.desktopBridge.updatesCheck();
-      setStatus(result.isUpdateAvailable
-        ? ${capabilities.hasI18n ? 't("updatesAvailable")' : '"Update available"'}
-        : ${capabilities.hasI18n ? 't("updatesCurrent")' : '"Up to date"'});
-    } ${capabilities.hasI18n ? "catch {" : "catch (error) {"}
-      setStatus(${capabilities.hasI18n ? 't("updatesError")' : 'error instanceof Error ? error.message : "Update check failed"'});
-    }
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setStatus(null), 3000);
-  }, ${translationDependency});
+${i18nState}  const { check, status } = useUpdateCheck();
 
   return <Button type="button" variant="ghost" size="sm" onClick={check}>{status ?? ${capabilities.hasI18n ? 't("updatesCheck")' : '"Check updates"'}}</Button>;
 }
 
-${routeDeclaration}
-
-function RootComponent() {
-${i18nState}  const [branding, setBranding] = React.useState<Branding>({ name: "GhostInit Desktop", version: "" });
+export function DesktopAppShell() {
+${i18nState}  const branding = useDesktopBranding();
 ${authState}
-
-  React.useEffect(() => {
-    window.desktopBridge.getAppBranding().then(setBranding).catch(() => undefined);
-  }, []);
 
   return (
     ${analyticsOpen}
@@ -191,4 +143,116 @@ ${authState}
   );
 }
 `;
+}
+
+function protectedPaths(capabilities: DesktopCapabilities): string[] {
+  return [
+    ...(capabilities.hasAuth ? ["/dashboard", "/settings"] : []),
+    ...(capabilities.hasAuth && capabilities.hasApi ? ["/workspace"] : []),
+    ...(
+      [
+        [capabilities.hasMessaging, "/messages"],
+        [capabilities.hasNotifications, "/notifications"],
+        [capabilities.hasStorage, "/storage"],
+        [capabilities.hasJobs, "/jobs"],
+        [capabilities.hasBilling, "/billing"],
+        [capabilities.hasPdf, "/pdf"],
+        [capabilities.hasEve, "/agent"],
+      ] as const
+    )
+      .filter(([enabled]) => enabled)
+      .map(([, path]) => path),
+    ...(capabilities.hasAdmin ? ["/admin", "/admin/users", "/admin/users/create"] : []),
+  ];
+}
+export function desktopRouteRootContent(
+  capabilities: DesktopCapabilities = fullDesktopCapabilities,
+  mode: DesktopMode = "monorepo",
+): string {
+  const alias = mode === "single" ? "@/renderer" : "@";
+  return `import { createRootRoute${capabilities.hasAuth ? ", redirect" : ""} } from "@tanstack/react-router";
+import { DesktopAppShell } from "${alias}/features/app-shell/app-shell";
+${
+  capabilities.hasAuth
+    ? `import { readDesktopSession } from "${alias}/features/app-shell/queries";
+const authenticatedDesktopRoutes = new Set(${JSON.stringify(protectedPaths(capabilities))});
+async function requireAuthenticatedDesktopRoute(pathname: string): Promise<void> {
+  if (!authenticatedDesktopRoutes.has(pathname)) return;
+  const result = await readDesktopSession();
+  if (!result.data?.user) throw redirect({ to: "/sign-in" });
+}`
+    : ""
+}
+export const Route = createRootRoute({ ${capabilities.hasAuth ? "beforeLoad: ({ location }) => requireAuthenticatedDesktopRoute(location.pathname), " : ""}component: DesktopAppShell });
+`;
+}
+export function desktopShellFeatureFiles(
+  capabilities: DesktopCapabilities,
+  mode: DesktopMode,
+): TemplateFile[] {
+  const root = `${mode === "single" ? "src" : "apps/desktop/src"}/renderer/features/app-shell`;
+  const i18n = nativeI18nTemplate(
+    capabilities.hasI18n,
+    "header",
+    nativeI18nImportPath("desktop", mode),
+  );
+  let shell = desktopAppShellContent(capabilities, mode);
+  const windowStart = shell.indexOf("function WindowControls()");
+  const updateStart = shell.indexOf("function UpdateAction()", windowStart);
+  const shellStart = shell.indexOf("export function DesktopAppShell()", updateStart);
+  const windowView = shell
+    .slice(windowStart, updateStart)
+    .replace("function WindowControls()", "export function WindowControls()");
+  const updateView = shell
+    .slice(updateStart, shellStart)
+    .replace("function UpdateAction()", "export function UpdateAction()");
+  shell = shell.slice(0, windowStart) + shell.slice(shellStart);
+  const navigationStart = shell.indexOf("<nav aria-label=");
+  const navigationEnd = shell.indexOf("</nav>", navigationStart) + "</nav>".length;
+  const navigation = shell.slice(navigationStart, navigationEnd);
+  shell =
+    shell.slice(0, navigationStart) +
+    `<DesktopNavigation${capabilities.hasAuth ? " isAuthenticated={isAuthenticated}" : ""} />` +
+    shell.slice(navigationEnd);
+  shell = shell
+    .replace("import { Outlet, Link }", "import { Outlet }")
+    .replace('import { Button } from "@/components/ui/button";\n', "")
+    .replace(
+      'import { minimizeWindow, maximizeWindow, closeWindow } from "./mutations";',
+      'import { WindowControls } from "./window-controls";',
+    )
+    .replace(
+      'import { useUpdateCheck } from "./use-update-check";',
+      'import { UpdateAction } from "./update-action";\nimport { DesktopNavigation } from "./components/navigation";',
+    );
+  return [
+    file(`${root}/app-shell.tsx`, shell),
+    file(
+      `${root}/window-controls.tsx`,
+      `import type * as React from "react";
+import { Button } from "@/components/ui/button";
+import { minimizeWindow, maximizeWindow, closeWindow } from "./mutations";
+${i18n.importLine}
+${windowView}`,
+    ),
+    file(
+      `${root}/update-action.tsx`,
+      `import { Button } from "@/components/ui/button";
+import { useUpdateCheck } from "./use-update-check";
+${i18n.importLine}
+${updateView}`,
+    ),
+    file(
+      `${root}/components/navigation.tsx`,
+      `import type * as React from "react";
+import { Link } from "@tanstack/react-router";
+${i18n.importLine}
+export function DesktopNavigation(${capabilities.hasAuth ? "{ isAuthenticated }: { isAuthenticated: boolean }" : ""}): React.JSX.Element {
+${i18n.hookLine}
+  return ${navigation};
+}
+`,
+    ),
+    ...desktopShellDataFiles(root, capabilities, mode),
+  ];
 }

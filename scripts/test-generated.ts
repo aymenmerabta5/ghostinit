@@ -183,7 +183,7 @@ const MAX_SCANNED_ARTIFACT_FILES = 100_000;
 const MAX_SCANNED_ARTIFACT_DEPTH = 64;
 
 /** @internal Shared release-corner catalog for generated-output regression coverage. */
-export const CORNERS: Corner[] = [
+const CORNER_DEFINITIONS: Corner[] = [
   { id: "next-monorepo", args: ["--database", "postgres", "--billing", "stripe,chargily"] },
   {
     id: "next-monorepo-node",
@@ -550,6 +550,65 @@ export const CORNERS: Corner[] = [
     },
     note: "native Cloudflare Vite adapter database-free API with the Node compatibility selection",
   },
+];
+
+/** Keep every provider's installed coverage while exercising only valid selections. */
+function providerCorners(corner: Corner): Corner[] {
+  const billingIndex = corner.args.indexOf("--billing") + 1;
+  if (billingIndex === 0) return [corner];
+  const selection =
+    corner.args[billingIndex] === "all"
+      ? ["stripe", "chargily", "paddle", "polar"]
+      : (corner.args[billingIndex]?.split(",") ?? []);
+  const globals = ["paddle", "stripe", "polar"].filter((provider) => selection.includes(provider));
+  if (globals.length < 2) return [corner];
+  const independent = [
+    ...new Set([...selection.filter((provider) => !globals.includes(provider)), "manual"]),
+  ];
+  return globals.map((provider, index) => ({
+    ...corner,
+    id: index === 0 ? corner.id : `${corner.id}-${provider}`,
+    args: corner.args.map((argument, argumentIndex) =>
+      argumentIndex === billingIndex ? [provider, ...independent].join(",") : argument,
+    ),
+    ...(corner.worker
+      ? {
+          worker: {
+            ...corner.worker,
+            runtimeProbes: corner.worker.runtimeProbes?.filter(
+              (probe) =>
+                !probe.path.startsWith("/api/webhooks/") ||
+                probe.path === "/api/webhooks/chargily" ||
+                probe.path === `/api/webhooks/${provider}`,
+            ),
+            smokePaths: corner.worker.smokePaths?.filter(
+              (path) => path !== "/billing/paddle-checkout" || provider === "paddle",
+            ),
+          },
+        }
+      : {}),
+  }));
+}
+
+export const CORNERS: Corner[] = [
+  ...CORNER_DEFINITIONS.flatMap(providerCorners),
+  ...(["monorepo", "single"] as const).flatMap((mode) =>
+    (["nextjs", "tanstack-start"] as const).map((framework) => ({
+      id: `manual-${framework === "nextjs" ? "next" : "tanstack"}-${mode}`,
+      args: [
+        "--mode",
+        mode,
+        "--framework",
+        framework,
+        "--database",
+        framework === "nextjs" ? "postgres" : "convex",
+        "--billing",
+        "manual",
+        "--with-i18n",
+      ],
+      note: "Manual-only billing with private receipts and admin review",
+    })),
+  ),
 ];
 
 /** Kept small on purpose: local smoke blocks on these; CI selects --all. */

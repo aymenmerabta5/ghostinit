@@ -4,6 +4,7 @@ import { BILLING_PROVIDERS } from "../../lib/constants.js";
 import {
   tanstackRootDocumentContent,
   notFoundFileContent,
+  systemFeatureFiles,
   unauthorizedFileContent,
   forbiddenFileContent,
 } from "./fragments/layout.js";
@@ -15,16 +16,8 @@ import {
   marketingQuickStartComponentContent,
 } from "./fragments/marketing.js";
 import type { MarketingOptions } from "./fragments/marketing/shared.js";
-import {
-  authOAuthButtonsContent,
-  signInFormContent,
-  signInMethodsContent,
-  signInPageContent,
-  signUpFormContent,
-  signUpPageContent,
-  twoFactorPageContent,
-  twoFactorFormContent,
-} from "./fragments/auth.js";
+import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
+import { authFeatureFiles } from "./fragments/auth/feature.js";
 import {
   tanstackDashboardFeatureFiles,
   tanstackDashboardRouteContent,
@@ -51,6 +44,7 @@ export function tanstackPageFiles(
   const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
     rootRoute(hasI18n),
+    ...systemFeatureFiles("tanstack", "apps/web/src", hasAuth),
     ...marketingFiles({
       hasAuth,
       hasApi,
@@ -63,7 +57,7 @@ export function tanstackPageFiles(
           signInRoute(hasEmail),
           signUpRoute(),
           ...authFormComponents(hasEmail, isPostgres),
-          ...(hasEmail ? [twoFactorRoute(), twoFactorForm()] : []),
+          ...(hasEmail ? [twoFactorRoute()] : []),
           ...recoveryFiles("tanstack", hasEmail),
           dashboardRoute(isConvex),
           ...tanstackDashboardFeatureFiles(hasBilling, hasAdminUi),
@@ -126,25 +120,11 @@ function signUpRoute(): TemplateFile {
 }
 
 function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] {
-  return [
-    file("apps/web/src/components/auth/oauth-buttons.tsx", authOAuthButtonsContent()),
-    file(
-      "apps/web/src/components/auth/sign-in-methods.tsx",
-      signInMethodsContent("tanstack", hasPasskey),
-    ),
-    file(
-      "apps/web/src/components/auth/sign-in-form.tsx",
-      signInFormContent("tanstack", hasEmail, hasPasskey),
-    ),
-    file("apps/web/src/components/auth/sign-up-form.tsx", signUpFormContent("tanstack", hasEmail)),
-  ];
+  return authFeatureFiles({ router: "tanstack", hasEmail, hasPasskey });
 }
 
 function twoFactorRoute(): TemplateFile {
   return file("apps/web/src/routes/2fa.tsx", twoFactorPageContent("tanstack"));
-}
-function twoFactorForm(): TemplateFile {
-  return file("apps/web/src/components/auth/two-factor-form.tsx", twoFactorFormContent("tanstack"));
 }
 
 function dashboardRoute(isConvex = false): TemplateFile {

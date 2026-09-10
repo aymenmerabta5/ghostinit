@@ -20,9 +20,9 @@ bun test tests/integration/<file>.test.ts --timeout 100000
 bun run test:fixtures  # runner installs and fully checks all compatibility fixtures once
 bun run test:generated # generate + install + format/check + architecture + typecheck + lint:all + root tests
 bun run check:versions # every pinned + generated dependency version exists on npm
-bun run test:workers   # four Cloudflare Worker build/dry-run/runtime corners
+bun run test:workers   # eight Cloudflare Worker build/dry-run/runtime corners
 bun run test:convex-codegen # opt-in public anonymous-local Convex root/component codegen proof
-bun run test:ci        # static + host/fixtures + Convex codegen + 24 generated corners + oRPC WS runtime + six audited production builds
+bun run test:ci        # static + host/fixtures + Convex codegen + 38 generated corners + oRPC WS runtime + nine audited production builds
 ```
 
 For local checks under a strict RAM budget, use `bun --smol test <file>` and a
@@ -30,11 +30,19 @@ fresh guarded process per file. More frequent garbage collection reduces heap
 retention; process isolation also releases module-level fixtures. Preserve the
 complete test manifest and report interrupted files as failed verification.
 CI retains the full workload without a local machine's memory limits.
+The PostgreSQL E2E fixture runs PGlite in a directly owned Node.js child (the
+repository's Node engine requirement applies). Include that child in memory and
+process accounting, and preserve its SQL, owner-loss and cleanup controls.
 
 Generated Next builds use two static-generation workers locally through
 `experimental.cpus`; a non-empty `CI` leaves Next's default parallelism intact.
 Every route still builds. Keep process/tree/RAM guards: worker limits are not
 memory caps, and installed production builds remain required.
+
+Native Next output opts into `experimental.webpackBuildWorker: true`, so custom
+Webpack hooks do not keep the compiler worker alive during Next's mandatory
+TypeScript check. Preserve that check and verify plugin compatibility in complete
+installed builds. Cloudflare output keeps its separate configuration.
 
 Native Next configurations externalize only the selected billing SDKs through
 `serverExternalPackages`, using the same provider/package map as dependency
@@ -78,11 +86,69 @@ cd /tmp/gi-test/demo && bun run install:bootstrap && bun run typecheck && bun ru
 
 The versioned edge matrix in `src/lib/architecture/rules/layer-policy.ts` is authoritative. Application-to-domain dependencies follow the same rules in monorepo `packages/modules/src/<module>` and single `src/server/modules/<module>` layouts. Module privacy and database isolation apply to both. A passing category edge does not bypass the more specific isolation rules.
 
+**Frontend responsibility boundaries apply universally.** Next.js, TanStack Start,
+Expo, and Electron use the same responsibilities in single and monorepo output:
+thin framework routes; feature-root TSX screens/sections/controllers that compose;
+root `queries.ts` and
+`mutations.ts` adapters for remote state; cohesive workflow/form hooks; pure
+models/utilities; focused views with typed data/callback props; and shared
+primitives/infrastructure. DOM forms reuse the emitted `useAppForm`; native
+forms use the declared form library through a typed native adapter/workflow.
+Do not invent a DOM form export for native apps.
+
+Views may keep tiny local UI state such as disclosure, focus, or menu visibility.
+They do not own remote data fetching, a second copy of query results, duplicated
+form state, or unrelated workflows. Preserve actor/session cache ownership and
+cancellation when extracting adapters and hooks. Route guards and server reads
+still use the appropriate server boundary; a thin route does not weaken server
+authorization. Create only meaningful modules, not pass-through files that hide
+the same coupled responsibility behind more imports.
+
+Feature composition containers may call semantic feature hooks, but raw
+state/effect/form/data-library ownership belongs in the designated workflows and
+adapters. Multiple cohesive composition containers are valid; a feature does not
+need one giant screen. Focused views live in feature `components/` and app
+component modules, while feature-root `use-*.ts` modules own workflows.
+
+Architecture findings and failing required gates block an **acceptable/complete**
+verdict. Report unrun gates explicitly. Do not bypass detectors, raise budgets,
+widen exclusions, rename/move code to evade a rule, or add broad exceptions to
+make output green. A validated false positive needs a detector correction with
+positive and negative controls. Existing host/template length guidance does not
+excuse frontend responsibility violations. Static checks cover defined syntax
+and import patterns; manual responsibility and behavior review remains required.
+See [frontend architecture](./skills/ghostinit-use/references/frontend-architecture.md)
+for the role map, checker contract, and verification workflow.
+
+The project owner may change or remove GhostInit and its policies. Generated lint/typecheck commands remain independently usable. Agents must not silently remove or weaken safeguards to make work pass; changing those safeguards requires explicit developer authorization.
+
+**Dependency security maintenance:** create/install/bootstrap/upgrade automatically
+apply compatible, age-eligible repairs; `ghostinit security audit|fix` and generated
+`security:audit`/`security:fix` provide explicit maintenance. Ordinary `check` stays
+read-only. Dedicated fixes and upgrade run the installed canonical audit plus
+`typecheck`, `lint:all`, and root tests; install scripts audit the installed graph.
+`--no-install` explicitly leaves security unverified. Preserve the seven-day delay,
+empty exclusions, integrity checks, and verified patch policy; never use `--latest`
+or an incompatible range expansion to clear findings. Unresolved high/critical or
+unknown findings block repair publication; low/moderate findings remain `partial`
+and dedicated commands exit 8.
+
+Verified declaration floors in `ghostinit.config.json.dependencySecurity` are
+compiler inputs before plan hashing. Reconciliation preserves them without
+recreating removed dependencies or lowering higher compatible pins. Publish through
+`FsTransaction` with lease/read guards; invalidate obsolete plan attestations
+instead of assigning old provenance to repaired bytes. Failed installation after
+publication retains `.ghostinit/security-installation.json`; never claim
+`node_modules` rollback. `CLEANUP_UNVERIFIED` blocks every mutation and force/TTL
+lease takeover until independent cleanup verification and explicit reconciliation.
+See the [dependency security workflow](./skills/ghostinit-use/references/dependency-security.md).
+
 **Tooling:**
 
 - Host `bunfig.toml`: `isolated` + `hoist=false` (hermetic). Generated: `hoist=true` for the supported Next.js 16 TS resolution path. Both enforce the typed seven-day `supplyChain.minimumReleaseAgeSeconds` policy with an empty exclusion list; fixtures and temporary install probes must do the same.
 - Generated dependency SSOT is `packages/versions/src/index.ts`; host and generated compiler policies are verified independently.
 - Next development/build commands executed by Bun use the documented Webpack profile because Bun 1.4 cannot reliably resolve Turbopack's newly created external-package links on a cold start. Node keeps Turbopack. PDF-enabled Bun launchers preload their declared `@react-pdf/renderer` dependency before Next installs its require hook; React module conditions remain unchanged.
+- Custom Next servers bundle workspace source while leaving vendor packages external. Their web manifest must include the selected workspace graph's runtime dependencies, derived by `customNextRuntimeDependencies` before plan compilation. Do not rely on hoisting or a manually copied dependency list.
 - Generated apps and shared tooling use the same `typescript` catalog pin
   (TypeScript 7). Next 16.3 uses its default project-local `tsc` CLI; never set
   `experimental.useTypeScriptCli` to `false`. TypeScript 7 does not provide the
@@ -137,6 +203,12 @@ which broke the generated typecheck:
   expose the private `server-schema.ts`. Only declare ambient `@types` a package
   actually consumes.
 
+**PostgreSQL authentication uses `better-auth/minimal` with the explicit Drizzle
+adapter.** Keep `Auth` imports from the package root type-only. The minimal
+initializer does not support direct database objects or built-in auth migrations;
+Drizzle remains the migration path. Preserve adapter transactions and all
+existing authentication options and plugins.
+
 **Never mint third-party credentials.** `buildSecrets()` mints only self-issued
 secrets (`authSecret`, `postgresPassword`, `notificationTokenEncryptionKey`,
 `eveInternalAuthSecret`). The production compiler renders placeholders and
@@ -151,10 +223,11 @@ turns a clear setup error into an opaque signature failure.
 ## Project Structure
 
 - `src/cli.ts` + `src/cli/index.ts` — arg registry, did-you-mean levenshtein, JSON envelope `{success, exitCode, data|error, command, durationMs}`
-- `src/commands/` — `create.ts` (main orchestration), `add.ts`, `sync.ts`, `status.ts`, `check.ts`, `doctor.ts`, `types.ts` + subfolders `create/`, `doctor/`
+- `src/commands/` — `create.ts` (main orchestration), `add.ts`, `sync.ts`, `status.ts`, `check.ts`, `doctor.ts`, `security.ts`, `types.ts` + subfolders `create/`, `doctor/`
 - `src/lib/` — `errors.ts` (ExitCode, GhostinitError), `fs.ts` (FsTransaction atomic + staging `.ghostinit-staging` TTL 1h), `logger.ts` (secret-safe `SECRET_SUBSTRINGS`), `architecture/` (enforcer), `addons.ts` (parsers + `availableModes/Frameworks/Features/Databases`), `constants.ts` (BILLING_PROVIDERS, SECRET_SUBSTRINGS, RESERVED_WORKSPACE_PACKAGES, STAGING_*), `config.ts`, `interactive.ts`, `reserved.ts`, `json.ts`
 - `src/generators/` — `module.ts`, `use-case.ts`, `procedure.ts`, `action.ts`, `shared.ts` (AST extraction)
 - `src/templates/` — `root.ts`, `packages.ts`, `database.ts`, `auth.ts`, `api.ts`, `ui.ts`, `modules.ts`, `services.ts`, `email.ts`, `analytics.ts`, `i18n.ts`, `eve.ts`, `versions.ts`, `billing/{index,domain,schema,providers/{stripe,chargily,paddle,polar}/{client,checkout,customer,portal,webhook,subscriptions,mappers},webhooks/{factory→index},ui/billing-page.tsx}`, `apps/{core,pages,components,api,tests,tanstack-*}`, `modes/monorepo/{index,*-composer.ts,utils.ts}`, `modes/single/{index,config,composers/*}.ts` (Next/TanStack web and frontend-only Expo/Electron; `modes/single.ts` is a compatibility barrel), `shared/env.ts` (single source .env), `database/convex/{schema,auth,http,lib,posts,users,billing}.ts` (convex.ts was 1125 LOC; the content blocks were extracted verbatim), `template-loader.ts` (multi-root resolver — a naive `join(thisDir, rel)` always fails once bundled into `dist/cli.js`, which silently emitted barrels whose targets were never written)
+- `src/domain/dependency-security/` + `src/lib/dependency-security/` — compatible repair contracts, isolated audit/install workflow, evidence, publication, and recovery. `scripts/embed-dependency-security-runtime.ts` emits the standalone generated runtime during build; preserve its dependency-boundary checks.
 - `packages/versions/src/index.ts` — SSOT for ALL deps + `ghostinitVersion`
 - `tooling/` — `typescript-config/base.json` (ES2024, bundler, paths `@/*`, `@repo/*`), `lint/`
 - `tests/` — `unit/`, `integration/`, `fixtures/compatibility/` (real installs)
@@ -167,7 +240,7 @@ turns a clear setup error into an opaque signature failure.
 - **Secret-safe logger** — `SECRET_SUBSTRINGS=[secret,password,token,auth,bearer,cookie,credential,key,otp,session,signature,private]` + `SECRET_PATTERN` + `URL_SECRET_PARAM_PATTERN`. Same list in generated `packages/observability/src/logger.ts`.
 - **Typed errors + JSON envelope** — use `ValidationError`, `ExitCode`, `envelope()`.
 - **Package versions** — never hardcode `^x.y.z` in templates; import `* as v` from `./versions.js` (re-export of `@repo/versions`). Internal deps use `workspace:*`.
-- **Billing flexibility** — any combo allowed: `none`, `stripe`, `chargily`, `chargily,stripe` (Algeria+Global), `all`. Parsing via `parseBillingInput()` case-insensitive deduped. Validation only blocks `billing + database=none`. Each provider needs 7 files (<300 LOC guideline each, `// @allow-long` escape if needed): `client.ts`, `checkout.ts`, `customer.ts`, `portal.ts`, `webhook.ts`, `subscriptions.ts`, `mappers.ts` + barrel `index.ts` + wiring in `billing/webhooks/factory.ts` + `shared/env.ts` + UI panel.
+- **Billing selection** — select at most one global provider (`stripe`, `paddle`, or `polar`), with optional `chargily` and `manual`. Each option also works alone; `none` disables billing. `all` and multiple global providers are rejected by parsing, config schemas, and project resolution. `both` remains the `stripe,chargily` alias. Manual payments are a separate DZD top-up workflow, not an SDK or webhook provider. They require storage, private PNG/JPEG/PDF receipts up to 5 MiB, active authenticated users, and administrator approval; immutable ledger entries credit an approved payment once. Configure the generated `manual-payment-config.ts` (PostgreSQL) or `convex/manualPaymentConfig.ts` (Convex) before accepting transfers; see the generated `docs/manual-payments.md`. Existing database, host, and storage deployment restrictions still apply. Online providers retain their modular adapters, webhook factory, env wiring, and UI panel.
 - **Modes/frameworks** — `availableModes=[monorepo,single]`, `availableFrameworks=[nextjs,tanstack-start]`, `availableDatabases=[postgres,convex,none]`, `availableFeatures=[eve,i18n]` (deprecated alias for `--with-eve/--with-i18n`; preferred flags `--with-eve --with-i18n`), `availableApps=[web,mobile,desktop]`, `availablePresets=[saas,frontend,custom]`, `availableDeployTargets=[vercel,fly,docker,cloudflare,none]`. Docker emits `Dockerfile`, `.dockerignore`, `compose.production.yml`, and lifecycle guidance; Fly adds `fly.toml`; Vercel adds `vercel.json`. Cloudflare emits a framework-aware Worker profile: Next.js through OpenNext and TanStack Start through `@cloudflare/vite-plugin`, supported in monorepo/single web modes with Convex or no database. PostgreSQL, Eve, and server-side PDF are rejected until request-scoped/Workers-native adapters exist. Vercel manages patches within valid `bunVersion: "1.4.x"`, while generated install/build commands invoke exact Bun `1.4.0`; Docker/Fly use the exact image tag. All deployment targets require a verified regular root `bun.lock` and reuse `scripts/require-bun-lock.mjs`. After `--no-install`, run `bun run install:bootstrap` with Bun `1.4.0` first. Container builds receive `.env.local` only through an ephemeral BuildKit secret, never `COPY`; Cloudflare local development instead uses gitignored `.dev.vars`, rejects runtime `.env*` files during Worker builds, separates build-time variables from runtime secrets, and scans output for server-only values. Parsers throw `ValidationError` on invalid (no silent fallback) except billing/features allow partial unknown for forward-compat but fully unknown throws.
 - **Single native support boundary** — single Expo/Electron is frontend-only and permits client-local analytics/i18n. It has no generated backend or external host-selection contract; use monorepo `web,mobile` or `web,desktop` for server-backed capabilities.
 
@@ -212,13 +285,13 @@ architecture check to the normalized tree, then runs the project's own
 `typecheck`, fail-closed `lint:all`, and the generated root `test` script. It does
 not run a production build.
 `test:ci` runs this gate with `--all`, proves the real typed oRPC WebSocket
-runtime, then runs six representative production-build/start lifecycles through
+runtime, then runs nine representative production-build/start lifecycles through
 `test:e2e-build`. Each lifecycle audits its installed graph at high severity,
 then explicitly runs `typecheck` before fail-closed `lint:all` and the production build. Generated
 runtime checks also require `/` and `/sign-in` to render HTML successfully; a
 healthy API endpoint alone does not prove SSR works. The custom capability-heavy
-corner combines single Next.js, Eve, and messaging to exercise their shared
-server entrypoints. Generated
+corners combine single and monorepo Next.js, Eve, and messaging to exercise their shared
+server entrypoints. Both exercise the generated development command and render `/` and `/sign-in` before the production build. Generated
 projects deliberately do not add an unpublished `ghostinit` dependency:
 prepublication gates own the local CLI path, while consumers use the released
 CLI they explicitly installed.
@@ -231,9 +304,9 @@ lint (`.oxlintrc.json` extended a file that was never written). Every one of
 those was invisible to 399 passing unit tests.
 
 - Default local corners are `next-monorepo` and `single-next`; CI passes `--all`.
-- `--all` runs all 24 configured corners, including installed Node, TanStack + Convex,
+- `--all` runs all 38 configured corners, including installed Node, TanStack + Convex,
   TanStack messaging, Redis, web+mobile+desktop, notifications, remote feature
-  flags, jobs, standalone-storage slices, and four Cloudflare Worker profiles
+  flags, jobs, standalone-storage slices, and eight Cloudflare Worker profiles
   (slow: each is a full verified dependency bootstrap). `--workers` selects the Cloudflare
   Next/TanStack x monorepo/single subset; `bun run test:workers` is its package
   alias. Worker corners additionally build and independently secret-scan the

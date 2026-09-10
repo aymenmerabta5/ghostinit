@@ -8,7 +8,8 @@
 import { describe, expect, it } from "bun:test";
 import * as v from "../../packages/versions/src/index.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
-import { generateProjectFiles } from "../../src/templates/default.js";
+import { buildProjectGenerationPlan, generateProjectFiles } from "../../src/templates/default.js";
+import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 
 const AGENT_DOC_PATHS = [
   "AGENTS.md",
@@ -469,8 +470,15 @@ describe("generated agent instructions tell the truth", () => {
       }
       if (target.config.mode === "single" && target.config.apps[0] === "desktop") {
         const readme = files.find(({ path }) => path === "README.md")?.content ?? "";
-        expect(doc).not.toContain("bun run test");
-        expect(doc).not.toContain("bun run format:check");
+        const manifest = JSON.parse(files.find(({ path }) => path === "package.json")!.content) as {
+          scripts: Record<string, string>;
+        };
+        for (const script of ["test", "format:check"] as const) {
+          expect(manifest.scripts[script]).toBeString();
+          expect(doc).toContain(`bun run ${script}`);
+        }
+        expect(doc).not.toContain("without a test or format-check script");
+        expect(doc).toContain("exposes `start`, `test`, and `format:check` scripts");
         expect(doc).toContain("external remote-backend selection is not implemented");
         expect(doc).not.toContain("src/server/");
         expect(readme).toContain("does not generate a backend host");
@@ -484,8 +492,87 @@ describe("generated agent instructions tell the truth", () => {
       } else {
         expect(doc).toContain("VITE_");
         expect(doc).toContain("DESKTOP_");
+        const clientPrefixes = doc
+          .split("\n")
+          .find((line) => line.includes("Client-visible variables"));
+        expect(clientPrefixes).toContain("VITE_");
+        expect(clientPrefixes).not.toContain("DESKTOP_");
+        expect(doc).toContain("private Electron main/server configuration");
         expect(doc).not.toContain("NEXT_PUBLIC_");
       }
+    }
+  });
+
+  it("documents provider webhooks only when the compiled billing selection emits them", () => {
+    for (const mode of ["single", "monorepo"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        for (const database of ["postgres", "convex"] as const) {
+          for (const online of [false, true]) {
+            const resolution = resolveCreateConfig({
+              name: "manual-provider-docs",
+              runtime: "bun",
+              mode,
+              framework,
+              database,
+              databaseWasExplicit: true,
+              apps: ["web"],
+              billing: online ? ["manual", "stripe"] : ["manual"],
+              features: [],
+              preset: "custom",
+              cache: "none",
+              deploy: "none",
+              withAuth: true,
+              withApi: true,
+              withEmail: false,
+              withStorage: true,
+            });
+            if (!resolution.ok) throw new Error(resolution.message);
+            const plan = buildProjectGenerationPlan(resolution.resolvedConfig, {
+              desiredConfig: resolution.desiredConfig,
+            });
+            const files = new Map(
+              plan.files.map(({ physicalPath, content }) => [physicalPath, content]),
+            );
+            const webhookPaths = [...files.keys()].filter((path) =>
+              path.includes("/api/webhooks/"),
+            );
+            expect(webhookPaths.some((path) => /\/manual(?:\/|\.)/.test(path))).toBe(false);
+            const root = mode === "single" ? "" : "apps/web/";
+            const stripePath =
+              framework === "nextjs"
+                ? root + "src/app/api/webhooks/stripe/route.ts"
+                : root + "src/routes/api/webhooks/stripe.ts";
+            expect(files.has(stripePath)).toBe(online);
+            if (!online) expect(webhookPaths).toHaveLength(0);
+            for (const path of AGENT_DOC_PATHS) {
+              const doc = files.get(path);
+              expect(doc).toBeString();
+              if (online) expect(doc).toContain("Selected-provider webhook routes");
+              else expect(doc).not.toContain("Selected-provider webhook routes");
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("deduplicates client prefixes when TanStack web and desktop share Vite", () => {
+    const files = generateProjectFiles(
+      cfg({
+        framework: "tanstack-start",
+        apps: ["web", "desktop"],
+      }),
+      { dryRun: true },
+    );
+    for (const path of AGENT_DOC_PATHS) {
+      const doc = files.find((entry) => entry.path === path)?.content ?? "";
+      const line =
+        doc.split("\n").find((entry) => entry.includes("Client-visible variables")) ?? "";
+      expect(line.match(/VITE_/g)).toHaveLength(1);
+      expect(line).not.toContain("DESKTOP_");
+      expect(doc).toContain(
+        "`DESKTOP_*` belongs only to private Electron main/server configuration",
+      );
     }
   });
 

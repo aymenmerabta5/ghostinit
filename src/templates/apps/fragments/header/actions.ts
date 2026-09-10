@@ -22,10 +22,6 @@ export function headerActionsContent(
         </div>`;
   const localeImport = hasI18n ? 'import { LocaleSwitcher } from "./locale-switcher.js";' : "";
   const localeSwitcher = hasI18n ? '<LocaleSwitcher className="w-20 shrink-0 sm:w-28" />' : "";
-  const notificationImport = hasNotifications
-    ? 'import { NotificationInboxBell } from "@/features/notifications/bell";'
-    : "";
-  const notificationBell = hasNotifications ? "<NotificationInboxBell />" : "";
 
   return `"use client";
 
@@ -36,14 +32,17 @@ import { HeaderUserMenu } from "./header-user-menu.js";
 import type { WorkspaceIdentity } from "./workspace-identity.js";
 import { ThemeToggle } from "./theme-toggle.js";
 ${localeImport}
-${notificationImport}
+import type { WorkspaceDestination } from "@/features/app-shell/navigation-model";
 import { useSurfaceTranslations } from "@/lib/translations";
 
 export interface HeaderActionsProps {
   identity: WorkspaceIdentity;
+  onNavigate(destination: WorkspaceDestination): void;
+  onSignOut(): Promise<void>;
+${hasNotifications ? "  notifications?: React.ReactNode;" : ""}
 }
 
-export function HeaderActions({ identity }: HeaderActionsProps): React.JSX.Element {
+export function HeaderActions({ identity, onNavigate, onSignOut${hasNotifications ? ", notifications" : ""} }: HeaderActionsProps): React.JSX.Element {
   const t = useSurfaceTranslations("header");
   const common = useSurfaceTranslations("common");
   return (
@@ -53,7 +52,7 @@ export function HeaderActions({ identity }: HeaderActionsProps): React.JSX.Eleme
       {identity.status === "pending" ? (
         <div className="size-9 motion-safe:animate-pulse rounded-full bg-muted" aria-hidden />
       ) : identity.status === "authenticated" ? (
-        <div className="flex items-center gap-2">${notificationBell}<HeaderUserMenu user={identity.user} /></div>
+        <div className="flex items-center gap-2">${hasNotifications ? "{notifications}" : ""}<HeaderUserMenu user={identity.user} onNavigate={onNavigate} onSignOut={onSignOut} /></div>
       ) : identity.status === "error" ? (
         <div className="flex items-center gap-2" role="status">
           <span className="hidden text-xs text-muted-foreground md:inline">{t("accountUnavailable")}</span>

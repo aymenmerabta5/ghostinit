@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import {
+  assertLoopbackPortUnowned,
   reservePort,
   spawnTracked,
   terminateProcessTree,
@@ -45,27 +46,56 @@ export function expectNextCompilerConfigUnchanged(
 export async function verifyNextDevelopmentConfig(
   snapshot: NextCompilerSnapshot | undefined,
   environment: NodeJS.ProcessEnv,
+  generatedCustomServer = false,
 ): Promise<void> {
   if (!snapshot) return;
   const port = await reservePort();
+  const origin = "http://127.0.0.1:" + port;
+  const evePort = generatedCustomServer ? await reservePort() : undefined;
   const require = createRequire(join(snapshot.appRoot, "package.json"));
   const server = spawnTracked(
-    "node",
-    [
-      require.resolve("next/dist/bin/next"),
-      "dev",
-      "--hostname",
-      "127.0.0.1",
-      "--port",
-      String(port),
-    ],
+    generatedCustomServer ? process.execPath : "node",
+    generatedCustomServer
+      ? ["run", "dev"]
+      : [
+          require.resolve("next/dist/bin/next"),
+          "dev",
+          "--hostname",
+          "127.0.0.1",
+          "--port",
+          String(port),
+        ],
     snapshot.appRoot,
-    { ...environment, NODE_ENV: "development" },
+    {
+      ...environment,
+      NODE_ENV: "development",
+      ...(generatedCustomServer
+        ? {
+            PORT: String(port),
+            HOSTNAME: "127.0.0.1",
+            BETTER_AUTH_URL: origin,
+            NEXT_PUBLIC_APP_URL: origin,
+            EVE_NEXT_PRODUCTION_PORT: String(evePort),
+            EVE_NEXT_PRODUCTION_ORIGIN: "http://127.0.0.1:" + evePort,
+            EVE_BASE_URL: "http://127.0.0.1:" + evePort,
+          }
+        : {}),
+    },
   );
   try {
-    await waitForHealthyHttp(server, `http://127.0.0.1:${port}/api/health`, 180_000);
+    await waitForHealthyHttp(server, origin + "/api/health", 180_000);
+    if (generatedCustomServer) {
+      for (const path of ["/", "/sign-in"]) {
+        const page = await fetch(origin + path, { signal: AbortSignal.timeout(90_000) });
+        expect(page.status, "Generated dev command renders " + path).toBe(200);
+        expect(page.headers.get("content-type")).toContain("text/html");
+        expect(await page.text()).toMatch(/<html[\s>]/i);
+      }
+    }
   } finally {
     await terminateProcessTree(server.child);
   }
+  await assertLoopbackPortUnowned(port);
+  if (evePort !== undefined) await assertLoopbackPortUnowned(evePort);
   expectNextCompilerConfigUnchanged(snapshot, "Next development");
 }

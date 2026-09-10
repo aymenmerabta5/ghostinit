@@ -1,5 +1,7 @@
+import { FR_BILLING_STATUS_MESSAGES } from "./billing-status.js";
 // @allow-long 1382: typed locale catalog mirrors the complete English message shape
 import type { EN_MESSAGES } from "./en.js";
+import { FR_MANUAL_BILLING_MESSAGES } from "./manual-billing.js";
 
 export const FR_MESSAGES = {
   common: {
@@ -282,6 +284,10 @@ export const FR_MESSAGES = {
     desktopDescription: "Gérez vos organisations, membres, équipes et invitations.",
     settings: "Paramètres",
     operationError: "Échec de l’opération sur l’espace",
+    operationErrorDescription:
+      "Vérifiez l’état actuel de l’espace de travail, puis réessayez l’action.",
+    organizationsReadError: "Impossible de charger les organisations",
+    organizationsReadErrorDescription: "Réessayez pour charger la liste de vos organisations.",
     organizations: "Organisations",
     organizationsDescription: "Choisissez l’organisation dans laquelle travailler.",
     loadingOrganizations: "Chargement des organisations",
@@ -940,7 +946,7 @@ export const FR_MESSAGES = {
       revokingOthers: "Révocation des autres sessions...",
       loading: "Chargement des sessions...",
       refresh: "Actualiser",
-      empty: "Aucune autre session active - uniquement cet appareil.",
+      empty: "Aucune session active trouvée.",
       current: "actuelle",
       revoke: "Révoquer",
       revoking: "Révocation...",
@@ -1118,6 +1124,8 @@ export const FR_MESSAGES = {
     manifestDescription: "Votre monolithe modulaire structuré.",
   },
   billing: {
+    ...FR_BILLING_STATUS_MESSAGES,
+    ...FR_MANUAL_BILLING_MESSAGES,
     checkoutReturnTitle: "Retour du paiement",
     checkoutReturnDescription:
       "Votre prestataire confirme le résultat. Consultez la facturation pour connaître le dernier état du paiement et de l'abonnement.",

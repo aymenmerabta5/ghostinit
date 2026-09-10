@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { settingsPasskeyListContent } from "../../src/templates/apps/fragments/settings/passkey-card.js";
+import { settingsSource } from "../helpers/settings-feature-harness.js";
 import { EN_MESSAGES } from "../../src/templates/i18n/messages/en.js";
 import { FR_MESSAGES } from "../../src/templates/i18n/messages/fr.js";
 import { AR_MESSAGES } from "../../src/templates/i18n/messages/ar.js";
@@ -26,23 +26,31 @@ describe("passkey backup-state labels", () => {
         }),
       );
       const before = JSON.stringify(passkeys);
-      const ui = generatedFormHarness(settingsPasskeyListContent(), ["PasskeyList"], {
-        Badge: "Badge",
-        Input: "Input",
-        useSurfaceTranslations: () => (key: string) => {
-          const message: unknown = Reflect.get(messages, key.replace(/^passkeys\./, ""));
-          if (typeof message !== "string") throw new Error(`Missing ${locale} ${key}`);
-          return message;
+      const ui = generatedFormHarness(
+        settingsSource("single", "next", "settings/components/passkey-view.tsx"),
+        ["PasskeyRowView"],
+        {
+          Badge: "Badge",
+          useSurfaceLocale: () => locale,
+          Input: "Input",
+          useSurfaceTranslations: () => (key: string) => {
+            const message: unknown = Reflect.get(messages, key.replace(/^passkeys\./, ""));
+            if (typeof message !== "string") throw new Error(`Missing ${locale} ${key}`);
+            return message;
+          },
         },
-      });
-      const tree = ui.render("PasskeyList", {
-        passkeys,
-        names: {},
-        pending: null,
-        onNameChange() {},
-        onRename() {},
-        onDelete() {},
-      });
+      );
+      const tree = passkeys.map((passkey) =>
+        ui.render("PasskeyRowView", {
+          passkey,
+          model: {
+            form: { AppForm: "AppForm", AppField: "AppField", SubmitButton: "SubmitButton" },
+            pending: false,
+            error: null,
+            remove() {},
+          },
+        }),
+      );
       const labels = elements(tree)
         .filter((node) => node.type === "Badge")
         .map(textContent);

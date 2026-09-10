@@ -57,7 +57,7 @@ describe("generated Stripe billing panel size", () => {
     test(`${mode} splits the Next.js panel into bounded, closed presentation files`, () => {
       const generated = generateProjectFiles(config(mode), { dryRun: true });
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
-      const base = mode === "monorepo" ? "apps/web/src/app/billing" : "src/app/billing";
+      const base = mode === "monorepo" ? "apps/web/src/features/billing" : "src/features/billing";
       const panelPath = `${base}/components/providers/stripe-panel.tsx`;
       const expected = [
         `${base}/components/providers/stripe-invoices.tsx`,
@@ -94,7 +94,10 @@ describe("generated Stripe billing panel size", () => {
       expect(panel).toContain("<StripeInvoices invoices={stripeInvs}");
       expect(panel).toContain('handleCheckout("stripe")');
       expect(panel).toContain('handlePortal("stripe")');
-      expect(panel).toContain("copyText(window.location.origin)");
+      expect(panel).toContain("copySuccessUrl()");
+      expect(byPath.get(`${base}/use-billing-actions.ts`)).toContain(
+        "copyText(window.location.origin)",
+      );
     });
   }
 

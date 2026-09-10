@@ -15,6 +15,7 @@ import type {
   CacheProvider,
 } from "../../../lib/addons.js";
 import { buildSecrets, selectedBillingFromAddons } from "./utils.js";
+import { customNextRuntimeDependencies } from "./custom-next-dependencies.js";
 import { rootComposerFiles } from "./root-composer.js";
 import { packagesComposerFiles } from "./packages-composer.js";
 import { databaseComposerFiles } from "./database-composer.js";
@@ -35,6 +36,8 @@ import { proxyFiles } from "../../proxy.js";
 import { normalizeCloudflareTemplateFiles } from "../../cloudflare-normalization.js";
 import { accessFiles } from "../../access.js";
 import { shellFiles } from "../../shell.js";
+import { toolingFiles } from "../../tooling.js";
+import { isDependencyAuditToolingFile } from "../../tooling/dependency-audit.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
 import { integrateEveSecurityFiles } from "../../eve/security/index.js";
 import { capabilityClientFiles } from "../../apps/capability-clients/index.js";
@@ -265,7 +268,9 @@ export function monorepoFiles(
       ? proxyFiles(mode, hasI18n, hasAuth, config.deploy ?? "none", effectiveBilling)
       : []),
     ...accessFiles(mode),
-    ...(hasWebEarly && effectiveFramework === "nextjs" ? shellFiles(mode, hasBilling) : []),
+    ...(hasWebEarly && effectiveFramework === "nextjs" && hasAuth
+      ? shellFiles(mode, hasBilling)
+      : []),
   ];
 
   const integrated = integrateAdapterFiles(all, {
@@ -316,7 +321,11 @@ export function monorepoFiles(
 
   const hasWeb = effectiveApps.includes("web" as AppName);
   const hasMobile = effectiveApps.includes("mobile" as AppName);
-  let filteredFiles = deduped;
+  // Standalone maintenance tools contain policy vocabulary for every supported
+  // capability. Keep their original compiler-owned bytes with the core tooling
+  // phase, outside filters that enforce application dependency selection.
+  const dependencyTooling = deduped.filter((file) => isDependencyAuditToolingFile(file.path));
+  let filteredFiles = deduped.filter((file) => !isDependencyAuditToolingFile(file.path));
   if (!hasWeb) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/web/"));
   if (!hasMobile) filteredFiles = filteredFiles.filter((f) => !f.path.startsWith("apps/mobile/"));
   if (!hasAuth) {
@@ -523,10 +532,26 @@ export function monorepoFiles(
       ],
     });
   }
+  if (
+    hasWeb &&
+    effectiveFramework === "nextjs" &&
+    hasMessaging &&
+    effectiveDatabase === "postgres"
+  ) {
+    filteredFiles = customNextRuntimeDependencies(filteredFiles);
+  }
+
+  const withTooling = dedupeFilesOrThrow([
+    ...filteredFiles,
+    // Tooling describes every capability; its detector vocabulary is not an app
+    // dependency and must be emitted after application capability filtering.
+    ...toolingFiles(),
+    ...dependencyTooling,
+  ]);
   const deployNormalized =
     config.deploy === "cloudflare"
-      ? normalizeCloudflareTemplateFiles(filteredFiles, effectiveFramework, mode)
-      : filteredFiles;
+      ? normalizeCloudflareTemplateFiles(withTooling, effectiveFramework, mode)
+      : withTooling;
   const finalFiles = deployNormalized.sort((a: TemplateFile, b: TemplateFile) =>
     a.path.localeCompare(b.path),
   );

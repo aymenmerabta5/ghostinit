@@ -11,6 +11,9 @@ import {
   validateCapabilityRequirements,
 } from "./capability-resolution.js";
 import { canonicalHash, deepFreeze } from "./canonical.js";
+import { billingSelectionError } from "./billing-selection.js";
+import { normalizeDependencySecurityResolutions } from "../dependency-security/resolutions.js";
+import type { DependencySecurityResolutions } from "../dependency-security/types.js";
 import {
   EXECUTION_RUNTIMES,
   isWindowsReservedDeviceName,
@@ -240,6 +243,18 @@ function normalizeBilling(
       ? []
       : capabilities.billing.providers;
   const normalized = uniqueSorted(providers);
+  const selectionError = billingSelectionError(normalized);
+  if (selectionError !== undefined) {
+    addResolutionIssue(issues, {
+      severity: "error",
+      code: "billing-provider-conflict",
+      path: "/capabilities/billing/providers",
+      capability: "billing",
+      message: selectionError,
+      suggestion:
+        "Choose one of Stripe, Paddle, or Polar, with optional Chargily and manual payments.",
+    });
+  }
   if (
     capabilities.billing !== false &&
     capabilities.billing !== undefined &&
@@ -269,6 +284,22 @@ function normalizeBilling(
 
 export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionResult {
   const issueMap: ResolutionIssueMap = new Map();
+  let dependencySecurity: DependencySecurityResolutions | undefined;
+  if (desired.dependencySecurity !== undefined) {
+    try {
+      dependencySecurity = normalizeDependencySecurityResolutions(desired.dependencySecurity);
+    } catch (error) {
+      addResolutionIssue(issueMap, {
+        severity: "error",
+        code: "invalid-dependency-security",
+        path: "/dependencySecurity",
+        capability: null,
+        message: error instanceof Error ? error.message : String(error),
+        suggestion:
+          "Use verified compatible resolutions produced by dependency security maintenance.",
+      });
+    }
+  }
   const name = validateProjectIdentity(desired, issueMap);
   const apps = normalizeAndValidateApps(desired, issueMap);
   validateBindings(desired, apps, issueMap);
@@ -400,6 +431,7 @@ export function resolveProjectConfig(desired: DesiredProjectConfig): ResolutionR
           },
     capabilities,
     enabledCapabilities,
+    ...(dependencySecurity === undefined ? {} : { dependencySecurity }),
   } as const;
   const config = {
     ...body,

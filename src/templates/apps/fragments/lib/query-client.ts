@@ -1,6 +1,7 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { queryAuthRegressionFile } from "../query-auth-tests.js";
 import { authOwnedEffectFile } from "../auth-owned-effect.js";
+import { authOwnedMutationFile } from "../auth-owned-mutation.js";
 
 import { queryAuthStateContent } from "./query-auth-state.js";
 export { queryAuthStateContent } from "./query-auth-state.js";
@@ -114,6 +115,7 @@ export function queryClientLibFiles(base = "apps/web/src"): TemplateFile[] {
   return [
     file(`${base}/lib/query-client.ts`, queryClientContent()),
     authOwnedEffectFile(base),
+    authOwnedMutationFile(base),
     queryAuthRegressionFile(base === "src" ? "" : base.replace(/\/src$/, "")),
   ];
 }

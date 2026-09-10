@@ -1,3 +1,4 @@
+import { formSubmitFile } from "./form-submit.js";
 import { file, type TemplateFile } from "../../../shared.js";
 import { fieldFiles } from "./field.js";
 
@@ -55,6 +56,7 @@ Label.displayName = "Label";
 `,
     ),
     ...fieldFiles(),
+    formSubmitFile(),
     file(
       "apps/web/src/components/ui/form-context.tsx",
       `"use client";
@@ -74,6 +76,7 @@ import {
   createFormHook,
   Field as TanStackField,
   useForm,
+  useStore,
 } from "@tanstack/react-form";
 import {
   AppCheckboxField,
@@ -86,11 +89,12 @@ import {
 import { cn } from "../../lib/utils.js";
 import { useSurfaceTranslations } from "../../lib/translations.js";
 import { Alert, AlertDescription, AlertTitle } from "./alert.js";
-import { Button, type ButtonProps } from "./button.js";
-import { fieldContext, formContext, useFormContext } from "./form-context.js";
-import { Spinner } from "./spinner.js";
+import { Button } from "./button.js";
+import { fieldContext, formContext } from "./form-context.js";
+import { AppFormSubmitButton } from "./form-submit.js";
+export { SubmitButton, AppFormSubmitButton, type SubmitButtonProps, type AppFormSubmitButtonProps } from "./form-submit.js";
 
-export { TanStackField as Field, useForm };
+export { TanStackField as Field, useForm, useStore };
 export { useFieldContext, useFormContext } from "./form-context.js";
 
 export interface FormController {
@@ -158,40 +162,6 @@ export function Form({ form, onSubmit, children, className }: FormProps): React.
       </Alert> : null}
       </fieldset>
     </form>
-  );
-}
-
-export interface SubmitButtonProps extends ButtonProps {
-  ref?: React.Ref<HTMLButtonElement>;
-}
-
-export function SubmitButton({ ref, ...props }: SubmitButtonProps): React.JSX.Element {
-  return <Button ref={ref} type="submit" data-slot="form-submit" {...props} />;
-}
-
-export interface AppFormSubmitButtonProps extends Omit<SubmitButtonProps, "disabled"> {
-  pendingLabel?: React.ReactNode;
-}
-
-export function AppFormSubmitButton({
-  children,
-  pendingLabel = "Submitting…",
-  ...props
-}: AppFormSubmitButtonProps): React.JSX.Element {
-  const form = useFormContext();
-  return (
-    <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting] as const}>
-      {([canSubmit, isSubmitting]) => (
-        <SubmitButton
-          disabled={!canSubmit || isSubmitting}
-          aria-busy={isSubmitting}
-          {...props}
-        >
-          {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-          {isSubmitting ? pendingLabel : children}
-        </SubmitButton>
-      )}
-    </form.Subscribe>
   );
 }
 

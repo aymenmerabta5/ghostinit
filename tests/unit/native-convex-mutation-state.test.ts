@@ -1,183 +1,200 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { expoConvexMessagingAdapterContent } from "../../src/templates/apps/fragments/messaging/native-expo.js";
-import { desktopConvexAdapterContent } from "../../src/templates/apps/fragments/messaging/native-desktop.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { nativeConvexMessagingDataFiles } from "../../src/templates/apps/fragments/messaging/native-convex-data.js";
+import { deferred, generatedFormHarness } from "../helpers/generated-form-harness.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
+import { messagingCommandHarness } from "../helpers/messaging-command-harness.js";
 
-interface Deferred {
-  promise: Promise<unknown>;
-  resolve(value?: unknown): void;
-  reject(error: Error): void;
-}
+type Outcome =
+  | { status: "ignored" }
+  | { status: "success"; data: unknown; isCurrent(): boolean }
+  | { status: "error"; error: Error };
+type Mutation = { isPending: boolean; error: Error | null; run(input: unknown): Promise<Outcome> };
 
-function deferred(): Deferred {
-  let resolve!: (value?: unknown) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<unknown>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
-}
-
-interface MessagingState {
-  readonly pending: boolean;
-  startConversation(peerUserId: string): Promise<string>;
-  sendMessage(body: string): Promise<void>;
-}
-
-function hookHarness(target: "expo" | "electron") {
-  const source = (
-    target === "expo" ? expoConvexMessagingAdapterContent : desktopConvexAdapterContent
-  )("monorepo");
-  const name = target === "expo" ? "useNativeMessaging" : "useDesktopMessaging";
-  const fragment = source
-    .slice(source.indexOf("const conversationIdSchema"))
-    .replace(`export function ${name}`, `function ${name}`);
-  const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(fragment);
-  const slots: unknown[] = [];
-  let cursor = 0;
+function hookHarness(target: "expo" | "desktop") {
+  const root = target === "expo" ? "apps/mobile/src" : "apps/desktop/src/renderer";
+  const files = nativeConvexMessagingDataFiles(target, "monorepo", `${root}/features/messaging`);
+  const read = (name: string) => files.find((file) => file.path.endsWith(`/${name}.ts`))!.content;
+  const command = messagingCommandHarness();
+  const source = [
+    authOwnedMutationContent(),
+    command.wrapperSource,
+    read("model"),
+    read("mutations"),
+  ].join("\n");
   const calls: Array<{ operation: string; input: unknown }> = [];
-  const sendQueue: Deferred[] = [];
-  const startQueue: Deferred[] = [];
+  const sendQueue: ReturnType<typeof deferred<unknown>>[] = [];
+  const startQueue: ReturnType<typeof deferred<unknown>>[] = [];
+  let mounted = true;
   let typingFails = false;
-  const react = {
-    useRef(initial: unknown) {
-      const position = cursor++;
-      slots[position] ??= { current: initial };
-      return slots[position];
-    },
-    useState(initial: boolean) {
-      const position = cursor++;
-      if (!(position in slots)) slots[position] = initial;
-      return [
-        slots[position],
-        (value: boolean) => {
-          slots[position] = value;
+  function runtime(name: string) {
+    const mutation = queryMutationHarness();
+    return generatedFormHarness(source, [name], {
+      z,
+      api: {
+        messaging: {
+          getOrCreateConversation: "start",
+          sendMessage: "send",
+          sendTyping: "sendTyping",
         },
-      ];
-    },
-  };
-  const api = {
-    messaging: {
-      listConversations: "list",
-      listMessages: "messages",
-      listTyping: "typing",
-      getOrCreateConversation: "start",
-      sendMessage: "send",
-      sendTyping: "sendTyping",
-    },
-  };
-  const useQuery = (operation: string) =>
-    operation === "messages" ? { messages: [], nextCursor: null } : [];
-  const useMutation = (operation: string) => async (input: unknown) => {
-    calls.push({ operation, input });
-    if (operation === "sendTyping") {
-      if (typingFails) throw new Error("Typing channel unavailable");
-      return;
-    }
-    const next = (operation === "send" ? sendQueue : startQueue).shift();
-    if (!next) throw new Error("Unexpected duplicate mutation");
-    return await next.promise;
-  };
-  const useMessaging = new Function(
-    "React",
-    "z",
-    "useQuery",
-    "useMutation",
-    "api",
-    executable + `; return ${name};`,
-  )(react, z, useQuery, useMutation, api) as (id: string) => MessagingState;
+      },
+      useQueryClient: () => ({}),
+      currentQueryAuthGeneration: () => 0,
+      subscribeQueryAuthGeneration: () => () => {},
+      useAuthOwnedEffect: () => () => () => mounted,
+      useMutation: mutation.useMutation,
+      useSyncExternalStore: command.useSyncExternalStore,
+      useConvexMutation: (operation: string) => async (input: unknown) => {
+        calls.push({ operation, input });
+        if (operation === "sendTyping") {
+          if (typingFails) throw new Error("Typing channel unavailable");
+          return;
+        }
+        const next = (operation === "send" ? sendQueue : startQueue).shift();
+        if (!next) throw new Error("Unexpected duplicate mutation");
+        return next.promise;
+      },
+    });
+  }
+  const sender = runtime("useSendMessageMutation");
+  const starter = runtime("useStartConversationMutation");
   return {
     calls,
     sendQueue,
     startQueue,
-    setTypingFailure() {
+    retire: () => {
+      mounted = false;
+      command.retire();
+    },
+    setTypingFailure: () => {
       typingFails = true;
     },
-    render() {
-      cursor = 0;
-      return useMessaging("owned-conversation");
+    renderSend: () => sender.render("useSendMessageMutation", command.scope) as Mutation,
+    renderStart: () => starter.render("useStartConversationMutation", command.scope) as Mutation,
+    send(body: string) {
+      return (sender.render("useSendMessageMutation", command.scope) as Mutation).run({
+        conversationId: "owned-conversation",
+        body,
+        clientMessageKey: "stable-client-message-key",
+      });
     },
   };
 }
 
 describe("native Convex messaging action state", () => {
-  for (const target of ["expo", "electron"] as const) {
+  for (const target of ["expo", "desktop"] as const) {
     test(`${target} coalesces immediate duplicate sends and clears pending only after completion`, async () => {
       const hook = hookHarness(target);
-      const gate = deferred();
+      const gate = deferred<unknown>();
       hook.sendQueue.push(gate);
-      const initial = hook.render();
-      expect(initial.pending).toBe(false);
-      const first = initial.sendMessage("retained draft");
-      const duplicate = initial.sendMessage("retained draft");
-      expect(hook.render().pending).toBe(true);
+      expect(hook.renderSend().isPending).toBe(false);
+      const first = hook.send("retained draft");
+      const duplicate = hook.send("retained draft");
+      expect(await hook.send("different body")).toMatchObject({
+        status: "error",
+        error: new Error("Another messaging action is in progress"),
+      });
+      expect(hook.renderSend().isPending).toBe(true);
       expect(hook.calls.filter((call) => call.operation === "send")).toHaveLength(1);
       let draftCleared = false;
-      void first.then(() => {
-        draftCleared = true;
+      const completed = first.then((result) => {
+        if (result.status === "success" && result.isCurrent()) draftCleared = true;
       });
       await Promise.resolve();
       expect(draftCleared).toBe(false);
-      gate.resolve();
-      await Promise.all([first, duplicate]);
-      expect(hook.render().pending).toBe(false);
+      gate.resolve(undefined);
+      await completed;
+      expect((await duplicate).status).toBe("success");
+      expect(hook.renderSend().isPending).toBe(false);
       expect(draftCleared).toBe(true);
     });
 
     test(`${target} surfaces failed sends, preserves the draft, and permits a retry`, async () => {
       const hook = hookHarness(target);
-      const failed = deferred();
+      const failed = deferred<unknown>();
       hook.sendQueue.push(failed);
       let draft = "keep this draft";
-      const operation = hook.render().sendMessage(draft);
-      const observed = operation.then(() => {
-        draft = "";
-      });
+      const operation = hook.send(draft);
       failed.reject(new Error("Send denied"));
-      await expect(observed).rejects.toThrow("Send denied");
+      const outcome = await operation;
+      if (outcome.status === "success" && outcome.isCurrent()) draft = "";
+      expect(outcome).toMatchObject({ status: "error", error: new Error("Send denied") });
       expect(draft).toBe("keep this draft");
-      expect(hook.render().pending).toBe(false);
-      const retry = deferred();
+      expect(hook.renderSend().isPending).toBe(false);
+      expect(hook.renderSend().error?.message).toBe("Send denied");
+      const retry = deferred<unknown>();
       hook.sendQueue.push(retry);
-      const retried = hook.render().sendMessage(draft);
-      retry.resolve();
-      await retried;
+      const retried = hook.send(draft);
+      retry.resolve(undefined);
+      expect((await retried).status).toBe("success");
       expect(hook.calls.filter((call) => call.operation === "send")).toHaveLength(2);
-      expect(hook.render().pending).toBe(false);
+      expect(hook.renderSend().isPending).toBe(false);
     });
 
-    test(`${target} coalesces starts, rejects a conflicting action, and recovers after start failure`, async () => {
+    test(`${target} coalesces starts, rejects conflicting actions, and recovers after failure`, async () => {
       const hook = hookHarness(target);
-      const failed = deferred();
+      const failed = deferred<unknown>();
       hook.startQueue.push(failed);
-      const initial = hook.render();
-      const one = initial.startConversation("peer");
-      const two = initial.startConversation("peer");
-      expect(hook.render().pending).toBe(true);
+      const one = hook.renderStart().run("peer");
+      const duplicate = hook.renderStart().run("peer");
+      expect(await hook.renderStart().run("other-peer")).toMatchObject({
+        status: "error",
+        error: new Error("Another messaging action is in progress"),
+      });
+      expect(hook.renderStart().isPending).toBe(true);
       expect(hook.calls.filter((call) => call.operation === "start")).toHaveLength(1);
-      await expect(initial.sendMessage("conflicting send")).rejects.toThrow("in progress");
-      const completion = Promise.allSettled([one, two]);
+      expect(await hook.send("conflicting send")).toMatchObject({
+        status: "error",
+        error: new Error("Another messaging action is in progress"),
+      });
+      expect(hook.calls.filter((call) => call.operation === "send")).toHaveLength(0);
+      expect(hook.renderSend().isPending).toBe(true);
       failed.reject(new Error("Recipient unavailable"));
-      expect((await completion).every((result) => result.status === "rejected")).toBe(true);
-      expect(hook.render().pending).toBe(false);
-      const retry = deferred();
+      expect(await one).toMatchObject({
+        status: "error",
+        error: new Error("Recipient unavailable"),
+      });
+      expect(await duplicate).toMatchObject({
+        status: "error",
+        error: new Error("Recipient unavailable"),
+      });
+      expect(hook.renderStart().isPending).toBe(false);
+      const retry = deferred<unknown>();
       hook.startQueue.push(retry);
-      const started = hook.render().startConversation("peer");
+      const started = hook.renderStart().run("peer");
       retry.resolve({ _id: "created-conversation" });
-      expect(await started).toBe("created-conversation");
-      expect(hook.render().pending).toBe(false);
+      expect(await started).toMatchObject({ status: "success", data: "created-conversation" });
+      expect(hook.renderStart().isPending).toBe(false);
+    });
+
+    test(`${target} retiring a conversation prevents its old send from clearing a replacement draft`, async () => {
+      const previous = hookHarness(target);
+      const gate = deferred<unknown>();
+      previous.sendQueue.push(gate);
+      const sent = previous.send("old draft");
+      previous.retire();
+      const replacement = hookHarness(target);
+      let replacementDraft = "new conversation draft";
+      gate.resolve(undefined);
+      const result = await sent;
+      if (result.status === "success" && result.isCurrent()) replacementDraft = "";
+      expect(result).toEqual({ status: "ignored" });
+      expect(replacementDraft).toBe("new conversation draft");
+      expect(replacement.renderSend().isPending).toBe(false);
+      expect(previous.calls.filter((call) => call.operation === "sendTyping")).toEqual([]);
     });
 
     test(`${target} does not misreport a delivered message when the advisory typing reset fails`, async () => {
       const hook = hookHarness(target);
-      const gate = deferred();
+      const gate = deferred<unknown>();
       hook.sendQueue.push(gate);
       hook.setTypingFailure();
-      const sent = hook.render().sendMessage("delivered message");
-      gate.resolve();
-      await expect(sent).resolves.toBeUndefined();
-      expect(hook.render().pending).toBe(false);
+      const sent = hook.send("delivered message");
+      gate.resolve(undefined);
+      expect((await sent).status).toBe("success");
+      expect(hook.renderSend().isPending).toBe(false);
+      expect(hook.renderSend().error).toBeNull();
     });
   }
 });

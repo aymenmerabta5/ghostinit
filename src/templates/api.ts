@@ -3,6 +3,7 @@ import { codeScripts, file, packageJson, tsconfig, type TemplateFile } from "./s
 import * as v from "./versions.js";
 import { adminApiFiles } from "./api/admin.js";
 import { billingApiFiles } from "./api/billing.js";
+import { manualBillingApiFiles } from "./api/billing-manual.js";
 import { featureFlagsApiFiles } from "./api/feature-flags/index.js";
 import { identityApiFiles } from "./api/identity/index.js";
 import { jobsApiFiles } from "./api/jobs/index.js";
@@ -14,6 +15,7 @@ import { orpcRequestSecurityContent } from "./api/request-security.js";
 import { currentRequestSchemaContent } from "./api/current-request-schema.js";
 
 export interface ApiCapabilitySelection {
+  manualBilling?: boolean;
   auth?: boolean;
   identity?: boolean;
   notifications?: boolean;
@@ -891,6 +893,7 @@ export const me = implementer.me.handler(async ({ context }) => {
     // imports and on Transport→Vendors direct imports. That check used to be
     // vacuous because the only procedures (health, me) called no use-case.
     ...(hasBilling ? billingApiFiles("monorepo") : []),
+    ...(hasBilling && capabilities.manualBilling ? manualBillingApiFiles("monorepo") : []),
     ...(hasMessaging ? messagingApiFiles() : []),
     ...(hasIdentity ? identityApiFiles("monorepo") : []),
     ...(hasNotifications ? notificationsApiFiles("monorepo") : []),
@@ -918,6 +921,9 @@ import { adminSetBannedContract } from "./procedures/admin/set-banned.js";`,
 import { billingCreateCheckoutContract } from "./procedures/billing/create-checkout.js";
 import { billingCreatePortalSessionContract } from "./procedures/billing/create-portal-session.js";
 import { billingCreatePaymentLinkContract } from "./procedures/billing/create-payment-link.js";`,
+              ...(capabilities.manualBilling
+                ? ['import { manualBillingContract } from "./procedures/billing/manual.js";']
+                : []),
             ]
           : []),
         ...(hasMessaging
@@ -962,6 +968,7 @@ import { messagingSubscribeContract } from "./procedures/messaging/subscribe.js"
     createCheckout: billingCreateCheckoutContract,
     createPortalSession: billingCreatePortalSessionContract,
     createPaymentLink: billingCreatePaymentLinkContract,
+${capabilities.manualBilling ? "    manual: manualBillingContract," : ""}
   },`,
             ]
           : []),
@@ -1010,6 +1017,9 @@ import { adminSetBanned } from "./procedures/admin/set-banned.js";`,
 import { billingCreateCheckout } from "./procedures/billing/create-checkout.js";
 import { billingCreatePortalSession } from "./procedures/billing/create-portal-session.js";
 import { billingCreatePaymentLink } from "./procedures/billing/create-payment-link.js";`,
+              ...(capabilities.manualBilling
+                ? ['import { manualBillingProcedures } from "./procedures/billing/manual.js";']
+                : []),
             ]
           : []),
         ...(hasMessaging
@@ -1072,6 +1082,7 @@ import { createOwnedStorageServiceForRequest } from "./composition/storage.js";`
       createCheckout: billingCreateCheckout,
       createPortalSession: billingCreatePortalSession,
       createPaymentLink: billingCreatePaymentLink,
+${capabilities.manualBilling ? "      manual: manualBillingProcedures," : ""}
     },`,
             ]
           : []),

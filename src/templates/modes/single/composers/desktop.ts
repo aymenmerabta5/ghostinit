@@ -1,3 +1,4 @@
+import { desktopSettingsFeatureFiles } from "../../../apps/fragments/settings/native-desktop.js";
 // @allow-long 500: single desktop flat — minimal, reuses desktop-core at root + full routes
 import { file, type TemplateFile } from "../../../shared.js";
 import {
@@ -45,15 +46,9 @@ import {
   desktopRouteIndexContent,
   desktopRouteDashboardContent,
   desktopRouteSettingsContent,
-  desktopRouteBillingContent,
   desktopRouteAdminContent,
   desktopRouteAdminUsersContent,
   desktopRouteAdminCreateUserContent,
-  desktopRouteTwoFactorContent,
-  desktopRouteForgotPasswordContent,
-  desktopRouteResetPasswordContent,
-  desktopRouteSignInContent,
-  desktopRouteSignUpContent,
   desktopRouteTreeGenContent,
   desktopElectronBuilderYmlContent,
   desktopPackagingReadmeContent,
@@ -66,11 +61,7 @@ import { singleKernelTypesContent } from "../fragments/kernel.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
 import { themeCssContent } from "../../../ui/theme.js";
 import { singleEnvFiles } from "../fragments/env.js";
-import {
-  desktopEmailFlowFiles,
-  desktopFullSettingsRouteContent,
-  desktopWorkspaceRouteContent,
-} from "../../../apps/fragments/identity-workspace/index.js";
+import { desktopFullSettingsRouteContent } from "../../../apps/fragments/identity-workspace/index.js";
 import { desktopAnalyticsFile } from "../../../apps/fragments/desktop-analytics.js";
 import {
   desktopEveFiles,
@@ -79,6 +70,17 @@ import {
 } from "../../../apps/fragments/eve/index.js";
 import { platformI18nFiles } from "../../../apps/fragments/platform-i18n.js";
 import { billingMoneyFile } from "../../../billing/ui/money.js";
+import { authOwnedEffectFile } from "../../../apps/fragments/auth-owned-effect.js";
+import { authOwnedMutationFile } from "../../../apps/fragments/auth-owned-mutation.js";
+import { identityPureClientFiles } from "../../../apps/fragments/auth/client-validation.js";
+import { nativeBillingFeatureFiles } from "../../../apps/fragments/billing/native.js";
+import { desktopFormFiles, desktopTranslationFiles } from "../../../apps/desktop/ui/form.js";
+import { desktopWorkspaceFeatureFiles } from "../../../apps/fragments/identity-workspace/native-workspace.js";
+import { desktopAuthFeatureFiles } from "../../../apps/fragments/auth/native.js";
+import {
+  canonicalQueryAuthHookContent,
+  queryAuthCacheBoundaryContent,
+} from "../../../apps/fragments/query-auth.js";
 
 function singleDesktopPackageJson(
   projectName: string,
@@ -96,6 +98,9 @@ function singleDesktopPackageJson(
     dev: "electron-vite dev",
     build: "electron-vite build && electron-builder --publish never",
     start: "electron-vite preview",
+    "lint:architecture":
+      "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
+    "lint:all": "bun run lint && bun run lint:architecture && bun run typecheck",
     ...(isConvex ? { "convex:codegen": "convex codegen" } : {}),
   };
   return file("package.json", JSON.stringify(parsed, null, 2) + "\n");
@@ -167,7 +172,7 @@ export function buildDesktopFiles(
   );
   const files: TemplateFile[] = [
     singleDesktopPackageJson(projectName, runtime, _billing, addons),
-    file("tests/smoke.test.ts", desktopSmokeTestContent()),
+    file("tests/smoke.test.ts", desktopSmokeTestContent("single")),
     file("tsr.config.json", desktopRouterConfigContent()),
     file("electron.vite.config.ts", desktopViteConfigContent("single", hasConvexAuth)),
     file("tsconfig.json", singleTsconfig),
@@ -226,6 +231,8 @@ export function buildDesktopFiles(
     file("src/renderer/lib/kernel.ts", singleKernelTypesContent()),
     file("src/renderer/routes/__root.tsx", desktopRouteRootContent(capabilities, "single")),
     file("src/renderer/routes/index.tsx", desktopRouteIndexContent(capabilities, "single")),
+    ...desktopHomeFeatureFiles(capabilities, "single"),
+    ...desktopShellFeatureFiles(capabilities, "single"),
     ...singleEnvFiles(addons, "desktop", false),
   ];
   if (hasConvexStorage) {
@@ -233,6 +240,8 @@ export function buildDesktopFiles(
       file("src/server/transport/convex-storage.ts", desktopConvexStorageTransportContent()),
     );
   }
+  if (!capabilities.hasAuth && !capabilities.hasApi)
+    files.push(file("src/renderer/lib/query-client.ts", desktopQueryClientContent()));
   if (capabilities.hasAuth || capabilities.hasApi) {
     files.push(
       file("src/server/transport/api-fetch.ts", desktopApiTransportContent("single")),
@@ -277,11 +286,47 @@ export function buildDesktopFiles(
   }
   if (capabilities.hasAuth) {
     files.push(
+      ...desktopSettingsFeatureFiles(
+        "single",
+        capabilities.hasApi,
+        capabilities.hasEmail,
+        capabilities.hasI18n,
+        capabilities.hasBilling,
+      ),
+    );
+    files.push(
+      ...(!capabilities.hasApi
+        ? [file("src/renderer/lib/query-client.ts", desktopQueryClientContent())]
+        : []),
+      file(
+        "src/renderer/lib/query-auth-boundary.tsx",
+        queryAuthCacheBoundaryContent("./auth", "./query-client", {
+          hasApi: capabilities.hasApi,
+          rpcImport: "./orpc",
+          hookImport: "./query-auth-scope",
+          translationsImport: capabilities.hasI18n ? "./i18n" : "",
+          nativeTranslations: true,
+        }),
+      ),
+      ...(capabilities.hasApi
+        ? [
+            file(
+              "src/renderer/lib/query-auth-scope.ts",
+              canonicalQueryAuthHookContent("./query-client"),
+            ),
+          ]
+        : []),
+      authOwnedEffectFile("src/renderer", "@/renderer/lib/query-client"),
+      authOwnedMutationFile("src/renderer", "@/renderer/lib/query-client"),
+      ...identityPureClientFiles("src/renderer"),
+      ...desktopFormFiles("src", "@/renderer/lib/translations"),
+      ...desktopTranslationFiles("src/renderer", capabilities.hasI18n),
       file(
         "src/renderer/lib/auth.ts",
         desktopAuthContent(hasConvexAuth, capabilities.hasAdmin, "single", capabilities.hasEmail),
       ),
       file("src/renderer/hooks/useAuth.ts", desktopUseAuthContent()),
+      ...desktopDashboardFeatureFiles(capabilities, "single"),
       file(
         "src/renderer/routes/dashboard.tsx",
         desktopRouteDashboardContent(capabilities, "single"),
@@ -297,56 +342,21 @@ export function buildDesktopFiles(
               "single",
             ),
       ),
-      file(
-        "src/renderer/routes/sign-in.tsx",
-        desktopRouteSignInContent(capabilities.hasEmail, capabilities.hasI18n, "single"),
-      ),
-      file(
-        "src/renderer/routes/sign-up.tsx",
-        desktopRouteSignUpContent(capabilities.hasI18n, "single", capabilities.hasEmail),
-      ),
+      ...desktopAuthFeatureFiles("single", capabilities.hasEmail, capabilities.hasI18n),
     );
-    if (capabilities.hasEmail) {
-      files.push(
-        file(
-          "src/renderer/routes/2fa.tsx",
-          desktopRouteTwoFactorContent(capabilities.hasI18n, "single"),
-        ),
-      );
-    }
-    if (capabilities.hasEmail) {
-      files.push(
-        file(
-          "src/renderer/routes/forgot-password.tsx",
-          desktopRouteForgotPasswordContent(capabilities.hasI18n, "single"),
-        ),
-        file(
-          "src/renderer/routes/reset-password.tsx",
-          desktopRouteResetPasswordContent(capabilities.hasI18n, "single"),
-        ),
-        ...desktopEmailFlowFiles("single", capabilities.hasI18n),
-      );
-    }
     if (capabilities.hasApi) {
-      files.push(
-        file(
-          "src/renderer/routes/workspace.tsx",
-          desktopWorkspaceRouteContent("single", capabilities.hasI18n),
-        ),
-      );
+      files.push(...desktopWorkspaceFeatureFiles("single", capabilities.hasI18n));
     }
   }
   if (capabilities.hasBilling) {
     files.push(
       billingMoneyFile("src/renderer"),
-      file(
-        "src/renderer/routes/billing.tsx",
-        desktopRouteBillingContent(selectedBilling, capabilities.hasI18n, "single"),
-      ),
+      ...nativeBillingFeatureFiles("desktop", "single", selectedBilling, capabilities.hasI18n),
     );
   }
   if (capabilities.hasAdmin) {
     files.push(
+      ...desktopAdminFeatureFiles("single", capabilities.hasI18n),
       file(
         "src/renderer/routes/admin.tsx",
         desktopRouteAdminContent(hasConvexAuth, "single", capabilities.hasI18n),
@@ -381,3 +391,7 @@ export function buildDesktopFiles(
   );
   return files;
 }
+import { desktopDashboardFeatureFiles } from "../../../apps/desktop/routes/dashboard.js";
+import { desktopHomeFeatureFiles } from "../../../apps/desktop/shell/home.js";
+import { desktopShellFeatureFiles } from "../../../apps/desktop/shell/root.js";
+import { desktopAdminFeatureFiles } from "../../../apps/desktop/routes/admin-feature.js";

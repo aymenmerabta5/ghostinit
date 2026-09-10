@@ -203,7 +203,8 @@ describe("generation snapshots", () => {
   it("generated root lint uses oxlint, not the unshipped biome binary", () => {
     const files = generateProjectFiles(cfg({}));
     const pkg = JSON.parse(files.find((f) => f.path === "package.json")!.content);
-    expect(pkg.scripts.lint.startsWith("oxlint --deny-warnings .")).toBe(true);
+    const lintCommands = pkg.scripts.lint.split("&&").map((command: string) => command.trim());
+    expect(lintCommands).toContain("oxlint --deny-warnings .");
     expect(JSON.stringify(pkg.scripts)).not.toContain("biome lint");
   });
 

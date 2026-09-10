@@ -18,10 +18,14 @@
       "globs": [
         "apps/*/src/**/*.ts",
         "apps/*/src/**/*.tsx",
+        "apps/*/app/**/*.ts",
+        "apps/*/app/**/*.tsx",
         "packages/*/src/**/*.ts",
         "packages/*/src/**/*.tsx",
         "src/**/*.ts",
         "src/**/*.tsx",
+        "app/**/*.ts",
+        "app/**/*.tsx",
         "convex/**/*.ts"
       ]
     },

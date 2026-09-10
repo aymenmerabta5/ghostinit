@@ -1,24 +1,20 @@
+import { expoSettingsFeatureFiles } from "./fragments/settings/native-expo.js";
 import { file, type TemplateFile } from "../shared.js";
-import { expoRootLayoutContent } from "./fragments/expo/layout.js";
-import { buildExpoMarketingContent } from "./fragments/expo/marketing.js";
-import {
-  expoSignInContent,
-  expoSignUpContent,
-  expoForgotPasswordContent,
-  expoResetPasswordContent,
-  expoTwoFactorContent,
-} from "./fragments/expo/auth.js";
+import { expoRootLayoutContent, expoProviderFiles } from "./fragments/expo/layout.js";
+import { expoMarketingFiles } from "./fragments/expo/marketing.js";
+import { expoAuthFeatureFiles } from "./fragments/auth/native.js";
 import {
   expoDashboardContent,
   expoSettingsContent,
-  expoNotFoundContent,
+  expoSystemFiles,
 } from "./fragments/expo/dashboard.js";
-import { expoBillingContent } from "./fragments/expo/billing.js";
+import { nativeBillingFeatureFiles } from "./fragments/billing/native.js";
 import { billingMoneyFile } from "../billing/ui/money.js";
+import { manualMobileFeatureFiles } from "../billing/ui/manual/mobile.js";
 import { authOwnedEffectFile } from "./fragments/auth-owned-effect.js";
+import { authOwnedMutationFile } from "./fragments/auth-owned-mutation.js";
 import {
   expoFullSettingsContent,
-  expoEmailFlowFiles,
   expoIdentityWorkspaceFiles,
 } from "./fragments/identity-workspace/index.js";
 import {
@@ -28,7 +24,7 @@ import {
   type ExpoFeatureInput,
 } from "./expo-core.js";
 
-export function expoDashboardPageContent(capabilities: ExpoCapabilities): string {
+function expoDashboardScreenContent(capabilities: ExpoCapabilities): string {
   const hasCapabilityNavigation =
     capabilities.hasMessaging ||
     capabilities.hasNotifications ||
@@ -95,37 +91,67 @@ export function expoDashboardPageContent(capabilities: ExpoCapabilities): string
   return content;
 }
 
+export function expoDashboardPageContent(_capabilities: ExpoCapabilities): string {
+  return 'export { DashboardScreen as default } from "@/features/dashboard/screen";\n';
+}
+export function expoDashboardFeatureFiles(
+  sourceRoot: string,
+  capabilities: ExpoCapabilities,
+): TemplateFile[] {
+  const root = `${sourceRoot}/features/dashboard`;
+  let screen = expoDashboardScreenContent(capabilities);
+  const modelStart = screen.indexOf("function authUserRole(");
+  const modelEnd = screen.indexOf("export default function DashboardScreen", modelStart);
+  const model = screen
+    .slice(modelStart, modelEnd)
+    .replace("function authUserRole", "export function authUserRole");
+  screen = screen.slice(0, modelStart) + screen.slice(modelEnd);
+  screen = screen
+    .replace(
+      'import { authClient } from "@/lib/auth-client";',
+      'import { useDashboardIdentity } from "./queries";\nimport { authUserRole } from "./model";',
+    )
+    .replace("export default function DashboardScreen", "export function DashboardScreen")
+    .replace(
+      "  const { data: session, isPending } = authClient.useSession();\n  const user = session?.user;",
+      "  const { user, isPending } = useDashboardIdentity();",
+    );
+  return [
+    file(`${root}/screen.tsx`, screen),
+    file(`${root}/model.ts`, model),
+    file(
+      `${root}/queries.ts`,
+      `import { authClient } from "@/lib/auth-client";
+export function useDashboardIdentity() {
+  const { data: session, isPending } = authClient.useSession();
+  return { user: session?.user, isPending };
+}
+`,
+    ),
+  ];
+}
+
 export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
   const capabilities = resolveExpoCapabilities(input, true);
   const selectedBilling = resolveExpoBillingProviders(input);
   const files: TemplateFile[] = [
     file("apps/mobile/app/_layout.tsx", expoRootLayoutContent(capabilities)),
-    file(
-      "apps/mobile/app/index.tsx",
-      buildExpoMarketingContent({
-        hasAuth: capabilities.hasAuth,
-        hasApi: capabilities.hasApi,
-        hasBilling: capabilities.hasBilling,
-        hasI18n: capabilities.hasI18n,
-      }),
-    ),
-    file("apps/mobile/app/+not-found.tsx", expoNotFoundContent(capabilities.hasI18n)),
+    ...expoProviderFiles("apps/mobile/src", capabilities),
+    ...expoMarketingFiles("apps/mobile", {
+      hasAuth: capabilities.hasAuth,
+      hasApi: capabilities.hasApi,
+      hasBilling: capabilities.hasBilling,
+      hasI18n: capabilities.hasI18n,
+    }),
+    ...expoSystemFiles("apps/mobile", capabilities.hasI18n),
   ];
 
   if (capabilities.hasAuth) {
+    files.push(...expoSettingsFeatureFiles("monorepo", capabilities.hasApi, capabilities.hasEmail));
     files.push(
-      file(
-        "apps/mobile/app/(auth)/sign-in.tsx",
-        expoSignInContent(capabilities.hasEmail, capabilities.hasI18n),
-      ),
-      file(
-        "apps/mobile/app/(auth)/sign-up.tsx",
-        expoSignUpContent(capabilities.hasI18n, capabilities.hasEmail),
-      ),
-      ...(capabilities.hasEmail
-        ? [file("apps/mobile/app/2fa.tsx", expoTwoFactorContent(capabilities.hasI18n))]
-        : []),
+      ...expoAuthFeatureFiles("monorepo", capabilities.hasEmail, capabilities.hasI18n),
       file("apps/mobile/app/dashboard.tsx", expoDashboardPageContent(capabilities)),
+      ...expoDashboardFeatureFiles("apps/mobile/src", capabilities),
       file(
         "apps/mobile/app/settings.tsx",
         capabilities.hasApi
@@ -133,23 +159,11 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
           : expoSettingsContent(capabilities.hasI18n, capabilities.hasEmail),
       ),
     );
-    if (capabilities.hasEmail) {
-      files.push(
-        file(
-          "apps/mobile/app/(auth)/forgot-password.tsx",
-          expoForgotPasswordContent(capabilities.hasI18n),
-        ),
-        file(
-          "apps/mobile/app/(auth)/reset-password.tsx",
-          expoResetPasswordContent(capabilities.hasI18n),
-        ),
-      );
-    }
     if (capabilities.hasApi)
       files.push(...expoIdentityWorkspaceFiles("monorepo", capabilities.hasI18n));
-    if (capabilities.hasEmail) files.push(...expoEmailFlowFiles("monorepo", capabilities.hasI18n));
   }
   if (
+    capabilities.hasAuth ||
     capabilities.hasBilling ||
     capabilities.hasNotifications ||
     capabilities.hasJobs ||
@@ -158,14 +172,15 @@ export function expoPageFiles(input: ExpoFeatureInput = false): TemplateFile[] {
     capabilities.hasPdf
   ) {
     files.push(authOwnedEffectFile("apps/mobile/src"));
+    files.push(authOwnedMutationFile("apps/mobile/src"));
   }
   if (capabilities.hasBilling) {
     files.push(
+      ...(selectedBilling.includes("manual")
+        ? manualMobileFeatureFiles("monorepo", capabilities.hasI18n)
+        : []),
       billingMoneyFile("apps/mobile/src"),
-      file(
-        "apps/mobile/app/billing.tsx",
-        expoBillingContent("monorepo", selectedBilling, capabilities.hasI18n),
-      ),
+      ...nativeBillingFeatureFiles("expo", "monorepo", selectedBilling, capabilities.hasI18n),
     );
   }
 

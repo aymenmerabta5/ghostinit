@@ -12,6 +12,12 @@ export function dashboardUserTypesContent(): string {
   email?: string | null;
   role?: unknown;
 }
+
+export interface DashboardIdentityState {
+  user: DashboardUser | null | undefined;
+  pending: boolean;
+  error: unknown;
+}
 `;
 }
 
@@ -28,12 +34,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSurfaceTranslations } from "@/lib/translations";
 import { DashboardIdentityStatus } from "./identity-state";
-import { useDashboardIdentity } from "./queries";
-import type { DashboardUser } from "./types";
+import type { DashboardIdentityState } from "../types";
 
-export function ${name}({ user: initialUser }: { user: DashboardUser }): React.JSX.Element {
+export function ${name}({ user, pending, error }: DashboardIdentityState): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
-  const { user, pending, error } = useDashboardIdentity(initialUser);
   if (!user) return <DashboardIdentityStatus pending={pending} error={error} className="lg:col-span-7" />;
   const name = String(user.name || t("identity.nameNotSet"));
   const role = user.role ?? "user";

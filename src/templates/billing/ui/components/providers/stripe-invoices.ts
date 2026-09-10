@@ -6,6 +6,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSurfaceLocale, useSurfaceTranslations } from "@/lib/translations";
 import { formatBillingInvoiceAmount } from "@/lib/billing-money";
+import { formatBillingInvoiceStatus } from "../../status-labels";
 import type { Inv } from "${hookImportPath}";
 
 export function StripeInvoices({ invoices }: { invoices: Inv[] }): React.JSX.Element {
@@ -29,7 +30,7 @@ export function StripeInvoices({ invoices }: { invoices: Inv[] }): React.JSX.Ele
               {invoices.map((invoice) => (
                 <TableRow key={invoice.id}>
                   <TableCell>{formatBillingInvoiceAmount(invoice, locale)}</TableCell>
-                  <TableCell><Badge variant={invoice.paid ? "secondary" : "outline"}>{invoice.status}</Badge></TableCell>
+                  <TableCell><Badge variant={invoice.paid ? "secondary" : "outline"}>{formatBillingInvoiceStatus(invoice.status, t)}</Badge></TableCell>
                   <TableCell>{invoice.hostedUrl ? <a className="text-sm underline" href={invoice.hostedUrl} target="_blank" rel="noreferrer">{t("open")}</a> : "—"}</TableCell>
                 </TableRow>
               ))}

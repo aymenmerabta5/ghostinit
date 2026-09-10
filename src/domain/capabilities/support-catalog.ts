@@ -1,3 +1,4 @@
+import { BILLING_SELECTION_POLICY } from "../project/billing-selection.js";
 import { deepFreeze } from "../project/canonical.js";
 import { IDENTITY_PASSKEY_ACCEPTANCE_OPERATION_IDS } from "../data-model/capabilities.js";
 import {
@@ -83,6 +84,7 @@ export interface SupportCatalogManifest {
   /** Unlisted capability/database tuples fail closed on these targets. */
   readonly defaultDenyCapabilityDeployTargets: readonly DeployTarget[];
   readonly capabilityDeployBindings: readonly CapabilityDeployBinding[];
+  readonly billingProviderSelection: typeof BILLING_SELECTION_POLICY;
   readonly billingProviderClientBindings: readonly BillingProviderClientBinding[];
   readonly capabilities: readonly CapabilityDefinition[];
   /** Closed mapping from every advertised operation to executable behavioral proof. */
@@ -283,13 +285,19 @@ const capabilities = [
     requirements: [
       { kind: "capability", capability: "auth" },
       { kind: "capability", capability: "transport" },
+      { kind: "capability", capability: "storage", when: "manual-billing" },
       { kind: "backend" },
       { kind: "persistence" },
       { kind: "target-binding", subject: "backend-host", targets: SERVER_APP_TARGETS },
     ],
     acceptanceOperationIds: [
+      "billing.balance.v1",
       "billing.checkout.v1",
       "billing.invoices.v1",
+      "billing.manual.list.v1",
+      "billing.manual.receipt.v1",
+      "billing.manual.review.v1",
+      "billing.manual.submit.v1",
       "billing.payment-link.v1",
       "billing.portal.v1",
       "billing.subscriptions.v1",
@@ -298,29 +306,49 @@ const capabilities = [
     clientSurfaceRequired: true,
     clientBindings: clientBindings(
       supportedClientSurface([
+        "billing.balance.v1",
         "billing.checkout.v1",
         "billing.invoices.v1",
+        "billing.manual.list.v1",
+        "billing.manual.receipt.v1",
+        "billing.manual.review.v1",
+        "billing.manual.submit.v1",
         "billing.payment-link.v1",
         "billing.portal.v1",
         "billing.subscriptions.v1",
       ]),
       supportedClientSurface([
+        "billing.balance.v1",
         "billing.checkout.v1",
         "billing.invoices.v1",
+        "billing.manual.list.v1",
+        "billing.manual.receipt.v1",
+        "billing.manual.review.v1",
+        "billing.manual.submit.v1",
         "billing.payment-link.v1",
         "billing.portal.v1",
         "billing.subscriptions.v1",
       ]),
       supportedClientSurface([
+        "billing.balance.v1",
         "billing.checkout.v1",
         "billing.invoices.v1",
+        "billing.manual.list.v1",
+        "billing.manual.receipt.v1",
+        "billing.manual.review.v1",
+        "billing.manual.submit.v1",
         "billing.payment-link.v1",
         "billing.portal.v1",
         "billing.subscriptions.v1",
       ]),
       supportedClientSurface([
+        "billing.balance.v1",
         "billing.checkout.v1",
         "billing.invoices.v1",
+        "billing.manual.list.v1",
+        "billing.manual.receipt.v1",
+        "billing.manual.review.v1",
+        "billing.manual.submit.v1",
         "billing.payment-link.v1",
         "billing.portal.v1",
         "billing.subscriptions.v1",
@@ -590,6 +618,7 @@ export const SUPPORT_CATALOG = deepFreeze({
   databaseDeployBindings,
   defaultDenyCapabilityDeployTargets: ["cloudflare"],
   capabilityDeployBindings,
+  billingProviderSelection: BILLING_SELECTION_POLICY,
   billingProviderClientBindings: BILLING_PROVIDER_CLIENT_BINDINGS,
   capabilities,
   operationEvidence: CAPABILITY_OPERATION_EVIDENCE,

@@ -24,6 +24,8 @@ function element(
   props: Record<string, unknown> | null,
   ...children: unknown[]
 ): Element {
+  if (typeof type === "function")
+    return (type as (props: Record<string, unknown>) => Element)(props ?? {});
   return { type, props: props ?? {}, children };
 }
 function nodes(value: unknown): Element[] {
@@ -52,10 +54,21 @@ function harness(i18n: boolean) {
   const plan = buildProjectGenerationPlan(result.resolvedConfig, {
     desiredConfig: result.desiredConfig,
   });
-  const source = plan.files.find(
-    (file) => file.physicalPath === "apps/desktop/src/renderer/routes/admin.users.tsx",
-  )?.content;
-  if (!source) throw new Error("Missing generated admin users route");
+  const source = [
+    "mutations.ts",
+    "use-admin-user-actions.ts",
+    "components/user-actions-view.tsx",
+    "user-actions.tsx",
+  ]
+    .map((relative) => {
+      const file = plan.files.find(
+        ({ physicalPath }) =>
+          physicalPath === `apps/desktop/src/renderer/features/admin-users/${relative}`,
+      );
+      if (!file) throw new Error(`Missing generated admin owner ${relative}`);
+      return file.content;
+    })
+    .join("\n");
   const instances = new Map<string, { slots: unknown[]; cursor: number }>();
   let active: { slots: unknown[]; cursor: number };
   const queue: Deferred[] = [];

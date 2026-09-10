@@ -4,6 +4,13 @@ import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 
 const fallbackFiles = ["not-found.tsx", "error.tsx", "global-error.tsx", "loading.tsx"];
+const systemFiles = [
+  "not-found.tsx",
+  "unexpected-error.tsx",
+  "global-error.tsx",
+  "loading.tsx",
+  "use-report-error.ts",
+];
 
 function generate(mode: "single" | "monorepo", i18n: boolean, auth: boolean) {
   const result = resolveCreateConfig({
@@ -38,19 +45,27 @@ describe("generated Next fallback parity", () => {
       test(`single and monorepo fallbacks preserve locale and recovery contracts (i18n=${i18n}, auth=${auth})`, () => {
         const single = generate("single", i18n, auth);
         const monorepo = generate("monorepo", i18n, auth);
-        for (const filename of fallbackFiles) {
-          const content = single.get(`src/app/${filename}`);
+        for (const filename of [
+          ...fallbackFiles.map((file) => `app/${file}`),
+          ...systemFiles.map((file) => `features/system/${file}`),
+        ]) {
+          const content = single.get(`src/${filename}`);
           expect(content, filename).toBeDefined();
-          expect(content, filename).toBe(monorepo.get(`apps/web/src/app/${filename}`));
+          expect(content, filename).toBe(monorepo.get(`apps/web/src/${filename}`));
           const parsed = parseSync(filename, content!, { lang: "tsx" });
           expect(parsed.errors, filename).toEqual([]);
           for (const statement of parsed.program.body) {
-            if (statement.type !== "ImportDeclaration") continue;
+            if (
+              (statement.type !== "ImportDeclaration" &&
+                statement.type !== "ExportNamedDeclaration") ||
+              !statement.source
+            )
+              continue;
             const specifier = String(statement.source.value);
             const local = specifier.startsWith("@/")
               ? `src/${specifier.slice(2)}`
               : specifier.startsWith("./")
-                ? `src/app/${specifier.slice(2)}`
+                ? `src/${filename.slice(0, filename.lastIndexOf("/") + 1)}${specifier.slice(2)}`
                 : undefined;
             if (!local) continue;
             expect(
@@ -64,19 +79,24 @@ describe("generated Next fallback parity", () => {
           expect(content).not.toContain("min-h-screen");
         }
 
-        const error = single.get("src/app/error.tsx")!;
-        expect(error).toContain("console.error(error)");
+        const error = single.get("src/features/system/unexpected-error.tsx")!;
+        expect(error).toContain("useReportError(error)");
+        expect(single.get("src/features/system/use-report-error.ts")).toContain(
+          "console.error(error)",
+        );
         expect(error).toContain('t("unexpected.description")');
         expect(error).toContain("onClick={() => reset()}");
         expect(error).toContain('as="h1"');
-        const global = single.get("src/app/global-error.tsx")!;
-        expect(global).toContain('import "./globals.css";');
+        const global = single.get("src/features/system/global-error.tsx")!;
+        expect(single.get("src/app/global-error.tsx")).toContain('import "./globals.css";');
         expect(global).toContain('from "@/lib/translations.standalone"');
         expect(global).toContain("<html lang={locale} dir={standaloneSurfaceDirection(locale)}");
         expect(global).not.toContain("<Providers");
         expect(global).not.toContain("<AppProviders");
-        expect(single.get("src/app/loading.tsx")).toContain('aria-busy="true"');
-        expect(single.get("src/app/loading.tsx")).toContain("lg:grid-cols-[1.35fr_1fr]");
+        expect(single.get("src/features/system/loading.tsx")).toContain('aria-busy="true"');
+        expect(single.get("src/features/system/loading.tsx")).toContain(
+          "lg:grid-cols-[1.35fr_1fr]",
+        );
         for (const locale of i18n ? ["en", "fr", "ar"] : ["en"]) {
           const catalog = single.get(`src/lib/translations.${locale}.json`);
           expect(catalog).toBeDefined();

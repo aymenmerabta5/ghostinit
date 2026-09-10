@@ -70,7 +70,6 @@ export function authClientShim(
   hasEmail = true,
 ): string {
   return `import { authClient } from "@repo/auth/client";
-import { z } from "zod";
 
 export { authClient };
 ${identityClientAdapterContent({ database, emailPassword: hasEmail, target })}

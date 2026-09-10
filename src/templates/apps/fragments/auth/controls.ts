@@ -4,22 +4,22 @@ export function authOAuthButtonsContent(): string {
 
 import type * as React from "react";
 import { Button } from "@/components/ui/button";
-
-type OAuthProvider = "google" | "github";
+import type { IdentityOAuthProvider } from "@/lib/auth-model";
 
 export interface AuthOAuthButtonsProps {
   googleLabel: string;
   githubLabel: string;
   separatorLabel: string;
-  onSelect: (provider: OAuthProvider) => void | Promise<void>;
+  onSelect: (provider: IdentityOAuthProvider) => void | Promise<void>;
+  disabled?: boolean;
 }
 
-export function AuthOAuthButtons({ googleLabel, githubLabel, separatorLabel, onSelect }: AuthOAuthButtonsProps): React.JSX.Element {
+export function AuthOAuthButtons({ googleLabel, githubLabel, separatorLabel, onSelect, disabled = false }: AuthOAuthButtonsProps): React.JSX.Element {
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <Button type="button" variant="outline" onClick={() => void onSelect("google")}>{googleLabel}</Button>
-        <Button type="button" variant="outline" onClick={() => void onSelect("github")}>{githubLabel}</Button>
+        <Button type="button" variant="outline" disabled={disabled} onClick={() => void onSelect("google")}>{googleLabel}</Button>
+        <Button type="button" variant="outline" disabled={disabled} onClick={() => void onSelect("github")}>{githubLabel}</Button>
       </div>
       <div className="flex items-center gap-3 py-1">
         <span className="h-px flex-1 bg-border" />

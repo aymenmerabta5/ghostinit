@@ -51,7 +51,7 @@ describe("single-mode capability-aware UI generation", () => {
     for (const provider of ["stripe", "paddle", "polar"] as const) {
       const tabs = read(
         generate("nextjs", [provider]),
-        "src/app/billing/components/billing-tabs.tsx",
+        "src/features/billing/components/billing-tabs.tsx",
       );
 
       expect(tabs, provider).toContain(
@@ -69,7 +69,7 @@ describe("single-mode capability-aware UI generation", () => {
   test("emits local-market and dual-market UI only for matching selections", () => {
     const chargilyOnly = read(
       generate("nextjs", ["chargily"]),
-      "src/app/billing/components/billing-tabs.tsx",
+      "src/features/billing/components/billing-tabs.tsx",
     );
     expect(chargilyOnly).toContain('from "@/components/ui/alert"');
     expect(chargilyOnly).toContain("const isChargilyAlone");
@@ -82,7 +82,7 @@ describe("single-mode capability-aware UI generation", () => {
 
     const dualMarket = read(
       generate("nextjs", ["chargily", "stripe"]),
-      "src/app/billing/components/billing-tabs.tsx",
+      "src/features/billing/components/billing-tabs.tsx",
     );
     expect(dualMarket).toContain('from "@/components/ui/badge"');
     expect(dualMarket).toContain("const hasGlobal");

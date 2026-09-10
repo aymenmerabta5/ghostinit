@@ -7,17 +7,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runtime, supplyChain } from "../packages/versions/src/index.js";
 import {
+  exactLockedReleaseAuditWindow,
+  type LockedReleaseEvidence,
+} from "./dependency-audit-window.js";
+import {
   collectRepositoryLockedPins,
   isSha512Integrity,
   releaseAgeWindow,
 } from "./lock-age-policy.js";
-
-interface LockedReleaseEvidence {
-  package: string;
-  version: string;
-  publishedAt: string;
-  integrity: string;
-}
 
 interface PreflightEvidence {
   schemaVersion: number;
@@ -106,7 +103,6 @@ export function lockAgePreflight(
   }
 
   let cutoffAt: string | null = null;
-  let cutoffMilliseconds = Number.NaN;
   try {
     const window = releaseAgeWindow(
       evidence.auditedAt,
@@ -114,7 +110,6 @@ export function lockAgePreflight(
       nowMilliseconds,
     );
     cutoffAt = window.cutoffAt;
-    cutoffMilliseconds = window.cutoffMilliseconds;
     if (evidence.supplyChain?.cutoffAt !== window.cutoffAt) {
       failures.push("dependency evidence cutoffAt is stale");
     }
@@ -134,7 +129,6 @@ export function lockAgePreflight(
         !entry ||
         typeof entry !== "object" ||
         Array.isArray(entry) ||
-        Object.keys(entry).sort().join(",") !== "integrity,package,publishedAt,version" ||
         typeof entry.package !== "string" ||
         entry.package.length === 0 ||
         typeof entry.version !== "string" ||
@@ -150,13 +144,16 @@ export function lockAgePreflight(
         failures.push("dependency evidence contains duplicate locked release " + key);
         continue;
       }
-      const publishedAt = Date.parse(entry.publishedAt);
-      if (!Number.isFinite(publishedAt)) {
-        failures.push("dependency evidence has invalid publication time for " + key);
-      } else if (Number.isFinite(cutoffMilliseconds) && publishedAt > cutoffMilliseconds) {
-        failures.push(
-          key + " was published " + entry.publishedAt + ", after release-age cutoff " + cutoffAt,
+      try {
+        exactLockedReleaseAuditWindow(
+          entry,
+          entry,
+          evidence.auditedAt,
+          supplyChain.minimumReleaseAgeSeconds,
+          nowMilliseconds,
         );
+      } catch (error) {
+        failures.push(key + ": " + (error instanceof Error ? error.message : String(error)));
       }
       recorded.set(key, entry);
     }

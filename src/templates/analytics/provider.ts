@@ -1,3 +1,4 @@
+import { featureFlagHooksContent } from "./flag-hooks.js";
 import type { ProjectMode } from "../../lib/addons.js";
 
 /** Shared client context, emitted beside each mode-specific provider. */
@@ -214,64 +215,12 @@ export default PostHogProvider;
 export function singleComponentsHooksContent(): string {
   return `"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { JsonType } from "posthog-js";
+import { useMemo, useSyncExternalStore } from "react";
+import type { JsonType, PostHogInterface } from "posthog-js";
 import type { FeatureFlagKey, ExperimentKey } from "../../server/analytics/types.js";
 import { usePostHogContext } from "./posthog-context.js";
 
-export function useFeatureFlag(key: FeatureFlagKey): string | boolean | undefined {
-  const ctx = usePostHogContext();
-  const [value, setValue] = useState<string | boolean | undefined>(undefined);
-  useEffect(() => {
-    if (!ctx.client) return;
-    try {
-      setValue(ctx.client.getFeatureFlag(key));
-      const unsubscribe = ctx.client.onFeatureFlags((_flagKeys, variants) => setValue(variants[key]));
-      return () => {
-        try {
-          unsubscribe?.();
-        } catch {}
-      };
-    } catch {}
-  }, [ctx.client, key]);
-  return value;
-}
-
-export function useFeatureFlagEnabled(key: FeatureFlagKey): boolean {
-  const value = useFeatureFlag(key);
-  return typeof value === "boolean" ? value : value !== undefined;
-}
-
-export function useFeatureFlagPayload(key: FeatureFlagKey): JsonType | undefined {
-  const ctx = usePostHogContext();
-  const [payload, setPayload] = useState<JsonType | undefined>(undefined);
-  useEffect(() => {
-    if (!ctx.client) return;
-    try {
-      setPayload(ctx.client.getFeatureFlagPayload(key));
-    } catch {}
-  }, [ctx.client, key]);
-  return payload;
-}
-
-export function useActiveFeatureFlags(): Record<string, string | boolean> {
-  const ctx = usePostHogContext();
-  const [flags, setFlags] = useState<Record<string, string | boolean>>({});
-  useEffect(() => {
-    if (!ctx.client) return;
-    try {
-      const unsubscribe = ctx.client.onFeatureFlags((_flagKeys, variants) => setFlags(variants));
-      return () => {
-        try {
-          unsubscribe();
-        } catch {}
-      };
-    } catch {
-      return;
-    }
-  }, [ctx.client]);
-  return flags;
-}
+${featureFlagHooksContent("usePostHogContext().client")}
 
 export interface UseExperimentResult {
   variant: string | undefined;

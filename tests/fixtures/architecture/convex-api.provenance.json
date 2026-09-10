@@ -1,0 +1,7 @@
+{
+  "sourcePath": "E:/Temp/ghostinit-convex-codegen-cUAQMQ/convex/_generated/api.js",
+  "packageName": "ghostinit-convex-codegen-proof",
+  "convexVersion": "1.45.0",
+  "sha256": "f513058549831e85376f8d19cafaf2a4a770b6eb1b859fb371141f2c9dec0d70",
+  "purpose": "Retained real codegen client protocol compatibility fixture; fresh codegen gates remain required."
+}

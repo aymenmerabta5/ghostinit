@@ -1,5 +1,7 @@
 import { file, type TemplateFile } from "../shared.js";
 import { generatedGitignoreContent } from "../gitignore.js";
+import { DEPENDENCY_SECURITY_RUNTIME_PATH } from "../../domain/dependency-security/artifacts.js";
+import { dependencySecurityReadmeLines } from "../shared/dependency-security-docs.js";
 import * as v from "../versions.js";
 
 export function rootTsConfig(): TemplateFile {
@@ -74,6 +76,7 @@ export function oxlintConfig(): TemplateFile {
         categories: { correctness: "error" },
         env: { builtin: true },
         ignorePatterns: [
+          "/" + DEPENDENCY_SECURITY_RUNTIME_PATH,
           "node_modules",
           "dist",
           ".next",
@@ -99,6 +102,7 @@ export function oxfmtConfig(): TemplateFile {
     JSON.stringify(
       {
         ignorePatterns: [
+          "/" + DEPENDENCY_SECURITY_RUNTIME_PATH,
           "node_modules",
           "dist",
           ".next",
@@ -153,6 +157,8 @@ Dependency installs reject package versions published less than ${v.supplyChain.
 For a committed clone, run \`bun run install:verified\`. For fresh output created
 with \`--no-install\`, run \`bun run install:bootstrap\` once to resolve without
 lifecycle scripts, attest the public-registry lock, and then install frozen.
+
+${dependencySecurityReadmeLines().join("\n")}
 `,
   );
 }

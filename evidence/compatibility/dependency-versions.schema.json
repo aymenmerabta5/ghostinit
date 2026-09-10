@@ -136,7 +136,8 @@
           "package": { "type": "string", "minLength": 1 },
           "version": { "type": "string", "pattern": "^\\d" },
           "publishedAt": { "type": "string", "format": "date-time" },
-          "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" }
+          "integrity": { "type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$" },
+          "auditWindow": { "$ref": "#/$defs/lockedReleaseAuditWindow" }
         }
       }
     },
@@ -164,6 +165,7 @@
         ],
         "properties": {
           "scope": { "type": "string" },
+          "auditWindow": { "$ref": "#/$defs/pinAuditWindow" },
           "group": { "type": "string" },
           "key": { "type": "string" },
           "package": { "type": "string" },
@@ -182,6 +184,61 @@
     }
   },
   "$defs": {
+    "pinAuditWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "package", "version", "publishedAt", "auditedAt", "cutoffAt"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1 },
+        "package": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^\\d" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "auditedAt": { "type": "string", "format": "date-time" },
+        "cutoffAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "lockedReleaseAuditWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "package",
+        "version",
+        "publishedAt",
+        "integrity",
+        "auditedAt",
+        "cutoffAt"
+      ],
+      "properties": {
+        "scope": {
+          "const": "locked-release"
+        },
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "integrity": {
+          "type": "string",
+          "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$"
+        },
+        "auditedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cutoffAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "decision": {
       "type": "object",
       "additionalProperties": false,

@@ -23,6 +23,7 @@ import {
 import * as v from "./versions.js";
 import type { AddonInstallerMap, ProjectMode, FrameworkName } from "../lib/addons.js";
 import { billingProviders as allBillingProviders, hasAddon } from "../lib/addons.js";
+import { ONLINE_BILLING_PROVIDERS } from "../domain/project/choices.js";
 
 import {
   webhookContent,
@@ -36,12 +37,13 @@ import { paddleCheckoutFiles } from "./billing/ui/paddle-checkout.js";
 import { convexApiImport } from "./billing/webhooks/providers/shared.js";
 import { convexBillingIndexContent } from "./billing/convex-index.js";
 import { billingApplicationsFiles } from "./billing/applications/billing.js";
+import { manualPaymentFiles } from "./billing/manual.js";
 // Shared multi-root template resolver. This file used to carry a private
 // near-verbatim copy, which meant host-only pragmas were not stripped here.
 import { loadTemplate as load, tryLoadTemplate as tryLoad } from "./template-loader.js";
 
 type Runtime = "node" | "bun";
-type ProviderName = (typeof allBillingProviders)[number];
+type ProviderName = (typeof ONLINE_BILLING_PROVIDERS)[number];
 
 function convexAdapterContent(databaseImport: string, adapterPath: string): string {
   return `import { convexClient } from "${databaseImport}";
@@ -88,13 +90,13 @@ export type BillingConvex = typeof billingConvex;
 }
 
 function selectedBilling(map?: AddonInstallerMap): string[] {
-  if (!map) return [...allBillingProviders];
+  if (!map) return [...ONLINE_BILLING_PROVIDERS];
   const sel: string[] = [];
   for (const p of allBillingProviders) {
     if (hasAddon(map, p)) sel.push(p);
   }
   if (hasAddon(map, "billing") && sel.length === 0) {
-    return [...allBillingProviders];
+    return [...ONLINE_BILLING_PROVIDERS];
   }
   return sel;
 }
@@ -154,7 +156,7 @@ function billingDeps(
     deps["drizzle-orm"] = `^${v.database["drizzle-orm"]}`;
   }
 
-  const effective = selected.length === 0 ? [...allBillingProviders] : selected;
+  const effective = selected.length === 0 ? [...ONLINE_BILLING_PROVIDERS] : selected;
   if (effective.includes("stripe")) deps.stripe = v.billing.stripe;
   if (effective.includes("chargily"))
     deps["@chargily/chargily-pay"] = `^${v.billing["@chargily/chargily-pay"]}`;
@@ -191,8 +193,7 @@ const PROVIDER_FACTORY_EXPORTS: Record<ProviderName, string> = {
 
 function providerRegistryContent(selected: readonly string[]): string {
   const selectedSet = new Set(selected);
-  const loaderEntries = allBillingProviders
-    .filter((provider) => selectedSet.has(provider))
+  const loaderEntries = ONLINE_BILLING_PROVIDERS.filter((provider) => selectedSet.has(provider))
     .map(
       (provider) =>
         `  ${provider}: async () => (await import("./providers/${provider}")).${PROVIDER_FACTORY_EXPORTS[provider]},`,
@@ -379,7 +380,7 @@ const BILLING_SCHEMA_EXPORTS = [
  * correct direction under the layered architecture, where billing (Capabilities)
  * may import database (Supporting) but not the other way around.
  */
-function schemaSplitFiles(mode: ProjectMode): TemplateFile[] {
+function schemaSplitFiles(mode: ProjectMode, manualBilling = false): TemplateFile[] {
   const out: TemplateFile[] = [];
   const schemaBase =
     mode === "monorepo" ? "packages/billing/src/schema/" : "src/server/billing/schema/";
@@ -395,7 +396,16 @@ function schemaSplitFiles(mode: ProjectMode): TemplateFile[] {
     const enums = tryLoad("./billing/schema/enums.ts");
     if (enums) out.push(file(`${dbBase}enums.ts`, enums));
     const index = tryLoad("./billing/schema/index.ts");
-    if (index) out.push(file(`${dbBase}index.ts`, index));
+    if (index)
+      out.push(
+        file(
+          `${dbBase}index.ts`,
+          index +
+            (manualBilling
+              ? '\nexport { manualPayments, manualCreditLedger } from "./manual-payments";\n'
+              : ""),
+        ),
+      );
     for (const table of BILLING_TABLE_FILES) {
       const content = tryLoad(`./billing/schema/tables/${table}.ts`);
       if (content) out.push(file(`${dbBase}tables/${table}.ts`, content));
@@ -494,15 +504,21 @@ export function billingFiles(
   const interfaceContent = load("./billing/providers/interface.ts");
   const domainContent = load("./billing/domain/types.ts");
   const isConvex = Boolean(addons && hasAddon(addons, "convex"));
+  const hasManual = selected.includes("manual");
   // The self-contained barrel: defines customerRelations and re-exports
   // ./enums + ./tables/*. billing.ts would instead re-export customerRelations
   // from "./index", which only resolves by accident depending on what else got
   // emitted next to it — see the same note in database.ts.
-  const schemaContent = load("./billing/schema/index.ts");
+  const schemaContent =
+    load("./billing/schema/index.ts") +
+    (hasManual
+      ? '\nexport { manualPayments, manualCreditLedger } from "./manual-payments";\n'
+      : "");
   const indexTemplate = isConvex ? convexBillingIndexContent() : load("./billing/index.ts");
   const indexContent = withSelectedProviderRegistry(indexTemplate, selected);
 
   const files: TemplateFile[] = [
+    ...(hasManual ? manualPaymentFiles(mode, isConvex) : []),
     ...billingReturnPageFiles(mode, billingFramework),
     ...(selected.includes("paddle") ? paddleCheckoutFiles(mode, billingFramework) : []),
   ];
@@ -531,6 +547,9 @@ export function billingFiles(
 
   if (mode === "monorepo") {
     const deps = billingDeps(selected, addonsPresent, addons);
+    if (hasManual) deps["server-only"] = `^${v.runtime["server-only"]}`;
+    if (hasManual && isConvex) deps["@repo/auth"] = "workspace:*";
+    if (hasManual && !isConvex) deps["@repo/storage"] = "workspace:*";
     files.push(
       file(
         "packages/billing/package.json",
@@ -540,6 +559,7 @@ export function billingFiles(
           type: "module",
           exports: {
             ".": "./src/index.ts",
+            ...(hasManual ? { "./manual": "./src/manual.ts" } : {}),
             "./*": "./src/*/index.ts",
             "./providers/*": "./src/providers/*.ts",
             ...(!isConvex ? { "./schema/*": "./src/schema/*.ts" } : {}),
@@ -633,7 +653,7 @@ Convex: billing mutations go through the token-authenticated api.billingServer.m
 `,
       ),
       ...interfaceSplitFiles("single"),
-      ...(isConvex ? [] : schemaSplitFiles("single")),
+      ...(isConvex ? [] : schemaSplitFiles("single", hasManual)),
       ...providerFiles(selected, addonsPresent, addons, "single"),
       ...webhookRoutes(selected, addonsPresent, addons, "single"),
       ...billingConvexAdapterFiles(),

@@ -3,7 +3,7 @@
 # Usage:
 #   bash ./scripts/e2e-smoke.sh                  # default: demo, no billing
 #   bash ./scripts/e2e-smoke.sh demo stripe,chargily tanstack-start "eve,i18n" postgres
-#   BILLING=all FRAMEWORK=tanstack-start FEATURES=eve bash ./scripts/e2e-smoke.sh
+#   BILLING=polar,chargily,manual FRAMEWORK=tanstack-start FEATURES=eve bash ./scripts/e2e-smoke.sh
 #   E2E_INSTALL=1 bash ./scripts/e2e-smoke.sh    # full install + typecheck/lint/build + check
 #   E2E_INSTALL=1 E2E_HEALTH=1 bash ./scripts/e2e-smoke.sh  # + dev + /api/health
 #
@@ -255,4 +255,4 @@ echo ""
 echo "[e2e-smoke] SUCCESS: $PROJECT_ROOT"
 echo "  To keep:         KEEP=1 E2E_CLEANUP=1 bash ./scripts/e2e-smoke.sh"
 echo "  Auto-clean:      E2E_CLEANUP=1 bash ./scripts/e2e-smoke.sh"
-echo "  Full matrix:     bash ./scripts/e2e-smoke.sh && BILLING=all FRAMEWORK=tanstack-start FEATURES=eve E2E_INSTALL=1 bash ./scripts/e2e-smoke.sh"
+echo "  Billing profile: BILLING=polar,chargily,manual FRAMEWORK=tanstack-start FEATURES=eve E2E_INSTALL=1 bash ./scripts/e2e-smoke.sh"

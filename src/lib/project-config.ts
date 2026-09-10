@@ -15,6 +15,7 @@ import { IncompatibleSchemaError, ProjectStateError, ValidationError } from "./e
 function presetCapability(project: ProjectConfig, key: "auth" | "api" | "email" | "analytics") {
   const explicit = project[key];
   if (explicit !== undefined) return explicit;
+  if ((key === "auth" || key === "api") && project.billing.includes("manual")) return true;
   return project.preset === "saas";
 }
 
@@ -71,7 +72,10 @@ export function projectConfigToDesired(project: ProjectConfig): DesiredProjectCo
       billing: project.billing.length > 0 ? { providers: [...project.billing].sort() } : false,
       messaging: project.messaging === true,
       email,
-      storage: project.storage === true || project.messaging === true,
+      storage:
+        project.storage === true ||
+        project.messaging === true ||
+        (project.storage === undefined && project.billing.includes("manual")),
       cache: project.cache,
       analytics,
       i18n: project.i18n === true || project.features.includes("i18n"),
@@ -97,12 +101,14 @@ export function desiredToProjectConfig(
     app.target === "expo" ? "mobile" : app.target === "electron" ? "desktop" : "web",
   );
   const capabilities = desired.capabilities;
+  const manualBilling =
+    capabilities.billing !== false && capabilities.billing?.providers.includes("manual") === true;
   const resolvedCapabilities = resolved?.capabilities;
   const backend = resolved?.backend ?? desired.backend;
   const executionRuntime =
     resolved?.runtime ?? desired.runtime ?? (backend === false ? "bun" : backend.executionRuntime);
-  const auth = resolvedCapabilities?.auth ?? capabilities.auth === true;
-  const api = resolvedCapabilities?.transport ?? capabilities.transport === true;
+  const auth = resolvedCapabilities?.auth ?? capabilities.auth ?? manualBilling;
+  const api = resolvedCapabilities?.transport ?? capabilities.transport ?? manualBilling;
   const email = resolvedCapabilities?.email ?? capabilities.email === true;
   const analytics = resolvedCapabilities?.analytics ?? capabilities.analytics === true;
   const preset =
@@ -134,7 +140,8 @@ export function desiredToProjectConfig(
     messaging: resolvedCapabilities?.messaging ?? capabilities.messaging === true,
     storage:
       (resolvedCapabilities?.storage ?? capabilities.storage === true) ||
-      (resolvedCapabilities?.messaging ?? capabilities.messaging === true),
+      (resolvedCapabilities?.messaging ?? capabilities.messaging === true) ||
+      (resolvedCapabilities === undefined && capabilities.storage === undefined && manualBilling),
     notifications: resolvedCapabilities?.notifications ?? capabilities.notifications === true,
     featureFlags: resolvedCapabilities
       ? (resolvedCapabilities.featureFlags.provider ?? "none")

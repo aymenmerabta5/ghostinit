@@ -112,6 +112,20 @@ describeCodegen("public anonymous-local Convex codegen (opt-in)", () => {
         ".proof.env",
       ]);
       await confirmStopped();
+      const manualConfigSource = fixture.originalGeneratedFiles.get(
+        "convex/manualPaymentConfig.ts",
+      );
+      if (!manualConfigSource) throw new Error("Manual payment configuration was not emitted");
+      await writeCodegenFile(
+        root,
+        "convex/manualPaymentConfig.ts",
+        manualConfigSource
+          .replace("enabled: false", "enabled: true")
+          .replace(
+            'receiverInstructions: ""',
+            'receiverInstructions: "Fixture recipient for local runtime proof"',
+          ),
+      );
       owner = startCodegenOwner(root, node, runner.environment, fixture.secret);
       await owner.ready;
       backend = await inspectLocalCodegenBackend(root);
@@ -133,6 +147,17 @@ describeCodegen("public anonymous-local Convex codegen (opt-in)", () => {
         "--pretty",
         "false",
       ]);
+      try {
+        await runner.success(
+          "Native manual receipt HTTP and atomic credit lifecycle",
+          process.execPath,
+          ["run", ".manual-runtime-proof.ts"],
+          120_000,
+        );
+      } finally {
+        await writeCodegenFile(root, "convex/manualPaymentConfig.ts", manualConfigSource);
+      }
+      await succeed("Restore disabled generated manual configuration", rootArgs);
 
       for (const target of [
         { component: false, path: ROOT_PROBE_PATH, args: rootArgs, label: "root" },

@@ -1,10 +1,11 @@
-// @allow-long 411: schema, detector behavior, transactional writes, and the zero catalog ratchet form one executable contract
+// @allow-long 447: schema, detector behavior, transactional writes, and the zero catalog ratchet form one executable contract
 import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { CAPABILITY_IDS } from "../../src/domain/capabilities/types.js";
+import { BILLING_PROVIDERS, GLOBAL_BILLING_PROVIDERS } from "../../src/domain/project/choices.js";
 import type { ProjectConfig } from "../../src/lib/config.js";
 import {
   GENERATED_UNSAFE_SYNTAX_CATALOG,
@@ -129,8 +130,8 @@ describe("V1 generated unsafe-syntax zero gate", () => {
     const gateKeys = GATE_CONFIGURATIONS.map(({ configKey }) => configKey);
 
     expect(catalogKeys).toEqual([...catalogKeys].sort(compareText));
-    expect(new Set(catalogKeys).size).toBe(38);
-    expect(projectionKeys).toHaveLength(36);
+    expect(new Set(catalogKeys).size).toBe(70);
+    expect(projectionKeys).toHaveLength(68);
     expect(gateKeys).toEqual(["gate/next-monorepo", "gate/single-next"]);
     expect(baseline.catalogKeys).toEqual(catalogKeys);
     expect(policy.catalogEvidence.configKeys).toEqual(catalogKeys);
@@ -138,7 +139,11 @@ describe("V1 generated unsafe-syntax zero gate", () => {
 
     for (const { configKey, config } of PROJECTION_CONFIGURATIONS) {
       if (configKey.includes("/capabilities-on")) {
-        expect(config.billing, configKey).toEqual(["stripe", "chargily", "paddle", "polar"]);
+        const globals = GLOBAL_BILLING_PROVIDERS.filter((provider) =>
+          config.billing.includes(provider),
+        );
+        expect(globals, configKey).toHaveLength(1);
+        expect(config.billing, configKey).toEqual([...globals, "chargily", "manual"]);
         expect(capabilityState(config), configKey).toEqual(
           expectedCapabilityState(allCapabilities),
         );
@@ -153,20 +158,49 @@ describe("V1 generated unsafe-syntax zero gate", () => {
         expect(capabilityState(config), configKey).toEqual(expectedCapabilityState(new Set()));
       }
     }
+    expect(
+      [...new Set(PROJECTION_CONFIGURATIONS.flatMap(({ config }) => config.billing))].sort(
+        compareText,
+      ),
+    ).toEqual([...BILLING_PROVIDERS].sort(compareText));
+    for (const mode of ["monorepo", "single"]) {
+      for (const framework of ["nextjs", "tanstack-start"]) {
+        for (const database of ["postgres", "convex"]) {
+          const selected = PROJECTION_CONFIGURATIONS.filter(
+            ({ configKey, config }) =>
+              config.mode === mode &&
+              config.framework === framework &&
+              config.database === database &&
+              config.apps.includes("web") &&
+              configKey.includes("/capabilities-on"),
+          );
+          expect(selected).toHaveLength(3);
+          expect(selected.map(({ config }) => config.billing[0]).sort(compareText)).toEqual(
+            [...GLOBAL_BILLING_PROVIDERS].sort(compareText),
+          );
+        }
+      }
+    }
 
     const nonWebConfigurations = PROJECTION_CONFIGURATIONS.filter(
       ({ config }) => config.mode === "single" && config.apps[0] !== "web",
     );
-    expect(nonWebConfigurations).toHaveLength(12);
+    expect(nonWebConfigurations).toHaveLength(28);
     expect(nonWebConfigurations.map(({ configKey }) => configKey).toSorted(compareText)).toEqual(
-      ["nextjs", "tanstack-start"].flatMap((framework) =>
-        ["convex", "none", "postgres"].flatMap((database) =>
-          ["desktop", "mobile"].map(
-            (app) =>
-              `single/${framework}/${database}/capabilities-${database === "none" ? "off" : "on"}-${app}`,
+      ["nextjs", "tanstack-start"]
+        .flatMap((framework) =>
+          ["convex", "none", "postgres"].flatMap((database) =>
+            ["desktop", "mobile"].flatMap((app) =>
+              database === "none"
+                ? [`single/${framework}/${database}/capabilities-off-${app}`]
+                : GLOBAL_BILLING_PROVIDERS.map(
+                    (provider) =>
+                      `single/${framework}/${database}/capabilities-on-${app}/billing-${provider}-chargily-manual`,
+                  ),
+            ),
           ),
-        ),
-      ),
+        )
+        .toSorted(compareText),
     );
     for (const { configKey, config } of PROJECTION_CONFIGURATIONS.filter(
       ({ config }) => config.mode === "monorepo" && config.billing.length > 0,
@@ -175,7 +209,9 @@ describe("V1 generated unsafe-syntax zero gate", () => {
     }
 
     for (const { configKey, config } of GATE_CONFIGURATIONS) {
-      expect(config.billing, configKey).toEqual(["stripe", "chargily", "paddle", "polar"]);
+      expect(config.billing, configKey).toEqual(
+        config.mode === "monorepo" ? ["stripe", "chargily"] : ["stripe"],
+      );
       expect(capabilityState(config), configKey).toEqual(expectedCapabilityState(allCapabilities));
     }
 

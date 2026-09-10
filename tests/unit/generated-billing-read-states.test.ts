@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { statusFunctions } from "../helpers/billing-status-harness.js";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
 import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 
@@ -58,7 +59,7 @@ function generate(
   };
 }
 
-function renderer(source: string, name: string) {
+function renderer(source: string, name: string, statusSource?: string) {
   let refreshes = 0;
   const snapshot: Snapshot = {
     error: null,
@@ -70,6 +71,7 @@ function renderer(source: string, name: string) {
   };
   const mutation = { mutationOptions: () => ({}) };
   const bindings: Record<string, unknown> = {
+    ...(statusSource ? statusFunctions(statusSource) : {}),
     React: {
       createElement: element,
       useMemo: (factory: () => unknown) => factory(),
@@ -153,8 +155,29 @@ function renderer(source: string, name: string) {
   );
   const render = new Function(...Object.keys(bindings), `${executable}\nreturn ${name};`)(
     ...Object.values(bindings),
-  ) as () => unknown;
-  return { snapshot, render, refreshes: () => refreshes };
+  ) as (props?: Record<string, unknown>) => unknown;
+  return {
+    snapshot,
+    render: (props?: Record<string, unknown>) =>
+      render(
+        name === "BillingView"
+          ? {
+              subscriptions: snapshot.data?.subscriptions ?? [],
+              invoices: snapshot.data?.invoices ?? [],
+              locale: "en",
+              isAuthenticated: true,
+              isPending: snapshot.isPending,
+              isRefreshing: snapshot.isFetching,
+              readError: snapshot.error,
+              actionError: null,
+              onRefresh: snapshot.refetch,
+              providerControls: null,
+              t: (key: string) => key,
+            }
+          : props,
+      ),
+    refreshes: () => refreshes,
+  };
 }
 
 function expectNoEmptyClaims(tree: unknown): void {
@@ -170,7 +193,11 @@ describe("generated billing read states", () => {
       test(`${mode}/${database} TanStack separates initial loading, read failures and successful empty data`, async () => {
         const read = generate(mode, database, false);
         const root = mode === "single" ? "src" : "apps/web/src";
-        const view = renderer(read(`${root}/features/billing/billing-page.tsx`), "BillingPage");
+        const view = renderer(
+          read(root + "/features/billing/billing-page.tsx"),
+          "BillingPage",
+          read(root + "/features/billing/status-labels.ts"),
+        );
         view.snapshot.isPending = true;
         expectNoEmptyClaims(view.render());
         view.snapshot.isPending = false;
@@ -197,7 +224,7 @@ describe("generated billing read states", () => {
           provider: "stripe",
           status: "active",
         });
-        expect(JSON.stringify(view.render())).toContain("active");
+        expect(JSON.stringify(view.render())).toContain("subscriptionStatusActive");
         expectNoEmptyClaims(view.render());
       });
     }
@@ -208,10 +235,27 @@ describe("generated billing read states", () => {
       test(`${database}/i18n=${i18n} native billing never presents unknown invoices as empty`, () => {
         const read = generate("monorepo", database, true, i18n);
         for (const [path, name, indicator] of [
-          ["apps/mobile/app/billing.tsx", "BillingScreen", "ActivityIndicator"],
-          ["apps/desktop/src/renderer/routes/billing.tsx", "BillingPage", "Skeleton"],
+          [
+            "apps/mobile/src/features/billing/components/billing-view.tsx",
+            "BillingView",
+            "ActivityIndicator",
+          ],
+          [
+            "apps/desktop/src/renderer/features/billing/components/billing-view.tsx",
+            "BillingView",
+            "Skeleton",
+          ],
         ] as const) {
-          const view = renderer(read(path), name);
+          const componentRoot = path.slice(0, path.lastIndexOf("/"));
+          const view = renderer(
+            [
+              read(path),
+              read(`${componentRoot}/subscriptions-card.tsx`),
+              read(`${componentRoot}/invoices-card.tsx`),
+            ].join("\n"),
+            name,
+            read(componentRoot.slice(0, componentRoot.lastIndexOf("/")) + "/status-labels.ts"),
+          );
           view.snapshot.isPending = true;
           expectNoEmptyClaims(view.render());
           expect(
@@ -234,11 +278,30 @@ describe("generated billing read states", () => {
               { id: "inv-1", provider: "stripe", amount: 1200, status: "paid", paid: true },
             ],
           };
-          expect(JSON.stringify(view.render())).toContain("active");
+          expect(JSON.stringify(view.render())).toContain(
+            i18n ? "subscriptionStatusActive" : "Active",
+          );
           expect(JSON.stringify(view.render())).toContain("EUR 12.00");
           expectNoEmptyClaims(view.render());
-          if (name === "BillingScreen") {
-            const fields = nodes(view.render()).filter((node) => node.type === "Input");
+          if (path.startsWith("apps/mobile/")) {
+            const formView = renderer(
+              read("apps/mobile/src/features/billing/components/payment-link-form.tsx"),
+              "PaymentLinkFormView",
+            );
+            const fields = nodes(
+              formView.render({
+                form: {
+                  Field: ({ children }: { children: Array<(field: unknown) => unknown> }) =>
+                    children[0]?.({ state: { value: "" }, handleChange() {}, handleBlur() {} }),
+                  Subscribe: ({ children }: { children: Array<(errors: unknown[]) => unknown> }) =>
+                    children[0]?.([]),
+                },
+                disabled: false,
+                nameLabel: "Payment-link name",
+                priceLabel: "Provider price ID",
+                submitLabel: "Create payment link",
+              }),
+            ).filter((node) => node.type === "Input");
             expect(fields).toHaveLength(2);
             expect(fields.every((node) => typeof node.props.accessibilityLabel === "string")).toBe(
               true,

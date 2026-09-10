@@ -6,6 +6,13 @@ Audit-driven fixes across host CLI and generated output.
 
 Fixed:
 
+- Billing selection accepts at most one of Stripe, Paddle, or Polar, with
+  optional Chargily and manual payments. Parsing, configuration, and generation
+  reject multiple global providers; `both` remains the Stripe + Chargily alias.
+- Failed frontend reads preserve unknown and cached states across settings,
+  workspaces, messaging, and admin views. Arabic payment metadata, localized
+  billing statuses and passkey dates, and composed native button labels retain
+  readable presentation.
 - TanStack auth, RPC, and OpenAPI routes use the framework's catch-all syntax
   in both packaging modes, so nested requests reach their handlers instead of
   falling through to a generic 404. Production E2E now checks nested dispatch.
@@ -40,6 +47,13 @@ Fixed:
 
 Added:
 
+- Manual DZD top-ups for PostgreSQL and Convex, with private PNG/JPEG/PDF
+  receipts up to 5 MiB, administrator approval/rejection, and exactly-once ledger
+  credit. Configure the generated receiving instructions before accepting money.
+- Compatible dependency security repairs during create/install/bootstrap/upgrade,
+  plus `ghostinit security audit|fix` and generated `security:audit`/`security:fix`.
+  Repairs preserve the seven-day release delay, integrity and patch checks, and
+  declared compatibility ranges. Unresolved findings remain visible.
 - `--deploy vercel|fly|docker|cloudflare|none` on `create`/`init` (flag, interactive
   prompt, config, status). Docker/fly emit a corrected multi-stage Dockerfile
   (`COPY --parents` for workspace manifests, plain runtime image); vercel emits
@@ -64,6 +78,13 @@ Added:
 
 Changed:
 
+- Generated frontend routes and components now follow universal responsibility
+  boundaries: feature composition, remote-state adapters, cohesive workflows,
+  pure models, and focused views. Architecture/lint checks and contributor/agent
+  guidance enforce those boundaries across web, Expo, and Electron. Small local
+  UI interactions may retain component state.
+- Ordinary `check` remains read-only. Generated lint/typecheck commands remain
+  usable independently of GhostInit; agents may not silently weaken safeguards.
 - Generated installs now resolve a fresh lock with lifecycle scripts disabled,
   verify every public-registry tuple against npm's canonical SHA-512 integrity
   and seven-day publication cutoff, persist `dependency-lock-evidence.json`,

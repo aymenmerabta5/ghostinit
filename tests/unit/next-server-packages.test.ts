@@ -49,6 +49,12 @@ describe("Next native server dependency boundary", () => {
       test(`${mode}/${runtime} externalizes only selected server SDKs owned by the web manifest`, () => {
         for (let mask = 0; mask < 1 << providers.length; mask++) {
           const selected = providers.filter((_, index) => (mask & (1 << index)) !== 0);
+          if (selected.filter((provider) => provider !== "chargily").length > 1) {
+            expect(() => generate(mode, runtime, selected)).toThrow(
+              "Select at most one global billing provider",
+            );
+            continue;
+          }
           const files = generate(mode, runtime, selected);
           const prefix = mode === "single" ? "" : "apps/web/";
           const config = content(files, prefix + "next.config.ts");
@@ -75,16 +81,27 @@ describe("Next native server dependency boundary", () => {
       });
 
       test(`${mode}/${runtime} leaves Worker SDK packaging to its adapter`, () => {
-        const files = generate(mode, runtime, [...providers], true);
-        const prefix = mode === "single" ? "" : "apps/web/";
-        const config = content(files, prefix + "next.config.ts");
-        expect(config).not.toContain("serverExternalPackages");
-        expect(config).toContain("initOpenNextCloudflareForDev");
-        const manifest = JSON.parse(content(files, prefix + "package.json")) as {
-          dependencies: Record<string, string>;
-        };
-        for (const provider of providers) {
-          expect(manifest.dependencies[providerPackages[provider]]).toBeString();
+        for (let mask = 0; mask < 1 << providers.length; mask++) {
+          const selected = providers.filter((_, index) => (mask & (1 << index)) !== 0);
+          if (selected.filter((provider) => provider !== "chargily").length > 1) {
+            expect(() => generate(mode, runtime, selected, true)).toThrow(
+              "Select at most one global billing provider",
+            );
+            continue;
+          }
+          const files = generate(mode, runtime, selected, true);
+          const prefix = mode === "single" ? "" : "apps/web/";
+          const config = content(files, prefix + "next.config.ts");
+          expect(config).not.toContain("serverExternalPackages");
+          expect(config).toContain("initOpenNextCloudflareForDev");
+          const manifest = JSON.parse(content(files, prefix + "package.json")) as {
+            dependencies: Record<string, string>;
+          };
+          for (const provider of providers) {
+            if (selected.includes(provider))
+              expect(manifest.dependencies[providerPackages[provider]]).toBeString();
+            else expect(manifest.dependencies[providerPackages[provider]]).toBeUndefined();
+          }
         }
       });
     }

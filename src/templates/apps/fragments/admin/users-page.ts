@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { CreateUserForm } from "./components/create-user-form";
 import { AdminUserFilters } from "./components/filters";
 import { AdminUsersResults } from "./components/user-results";
-import { useAdminUsers } from "./hooks/use-admin-users";
-import { useAdminUserMutations } from "./mutations";
+import { useAdminUsers } from "./use-admin-users";
+import { useCreateAdminUser } from "./use-create-admin-user";
+import { useAdminUserFilters } from "./use-admin-user-filters";
+import { useAdminUsersTranslations } from "./use-admin-users-translations";
 import {
   formatAdminUsersAccountCount,
-  translateAdminUsersError,
-  useAdminUsersTranslations,
 } from "./translations";
 import type { AdminUsersInitialData } from "./types";
 
@@ -24,6 +24,7 @@ export interface AdminUsersFeatureProps {
 export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): React.JSX.Element {
   const translate = useAdminUsersTranslations();
   const admin = useAdminUsers(initialData);
+  const filters = useAdminUserFilters({ search: admin.filters.search, isFetching: admin.isFetching, onApply: admin.applyFilters, onClear: admin.clearFilters });
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
@@ -31,7 +32,7 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold tracking-tight">{translate("list.title")}</h1>
           <p className="max-w-[65ch] text-sm leading-6 text-muted-foreground">
-            {translate("list.description")} {formatAdminUsersAccountCount(translate, admin.total, admin.totalIsExact)}
+            {translate("list.description")} {admin.total !== undefined ? formatAdminUsersAccountCount(translate, admin.total, admin.totalIsExact) : null}
           </p>
         </div>
         <Button className="w-auto self-start" render={<a href="/admin/users/create" />} nativeButton={false}>
@@ -39,12 +40,7 @@ export function AdminUsersFeature({ initialData }: AdminUsersFeatureProps): Reac
         </Button>
       </header>
 
-      <AdminUserFilters
-        search={admin.filters.search}
-        isFetching={admin.isFetching}
-        onApply={admin.applyFilters}
-        onClear={admin.clearFilters}
-      />
+      <AdminUserFilters {...filters} />
       <AdminUsersResults admin={admin} translate={translate} />
     </main>
   );
@@ -55,14 +51,10 @@ export interface AdminCreateUserFeatureProps {
 }
 
 export function AdminCreateUserFeature({ onCreated }: AdminCreateUserFeatureProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
-  const mutations = useAdminUserMutations();
+  const create = useCreateAdminUser(onCreated);
   return (
     <CreateUserForm
-      error={translateAdminUsersError(mutations.error, translate, "errors.createFailed")}
-      pending={mutations.createPending}
-      onCreate={mutations.createUser}
-      onCreated={onCreated}
+      {...create}
     />
   );
 }
@@ -71,8 +63,8 @@ export { adminUsersFilterSchema, adminUserRoleSchema, createAdminUserSchema } fr
 export {
   formatAdminUsersAccountCount,
   translateAdminUsersError,
-  useAdminUsersTranslations,
 } from "./translations";
+export { useAdminUsersTranslations } from "./use-admin-users-translations";
 export type { AdminUsersMessageKey, AdminUsersTranslate } from "./translations";
 export { DEFAULT_ADMIN_USERS_FILTERS } from "./types";
 export type {
@@ -95,7 +87,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { AdminUsersPagination } from "./filters";
 import { UserTable, UserTableSkeleton } from "./user-table";
-import type { useAdminUsers } from "../hooks/use-admin-users";
+import type { useAdminUsers } from "../use-admin-users";
 import type { AdminUsersTranslate } from "../translations";
 
 export interface AdminUsersResultsProps {
@@ -104,7 +96,7 @@ export interface AdminUsersResultsProps {
 }
 
 export function AdminUsersResults({ admin, translate }: AdminUsersResultsProps): React.JSX.Element {
-  const showEmpty = !admin.isPending && !admin.queryError && admin.users.length === 0;
+  const showEmpty = admin.total !== undefined && !admin.isPending && !admin.queryError && admin.users.length === 0;
   return <>
     {admin.queryError ? (
       <Alert variant="destructive" role="alert">
@@ -125,7 +117,7 @@ export function AdminUsersResults({ admin, translate }: AdminUsersResultsProps):
       </Alert>
     ) : null}
     {admin.isPending ? (
-      <UserTableSkeleton />
+      <UserTableSkeleton translate={translate} />
     ) : showEmpty ? (
       <Empty className="rounded-lg border bg-card">
         <EmptyHeader>
@@ -148,8 +140,9 @@ export function AdminUsersResults({ admin, translate }: AdminUsersResultsProps):
           )}
         </EmptyContent>
       </Empty>
-    ) : (
+    ) : admin.total !== undefined ? (
       <UserTable
+        translate={translate}
         users={admin.users}
         total={admin.total}
         totalIsExact={admin.totalIsExact}
@@ -158,9 +151,10 @@ export function AdminUsersResults({ admin, translate }: AdminUsersResultsProps):
         onToggleRole={admin.toggleRole}
         onToggleBanned={admin.toggleBanned}
       />
-    )}
-    {!admin.isPending && !admin.queryError && !showEmpty ? (
+    ) : null}
+    {admin.total !== undefined && !admin.isPending && !admin.queryError && !showEmpty ? (
       <AdminUsersPagination
+        translate={translate}
         page={admin.filters.page}
         totalPages={admin.totalPages}
         hasMore={admin.hasMore}

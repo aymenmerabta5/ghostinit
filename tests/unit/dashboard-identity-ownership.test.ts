@@ -81,17 +81,50 @@ function identityHarness(read: (path: string) => string, mode: Mode, api: boolea
       values?.email ? `${key} ${values.email} ${values.name}` : key,
   };
   const name = mode === "single" ? "DashboardIdentityCard" : "IdentityCard";
-  const card = generatedFormHarness(read("features/dashboard/identity-card.tsx"), [name], bindings);
+  const card = generatedFormHarness(
+    read("features/dashboard/components/identity-card.tsx"),
+    [name],
+    bindings,
+  );
   const checks =
     mode === "monorepo"
-      ? generatedFormHarness(read("features/dashboard/checks-card.tsx"), ["ChecksCard"], bindings)
+      ? generatedFormHarness(
+          read("features/dashboard/components/checks-card.tsx"),
+          ["ChecksCard"],
+          bindings,
+        )
       : null;
+  const screenName = mode === "single" ? "DashboardOverview" : "DashboardView";
+  const screen = generatedFormHarness(
+    read(`features/dashboard/${mode === "single" ? "dashboard-overview" : "dashboard-view"}.tsx`),
+    [screenName],
+    {
+      ...bindings,
+      DashboardIdentityCard: "IdentityCard",
+      DashboardQuickActions: "QuickActions",
+      ChevronDown: "ChevronDown",
+      ArchitectureStatus: "ArchitectureStatus",
+      DashboardHeader: "DashboardHeader",
+      IdentityActions: "IdentityActions",
+      ModulesCard: "ModulesCard",
+    },
+  );
+  const screenNodes = () => elements(screen.render(screenName, { user: accountA }));
   return {
     provider,
     canonical,
     selection,
-    render: () => card.render(name, { user: accountA }),
-    renderChecks: () => checks?.render("ChecksCard", { user: accountA }),
+    render: () => {
+      const node = screenNodes().find(
+        ({ type }) => type === (mode === "single" ? "IdentityCard" : "IdentityActions"),
+      )!;
+      return card.render(name, mode === "single" ? node.props : node.props.identity);
+    },
+    renderChecks: () =>
+      checks?.render(
+        "ChecksCard",
+        screenNodes().find(({ type }) => type === "ArchitectureStatus")!.props,
+      ),
   };
 }
 
@@ -148,16 +181,21 @@ describe("dashboard identity follows its current owner", () => {
             expect(textContent(harness.render())).toContain(freshA.email);
             expect(textContent(harness.render())).not.toContain(accountA.email);
 
-            const stateSource = output.read("features/dashboard/identity-state.tsx");
+            const stateSource = output.read("features/dashboard/components/identity-state.tsx");
             expect(stateSource).not.toMatch(
               /\bfetch\(|orpc|queryOptions|\.getSession\(|auth-client|useSession|useQueryAuthSession/,
             );
             expect(output.read("features/dashboard/queries.ts")).toContain(
               'from "@/lib/auth-client"',
             );
-            expect(output.read("features/dashboard/identity-card.tsx")).toContain(
-              'from "./queries"',
+            expect(output.read("features/dashboard/components/identity-card.tsx")).not.toContain(
+              "useDashboardIdentity",
             );
+            expect(
+              output.read(
+                `features/dashboard/${mode === "single" ? "dashboard-overview" : "dashboard-view"}.tsx`,
+              ),
+            ).toContain('from "./queries"');
             expect(output.read("components/query-auth-boundary.tsx")).toContain(
               `hasCanonicalApi: ${api}`,
             );

@@ -2,8 +2,33 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { runtime } from "../../packages/versions/src/index.js";
+import { buildDependencySecurityRuntimeArtifact } from "../../scripts/embed-dependency-security-runtime.js";
+import { dependencyAuditScriptContent } from "../../src/templates/tooling/dependency-audit-policy.js";
 
 const root = resolve(import.meta.dir, "../..");
+const generatedAuditFixture =
+  "tests/fixtures/compatibility/expo-uniwind-rnr/scripts/audit-dependencies.ts";
+const generatedSecurityRuntime = "src/generation/embedded-dependency-security-runtime.ts";
+
+function authoredBunVersionDeclarations(
+  path: string,
+  content: string,
+  rawVersion: RegExp,
+  generatedSources: ReadonlyMap<string, string>,
+): string[] {
+  const expected = generatedSources.get(path);
+  if (expected !== undefined) {
+    // Only the older committed fixture permits checkout newline normalization.
+    // The bundled module must match its owning build/render recipe byte for byte.
+    const observed = path === generatedAuditFixture ? content.replace(/\r\n?/g, "\n") : content;
+    if (observed !== expected)
+      throw new Error(`Generated Bun-version artifact does not match its owning recipe: ${path}`);
+    return [];
+  }
+  return content
+    .split(/\r?\n/)
+    .flatMap((line, index) => (rawVersion.test(line) ? [`${path}:${index + 1}`] : []));
+}
 
 function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
@@ -53,26 +78,51 @@ function collectBunSchemaVersions(
 }
 
 describe("Bun version single source of truth", () => {
-  test("production, scripts, and tests import the canonical version instead of re-authoring it", () => {
+  test("production, scripts, and tests import the canonical version instead of re-authoring it", async () => {
     const escapedVersion = runtime.bun.replaceAll(".", "\\.");
     const rawVersion = new RegExp(`["']${escapedVersion}["']`);
-    // This committed compatibility fixture is generated output, not a second
-    // authored source. Its separate byte-for-byte contract binds it to
-    // dependencyAuditScriptContent(), which interpolates the canonical version.
-    const generatedFixture =
-      "tests/fixtures/compatibility/expo-uniwind-rnr/scripts/audit-dependencies.ts";
+    const committedBefore = readFileSync(resolve(root, generatedSecurityRuntime), "utf8");
+    const artifact = await buildDependencySecurityRuntimeArtifact(root);
+    expect(readFileSync(resolve(root, generatedSecurityRuntime), "utf8")).toBe(committedBefore);
+    expect(
+      artifact.receipt.inputs.some(
+        (path) =>
+          path.replaceAll("\\", "/") === "packages/versions/src/index.ts" ||
+          path.replaceAll("\\", "/").endsWith("/packages/versions/src/index.ts"),
+      ),
+    ).toBe(true);
+    // These two exact paths are generated data, independently bound to their
+    // owning recipes. No generation directory or filename pattern is exempted.
+    const generatedSources = new Map([
+      [generatedAuditFixture, dependencyAuditScriptContent(true).replace(/\r\n?/g, "\n")],
+      [generatedSecurityRuntime, artifact.moduleContent],
+    ]);
+    const reauthored = `export const version = ${JSON.stringify(runtime.bun)};\n`;
+    for (const path of [
+      "src/lib/reauthored.ts",
+      "src/generation/embedded-dependency-security-runtime-copy.ts",
+    ]) {
+      expect(
+        authoredBunVersionDeclarations(path, reauthored, rawVersion, generatedSources),
+      ).toEqual([`${path}:1`]);
+    }
+    expect(() =>
+      authoredBunVersionDeclarations(
+        generatedSecurityRuntime,
+        `${artifact.moduleContent}\n// handwritten change\n`,
+        rawVersion,
+        generatedSources,
+      ),
+    ).toThrow("owning recipe");
     const offenders = ["src", "scripts", "tests"]
       .flatMap((directory) => collectTypeScriptFiles(resolve(root, directory)))
       .flatMap((path) =>
-        relative(root, path).replaceAll("\\", "/") === generatedFixture
-          ? []
-          : readFileSync(path, "utf8")
-              .split(/\r?\n/)
-              .flatMap((line, index) =>
-                rawVersion.test(line)
-                  ? [`${relative(root, path).replaceAll("\\", "/")}:${index + 1}`]
-                  : [],
-              ),
+        authoredBunVersionDeclarations(
+          relative(root, path).replaceAll("\\", "/"),
+          readFileSync(path, "utf8"),
+          rawVersion,
+          generatedSources,
+        ),
       );
     expect(offenders).toEqual([]);
 

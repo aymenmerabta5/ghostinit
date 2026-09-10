@@ -71,9 +71,12 @@ function packageScripts(content: string): Record<string, string> {
 }
 
 describe("emitted lint scripts", () => {
-  test("emits the test preload, seven checks, and shared OXC helper", () => {
+  test("emits the test preload, ownership runtime and policy, eight checks, and shared OXC helper", () => {
     expect(lintScriptFiles().map((template) => template.path)).toEqual([
       "scripts/test-env.ts",
+      "scripts/lib/frontend-ownership.cjs",
+      "tooling/frontend-ownership-policy.json",
+      "scripts/check-frontend-ownership.cjs",
       "scripts/check-feature-folder.cjs",
       "scripts/check-server-only.cjs",
       "scripts/check-import-aliases.cjs",
@@ -84,7 +87,11 @@ describe("emitted lint scripts", () => {
       "scripts/lib/oxc.cjs",
     ]);
     for (const script of lintScriptFiles()) {
-      if (script.path === "scripts/test-env.ts" || script.path.endsWith("scripts/lib/oxc.cjs")) {
+      if (
+        script.path === "scripts/test-env.ts" ||
+        script.path.startsWith("scripts/lib/") ||
+        script.path.endsWith(".json")
+      ) {
         continue;
       }
       expect(script.content, script.path).toStartWith("#!/usr/bin/env bun\n");
@@ -163,7 +170,7 @@ describe("emitted lint scripts", () => {
   test("the emitted CJS is oxlint-clean", () => {
     const { scripts } = fixture();
     const result = Bun.spawnSync(["bunx", "--no-install", "oxlint", "--deny-warnings", ...scripts]);
-    expect(result.exitCode, result.stderr.toString()).toBe(0);
+    expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
   });
 
   test("feature-folder reports each physical file once across overlapping roots", () => {
@@ -180,6 +187,121 @@ describe("emitted lint scripts", () => {
       "  apps/web/src/app/billing/polar/provider-panel.tsx: 151 lines (limit 150)",
       "  apps/web/src/app/billing/stripe/provider-panel.tsx: 151 lines (limit 150)",
     ]);
+  });
+
+  test.each([
+    "src/features/account/components/panel.tsx",
+    "src/renderer/features/account/components/panel.tsx",
+    "app/settings.tsx",
+    "apps/mobile/app/settings.tsx",
+    "apps/mobile/src/features/account/components/panel.tsx",
+    "apps/desktop/src/renderer/features/account/components/panel.tsx",
+    "apps/console/src/features/account/components/panel.tsx",
+  ])("feature size gate includes %s alongside the web route tree", (path) => {
+    const { directory } = fixture();
+    writeFixtureFile(
+      directory,
+      "src/app/page.tsx",
+      "export default function Page() { return null; }",
+    );
+    writeFixtureFile(
+      directory,
+      "apps/web/src/app/page.tsx",
+      "export default function Page() { return null; }",
+    );
+    writeFixtureFile(directory, path, Array.from({ length: 151 }, () => "// oversized").join("\n"));
+    const result = runScript(directory, "check-feature-folder.cjs");
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain(`${path}: 151 lines (limit 150)`);
+  });
+
+  test.each([
+    "src/server/pdf/src/templates/invoice.tsx",
+    "src/server/email/receipt.tsx",
+    "apps/web/src/server/pdf/src/templates/invoice.tsx",
+    "apps/console/src/server/documents/invoice.tsx",
+  ])("frontend size budgets exclude the intrinsic backend adapter %s", (path) => {
+    const { directory } = fixture();
+    writeFixtureFile(
+      directory,
+      path,
+      Array.from({ length: 151 }, () => "// document adapter").join("\n"),
+    );
+    for (const runtime of ["bun", "node"] as const) {
+      const result = runScript(directory, "check-feature-folder.cjs", runtime);
+      expect(result.exitCode, `${runtime}: ${result.output}`).toBe(0);
+      expect(result.output).toContain("feature-folder check passed");
+    }
+  });
+
+  test.each([
+    "src/features/pdf/components/document-preview.tsx",
+    "src/components/pdf/document-preview.tsx",
+    "src/routes/pdf.tsx",
+    "src/features/server/components/panel.tsx",
+    "src/server-like/panel.tsx",
+    "src/renderer/features/pdf/components/panel.tsx",
+    "app/pdf.tsx",
+    "apps/mobile/app/pdf.tsx",
+    "apps/mobile/src/features/pdf/components/panel.tsx",
+    "apps/desktop/src/renderer/features/pdf/components/panel.tsx",
+    "apps/web/src/components/pdf/document-preview.tsx",
+    "apps/console/src/features/pdf/components/panel.tsx",
+  ])("frontend size budgets still reject oversized presentation at %s", (path) => {
+    const { directory } = fixture();
+    writeFixtureFile(directory, path, Array.from({ length: 151 }, () => "// oversized").join("\n"));
+    for (const runtime of ["bun", "node"] as const) {
+      const result = runScript(directory, "check-feature-folder.cjs", runtime);
+      expect(result.exitCode, `${runtime}: ${result.output}`).toBe(1);
+      expect(result.output).toContain(`${path}: 151 lines (limit 150)`);
+    }
+  });
+
+  test.each([
+    "src/app/pdf/page.tsx",
+    "src/app/server/page.tsx",
+    "apps/web/src/app/pdf/page.tsx",
+    "apps/console/src/app/server/page.tsx",
+  ])("Next server component %s retains the existing page size budget", (path) => {
+    const { directory } = fixture();
+    writeFixtureFile(
+      directory,
+      path,
+      [
+        "export default async function Page() { return <main />; }",
+        ...Array.from({ length: 200 }, () => "// oversized server component"),
+      ].join("\n"),
+    );
+    for (const runtime of ["bun", "node"] as const) {
+      const result = runScript(directory, "check-feature-folder.cjs", runtime);
+      expect(result.exitCode, `${runtime}: ${result.output}`).toBe(1);
+      expect(result.output).toContain(`${path}: 201 lines (limit 200)`);
+    }
+  });
+
+  test("moving presentation under an intrinsic backend root cannot bypass client isolation", () => {
+    const { directory } = fixture();
+    writeFixtureFile(
+      directory,
+      "src/server/pdf/src/templates/invoice.tsx",
+      [
+        "export const Template = () => <main />;",
+        ...Array.from({ length: 150 }, () => "// backend template"),
+      ].join("\n"),
+    );
+    writeFixtureFile(
+      directory,
+      "src/components/pdf-preview.tsx",
+      ['"use client";', 'export { Template } from "../server/pdf/src/templates/invoice";'].join(
+        "\n",
+      ),
+    );
+    const size = runScript(directory, "check-feature-folder.cjs");
+    expect(size.exitCode, size.output).toBe(0);
+    const isolation = runScript(directory, "check-server-only.cjs");
+    expect(isolation.exitCode, isolation.output).toBe(1);
+    expect(isolation.output).toContain("Client-reachable server runtime");
+    expect(isolation.output).toContain("src/server/pdf/src/templates/invoice.tsx");
   });
 
   test("server-only graph rejects client reachability through intrinsic server modules", () => {
@@ -669,7 +791,7 @@ describe("emitted lint scripts", () => {
     for (const file of generated) writeFixtureFile(directory, file.path, file.content);
 
     const shell = generated.find(
-      ({ path }) => path === "apps/web/src/components/app-shell.tsx",
+      ({ path }) => path === "apps/web/src/features/app-shell/app-shell.tsx",
     )?.content;
     const actions = generated.find(
       ({ path }) => path === "apps/web/src/components/header-actions.tsx",
@@ -694,7 +816,7 @@ describe("emitted lint scripts", () => {
         error: "Root layout must mount AppShell exactly once",
       },
       {
-        path: "apps/web/src/components/app-shell.tsx",
+        path: "apps/web/src/features/app-shell/app-shell.tsx",
         mutate: (source: string) =>
           source
             .replace("<Header workspace=", "<section workspace=")
@@ -702,7 +824,7 @@ describe("emitted lint scripts", () => {
         error: "AppShell must mount Header exactly once",
       },
       {
-        path: "apps/web/src/components/app-shell.tsx",
+        path: "apps/web/src/features/app-shell/app-shell.tsx",
         mutate: (source: string) => source.replace("<WorkspaceSidebar ", "<div "),
         error: "AppShell must mount WorkspaceSidebar exactly once",
       },
@@ -718,7 +840,7 @@ describe("emitted lint scripts", () => {
         error: "Workspace trigger must mount WorkspaceNavigation exactly once",
       },
       {
-        path: "apps/web/src/components/app-shell.tsx",
+        path: "apps/web/src/features/app-shell/queries.ts",
         mutate: (source: string) =>
           source.replace("canonical.currentRequest?.user", "session.user"),
         error: "Canonical workspace identity is missing canonical.currentRequest?.user",
@@ -746,7 +868,7 @@ describe("emitted lint scripts", () => {
         error: 'Workspace trigger is missing t("openNavigation")',
       },
       {
-        path: "apps/web/src/components/workspace-navigation.tsx",
+        path: "apps/web/src/features/app-shell/navigation-model.ts",
         mutate: (source: string) =>
           source.replace('label: "dashboard"', 'label: "missingTranslation"'),
         error: "en header catalog is missing missingTranslation",

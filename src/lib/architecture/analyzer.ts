@@ -11,6 +11,9 @@ import {
   type SourceCollectionOptions,
 } from "./collectors/index.js";
 import { parseFile } from "./parsers/imports.js";
+import { analyzeFrontendFile } from "./frontend/index.js";
+import { convexClientReferenceStarts } from "./protocols/convex.js";
+import { isSingleExpoClientFile } from "./rules/platform-clients.js";
 import { createImportResolver, type ResolvedImport } from "./resolution/index.js";
 import {
   analyzeRuntimeGraph,
@@ -59,6 +62,7 @@ interface SourceUnit {
   resolutions: ResolvedImport[];
   directives: Set<string>;
   serverActionValid: boolean;
+  convexClientReferences: Set<number>;
 }
 
 export async function analyzeProject(root: string, options: AnalyzeProjectOptions = {}) {
@@ -132,8 +136,23 @@ export async function analyzeProjectReport(
     if (parsed.diagnostics.length > 0) continue;
 
     const resolutions = await resolver.resolveAll(file, parsed.importReferences);
-    importCount += resolutions.length;
     const pkg = packageForFile(file, packages);
+    findings.push(
+      ...analyzeFrontendFile({
+        file: relativeFile,
+        source: bounded.source,
+        program: parsed.program,
+        comments: parsed.comments,
+        platform:
+          pkg?.dependencies.has("expo") && pkg.dependencies.has("react-native") ? "expo" : "web",
+        imports: resolutions.map(({ specifier, target, reference }) => ({
+          specifier,
+          target,
+          typeOnly: reference.typeOnly,
+        })),
+      }),
+    );
+    importCount += resolutions.length;
     for (const resolution of resolutions) {
       if (resolution.kind === "unresolved" && resolution.owned) {
         findings.push(unresolvedImportFinding(relativeFile, resolution));
@@ -162,6 +181,7 @@ export async function analyzeProjectReport(
       resolutions,
       directives: parsed.directives,
       serverActionValid: parsed.serverActionValid,
+      convexClientReferences: convexClientReferenceStarts(relativeFile, parsed.program),
     });
   }
 
@@ -189,7 +209,7 @@ async function runImportRules(
   checkDeepRelativeImport(findings, resolution);
   checkModuleToModule(findings, file, absoluteFile, imp, pkg, resolution.target);
   if (!resolution.reference.typeOnly) {
-    checkServerOnlyClient(findings, file, imp, pkg, directives, source);
+    checkServerOnlyClient(findings, file, imp, pkg, directives, source, resolution.target);
   }
   checkVendorIsolation(findings, file, imp);
   checkCapabilityIsolation(findings, file, absoluteFile, imp, resolution.target);
@@ -200,6 +220,7 @@ async function runImportRules(
     imp,
     resolution.target,
     resolution.reference.kind,
+    resolution.reference.typeOnly,
   );
   await checkUndeclaredDependency(findings, file, imp, pkg, packageByDir);
   decorateEdgeFindings(findings, start, resolution.reference);
@@ -218,7 +239,9 @@ function addRuntimeTaintFindings(findings: ArchitectureFinding[], units: SourceU
       client: isSinglePlatformClient(unit),
     });
     for (const resolution of unit.resolutions) {
-      const serverOnly = isServerOnlyImport(resolution);
+      const serverOnly =
+        !unit.convexClientReferences.has(resolution.reference.location.start) &&
+        isServerOnlyImport(resolution);
       if (
         (resolution.kind === "internal" || resolution.kind === "workspace") &&
         resolution.target &&
@@ -283,9 +306,7 @@ function isTanStackServerFunctionReference(unit: SourceUnit): boolean {
 function isSinglePlatformClient(unit: SourceUnit): boolean {
   const deps = unit.pkg?.dependencies;
   if (!deps) return false;
-  if ((deps.has("expo") || deps.has("react-native")) && unit.relativeFile.startsWith("app/")) {
-    return !unit.relativeFile.startsWith("app/api/");
-  }
+  if (isSingleExpoClientFile(unit.relativeFile, deps)) return true;
   return deps.has("electron") && unit.relativeFile.startsWith("src/renderer/");
 }
 

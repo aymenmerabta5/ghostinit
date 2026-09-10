@@ -78,6 +78,9 @@ export interface ParserDiagnostic {
 }
 
 export interface ParsedFile {
+  /** Transient OXC AST, consumed per file rather than retained in the project graph. */
+  program: unknown;
+  comments: readonly unknown[];
   /** Legacy, first-seen list retained for existing architecture rules. */
   imports: string[];
   importReferences: ImportReference[];

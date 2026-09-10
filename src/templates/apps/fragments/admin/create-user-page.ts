@@ -8,46 +8,21 @@ import type * as React from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createAdminUserSchema } from "../schema";
-import { useAdminUsersTranslations } from "../translations";
-import type { CreateAdminUserInput } from "../types";
+import { Form } from "@/components/ui/form";
+import type { useCreateAdminUser } from "../use-create-admin-user";
 
-export interface CreateUserFormProps {
-  error: string | null;
-  pending: boolean;
-  onCreate(input: CreateAdminUserInput): Promise<boolean>;
-  onCreated(): void;
-}
+export type CreateUserFormProps = ReturnType<typeof useCreateAdminUser>;
 
 export function CreateUserForm({
   error,
   pending,
-  onCreate,
-  onCreated,
+  form,
+  translate,
 }: CreateUserFormProps): React.JSX.Element {
-  const translate = useAdminUsersTranslations();
   const roleOptions = [
     { label: translate("roles.user"), value: "user" },
     { label: translate("roles.admin"), value: "admin" },
   ] as const;
-  const defaultValues: CreateAdminUserInput = {
-    name: "",
-    email: "",
-    password: "",
-    role: "user",
-  };
-  const form = useAppForm({
-    defaultValues,
-    validators: { onSubmit: createAdminUserSchema(translate) },
-    onSubmit: async ({ value }) => {
-      const created = await onCreate(value);
-      if (created) {
-        form.reset();
-        onCreated();
-      }
-    },
-  });
 
   return (
     <Card>

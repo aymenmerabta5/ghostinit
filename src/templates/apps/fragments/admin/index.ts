@@ -5,6 +5,7 @@ import { adminDataFiles } from "./feature-data.js";
 import { adminSchemaFiles } from "./feature-schema.js";
 import { adminFiltersFile } from "./filters.js";
 import { adminUsersHook } from "./hooks.js";
+import { adminFormWorkflowFiles } from "./form-workflows.js";
 import { adminLayoutFile } from "./layout.js";
 import type { AdminTemplateOptions } from "./model.js";
 import {
@@ -13,9 +14,13 @@ import {
   tanstackAdminRouteFiles,
   tanstackAdminUsersContent,
 } from "./tanstack-routes.js";
-import { adminUserRowConfirmationFile, adminUserRowFile } from "./user-row.js";
+import {
+  adminUserRowConfirmationFile,
+  adminUserRowFile,
+  adminUserRowControllerFile,
+} from "./user-row.js";
 import { adminUserTableFile } from "./user-table.js";
-import { adminTranslationsFile } from "./translations.js";
+import { adminTranslationsFile, adminTranslationsHookFile } from "./translations.js";
 import { adminFeatureIndexFile, adminUserResultsFile, nextAdminUsersPage } from "./users-page.js";
 
 export type { AdminDatabase, AdminFramework, AdminMode, AdminTemplateOptions } from "./model.js";
@@ -23,12 +28,15 @@ export type { AdminDatabase, AdminFramework, AdminMode, AdminTemplateOptions } f
 export function adminFeatureFiles(options: AdminTemplateOptions): TemplateFile[] {
   return [
     adminTranslationsFile(options),
+    adminTranslationsHookFile(options),
+    ...adminFormWorkflowFiles(options),
     ...adminSchemaFiles(options),
     ...adminDataFiles(options),
     adminUsersHook(options),
     adminFiltersFile(options),
     adminUserTableFile(options),
     adminUserRowFile(options),
+    adminUserRowControllerFile(options),
     adminUserRowConfirmationFile(options),
     adminCreateUserFormFile(options),
     adminUserResultsFile(options),

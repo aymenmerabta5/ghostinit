@@ -9,34 +9,12 @@ export function headerUserMenuContent(
   hasPdf = false,
   navigation: HeaderNavigationCapabilities = {},
 ): string {
-  const routerImport =
-    router === "next"
-      ? 'import { useRouter } from "next/navigation";'
-      : 'import { useRouter } from "@tanstack/react-router";';
-  const signOut =
-    router === "next"
-      ? `    transitionQueryAuthScope(getQueryClient(), null);
-    router.push("/");
-    router.refresh();`
-      : `    transitionQueryAuthScope(getQueryClient(), null);
-    router.navigate({ to: "/" });`;
-  const queryResetImport = `import { getQueryClient, transitionQueryAuthScope } from "../lib/query-client.js";`;
-  const billingDestination = !hasBilling
-    ? ""
-    : router === "next"
-      ? `          <DropdownMenuItem onClick={() => router.push("/billing")}>{t("billing")}</DropdownMenuItem>\n`
-      : `          <DropdownMenuItem onClick={() => router.navigate({ to: "/billing" })}>{t("billing")}</DropdownMenuItem>\n`;
-  const messagingDestination = !hasMessaging
-    ? ""
-    : router === "next"
-      ? `          <DropdownMenuItem onClick={() => router.push("/messages")}>{t("messages")}</DropdownMenuItem>\n`
-      : `          <DropdownMenuItem onClick={() => router.navigate({ to: "/messages" })}>{t("messages")}</DropdownMenuItem>\n`;
-  const destination = (enabled: boolean | undefined, path: string, label: string): string => {
-    if (!enabled) return "";
-    return router === "next"
-      ? `          <DropdownMenuItem onClick={() => router.push("${path}")}>{t("${label}")}</DropdownMenuItem>\n`
-      : `          <DropdownMenuItem onClick={() => router.navigate({ to: "${path}" })}>{t("${label}")}</DropdownMenuItem>\n`;
-  };
+  const destination = (enabled: boolean | undefined, path: string, label: string): string =>
+    enabled
+      ? `          <DropdownMenuItem onClick={() => onNavigate("${path}")}>{t("${label}")}</DropdownMenuItem>\n`
+      : "";
+  const billingDestination = destination(hasBilling, "/billing", "billing");
+  const messagingDestination = destination(hasMessaging, "/messages", "messages");
   const extraDestinations = [
     destination(router === "next" && navigation.eve, "/agent", "agent"),
     destination(navigation.notifications, "/notifications", "notifications"),
@@ -45,30 +23,20 @@ export function headerUserMenuContent(
     destination(navigation.jobs, "/jobs", "jobs"),
     destination(hasPdf, "/pdf", "pdf"),
   ].join("");
-  const adminNavigation = !hasAdminNavigation
-    ? ""
-    : router === "next"
-      ? `          {user?.role === "admin" ? <DropdownMenuItem onClick={() => router.push("/admin/users")}>{t("users")}</DropdownMenuItem> : null}`
-      : `          {user?.role === "admin" ? <DropdownMenuItem onClick={() => router.navigate({ to: "/admin/users" })}>{t("users")}</DropdownMenuItem> : null}`;
-  const dropdownNav =
-    router === "next"
-      ? `          <DropdownMenuItem onClick={() => router.push("/dashboard")}>{t("dashboard")}</DropdownMenuItem>
+  const adminNavigation = hasAdminNavigation
+    ? `          {user?.role === "admin" ? <DropdownMenuItem onClick={() => onNavigate("/admin/users")}>{t("users")}</DropdownMenuItem> : null}`
+    : "";
+  const dropdownNav = `          <DropdownMenuItem onClick={() => onNavigate("/dashboard")}>{t("dashboard")}</DropdownMenuItem>
 ${extraDestinations}
 ${messagingDestination}
 ${billingDestination}
-          <DropdownMenuItem onClick={() => router.push("/settings")}>{t("settings")}</DropdownMenuItem>
-${adminNavigation}`
-      : `          <DropdownMenuItem onClick={() => router.navigate({ to: "/dashboard" })}>{t("dashboard")}</DropdownMenuItem>
-${extraDestinations}
-${messagingDestination}
-${billingDestination}
-          <DropdownMenuItem onClick={() => router.navigate({ to: "/settings" })}>{t("settings")}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onNavigate("/settings")}>{t("settings")}</DropdownMenuItem>
 ${adminNavigation}`;
 
   return `"use client";
 
 import * as React from "react";
-${routerImport}
+import type { WorkspaceDestination } from "@/features/app-shell/navigation-model";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,8 +49,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSurfaceTranslations } from "@/lib/translations";
-import { authClient } from "../lib/auth-client.js";
-${queryResetImport}
 
 export interface HeaderUser {
   name?: string | null;
@@ -99,14 +65,12 @@ function getInitials(user: HeaderUser | null): string {
   return user?.email?.slice(0, 2).toUpperCase() ?? "U";
 }
 
-export function HeaderUserMenu({ user }: { user: HeaderUser | null }): React.JSX.Element {
-  const router = useRouter();
+export function HeaderUserMenu({ user, onNavigate, onSignOut }: {
+  user: HeaderUser | null;
+  onNavigate(destination: WorkspaceDestination): void;
+  onSignOut(): Promise<void>;
+}): React.JSX.Element {
   const t = useSurfaceTranslations("header");
-
-  async function handleSignOut(): Promise<void> {
-    await authClient.signOut();
-${signOut}
-  }
 
   return (
     <DropdownMenu>
@@ -124,7 +88,7 @@ ${dropdownNav}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => void handleSignOut()}>{t("signOut")}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => void onSignOut()}>{t("signOut")}</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

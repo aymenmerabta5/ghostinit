@@ -276,41 +276,35 @@ describe("privileged desktop Convex integration", () => {
   test("messaging chooses credential-free Convex download while retaining authenticated backend routes", async () => {
     const files = generated("tanstack-start");
     const source = read(files, "apps/desktop/src/renderer/adapters/messaging/convex.ts");
-    const bodyStart = source.indexOf("function desktopMessagingApiUrl(");
-    const bodyEnd = source.indexOf("export type ConversationId", bodyStart);
-    expect(bodyStart).toBeGreaterThanOrEqual(0);
-    expect(bodyEnd).toBeGreaterThan(bodyStart);
     const calls: Array<{ kind: string; url: string; init?: RequestInit }> = [];
     const blobUrl = Object.assign(class extends URL {}, {
       createObjectURL: () => "blob:test",
       revokeObjectURL: () => {},
     });
-    const download = evaluate<(url: string, name: string) => Promise<void>>(
-      source.slice(bodyStart, bodyEnd),
-      "downloadDesktopAttachment",
-      {
-        window: {
-          desktopBridge: {
-            apiUrl: "https://app.example.com",
-            convexUrl: configured,
-            convexStorageFetch: async (url: string) => {
-              calls.push({ kind: "convex", url });
-              return { body: new Uint8Array([65]), status: 200, statusText: "OK", headers: [] };
-            },
+    const download = evaluate<
+      (url: string, name: string, isCurrent?: () => boolean) => Promise<void>
+    >(source, "downloadDesktopAttachment", {
+      window: {
+        desktopBridge: {
+          apiUrl: "https://app.example.com",
+          convexUrl: configured,
+          convexStorageFetch: async (url: string) => {
+            calls.push({ kind: "convex", url });
+            return { body: new Uint8Array([65]), status: 200, statusText: "OK", headers: [] };
           },
         },
-        desktopBridgeFetch: async (url: string, init: RequestInit) => {
-          calls.push({ kind: "backend", url, init });
-          return new Response("file");
-        },
-        URL: blobUrl,
-        document: {
-          createElement: () => ({ click() {}, remove() {} }),
-          body: { appendChild() {} },
-        },
-        setTimeout: () => 0,
       },
-    );
+      desktopBridgeFetch: async (url: string, init: RequestInit) => {
+        calls.push({ kind: "backend", url, init });
+        return new Response("file");
+      },
+      URL: blobUrl,
+      document: {
+        createElement: () => ({ click() {}, remove() {} }),
+        body: { appendChild() {} },
+      },
+      setTimeout: () => 0,
+    });
     await download(configured + "/api/storage/object-1", "file.txt");
     await download("https://app.example.com/api/messaging/attachments/owned-id", "file.txt");
     expect(calls[0]).toEqual({ kind: "convex", url: configured + "/api/storage/object-1" });
@@ -319,6 +313,9 @@ describe("privileged desktop Convex integration", () => {
     await expect(
       download("https://evil.example/api/storage/object-1", "file.txt"),
     ).rejects.toThrow();
+    await expect(
+      download(configured + "/api/storage/object-1", "file.txt", () => false),
+    ).rejects.toThrow("attachment action owner changed");
     expect(calls).toHaveLength(2);
   });
 });

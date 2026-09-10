@@ -15,56 +15,59 @@ describe("domain-owned billing contracts", () => {
     expect(splitProviderNames).toBe(BILLING_PROVIDER_NAMES);
   });
 
-  for (const mode of ["single", "monorepo"] as const) {
-    for (const framework of ["nextjs", "tanstack-start"] as const) {
-      for (const database of ["postgres", "convex"] as const) {
-        test(`${mode}/${framework}/${database} emits domain contracts without provider dependencies`, () => {
-          const result = resolveCreateConfig({
-            name: "billing-domain",
-            runtime: "bun",
-            mode,
-            framework,
-            database,
-            databaseWasExplicit: true,
-            preset: "saas",
-            billing: [...BILLING_PROVIDER_NAMES],
-            apps: ["web"],
-            features: [],
-            cache: "none",
-            deploy: "none",
-          });
-          if (!result.ok) throw new Error(result.message);
-          const plan = buildProjectGenerationPlan(result.resolvedConfig, {
-            desiredConfig: result.desiredConfig,
-          });
-          const base = mode === "single" ? "src/server/billing" : "packages/billing/src";
-          const files = new Map(plan.files.map((file) => [file.physicalPath, file.content]));
-          const findings: ArchitectureFinding[] = [];
-          for (const name of ["model", "inputs", "ports", "types"]) {
-            const path = `${base}/domain/${name}.ts`;
-            const content = files.get(path);
-            expect(content, path).toBeDefined();
-            const parsed = parseFile(content!, "ts");
-            expect(parsed.diagnostics).toEqual([]);
-            for (const reference of parsed.importReferences) {
-              const target = posix.normalize(posix.join(posix.dirname(path), reference.specifier));
-              expect(target.startsWith(`${base}/domain/`), `${path} -> ${target}`).toBe(true);
-              const sourceTarget = `${target.replace(/\.(?:js|ts)$/, "")}.ts`;
-              expect(files.has(sourceTarget), target).toBe(true);
-              checkLayeredDependency(findings, path, path, reference.specifier, target);
+  for (const globalProvider of ["stripe", "paddle", "polar"] as const)
+    for (const mode of ["single", "monorepo"] as const) {
+      for (const framework of ["nextjs", "tanstack-start"] as const) {
+        for (const database of ["postgres", "convex"] as const) {
+          test(`${globalProvider}/${mode}/${framework}/${database} emits domain contracts without provider dependencies`, () => {
+            const result = resolveCreateConfig({
+              name: "billing-domain",
+              runtime: "bun",
+              mode,
+              framework,
+              database,
+              databaseWasExplicit: true,
+              preset: "saas",
+              billing: ["chargily", globalProvider],
+              apps: ["web"],
+              features: [],
+              cache: "none",
+              deploy: "none",
+            });
+            if (!result.ok) throw new Error(result.message);
+            const plan = buildProjectGenerationPlan(result.resolvedConfig, {
+              desiredConfig: result.desiredConfig,
+            });
+            const base = mode === "single" ? "src/server/billing" : "packages/billing/src";
+            const files = new Map(plan.files.map((file) => [file.physicalPath, file.content]));
+            const findings: ArchitectureFinding[] = [];
+            for (const name of ["model", "inputs", "ports", "types"]) {
+              const path = `${base}/domain/${name}.ts`;
+              const content = files.get(path);
+              expect(content, path).toBeDefined();
+              const parsed = parseFile(content!, "ts");
+              expect(parsed.diagnostics).toEqual([]);
+              for (const reference of parsed.importReferences) {
+                const target = posix.normalize(
+                  posix.join(posix.dirname(path), reference.specifier),
+                );
+                expect(target.startsWith(`${base}/domain/`), `${path} -> ${target}`).toBe(true);
+                const sourceTarget = `${target.replace(/\.(?:js|ts)$/, "")}.ts`;
+                expect(files.has(sourceTarget), target).toBe(true);
+                checkLayeredDependency(findings, path, path, reference.specifier, target);
+              }
             }
-          }
-          expect(findings).toEqual([]);
-          for (const name of ["types", "inputs", "ports"]) {
-            const path = `${base}/providers/interface/${name}.ts`;
-            const parsed = parseFile(files.get(path)!, "ts");
-            expect(parsed.importReferences.length).toBeGreaterThan(0);
-            for (const reference of parsed.importReferences) {
-              expect(reference.specifier.startsWith("../../domain/")).toBe(true);
+            expect(findings).toEqual([]);
+            for (const name of ["types", "inputs", "ports"]) {
+              const path = `${base}/providers/interface/${name}.ts`;
+              const parsed = parseFile(files.get(path)!, "ts");
+              expect(parsed.importReferences.length).toBeGreaterThan(0);
+              for (const reference of parsed.importReferences) {
+                expect(reference.specifier.startsWith("../../domain/")).toBe(true);
+              }
             }
-          }
-        });
+          });
+        }
       }
     }
-  }
 });

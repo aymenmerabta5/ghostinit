@@ -1,33 +1,15 @@
 // @allow-long 869: addon registry consolidates all capability axes and compatibility parsing as the host/generated SSOT
 /**
- * Addon registry — single source of truth for flexible options.
- *
- * Inspired by create-t3-app's installers. This module provides the
- * allowed values for project modes, billing providers, features,
- * and database providers used by config schema and CLI.
- *
- * - availableModes: monorepo vs single (single = all-in-one Next.js)
- * - billingProviders: stripe, chargily, paddle, polar — any combo none/both/one/all
- *   Flexible billing: Chargily is Algeria-specific EDAHABIA/CIB, can be used alone
- *   for Algeria market, global alone (stripe/paddle/polar alone or together) for
- *   international, or combined Chargily + any global provider (e.g., chargily+stripe)
- *   for Algeria + global coverage. Any combo allowed: none, one, multi, all.
- *   Examples: --billing chargily, --billing stripe, --billing chargily,stripe, --billing all
- *   Legacy: both = stripe+chargily kept for backward compat.
- * - availableFeatures: eve, i18n (false default)
- * - availableDatabases: postgres (default), convex, none
- * - defaultAddons: always included in both modes
- *
- * Billing design intent:
- * - Chargily alone -> ["chargily"] DZ EDAHABIA/CIB checkout-only, server-only, manual recurring via cron
- * - Global alone -> ["stripe"] or ["paddle"] or ["polar"] or ["stripe","paddle"] etc international
- * - Dual market -> ["chargily","stripe"] or ["chargily","paddle","polar"] etc Algeria + Global
- * - all -> all 4 providers
- * - none/"" -> []
- * No validation blocks chargily+global combo — any combination is explicitly supported.
+ * Addon registry for the CLI and legacy render config.
+ * Billing permits one global provider (Stripe/Paddle/Polar), optional Chargily,
+ * and optional manual receipt payments. The domain owns this selection policy.
  */
 
 import { ValidationError } from "./errors.js";
+import {
+  BILLING_SELECTION_MESSAGE,
+  billingSelectionError,
+} from "../domain/project/billing-selection.js";
 import {
   BILLING_PROVIDERS,
   PRESETS,
@@ -204,39 +186,10 @@ export type AddonInstallerMap = Record<AddonKey, AddonInstaller> & Record<string
 /* ------------------------------------------------------------------ */
 
 /**
- * Parse billing input supporting flexible Algeria + Global combos.
- *
- * Flexible billing: Chargily is Algeria-specific EDAHABIA/CIB, can be used alone
- * for Algeria market, alone global for international, or combined Chargily + global
- * (e.g., chargily+stripe) for Algeria + global coverage. Any combo allowed: none,
- * one, multi, all. Examples: --billing chargily, --billing stripe,
- * --billing chargily,stripe, --billing all
- *
- * Supported inputs:
- * - "none" / "" / undefined / whitespace -> [] (no billing)
- * - "all" -> all 4 providers (stripe, chargily, paddle, polar)
- * - "both" legacy -> stripe + chargily (backward compat, = Algeria + Global starter)
- * - comma-separated, case-insensitive, deduped, trimmed — any combo explicitly allowed:
- *   e.g. "stripe" => ["stripe"] global alone international
- *        "chargily" => ["chargily"] Algeria EDAHABIA/CIB alone
- *        "chargily,stripe" => ["chargily","stripe"] Algeria + Global dual market
- *        "chargily,paddle" => ["chargily","paddle"] Algeria + Paddle MoR
- *        "chargily,polar" => ["chargily","polar"] Algeria + Polar metering
- *        "stripe,polar" => ["stripe","polar"] global multi
- *        "chargily,stripe,paddle,polar" / "all" => all 4 providers
- *        "stripe, stripe , Stripe" => ["stripe"] deduped case-insensitive
- *        "polar,both" => ["polar","stripe","chargily"] both expands inside list
- *
- * Unknown tokens are ignored when at least one known token exists
- * (forward-compatibility: "stripe,unknown,chargily" => ["stripe","chargily"]).
- * This is deterministic, no timestamps.
- * If input is non-empty and result would be empty and contains no explicit
- * "none", we throw ValidationError to avoid silent fallback for fully
- * unknown billing provider (P0 fix). Strict validation for --mode/--database
- * always throws.
- *
- * No validation blocks chargily+global combo — any combination of
- * chargily + stripe/paddle/polar is valid by design.
+ * Parse billing flags with case folding, deduplication and the shared selection policy.
+ * `both` remains the Stripe + Chargily compatibility alias. `all` is invalid because
+ * global providers are mutually exclusive. Partial unknown tokens retain the
+ * existing forward-compatible behavior; fully unknown input fails closed.
  */
 export function parseBillingInput(input?: string): BillingProviderName[] {
   if (!input) return [];
@@ -244,7 +197,8 @@ export function parseBillingInput(input?: string): BillingProviderName[] {
   if (trimmedInput === "") return [];
   const normalized = trimmedInput.toLowerCase();
   if (normalized === "none") return [];
-  if (normalized === "all") return [...BILLING_PROVIDERS];
+  if (normalized === "all")
+    throw new ValidationError(`--billing all is not supported. ${BILLING_SELECTION_MESSAGE}`);
   if (normalized === "both") return ["stripe", "chargily"];
 
   const parts = normalized.split(/[,\s]+/).filter(Boolean);
@@ -253,7 +207,8 @@ export function parseBillingInput(input?: string): BillingProviderName[] {
   for (const part of parts) {
     const p = part.trim().toLowerCase();
     if (p === "" || p === "none") continue;
-    if (p === "all") return [...BILLING_PROVIDERS];
+    if (p === "all")
+      throw new ValidationError(`--billing all is not supported. ${BILLING_SELECTION_MESSAGE}`);
     if (p === "both") {
       if (!result.includes("stripe")) result.push("stripe");
       if (!result.includes("chargily")) result.push("chargily");
@@ -275,10 +230,13 @@ export function parseBillingInput(input?: string): BillingProviderName[] {
     const hasMeaningfulToken = parts.some((p) => p !== "" && p !== "none");
     if (hasMeaningfulToken && !hasExplicitNone) {
       throw new ValidationError(
-        `Invalid --billing value: ${input}. Allowed: ${BILLING_PROVIDERS.join(", ")}, all, both, none`,
+        `Invalid --billing value: ${input}. Allowed: ${BILLING_PROVIDERS.join(", ")}, both, none`,
       );
     }
   }
+
+  const selectionError = billingSelectionError(result);
+  if (selectionError !== undefined) throw new ValidationError(selectionError);
 
   return result;
 }
@@ -575,6 +533,9 @@ export function isValidAddonCombo(options: {
   hasJobs?: boolean;
 }): { valid: boolean; message?: string } {
   const apps = options.apps ?? ["web" as AppName];
+  const billingError = billingSelectionError(options.billing);
+  if (billingError !== undefined) return { valid: false, message: billingError };
+
   if (options.billing.length > 0 && options.database === "none") {
     return {
       valid: false,
@@ -790,8 +751,11 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   const isCustomPreset = preset === "custom";
   const noPreset = preset === undefined;
   // Determine each saas addon
-  const authInUse = input.auth !== undefined ? input.auth : isSaasPreset || noPreset ? true : false;
-  const apiInUse = input.api !== undefined ? input.api : isSaasPreset || noPreset ? true : false;
+  const manualBillingInUse = input.billing.includes("manual");
+  const authInUse =
+    input.auth !== undefined ? input.auth : isSaasPreset || noPreset || manualBillingInUse;
+  const apiInUse =
+    input.api !== undefined ? input.api : isSaasPreset || noPreset || manualBillingInUse;
   const emailInUse =
     input.email !== undefined ? input.email : isSaasPreset || noPreset ? true : false;
   const analyticsInUse =
@@ -845,7 +809,7 @@ export function buildAddonInstallerMap(input: BuildAddonMapInput): AddonInstalle
   // messaging is opt-in toggle (default false) for all presets
   const messagingInUse = input.messaging === true;
   map["messaging"] = { inUse: messagingInUse };
-  map["storage"] = { inUse: input.storage === true || messagingInUse };
+  map["storage"] = { inUse: input.storage === true || messagingInUse || manualBillingInUse };
   map["notifications"] = { inUse: input.notifications === true };
   map["featureFlags"] = { inUse: input.featureFlags === "posthog" };
   map["posthog"] = { inUse: input.featureFlags === "posthog" };

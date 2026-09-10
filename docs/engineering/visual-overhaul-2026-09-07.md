@@ -31,7 +31,8 @@ The private billing shell matches `/billing` exactly, preserving public success,
 cancel and Paddle checkout routes. Dead web `/workspace` and `/two-factor` aliases
 are removed. Workspace mutations retain server authorization and membership
 checks; unresolved permissions keep controls unavailable. The notification composer
-is controlled presentation, with mutations and effects owned by its page.
+is controlled presentation; its feature workflow owns interaction and effect
+lifetimes, while remote writes remain in the mutation adapter.
 
 ## Visual composition and recovery
 

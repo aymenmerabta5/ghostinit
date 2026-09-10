@@ -5,7 +5,8 @@ import {
   messagingConvexNextFiles,
   messagingConvexTanstackFiles,
 } from "../../src/templates/apps/fragments/messaging/index.js";
-import { convexNextMessageViewsContent } from "../../src/templates/apps/fragments/messaging/convex-next-data.js";
+import { convexWebModelContent } from "../../src/templates/apps/fragments/messaging/web-convex-data.js";
+import { z } from "zod";
 import { generatedFormHarness } from "../helpers/generated-form-harness.js";
 
 const formattedCounts = new Map<string, number>();
@@ -71,12 +72,27 @@ describe("formatted notification and Convex messaging boundaries", () => {
             );
           }
           for (const page of pages) {
+            const featureRoot = page.path.slice(0, -"page.tsx".length);
+            const read = (relative: string) => {
+              const entry = files.find((file) => file.path === `${featureRoot}${relative}`);
+              if (!entry) throw new Error(`Missing notification owner: ${featureRoot}${relative}`);
+              return entry;
+            };
+            const workflow = read("use-notification-workspace.ts");
+            const view = read("components/notifications-workspace.tsx");
+            const queries = read("queries.ts");
             expect(formattedLineCount(page.path, page.content), page.path).toBeLessThanOrEqual(200);
-            expect(page.content.match(/\buseNotificationInbox\(/g)).toHaveLength(1);
-            expect(page.content).toContain("const isCurrent = captureEffect();");
-            expect(page.content).toContain('from "./components/notification-composer"');
-            expect(page.content).not.toContain("const loading = inbox.isPending;");
-            expect(page.content).not.toContain(
+            expect(formattedLineCount(view.path, view.content), view.path).toBeLessThanOrEqual(200);
+            expect(page.content).toContain("<NotificationsWorkspace {...useNotificationWorkspace(");
+            expect(page.content).toContain('from "./components/notifications-workspace"');
+            expect(workflow.content.match(/\buseNotificationInbox\(/g)).toHaveLength(1);
+            expect(workflow.content).toContain("const mutation = useAuthOwnedMutation(");
+            expect(workflow.content).toContain("if (isCurrent() && result.destination)");
+            expect(queries.content).toContain("authScopedQueryKey(scope,");
+            expect(view.content).toContain('from "./notification-composer"');
+            expect(view.content).not.toMatch(/\buseNotificationInbox\(|useAuthOwnedMutation/);
+            expect(workflow.content).not.toContain("const loading = inbox.isPending;");
+            expect(view.content).not.toContain(
               '<CardDescription>{t("description")}</CardDescription>',
             );
           }
@@ -87,49 +103,69 @@ describe("formatted notification and Convex messaging boundaries", () => {
 
     test(`${mode} keeps Next Convex data normalization separate without adding subscriptions`, () => {
       const files = messagingConvexNextFiles(mode);
-      const thread = files.find((file) => file.path.endsWith("/convex-message-thread.tsx"))!;
-      const views = files.find((file) => file.path.endsWith("/convex-message-views.ts"))!;
+      const thread = files.find((file) => file.path.endsWith("/components/message-thread.tsx"))!;
+      const views = files.find((file) => file.path.endsWith("/model.ts"))!;
+      const queries = files.find((file) => file.path.endsWith("/queries.ts"))!;
+      const mutations = files.find((file) => file.path.endsWith("/mutations.ts"))!;
       expect(formattedLineCount(thread.path, thread.content)).toBeLessThanOrEqual(150);
       expect(formattedLineCount(views.path, views.content)).toBeLessThanOrEqual(150);
-      expect(thread.content).toContain('import { messageViews } from "./convex-message-views";');
-      expect(thread.content.match(/\buseQuery\(/g)).toHaveLength(2);
-      expect(thread.content).toContain("useMutation(api.messaging.sendMessage)");
-      expect(thread.content).toContain("useMutation(api.messaging.sendTyping)");
+      expect(thread.content).toContain('import type { MessagePage } from "../model";');
+      expect(thread.content).not.toMatch(/\buse(?:Query|Mutation|Effect|State)\b/);
+      expect(queries.content.match(/\buseConvexQuery\(/g)).toHaveLength(3);
+      expect(mutations.content).toContain("useConvexMutation(api.messaging.sendMessage)");
+      expect(mutations.content).toContain("useConvexMutation(api.messaging.sendTyping)");
       expect(views.content).not.toMatch(/\buse(?:Query|Mutation|Effect|State)\b/);
       expect(
-        messagingConvexTanstackFiles(mode).some((file) =>
-          file.path.endsWith("/convex-message-views.ts"),
-        ),
-      ).toBe(false);
+        messagingConvexTanstackFiles(mode).some((file) => file.path.endsWith("/model.ts")),
+      ).toBe(true);
     });
   }
 
   test("the extracted Convex view boundary rejects malformed records and preserves attachments", () => {
-    const { module } = generatedFormHarness(convexNextMessageViewsContent(), ["messageViews"]);
+    const { module } = generatedFormHarness(
+      convexWebModelContent("generated") +
+        "\nfunction messageViews(value: unknown) { return convexMessagePageSchema.parse(value); }",
+      ["messageViews"],
+      { z },
+    );
     const normalize = module.messageViews!;
-    expect(normalize(undefined)).toEqual([]);
-    expect(normalize({ messages: "invalid" })).toEqual([]);
+    expect(() => normalize(undefined)).toThrow();
+    expect(() => normalize({ messages: "invalid" })).toThrow();
+    expect(() =>
+      normalize({ messages: [{ body: "missing identity" }], nextCursor: null }),
+    ).toThrow();
     expect(
       normalize({
         messages: [
-          null,
-          { body: "missing identity" },
           {
             _id: "message-a",
             body: "Retained live message",
             attachments: [
-              { id: "attachment-a", url: "/attachment-a", originalName: "notes.txt" },
-              { id: "attachment-b", url: false, originalName: "invalid.txt" },
+              {
+                id: "attachment-a",
+                url: "https://fixture.example/attachment-a",
+                originalName: "notes.txt",
+              },
             ],
           },
         ],
+        nextCursor: null,
       }),
-    ).toEqual([
-      {
-        id: "message-a",
-        body: "Retained live message",
-        attachments: [{ id: "attachment-a", url: "/attachment-a", originalName: "notes.txt" }],
-      },
-    ]);
+    ).toEqual({
+      messages: [
+        {
+          _id: "message-a",
+          body: "Retained live message",
+          attachments: [
+            {
+              id: "attachment-a",
+              url: "https://fixture.example/attachment-a",
+              originalName: "notes.txt",
+            },
+          ],
+        },
+      ],
+      nextCursor: null,
+    });
   });
 });

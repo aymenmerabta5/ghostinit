@@ -80,7 +80,7 @@ describe("ghostinit upgrade", () => {
     const created = run(["create", "demo", "--yes", "--no-install"], tmp);
     expect(created.status).toBe(0);
 
-    const result = run(["upgrade", "--json"], join(tmp, "demo"));
+    const result = run(["upgrade", "--no-install", "--json"], join(tmp, "demo"));
     expect(result.status).toBe(0);
     const parsed = JSON.parse(result.stdout) as {
       success: boolean;

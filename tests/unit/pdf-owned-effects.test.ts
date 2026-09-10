@@ -1,13 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { authOwnedEffectContent } from "../../src/templates/apps/fragments/auth-owned-effect.js";
 import { usePdfHookContent, usePdfMobileContent } from "../../src/templates/pdf/client.js";
-import { pdfDesktopPageContent } from "../../src/templates/pdf/surfaces.js";
-import {
-  deferred,
-  elements,
-  flush,
-  generatedFormHarness,
-} from "../helpers/generated-form-harness.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { pdfFeatureSupportFiles } from "../../src/templates/pdf/surface-features.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
+import { deferred, flush, generatedFormHarness } from "../helpers/generated-form-harness.js";
 
 const input = { template: "invoice", data: {}, fileName: "owned.pdf" };
 const response = { pdfBase64: "cGRm", fileName: "owned.pdf" };
@@ -17,6 +14,8 @@ type Hook = {
   generate(input: unknown): Promise<unknown>;
   preview(input: unknown): Promise<string>;
   generateAndShare(input: unknown): Promise<string>;
+  loading: boolean;
+  error: string | null;
 };
 
 function ownerHarness() {
@@ -51,6 +50,7 @@ function hookHarness(target: Target, boundary: Boundary = "json", includeAuthOwn
   const effects: string[] = [];
   const stateWrites: unknown[] = [];
   const cleanups: (() => void)[] = [];
+  const mutations = queryMutationHarness();
   let posts = 0;
   let reached = 0;
   class PdfUrl extends URL {
@@ -70,6 +70,7 @@ function hookHarness(target: Target, boundary: Boundary = "json", includeAuthOwn
       useRef: (initial: unknown) => ({ current: initial }),
       useLayoutEffect: (effect: () => () => void) => cleanups.push(effect()),
       useAuthOwnedEffect: () => owner.capture,
+      useMutation: mutations.useMutation,
       window: { location: { origin: "https://app.example.test" } },
       URL: PdfUrl,
       document: {
@@ -136,6 +137,8 @@ function hookHarness(target: Target, boundary: Boundary = "json", includeAuthOwn
     effects,
     stateWrites,
     hook: harness.render(name, includeAuthOwner ? { captureOwner: owner.capture } : {}) as Hook,
+    snapshot: () =>
+      harness.render(name, includeAuthOwner ? { captureOwner: owner.capture } : {}) as Hook,
     posts: () => posts,
     reached: () => reached,
     unmount() {
@@ -181,7 +184,7 @@ describe("PDF effects belong to the initiating mounted account", () => {
       harness.resolve();
       expect((await completion).error).toBeNull();
       expect(harness.effects).toEqual(operation === "generate" ? ["url", "download"] : ["url"]);
-      expect(harness.stateWrites.at(-1)).toBe(false);
+      expect(harness.snapshot()).toMatchObject({ loading: false, error: null });
     });
   }
 
@@ -247,7 +250,11 @@ describe("PDF effects belong to the initiating mounted account", () => {
         const writes = harness.stateWrites.length;
         harness.reject(new Error("PDF unavailable"));
         expect((await completion).error).toMatchObject({ message: "PDF unavailable" });
-        expect(harness.stateWrites.slice(writes)).toEqual(active ? ["PDF unavailable", false] : []);
+        expect(harness.stateWrites.slice(writes)).toEqual([]);
+        expect(harness.snapshot()).toMatchObject({
+          loading: false,
+          error: active ? "PDF unavailable" : null,
+        });
       });
     }
   }
@@ -258,50 +265,39 @@ describe("PDF effects belong to the initiating mounted account", () => {
         const owner = ownerHarness();
         const request = deferred<string>();
         const effects: string[] = [];
-        const writes: unknown[] = [];
-        const ui = generatedFormHarness(pdfDesktopPageContent(), ["PdfPage"], {
-          React: {
-            createElement: (type: unknown, props: unknown, ...children: unknown[]) => ({
-              type,
-              props,
-              children,
-            }),
-            useState: (initial: unknown) => [initial, (value: unknown) => writes.push(value)],
-            useRef: (initial: unknown) => ({ current: initial }),
+        const files = pdfFeatureSupportFiles("monorepo", "desktop", false);
+        const mutations = queryMutationHarness();
+        const workflow = files.find((file) => file.path.endsWith("/use-pdf-workspace.ts"))!.content;
+        const adapter = files.find((file) => file.path.endsWith("/mutations.ts"))!.content;
+        const ui = generatedFormHarness(
+          authOwnedMutationContent() + "\n" + adapter + "\n" + workflow,
+          ["usePdfWorkspace"],
+          {
+            useAuthOwnedEffect: () => owner.capture,
+            useQueryClient: () => ({}),
+            currentQueryAuthGeneration: () => 0,
+            subscribeQueryAuthGeneration: () => () => {},
+            useMutation: mutations.useMutation,
+            generatePdfDesktop: () => request.promise,
+            downloadPdfBase64: () => effects.push("download"),
+            samplePdfData: () => ({}),
           },
-          useAuthOwnedEffect: () => owner.capture,
-          createFileRoute: () => (options: unknown) => options,
-          generatePdfDesktop: () => request.promise,
-          downloadPdfBase64: () => effects.push("download"),
-          samplePdfData: () => ({}),
-          ...Object.fromEntries(
-            [
-              "Field",
-              "FieldLabel",
-              "Select",
-              "SelectContent",
-              "SelectGroup",
-              "SelectItem",
-              "SelectTrigger",
-              "SelectValue",
-              "Link",
-            ].map((name) => [name, name]),
-          ),
-        });
-        const action = elements(ui.render("PdfPage")).find(
-          (node) => node.type === "Button" && typeof node.props.onClick === "function",
         );
-        if (!action) throw new Error("Missing desktop PDF action");
-        (action.props.onClick as () => void)();
+        const controller = ui.render("usePdfWorkspace") as {
+          download(): void;
+          loading: boolean;
+          error: string | null;
+        };
+        controller.download();
         if (!active) owner.changeOwner();
-        const before = writes.length;
         if (rejected) request.reject(new Error("PDF unavailable"));
         else request.resolve("cGRm");
         await flush();
         expect(effects).toEqual(active && !rejected ? ["download"] : []);
-        expect(writes.slice(before)).toEqual(
-          active ? (rejected ? ["PDF generation failed", false] : [false]) : [],
-        );
+        expect(ui.render("usePdfWorkspace")).toMatchObject({
+          loading: false,
+          error: active && rejected ? "PDF unavailable" : null,
+        });
       });
     }
   }

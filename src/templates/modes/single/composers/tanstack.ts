@@ -1,3 +1,4 @@
+import { identityPureClientFiles } from "../../../apps/fragments/auth/client-validation.js";
 // @allow-long 312: single-mode TanStack Start composer; the file list is a linear manifest
 import { uiUtilsContent } from "../../../ui/utils.js";
 import { singleWebUiFiles } from "../../../apps/fragments/web-ui/index.js";
@@ -9,6 +10,7 @@ import { transactionalAccountDeletionFile } from "../../../auth-deletion.js";
 import {
   type BillingProviderName,
   type AddonInstallerMap,
+  type DeployTarget,
   hasAddon,
 } from "../../../../lib/addons.js";
 import type { RootSecrets } from "../../../root.js";
@@ -20,6 +22,7 @@ import { i18nFiles } from "../../../i18n.js";
 import { surfaceTranslationFiles } from "../../../i18n/surface.js";
 import { tanstackServerFoundationFiles } from "../../../apps/fragments/tanstack-server.js";
 import { emailFlowPageContent } from "../../../apps/fragments/recovery/index.js";
+import { systemFeatureFiles } from "../../../apps/fragments/layout.js";
 
 import { singlePackageJsonTanstack } from "../package.js";
 import { convexDatabaseFiles } from "../../../database/convex.js";
@@ -41,18 +44,13 @@ import {
   singleMarketingPageTanstackContent,
 } from "../tanstack/pages/marketing.js";
 import {
-  singleAuthOAuthButtonsTanstackContent,
-  singleSignInFormTanstackContent,
-  singleSignInMethodsTanstackContent,
   singleSignInRouteTanstackContent,
-  singleSignUpFormTanstackContent,
   singleSignUpRouteTanstackContent,
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
-  singleResetPasswordFormTanstackContent,
-  singleTwoFactorFormTanstackContent,
   singleTwoFactorRouteTanstackContent,
 } from "../tanstack/pages/auth.js";
+import { authFeatureFiles } from "../../../apps/fragments/auth/feature.js";
 import {
   singleDashboardRouteTanstackContent,
   singleDashboardFeatureFilesTanstack,
@@ -133,6 +131,7 @@ export function buildTanstackFiles(
   hasAnalytics: boolean,
   secrets: RootSecrets,
   addonMap: AddonInstallerMap,
+  deploy?: DeployTarget,
 ): TemplateFile[] {
   const isConvex = hasAddon(addonMap, "convex");
   const isNone = hasAddon(addonMap, "database:none");
@@ -144,6 +143,7 @@ export function buildTanstackFiles(
   const hasPdf = hasAddon(addonMap, "pdf");
   const hasCloudflare = hasAddon(addonMap, "cloudflare");
   const apiCapabilities = {
+    manualBilling: effectiveBilling.includes("manual"),
     auth: hasAuth,
     identity: hasApi && hasAuth && !isNone,
     messaging: hasApi && hasMessaging && !isConvex && !isNone,
@@ -211,6 +211,7 @@ export function buildTanstackFiles(
   files.push(file("src/styles/app.css", singleGlobalsCssTanstackContent()));
   files.push(file("src/router.tsx", singleRouterTanstackContent()));
   files.push(file("src/routes/__root.tsx", singleRootRouteTanstackContent(hasI18n)));
+  files.push(...systemFeatureFiles("tanstack", "src", hasAuth, true));
   files.push(file("src/routes/index.tsx", singleMarketingPageTanstackContent()));
   const marketingOptions = {
     hasAuth,
@@ -235,33 +236,22 @@ export function buildTanstackFiles(
     ),
   );
   if (hasAuth) {
+    files.push(...identityPureClientFiles("src"));
     files.push(file("src/routes/sign-in.tsx", singleSignInRouteTanstackContent(hasEmail)));
     files.push(file("src/routes/sign-up.tsx", singleSignUpRouteTanstackContent()));
     files.push(
-      file("src/components/auth/oauth-buttons.tsx", singleAuthOAuthButtonsTanstackContent()),
-    );
-    files.push(
-      file(
-        "src/components/auth/sign-in-methods.tsx",
-        singleSignInMethodsTanstackContent(hasPostgres),
-      ),
-    );
-    files.push(
-      file(
-        "src/components/auth/sign-in-form.tsx",
-        singleSignInFormTanstackContent(hasEmail, hasPostgres),
-      ),
-    );
-    files.push(
-      file("src/components/auth/sign-up-form.tsx", singleSignUpFormTanstackContent(hasEmail)),
+      ...authFeatureFiles({
+        router: "tanstack",
+        sourceRoot: "src",
+        hasEmail,
+        hasPasskey: hasPostgres,
+        includePureClientFiles: false,
+      }),
     );
   }
   if (hasAuth && hasEmail) {
     files.push(file("src/routes/forgot-password.tsx", singleForgotPasswordRouteTanstackContent()));
     files.push(file("src/routes/reset-password.tsx", singleResetPasswordRouteTanstackContent()));
-    files.push(
-      file("src/components/auth/reset-password-form.tsx", singleResetPasswordFormTanstackContent()),
-    );
     files.push(file("src/routes/magic-link.tsx", emailFlowPageContent("magic-link", "tanstack")));
     files.push(
       file("src/routes/verify-email.tsx", emailFlowPageContent("verify-email", "tanstack")),
@@ -270,9 +260,6 @@ export function buildTanstackFiles(
   if (hasAuth) {
     if (hasEmail) {
       files.push(file("src/routes/2fa.tsx", singleTwoFactorRouteTanstackContent()));
-      files.push(
-        file("src/components/auth/two-factor-form.tsx", singleTwoFactorFormTanstackContent()),
-      );
     }
     files.push(file("src/routes/dashboard.tsx", singleDashboardRouteTanstackContent(isConvex)));
     files.push(
@@ -348,7 +335,7 @@ export function buildTanstackFiles(
     else if (apiCapabilities.featureFlags) files.push(...singleServiceErrorFiles());
     files.push(...singleCapabilityApiFiles(apiCapabilities, isConvex ? "convex" : "postgres"));
     if (hasAdminApi) files.push(...singleAdminApiFiles(isConvex ? "convex" : "postgres"));
-    if (hasBilling) files.push(...singleBillingApiFiles());
+    if (hasBilling) files.push(...singleBillingApiFiles(apiCapabilities.manualBilling));
   }
   files.push(file("src/components/theme-provider.tsx", themeProviderSingleContent()));
   files.push(file("src/components/theme-toggle.tsx", themeToggleSingleContent()));
@@ -428,6 +415,7 @@ export function buildTanstackFiles(
     const convexAll = convexDatabaseFiles(projectName, runtime, "single", {
       auth: hasAuth,
       billing: hasBilling,
+      manualBilling: effectiveBilling.includes("manual"),
       email: hasEmail,
       i18n: hasI18n,
       posts: hasAuth,
@@ -478,13 +466,17 @@ export function buildTanstackFiles(
   files.push(file("src/hooks/use-copy.ts", useCopyHookSingleContent()));
   if (hasAuth) files.push(file("src/hooks/use-auth.ts", useAuthHookSingleContent()));
   files.push(gitignoreSingle());
+  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
     readmeSingle(projectName, hasEmail, {
       framework: "tanstack-start",
       hasEve,
+      database: dbType,
+      deploy: deploy ?? (hasCloudflare ? "cloudflare" : "none"),
+      billing: effectiveBilling,
+      auth: hasAuth,
     }),
   );
-  const dbType = isConvex ? "convex" : isNone ? "none" : "postgres";
   files.push(
     filteredEnvExample(projectName, secrets, effectiveBilling, hasEmail, runtime, dbType, {
       framework: "tanstack-start",
@@ -559,6 +551,7 @@ export function buildTanstackFiles(
         (f.path.startsWith("src/routes/billing_.") ||
           f.path.startsWith("src/features/billing/") ||
           f.path === "docs/PADDLE_CHECKOUT.md" ||
+          (effectiveBilling.includes("manual") && f.path === "docs/manual-payments.md") ||
           f.path === "src/contracts/billing.ts" ||
           f.path === "src/adapters/billing/paddle.ts" ||
           f.path === "src/lib/paddle-checkout-functions.ts")),

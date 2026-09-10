@@ -23,7 +23,7 @@ function aggSchema(_files?: any[]) {
     runtime: "bun",
     version: "0.1.0",
     mode: "monorepo",
-    billing: ["stripe", "chargily", "paddle", "polar"],
+    billing: ["chargily", "stripe"],
     features: [],
     database: "postgres",
     framework: "nextjs",

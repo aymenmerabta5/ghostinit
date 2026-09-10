@@ -141,10 +141,25 @@ describe("generated dependency and file closure", () => {
     expect(
       monorepo.some((entry) => entry.path === "apps/desktop/src/renderer/components/ui/card.tsx"),
     ).toBe(true);
-    expect(
-      monorepo.find((entry) => entry.path === "apps/desktop/src/renderer/routes/messages.tsx")
-        ?.content,
-    ).toContain('from "@/components/ui/card"');
+    const rendererRoot = "apps/desktop/src/renderer";
+    const route = monorepo.find(
+      (entry) => entry.path === `${rendererRoot}/routes/messages.tsx`,
+    )?.content;
+    const screen = monorepo.find(
+      (entry) => entry.path === `${rendererRoot}/features/messaging/screen.tsx`,
+    )?.content;
+    const workspace = monorepo.find(
+      (entry) =>
+        entry.path === `${rendererRoot}/features/messaging/components/messaging-workspace-view.tsx`,
+    )?.content;
+    expect(route).toContain('import { MessagesScreen } from "@/features/messaging/screen"');
+    expect(route).toContain('createFileRoute("/messages")({ component: MessagesScreen })');
+    expect(screen).toContain(
+      'import { MessagingWorkspaceView } from "./components/messaging-workspace-view"',
+    );
+    expect(screen).toContain("return <MessagingWorkspaceView");
+    expect(workspace).toContain('from "@/components/ui/card"');
+    expect(workspace).toContain("<Card>");
   });
 
   test("database none never installs or exposes Postgres tooling in single mode", () => {
@@ -281,8 +296,8 @@ describe("generated dependency and file closure", () => {
         const header =
           files.find((entry) => entry.path === `${prefix}src/components/header.tsx`)?.content ?? "";
         const shell =
-          files.find((entry) => entry.path === `${prefix}src/components/app-shell.tsx`)?.content ??
-          "";
+          files.find((entry) => entry.path === `${prefix}src/features/app-shell/app-shell.tsx`)
+            ?.content ?? "";
         const sidebar =
           files.find((entry) => entry.path === `${prefix}src/components/workspace-sidebar.tsx`)
             ?.content ?? "";
@@ -303,13 +318,17 @@ describe("generated dependency and file closure", () => {
         expect(provider).not.toContain("ConvexBetterAuthProvider");
         expect(provider).not.toContain("as unknown as");
         expect(header).not.toMatch(/useQuery\(|useAuth\(|api\.users/);
-        expect(shell).toContain("const canonical = useQueryAuthSession()");
-        expect(shell).toContain(
+        const shellQueries =
+          files.find((entry) => entry.path === `${prefix}src/features/app-shell/queries.ts`)
+            ?.content ?? "";
+        const shellWorkflow =
+          files.find((entry) => entry.path === `${prefix}src/features/app-shell/use-app-shell.ts`)
+            ?.content ?? "";
+        expect(shellQueries).toContain("const canonical = useQueryAuthSession()");
+        expect(shellQueries).toContain(
           "canonical?.hasCanonicalApi ? canonical.currentRequest?.user : session.user",
         );
-        expect(shell).toContain(
-          "resolveWorkspaceIdentity({ pending, error, user: currentUser ?? null, retry })",
-        );
+        expect(shellWorkflow).toContain("resolveWorkspaceIdentity(source)");
         expect(identity).toMatch(
           /if \(input.pending\)[\s\S]*if \(input.error\)[\s\S]*if \(input.user\)/,
         );

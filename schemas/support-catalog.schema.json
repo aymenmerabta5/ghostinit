@@ -16,7 +16,8 @@
     "billingProviderClientBindings",
     "capabilities",
     "operationEvidence",
-    "compatibilityEvidence"
+    "compatibilityEvidence",
+    "billingProviderSelection"
   ],
   "properties": {
     "$schema": { "const": "https://ghostinit.dev/schemas/support-catalog.schema.json" },
@@ -52,17 +53,33 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
+    "billingProviderSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["globalProviders", "maximumGlobalProviders", "independentProviders"],
+      "properties": {
+        "globalProviders": {
+          "const": ["stripe", "paddle", "polar"]
+        },
+        "maximumGlobalProviders": {
+          "const": 1
+        },
+        "independentProviders": {
+          "const": ["chargily", "manual"]
+        }
+      }
+    },
     "billingProviderClientBindings": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 5,
+      "maxItems": 5,
       "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["provider", "operationIds"],
         "properties": {
-          "provider": { "enum": ["stripe", "chargily", "paddle", "polar"] },
+          "provider": { "enum": ["stripe", "chargily", "paddle", "polar", "manual"] },
           "operationIds": {
             "type": "array",
             "minItems": 1,
@@ -73,7 +90,12 @@
                 "billing.invoices.v1",
                 "billing.payment-link.v1",
                 "billing.portal.v1",
-                "billing.subscriptions.v1"
+                "billing.subscriptions.v1",
+                "billing.balance.v1",
+                "billing.manual.submit.v1",
+                "billing.manual.list.v1",
+                "billing.manual.receipt.v1",
+                "billing.manual.review.v1"
               ]
             }
           }
@@ -160,7 +182,7 @@
         "billingProviders": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["stripe", "chargily", "paddle", "polar"] }
+          "items": { "enum": ["stripe", "chargily", "paddle", "polar", "manual"] }
         },
         "featureFlagProviders": {
           "type": "array",
@@ -390,7 +412,7 @@
           "properties": {
             "kind": { "const": "capability" },
             "capability": { "$ref": "#/$defs/capabilityId" },
-            "when": { "const": "jobs-user-facing-api" }
+            "when": { "enum": ["jobs-user-facing-api", "manual-billing"] }
           }
         },
         {

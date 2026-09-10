@@ -1,45 +1,37 @@
 import { describe, expect, test } from "bun:test";
 import { nativeExpoMessagingFiles } from "../../src/templates/apps/fragments/messaging/native-expo.js";
+import { deferred, flush, generatedFormHarness } from "../helpers/generated-form-harness.js";
 
 function generatedPreview(database: "postgres" | "convex") {
   const files = nativeExpoMessagingFiles(database, "monorepo");
   const source = files.find((file) => file.path.endsWith(`/${database}.ts`))!.content;
-  const fragment = source
-    .slice(
-      source.indexOf("function apiUrl"),
-      source.indexOf("export async function uploadNativeAttachment"),
-    )
-    .replaceAll("export async function", "async function");
-  const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(fragment);
   const requests: Array<{ url: string; init: RequestInit }> = [];
   let cookieReads = 0;
   const responses: Response[] = [];
-  const load = new Function(
-    "env",
-    "authClient",
-    "Platform",
-    "fetch",
-    executable + ";return loadNativeAttachmentPreview;",
-  )(
-    {
+  const runtime = generatedFormHarness(source, ["loadNativeAttachmentPreview"], {
+    env: {
       EXPO_PUBLIC_API_URL: "https://backend.fixture.example",
       EXPO_PUBLIC_CONVEX_URL: "https://tenant.convex.cloud",
     },
-    {
+    authClient: {
       getCookie: () => {
         cookieReads += 1;
         return "session=fixture-session";
       },
     },
-    { OS: "ios" },
-    async (url: string, init: RequestInit) => {
+    Platform: { OS: "ios" },
+    fetch: async (url: string, init: RequestInit) => {
       requests.push({ url, init });
       return (
         responses.shift() ??
         new Response(new Uint8Array([1, 2, 3]), { headers: { "Content-Type": "image/png" } })
       );
     },
-  ) as (url: string, signal: AbortSignal) => Promise<string>;
+  });
+  const load = runtime.module.loadNativeAttachmentPreview as (
+    url: string,
+    signal: AbortSignal,
+  ) => Promise<string>;
   return { load, requests, responses, cookieReads: () => cookieReads, files };
 }
 
@@ -116,48 +108,41 @@ describe("native attachment preview boundary", () => {
 
   test("disposing a preview aborts work and ignores a late completion", async () => {
     const fixture = generatedPreview("postgres");
-    const route = fixture.files.find((file) => file.path.endsWith("messages.tsx"))!.content;
-    const start = route.indexOf(
-      "  React.useEffect(() => {",
-      route.indexOf("function AttachmentPreview"),
-    );
-    const fragment = route.slice(start, route.indexOf("  if (failed)", start));
-    const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(fragment);
-    const updates: unknown[] = [];
-    let dispose: (() => void) | undefined;
-    let observedSignal: AbortSignal | undefined;
-    let resolvePreview: ((value: string) => void) | undefined;
-    new Function(
-      "React",
-      "setSource",
-      "setFailed",
-      "loadNativeAttachmentPreview",
-      "url",
-      executable,
-    )(
-      {
-        useEffect: (effect: () => () => void) => {
-          dispose = effect();
-        },
+    const queries = fixture.files.find((file) =>
+      file.path.endsWith("/features/messaging/queries.ts"),
+    )!.content;
+    let query:
+      | { queryFn(input: { signal: AbortSignal }): Promise<string>; enabled: boolean }
+      | undefined;
+    const adapter = generatedFormHarness(queries, ["useAttachmentPreviewQuery"], {
+      useAttachmentQuery: (options: typeof query) => {
+        query = options;
+        return {};
       },
-      (value: unknown) => updates.push(["source", value]),
-      (value: unknown) => updates.push(["failed", value]),
-      (_url: string, signal: AbortSignal) => {
-        observedSignal = signal;
-        return new Promise<string>((resolve) => {
-          resolvePreview = resolve;
-        });
-      },
+      loadNativeAttachmentPreview: fixture.load,
+    });
+    (adapter.module.useAttachmentPreviewQuery as (url: string, enabled: boolean) => unknown)(
       "/api/messaging/attachments/image",
+      true,
     );
-    dispose!();
-    resolvePreview!("data:image/png;base64,AQID");
-    await Promise.resolve();
-    expect(observedSignal!.aborted).toBe(true);
-    expect(updates).toEqual([
-      ["source", null],
-      ["failed", false],
-    ]);
-    expect(route).not.toContain("<Image source={{ uri: item.url }}");
+    expect(query!.enabled).toBe(true);
+    const bytes = deferred<ArrayBuffer>();
+    class PendingImage extends Response {
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        return bytes.promise;
+      }
+    }
+    fixture.responses.push(new PendingImage(null, { headers: { "Content-Type": "image/png" } }));
+    const controller = new AbortController();
+    const preview = query!.queryFn({ signal: controller.signal });
+    await flush();
+    controller.abort();
+    bytes.resolve(new Uint8Array([1, 2, 3]).buffer);
+    await expect(preview).rejects.toThrow("cancelled");
+    expect(fixture.requests[0]!.init.signal).toBe(controller.signal);
+    const presentation = fixture.files.find((file) =>
+      file.path.endsWith("/components/messaging-attachment-view.tsx"),
+    )!.content;
+    expect(presentation).not.toContain("<Image source={{ uri: item.url }}");
   });
 });

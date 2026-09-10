@@ -42,7 +42,10 @@ export interface TestForm {
   values: Record<string, string>;
   isSubmitting: boolean;
   resets: number;
-  reset(): void;
+  readonly state: { isSubmitting: boolean; values: Record<string, string> };
+  readonly store: { state: TestForm["state"] };
+  setFieldValue(name: string, value: string): void;
+  reset(values?: Record<string, string>): void;
   handleSubmit(): Promise<void>;
 }
 
@@ -55,18 +58,57 @@ export function generatedFormHarness(
   const forms: TestForm[] = [];
   let cursor = 0;
   let hydrated = true;
+  const effects = new Map<
+    number,
+    {
+      dependencies?: readonly unknown[];
+      effect: () => unknown;
+      cleanup?: () => void;
+      pending: boolean;
+    }
+  >();
   function useState(initial: unknown) {
     const index = cursor++;
     if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
-    return [slots[index], (value: unknown) => (slots[index] = value)];
+    return [
+      slots[index],
+      (value: unknown) =>
+        (slots[index] = typeof value === "function" ? value(slots[index]) : value),
+    ];
   }
   const React = {
     createElement: (type: unknown, props: Record<string, unknown> | null, ...children: unknown[]) =>
       ({ type, props: props ?? {}, children }) satisfies TestElement,
     useState,
-    useEffect() {},
+    useEffect(effect: () => unknown, dependencies?: readonly unknown[]) {
+      const index = cursor++;
+      const prior = effects.get(index);
+      const changed =
+        !prior ||
+        !dependencies ||
+        !prior.dependencies ||
+        dependencies.length !== prior.dependencies.length ||
+        dependencies.some((value, offset) => !Object.is(value, prior.dependencies?.[offset]));
+      if (changed)
+        effects.set(index, { dependencies, effect, cleanup: prior?.cleanup, pending: true });
+    },
+    useReducer(reducer: (state: unknown, action: unknown) => unknown, initial: unknown) {
+      const [state, set] = useState(initial);
+      return [
+        state,
+        (action: unknown) =>
+          (set as (value: unknown) => void)((current: unknown) => reducer(current, action)),
+      ];
+    },
+    useMemo: (calculate: () => unknown) => calculate(),
+    useId() {
+      const index = cursor++;
+      return (slots[index] ??= `generated-${index}`);
+    },
     useCallback: (callback: unknown) => callback,
     useSyncExternalStore: () => hydrated,
+    useStore: (store: { state: unknown }, selector: (state: unknown) => unknown) =>
+      selector(store.state),
     useRef(initial: unknown) {
       const index = cursor++;
       return (slots[index] ??= { current: initial });
@@ -75,6 +117,8 @@ export function generatedFormHarness(
   const bindings: Record<string, unknown> = {
     React,
     useState,
+    useRef: React.useRef,
+    useEffect: React.useEffect,
     useSyncExternalStore: () => hydrated,
     useSurfaceTranslations: () => (key: string) => key,
     cn: (...values: string[]) => values.filter(Boolean).join(" "),
@@ -91,9 +135,18 @@ export function generatedFormHarness(
           values: { ...options.defaultValues },
           isSubmitting: false,
           resets: 0,
-          reset() {
+          get state() {
+            return { isSubmitting: form.isSubmitting, values: form.values };
+          },
+          get store() {
+            return { state: form.state };
+          },
+          setFieldValue(name, value) {
+            form.values[name] = value;
+          },
+          reset(values) {
             form.resets += 1;
-            form.values = { ...form.options.defaultValues };
+            form.values = { ...(values ?? form.options.defaultValues) };
           },
           async handleSubmit() {
             if (form.isSubmitting) return;
@@ -117,6 +170,8 @@ export function generatedFormHarness(
       return form;
     },
   };
+  bindings.useForm = bindings.useAppForm;
+  bindings.useStore = React.useStore;
   for (const name of [
     "Alert",
     "AlertDescription",
@@ -154,6 +209,7 @@ export function generatedFormHarness(
       .replace(/^import[^;]+;\s*/gm, "")
       .replace(/^export default (?=(?:function|class)\b)/gm, "")
       .replace(/^export default \w+;\s*$/gm, "")
+      .replace(/^export type \{[^}]+\}(?: from [^;]+)?;\s*/gm, "")
       .replace(/^export \{[^}]+\}(?: from [^;]+)?;\s*/gm, "")
       .replace(/^export /gm, ""),
   );
@@ -166,6 +222,19 @@ export function generatedFormHarness(
     module,
     setHydrated(value: boolean) {
       hydrated = value;
+    },
+    flushEffects() {
+      for (const value of effects.values()) {
+        if (!value.pending) continue;
+        value.pending = false;
+        value.cleanup?.();
+        const cleanup = value.effect();
+        value.cleanup = typeof cleanup === "function" ? (cleanup as () => void) : undefined;
+      }
+    },
+    unmount() {
+      for (const value of effects.values()) value.cleanup?.();
+      effects.clear();
     },
     render(name: string, props?: unknown) {
       cursor = 0;

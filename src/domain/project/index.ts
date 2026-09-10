@@ -1,6 +1,8 @@
 export {
   APP_TARGETS,
   BILLING_PROVIDERS,
+  ONLINE_BILLING_PROVIDERS,
+  GLOBAL_BILLING_PROVIDERS,
   CACHE_PROVIDERS,
   DATABASE_PROVIDERS,
   DEPLOY_TARGETS,
@@ -13,6 +15,7 @@ export {
 export type {
   AppTarget,
   BillingProvider,
+  OnlineBillingProvider,
   CacheProvider,
   DatabaseProvider,
   DeployTarget,
@@ -35,6 +38,11 @@ export type {
   ResolvedProjectConfig,
 } from "./config.js";
 export { resolveProjectConfig } from "./resolve.js";
+export {
+  BILLING_SELECTION_POLICY,
+  BILLING_SELECTION_MESSAGE,
+  billingSelectionError,
+} from "./billing-selection.js";
 export { RESOLUTION_ISSUE_CODES } from "./resolution-issues.js";
 export type {
   ResolutionFailure,

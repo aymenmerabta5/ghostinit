@@ -41,7 +41,10 @@ export type DeployTarget = (typeof DEPLOY_TARGETS)[number];
 export const EXECUTION_RUNTIMES = ["bun", "node"] as const;
 export type ExecutionRuntime = (typeof EXECUTION_RUNTIMES)[number];
 
-export const BILLING_PROVIDERS = ["stripe", "chargily", "paddle", "polar"] as const;
+export const ONLINE_BILLING_PROVIDERS = ["stripe", "chargily", "paddle", "polar"] as const;
+export type OnlineBillingProvider = (typeof ONLINE_BILLING_PROVIDERS)[number];
+export const GLOBAL_BILLING_PROVIDERS = ["stripe", "paddle", "polar"] as const;
+export const BILLING_PROVIDERS = [...ONLINE_BILLING_PROVIDERS, "manual"] as const;
 export type BillingProvider = (typeof BILLING_PROVIDERS)[number];
 
 export const FEATURE_FLAG_PROVIDERS = ["posthog"] as const;

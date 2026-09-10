@@ -130,9 +130,10 @@ meaningful work; nested cards and repeated equal feature grids are avoided.
 Tables and lists retain the density needed to compare real data. Empty, loading,
 failed, populated, and refreshing states have distinct presentations.
 The notification feature owns a controlled `NotificationComposer` beside its
-page. The presenter renders fields and forwards callbacks; the page retains
-mutation, ownership, navigation, and desktop notification effects. Both remain
-within their existing page/component size limits.
+page. The presenter renders fields and forwards callbacks; a cohesive feature
+workflow owns mutation state, ownership, navigation, and desktop notification
+effects through the remote adapters. The page composes that workflow and the
+presenter within the existing page/component size limits.
 Electron's local controls use the same heights, surfaces, radii, and readable
 field text. Product descriptions explain the user's action instead of internal
 server paths, transport boundaries, or scheduler ownership details.
@@ -216,6 +217,39 @@ contract with a visible label and guidance.
 
 ### Read and mutation states
 
+Manual payments form a separate DZD balance workflow beside the selected online
+provider panels. Customers read the configured receiving instructions, enter the
+amount actually paid, select the payment method, and submit a PNG, JPEG, or PDF
+receipt of at most 5 MiB. The balance labels approved credit explicitly; submission
+is shown as pending review and never increases the displayed balance optimistically.
+The form preserves its amount, receipt, and reference after failure. Retrying an
+unchanged submission reuses its request key, and a synchronous guard prevents
+rapid duplicate submission before React updates the disabled state.
+The field presenter receives values and callbacks; the form controller retains
+submission state, receipt ownership, and the duplicate guard. Review queues use
+a controller per payment and a prop-driven decision form, keeping the formatted
+generated modules within the existing 150-line feature limit.
+
+Payment history distinguishes pending, approved, and rejected submissions and
+shows the review note. Authorized administrators receive a separate review queue
+with account, amount, transfer method, reference, date, and private receipt access.
+Approval requires an explicit confirmation explaining the balance change;
+rejection requires a reason. Review failures preserve the note and confirmation.
+Each row guards its own operation. Receipts load only on request, use authenticated
+bytes, and revoke their browser object URLs on close or owner retirement. Images
+have an accessible description; PDFs download for inspection. Server ownership,
+authorization, content validation, and atomic ledger writes remain authoritative.
+
+The workflow reuses the current Card, Field, Input, Textarea, Alert, Badge, Button,
+Skeleton, and Empty primitives and semantic tokens without changing the billing
+route or navigation. English, French, and Arabic copy covers every state. Reads
+distinguish initial loading, successful empty data, and failures while retaining
+same-owner data during refresh; identity-generation changes remount the workflow
+and discard input and private previews. Electron shares the complete web workflow.
+Expo shows the real authenticated balance and history and opens the configured
+web billing page for receipt submission and review, explicitly explaining that
+another sign-in may be needed. It does not advertise an in-app upload control.
+
 Data surfaces distinguish initial loading, failed reads, successful empty data,
 filtered empty results, populated data, and background refresh. A failed read
 never becomes a claim that no records exist. Use the existing loading and Alert
@@ -277,6 +311,76 @@ prevent old cached data, late responses, persisted cache restoration, or stale
 server-provided initial data from appearing under the new identity. Logout
 clears private query state before navigation. Authless projects retain a simple
 query-provider path.
+
+### Universal frontend responsibility boundaries
+
+All frontend features follow the same responsibility boundaries across Next.js,
+TanStack Start, Expo and Electron, in both single and monorepo output. Preserve
+the current visual system and behavior while changing ownership; an attractive
+screen or a short component does not make a coupled workflow acceptable.
+
+Routes remain framework entrypoints for params/search, loading and access guards.
+They delegate to feature-root TSX composition containers or the appropriate server
+boundary. A feature may have several cohesive screens, sections or controllers;
+these compose semantic feature hooks without owning raw state/effect/form/data
+library hooks. Feature-root `queries.ts` and `mutations.ts` own remote clients, query
+keys, subscriptions and invalidation. Root `use-*.ts` hooks own coherent
+interaction workflows. Models, validation and helpers stay deterministic;
+focused views consume typed data/actions. Shared primitives and infrastructure
+own reusable controls, semantic tokens and platform setup.
+
+The form library owns form state: DOM features use the emitted `useAppForm`;
+native features use typed native adapters/workflows over their declared library.
+Do not add a competing set of field, pending and error states. Query results stay
+in the remote-state adapter/cache instead of being mirrored into component state.
+Preserve account ownership, cancellation and stale-response protection.
+
+Tiny view-local state such as disclosure, focus and menu visibility is allowed.
+Remote access, form submission and multi-step business workflows are not view
+responsibilities. Extract cohesive units, not arbitrary fragments or wrappers
+whose only purpose is to lower a detector's counter. Existing public re-exports
+may preserve import compatibility without retaining the old mixed ownership.
+
+The project owner may change or remove GhostInit and its policies. Generated lint/typecheck commands remain independently usable. Agents must not silently remove or weaken safeguards to make work pass; changing those safeguards requires explicit developer authorization.
+
+`ghostinit check --json` reports the structural frontend rules documented in the
+[frontend architecture reference](./skills/ghostinit-use/references/frontend-architecture.md).
+These checks supplement responsibility review, behavior tests and visual QA;
+they do not prove perfect semantic detection. A failing architecture rule or
+required gate blocks an acceptable/complete verdict. Do not disable detectors,
+raise limits, widen exclusions or create broad exceptions to hide violations.
+Validate a suspected false positive and fix the detector with positive and
+negative controls; report failed and unrun gates truthfully.
+
+### Frontend recovery refinements, 2026-09-10
+
+The universal ownership migration preserves the existing visual system. Failed
+first reads of sessions, passkeys, workspace data, and admin totals do not render
+successful-empty claims or invented zero counts. Cached rows and their actual
+counts remain visible during a failed refresh. Workspace-dependent sections wait
+for a selected organization, and sibling panel keys remain unique. An uncached
+paused message read retains its pending presentation. Empty-session copy describes
+the returned list without claiming that it contains the current device. Web and Electron workspace
+read and mutation failures have distinct explanations, organization reads expose
+their query-owned retry, and successful empty teams omit the selection group.
+
+Manual-payment amount/date/reference/status metadata keeps a readable order in
+Arabic while native metadata preserves its accessibility grouping. Passkey dates
+use the active locale, and subscription/invoice status labels use the existing
+EN/FR/AR catalogs. Structured feature-flag JSON stays left-to-right inside RTL
+layouts. Native button text inherits its containing button variant so composed
+labels receive the intended semantic foreground and size. User-authored manual
+review notes, notification text, and Eve messages isolate their automatic text
+direction at DOM boundaries. Native text retains its platform-specific contract.
+
+Conversation-read failures include their localized explanation and refresh
+action. TanStack route error adapters supply router invalidation through a typed
+retry callback to the focused view; failed loaders rerun their normal access
+checks. Next error boundaries retain their existing framework reset callbacks.
+
+These changes preserve query ownership, cancellation, server authorization, and
+workflow boundaries. The [frontend engineering report](./docs/engineering/frontend-architecture-2026-09-10.md)
+and its task record describe the maintained behavior and verification contract.
 
 ### Architecture review changes, 2026-09-07
 
@@ -507,11 +611,12 @@ description once in the page header instead of repeating it in the creation
 card. The form fields, action labels, loading states, and query ownership remain
 the same across both web frameworks and i18n variants.
 
-Next.js Convex message threads delegate unknown-response normalization to a pure
-`convex-message-views.ts` sibling. The thread still owns its two live queries,
-send/typing mutations, draft, and submission state. No subscription or mutation
-moves into the view mapper. The generated 150-line component and 200-line page
-limits are unchanged and are checked after the installed formatter runs.
+Next.js Convex message features keep remote reads and send/typing mutations in
+feature-root query/mutation adapters. Pure models normalize unknown responses;
+cohesive thread and form hooks own selection, draft and submission workflows.
+Feature-root TSX composes those hooks with typed-prop views. The generated
+150-line component and 200-line page limits are unchanged and are checked after
+the installed formatter runs.
 
 ### Capability operations and PDF lifetimes
 

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-task-record.schema.json",
+  "schemaVersion": 2,
+  "taskId": "frontend-responsibility-boundaries",
+  "role": "implementer",
+  "recordedOn": "2026-09-10",
+  "changedGlobs": [
+    "AGENTS.md",
+    ".claude/AGENTS.md",
+    "skills/ghostinit-use/**",
+    ".claude/skills/ghostinit-use/**",
+    "policy/frontend-ownership-policy.json",
+    "schemas/frontend-ownership-policy.schema.json",
+    "src/lib/architecture/**",
+    "src/templates/apps/**",
+    "src/templates/billing/ui/**",
+    "src/templates/i18n/messages/**",
+    "src/templates/modes/**",
+    "src/templates/pdf/**",
+    "src/templates/tooling/**"
+  ],
+  "designReview": {
+    "method": "skill-assisted",
+    "guidance": ["ghostinit-release-verification", "vercel-react-best-practices"],
+    "context": [
+      {
+        "path": "DESIGN.md",
+        "sha256": "d52deb7ecd2b4feeb460c11621ec8860989fa8235e951618c2d2ce47e45d21a2"
+      },
+      {
+        "path": "VISION.md",
+        "sha256": "2e76c98cf43a42a16878ad2500111bacc9a6eefba7dee835a259c8716b807da9"
+      }
+    ],
+    "decisions": [
+      "DESIGN.md#universal-frontend-responsibility-boundaries",
+      "DESIGN.md#frontend-recovery-refinements-2026-09-10"
+    ],
+    "evidence": [
+      "docs/engineering/frontend-architecture-2026-09-10.md",
+      "tests/unit/frontend-ownership.test.ts",
+      "tests/unit/frontend-ownership-generated.test.ts",
+      "tests/unit/frontend-ownership-resources.test.ts",
+      "tests/unit/generated-form-recovery.test.ts",
+      "tests/unit/sessions-read-state.test.ts",
+      "tests/unit/admin-read-state-web.test.ts",
+      "tests/unit/admin-read-state-desktop.test.ts",
+      "tests/unit/admin-read-state-expo.test.ts",
+      "tests/unit/workspace-read-state.test.ts",
+      "tests/unit/passkey-view-state.test.ts",
+      "tests/unit/generated-messaging-read-states.test.ts",
+      "tests/unit/manual-billing-bidi.test.ts",
+      "tests/unit/native-button-text-context.test.ts",
+      "tests/unit/feature-flag-json-direction.test.ts",
+      "tests/unit/billing-status-rendering.test.ts",
+      "tests/unit/free-text-bidi.test.ts",
+      "tests/unit/identity-visual-recovery.test.ts",
+      "tests/unit/tanstack-route-error-recovery.test.ts"
+    ]
+  },
+  "register": "product",
+  "appliedRules": [
+    "architecture.component-ownership",
+    "architecture.capability-scoping",
+    "architecture.no-detector-evasion",
+    "authentication.retire-private-state",
+    "mutation.preserve-input",
+    "mutation.synchronous-duplicate-guard",
+    "feedback.action-local",
+    "feedback.empty-only-after-success",
+    "design.logical-directions",
+    "design.readable-states"
+  ],
+  "selectedComponentIds": [
+    "action.button",
+    "feedback.alert",
+    "feedback.empty",
+    "loading.skeleton",
+    "form.input",
+    "status.badge",
+    "surface.card"
+  ],
+  "exceptionIds": []
+}

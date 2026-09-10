@@ -18,6 +18,7 @@ export function apiComposerFiles(
     database === "convex",
     {
       ...capabilities,
+      manualBilling: billing?.includes("manual") === true,
       auth: hasAuth,
       identity: capabilities.identity ?? (hasAuth && database !== "none"),
     },

@@ -66,9 +66,7 @@ describe("account deletion confirmation feedback", () => {
       expect(requests).toEqual(["current-password-value", "current-password-value"]);
       expect(destinations).toEqual(["/"]);
       expect(harness.events).toEqual(
-        scenario.transport === "identity-client"
-          ? ["retire", "navigate", "refresh"]
-          : ["retire", "navigate"],
+        scenario.router === "next" ? ["retire", "navigate", "refresh"] : ["retire", "navigate"],
       );
     });
   }
@@ -161,9 +159,7 @@ describe("account deletion retention guidance", () => {
       await flush();
       expect(harness.destinations).toEqual(["/"]);
       expect(harness.events).toEqual(
-        scenario.transport === "identity-client"
-          ? ["retire", "navigate", "refresh"]
-          : ["retire", "navigate"],
+        scenario.router === "next" ? ["retire", "navigate", "refresh"] : ["retire", "navigate"],
       );
       expect(elements(harness.render()).filter((node) => node.type === "Alert")).toEqual([]);
     });

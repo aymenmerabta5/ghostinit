@@ -1,11 +1,11 @@
-// @allow-long 570: one renderer keeps the local and S3 blob implementations behaviorally identical
+// @allow-long 665: one renderer keeps the local and S3 blob implementations behaviorally identical
 import { file, packageJson, tsconfig, type TemplateFile } from "./shared.js";
 import type { ProjectMode } from "../lib/addons.js";
 import * as v from "./versions.js";
 
 function storageImplementationContent(mode: ProjectMode): string {
   const envImport = mode === "monorepo" ? "@repo/config/server" : "@/lib/env/server";
-  return `// @allow-long 530: hardened local/S3 blob adapter with handle-bound filesystem validation
+  return `// @allow-long 615: hardened local/S3 blob adapter with handle-bound filesystem validation
 import { constants, existsSync, realpathSync } from "node:fs";
 import { lstat, mkdir, open, realpath, rename, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
@@ -486,7 +486,9 @@ export async function putFile(
   originalName: string,
   mimeType: string,
   reservedStorageKey?: string,
+  signal?: AbortSignal,
 ): Promise<StoredFile> {
+  signal?.throwIfAborted();
   const validation = validateFile(mimeType, data.byteLength);
   if (!validation.valid) throw new Error(validation.reason);
   const storageKey = reservedStorageKey === undefined ? randomUUID() : assertSafeStorageKey(reservedStorageKey);
@@ -502,25 +504,29 @@ export async function putFile(
       ContentLength: data.byteLength,
       ContentType: mimeType,
       ServerSideEncryption: "AES256",
-    }));
+      ...(reservedStorageKey === undefined ? {} : { IfNoneMatch: "*" }),
+    }), { abortSignal: signal });
   } else {
     await writeLocalFile(storageKey, data);
   }
+  signal?.throwIfAborted();
   return { storageKey, mimeType, byteSize: data.byteLength, originalName: safeOriginalName };
 }
 
-export async function getFile(storageKey: string): Promise<Uint8Array | null> {
+export async function getFile(storageKey: string, signal?: AbortSignal): Promise<Uint8Array | null> {
+  signal?.throwIfAborted();
   const key = assertSafeStorageKey(storageKey);
   try {
     if (storageDriver() === "s3") {
       const { bucket, client: clientConfig } = requireS3Config();
       const { GetObjectCommand, S3Client } = await import("@aws-sdk/client-s3");
-      const output = await new S3Client(clientConfig).send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const output = await new S3Client(clientConfig).send(new GetObjectCommand({ Bucket: bucket, Key: key }), { abortSignal: signal });
       if (typeof output.ContentLength === "number" && output.ContentLength > MAX_FILE_BYTES) {
         throw new Error("Stored object exceeds the 10MB limit");
       }
       if (!output.Body) return null;
       const data = await output.Body.transformToByteArray();
+      signal?.throwIfAborted();
       if (data.byteLength > MAX_FILE_BYTES) throw new Error("Stored object exceeds the 10MB limit");
       return data;
     }
@@ -530,7 +536,9 @@ export async function getFile(storageKey: string): Promise<Uint8Array | null> {
         throw new Error("Stored object exceeds the 10MB limit");
       }
       // Read from the verified handle, never by path after lstat/realpath.
-      return await opened.handle.readFile();
+      const data = await opened.handle.readFile();
+      signal?.throwIfAborted();
+      return data;
     } finally {
       await closeLocalFile(opened);
     }
@@ -540,13 +548,14 @@ export async function getFile(storageKey: string): Promise<Uint8Array | null> {
   }
 }
 
-export async function deleteFile(storageKey: string): Promise<void> {
+export async function deleteFile(storageKey: string, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
   const key = assertSafeStorageKey(storageKey);
   try {
     if (storageDriver() === "s3") {
       const { bucket, client: clientConfig } = requireS3Config();
       const { DeleteObjectCommand, S3Client } = await import("@aws-sdk/client-s3");
-      await new S3Client(clientConfig).send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      await new S3Client(clientConfig).send(new DeleteObjectCommand({ Bucket: bucket, Key: key }), { abortSignal: signal });
       return;
     }
     const trashName = localTrashName(key);

@@ -1,6 +1,8 @@
 // @allow-long 325: single-mode target-aware agent guidance keeps conditional path claims in one audited template
 import * as v from "../../../versions.js";
 import { customNextServerCommand, nextRuntimeCommand } from "../../../root/next-server-runtime.js";
+import { frontendArchitectureInstructionLines } from "../../../shared/frontend-architecture.js";
+import { dependencySecurityInstructionLines } from "../../../shared/dependency-security-docs.js";
 import type {
   AppName,
   BillingProviderName,
@@ -111,22 +113,24 @@ export function buildAgentsMdContent(
     : `${routeRoot}/api/auth/[...all]/route.ts`;
   const publicPrefix = isTanstack ? "VITE_" : "NEXT_PUBLIC_";
   const clientPrefixes = [
-    ...(hasWeb ? [publicPrefix] : []),
-    ...(apps.includes("mobile") ? ["EXPO_PUBLIC_"] : []),
-    ...(apps.includes("desktop") ? ["VITE_", "DESKTOP_"] : []),
+    ...new Set([
+      ...(hasWeb ? [publicPrefix] : []),
+      ...(apps.includes("mobile") ? ["EXPO_PUBLIC_"] : []),
+      ...(apps.includes("desktop") ? ["VITE_"] : []),
+    ]),
   ];
   const qualityCommands = [
     "bun run install:verified # use bun run install:bootstrap only for fresh --no-install output",
     "bun run dev",
     "bun run typecheck",
-    "bun run lint",
+    "bun run lint:all",
   ];
-  if (!isDesktopOnly) qualityCommands.push("bun run format:check", "bun run test");
+  qualityCommands.push("bun run format:check", "bun run test");
   qualityCommands.push(isCloudflare ? "bun run build:worker" : "bun run build");
   if (isCloudflare) qualityCommands.push("bun run cloudflare:dry-run");
   if (!isMobileOnly && !isCloudflare)
     qualityCommands.push(usesProductionSupervisor ? "bun run start:production" : "bun run start");
-  qualityCommands.push("ghostinit check");
+  qualityCommands.push("ghostinit check --json");
 
   const lines: string[] = [
     `# AGENTS.md — ${projectName}`,
@@ -154,7 +158,7 @@ export function buildAgentsMdContent(
     "",
     "## Architecture",
     "",
-    "Keep the dependency direction: presentation -> typed transport/contracts -> application services -> domain and application-owned ports -> adapters -> supporting infrastructure.",
+    "Keep domain policies and contracts independent of frameworks, application services, and vendor implementations. Presentation uses the appropriate transport/application boundary, and adapters implement inward-facing contracts. These responsibilities do not require a six-hop call chain.",
     "",
     ...(isNativeOnly
       ? [
@@ -170,6 +174,8 @@ export function buildAgentsMdContent(
         ]),
     "- Use the `@/*` alias for `src/*`; never invent `@repo/*` imports in single mode.",
     "",
+    ...frontendArchitectureInstructionLines(),
+    ...dependencySecurityInstructionLines(),
     "## Package Roles",
     "",
   ];
@@ -245,7 +251,7 @@ export function buildAgentsMdContent(
           : "- Admin routes: `src/app/admin/page.tsx`, `src/app/admin/users/page.tsx`, and `src/app/admin/users/create/page.tsx`, protected by the generated admin guard.",
       );
     }
-    if (selectedBilling.length > 0) {
+    if (selectedBilling.some((provider) => provider !== "manual")) {
       const providerPattern = isTanstack
         ? "src/routes/api/webhooks/<provider>.ts"
         : "src/app/api/webhooks/<provider>/route.ts";
@@ -328,7 +334,7 @@ export function buildAgentsMdContent(
         ]
       : []),
     "- Preserve logical CSS properties, keyboard access, visible focus, reduced-motion behavior, and EN/FR/AR layout safety.",
-    "- Split large components by responsibility. The 300-line policy is a review guideline, not a claim that every generated file is below a fixed maximum.",
+    "- Follow the frontend responsibility boundaries and the checker's role-specific limits. A host template's length guideline does not excuse a frontend architecture finding.",
     "",
     "## Quality Gates",
     "",
@@ -346,7 +352,7 @@ export function buildAgentsMdContent(
           : "Use `bun run start` for the generated production web process, including any custom server."
         : isMobileOnly
           ? "The mobile manifest uses Expo for `dev` and `build`; it does not expose a `start` script."
-          : "The desktop manifest uses electron-vite/electron-builder and exposes `start` without a test or format-check script.",
+          : "The desktop manifest uses electron-vite/electron-builder and exposes `start`, `test`, and `format:check` scripts.",
     "Do not replace generated Bun scripts with npm commands.",
     "",
     "## Security",
@@ -355,6 +361,11 @@ export function buildAgentsMdContent(
       ? "- Never commit `.env*` or `.dev.vars`. Cloudflare builds reject runtime dotenv files; runtime values belong in Worker bindings and build variables are configured separately."
       : "- Never commit `.env` or `.env.local`. Vendor credentials remain `REPLACE_WITH_*` until supplied by the operator.",
     `- Client-visible variables use only these generated prefixes: ${clientPrefixes.map((prefix) => `\`${prefix}\``).join(", ") || "none"}. Keep all other credentials server-only.`,
+    ...(apps.includes("desktop")
+      ? [
+          "- `DESKTOP_*` belongs only to private Electron main/server configuration. The renderer uses `VITE_*`; never expose desktop-private values through Vite.",
+        ]
+      : []),
     isDesktopOnly
       ? "- Keep provider credentials and privileged Electron APIs out of the renderer; preserve context isolation and the preload boundary. No backend is generated in this mode."
       : isMobileOnly

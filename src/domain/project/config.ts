@@ -12,6 +12,7 @@ import type {
   PackageManagerVersion,
   ProjectMode,
 } from "./choices.js";
+import type { DependencySecurityResolutions } from "../dependency-security/types.js";
 
 export const PROJECT_CONFIG_SCHEMA_URI =
   "https://ghostinit.dev/schemas/project-config.schema.json" as const;
@@ -50,6 +51,8 @@ export interface DesiredProjectConfig {
   readonly apps: readonly DesiredProjectApp[];
   readonly backend: false | DesiredProjectBackend;
   readonly capabilities: DesiredCapabilities;
+  /** Portable verified dependency floors retained across regeneration. */
+  readonly dependencySecurity?: DependencySecurityResolutions;
 }
 
 export interface ResolvedProjectApp {
@@ -77,4 +80,5 @@ export interface ResolvedProjectConfig {
   readonly backend: false | ResolvedProjectBackend;
   readonly capabilities: ResolvedCapabilities;
   readonly enabledCapabilities: readonly CapabilityId[];
+  readonly dependencySecurity?: DependencySecurityResolutions;
 }

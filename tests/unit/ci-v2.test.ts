@@ -6,7 +6,10 @@ import {
   assertEmittedEnvironmentKeysTracked,
   assertExactGlobalEnv,
 } from "../../scripts/verify-generated-env.js";
-import { generatedProjectName } from "../../scripts/test-generated.js";
+import { CORNERS, generatedProjectName } from "../../scripts/test-generated.js";
+import { parseCreateSpecific, parseRawArgs } from "../../src/cli/args.js";
+import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
+import { buildProjectGenerationPlan } from "../../src/templates/default.js";
 import { githubWorkflow } from "../../src/templates/root/config.js";
 import { huskyFiles } from "../../src/templates/root/husky.js";
 
@@ -22,6 +25,7 @@ type Workflow = {
   on: {
     push?: { branches: string[]; tags?: string[] };
     pull_request?: { branches: string[] };
+    workflow_dispatch?: { inputs: Record<string, { default?: string }> };
   };
   jobs: Record<
     string,
@@ -35,7 +39,10 @@ type Workflow = {
       env?: Record<string, string>;
       strategy?: {
         "fail-fast"?: boolean;
-        matrix?: { os?: string[] };
+        matrix?: {
+          os?: string[];
+          include?: Array<{ id: string; framework: string; billing: string; features: string }>;
+        };
       };
       steps: Array<{
         "continue-on-error"?: boolean;
@@ -53,6 +60,100 @@ type Workflow = {
 
 const parseWorkflow = (name: string): Workflow =>
   Bun.YAML.parse(readFileSync(resolve(root, `.github/workflows/${name}`), "utf8")) as Workflow;
+
+test("scheduled and manual E2E billing profiles resolve to complete generated plans", () => {
+  const workflow = parseWorkflow("e2e.yml");
+  const scheduled = workflow.jobs["e2e-scheduled"].strategy?.matrix?.include;
+  const defaults = workflow.on.workflow_dispatch?.inputs;
+  if (!scheduled || !defaults) throw new Error("E2E billing profiles are missing");
+  expect(
+    scheduled.map(({ framework, features, billing }) => ({ framework, features, billing })),
+  ).toEqual([
+    { framework: "tanstack-start", features: "eve", billing: "polar,chargily,manual" },
+    { framework: "nextjs", features: "eve,i18n", billing: "paddle,chargily,manual" },
+    { framework: "nextjs", features: "eve", billing: "stripe,chargily" },
+  ]);
+  expect(defaults.billing.default).toBe("stripe,chargily,manual");
+  const profiles = [
+    ...scheduled,
+    {
+      id: "manual-demo",
+      billing: defaults.billing.default,
+      framework: defaults.framework.default,
+      features: defaults.features.default,
+    },
+  ];
+  const scheduledProviders = new Set<string>();
+  for (const profile of profiles) {
+    if (!profile.billing || !profile.framework || !profile.features)
+      throw new Error("E2E profile defaults must be explicit");
+    const raw = parseRawArgs([
+      "bun",
+      "dist/cli.js",
+      "create",
+      profile.id,
+      "--no-install",
+      "--force",
+      "--json",
+      "--billing",
+      profile.billing,
+      "--framework",
+      profile.framework,
+      "--features",
+      profile.features,
+      "--database",
+      "postgres",
+    ]);
+    const parsed = parseCreateSpecific(raw.values, raw.command);
+    const result = resolveCreateConfig({
+      ...parsed,
+      name: profile.id,
+      runtime: "bun",
+      databaseWasExplicit: true,
+    });
+    if (!result.ok) throw new Error(`${profile.id}: ${result.message}`);
+    const config = result.config;
+    expect(config.mode).toBe("monorepo");
+    expect(config.apps).toEqual(["web"]);
+    expect(config.database).toBe("postgres");
+    expect(config.auth).toBe(true);
+    expect(config.api).toBe(true);
+    expect(config.email).toBe(true);
+    expect(config.analytics).toBe(true);
+    expect(config.eve).toBe(true);
+    expect(config.i18n).toBe(profile.features.split(",").includes("i18n"));
+    if (profile.id !== "manual-demo") {
+      for (const provider of config.billing) scheduledProviders.add(provider);
+    }
+    const plan = buildProjectGenerationPlan(result.resolvedConfig);
+    const paths = new Set(plan.files.map(({ physicalPath }) => physicalPath));
+    for (const path of [
+      "apps/web/package.json",
+      "apps/eve/package.json",
+      "packages/auth/src/server.ts",
+      "packages/api/src/index.ts",
+      "packages/database/src/index.ts",
+    ])
+      expect(paths.has(path), `${profile.id}: ${path}`).toBe(true);
+    if (config.billing.includes("manual")) {
+      expect(config.storage).toBe(true);
+      for (const path of [
+        "packages/storage/src/index.ts",
+        "packages/billing/src/manual-payment-config.ts",
+        "packages/api/src/procedures/billing/manual.ts",
+        "packages/database/src/schema/manual-payments.ts",
+      ])
+        expect(paths.has(path), `${profile.id}: ${path}`).toBe(true);
+    }
+  }
+  expect([...scheduledProviders].sort()).toEqual([
+    "chargily",
+    "manual",
+    "paddle",
+    "polar",
+    "stripe",
+  ]);
+});
 
 test("real Convex codegen is a blocking cross-platform Node LTS gate", () => {
   const job = parseWorkflow("ci.yml").jobs["convex-codegen"];
@@ -329,6 +430,12 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
 
 test("E2E smoke uses Bun and owns safe process and workspace cleanup", () => {
   const source = readFileSync(resolve(root, "scripts/e2e-smoke.sh"), "utf8");
+  const examples = [...source.matchAll(/\bBILLING=([a-z,]+)/g)];
+  expect(examples.length).toBeGreaterThan(0);
+  for (const [, billing] of examples) {
+    const raw = parseRawArgs(["bun", "dist/cli.js", "create", "demo", "--billing", billing]);
+    expect(() => parseCreateSpecific(raw.values, raw.command)).not.toThrow();
+  }
   const environmentVerifier = readFileSync(
     resolve(root, "scripts/verify-generated-env.ts"),
     "utf8",
@@ -521,7 +628,12 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
     'nativePackageRoots: ["apps/mobile", "apps/desktop"]',
   );
   expect(cornerSource("cloudflare-next-monorepo")).toContain('"--database",\n      "convex"');
-  expect(cornerSource("cloudflare-next-monorepo")).toContain('"--billing",\n      "all"');
+  const billingSelection = (id: string): string | undefined => {
+    const corner = CORNERS.find((entry) => entry.id === id);
+    expect(corner, `missing executable corner ${id}`).toBeDefined();
+    return corner?.args[(corner?.args.indexOf("--billing") ?? -1) + 1];
+  };
+  expect(billingSelection("cloudflare-next-monorepo")).toBe("paddle,chargily,manual");
   expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-i18n"');
   expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-messaging"');
   expect(cornerSource("cloudflare-next-monorepo")).toContain('"--with-notifications"');
@@ -541,7 +653,6 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
     const corner = cornerSource(id);
     for (const expected of [
       '"--database",\n      "convex"',
-      '"--billing",\n      "all"',
       '"--with-i18n"',
       '"--with-messaging"',
       '"--with-notifications"',
@@ -550,6 +661,10 @@ test("generated-project gate is streaming, tree-safe, exact-local, and capabilit
       '"--cache",\n      "redis"',
     ]) {
       expect(corner, `${id}: ${expected}`).toContain(expected);
+    }
+    for (const provider of ["paddle", "stripe", "polar"]) {
+      const variantId = provider === "paddle" ? id : `${id}-${provider}`;
+      expect(billingSelection(variantId)).toBe(`${provider},chargily,manual`);
     }
     expect(corner).toContain('"--apps",\n      "web,mobile,desktop"');
     expect(corner).toContain('nativePackageRoots: ["apps/mobile", "apps/desktop"]');
@@ -754,7 +869,16 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
   expect(source).toContain("const REQUIRED_BUN_VERSION = runtime.bun");
   expect(source).toContain("const BUN_EXECUTABLE = process.execPath");
   expect(source).toContain('createProject("smoke")');
-  expect(source).toContain('createProject("billall", ["--billing", "all", "--with-eve"])');
+  expect(source).toContain('for (const provider of ["stripe", "paddle", "polar"] as const)');
+  const billingBuild = source.slice(
+    source.indexOf('for (const provider of ["stripe"'),
+    source.indexOf('"builds and starts single TanStack Postgres messaging"'),
+  );
+  expect(billingBuild).toContain("createProject(`billing-${provider}`, [");
+  expect(billingBuild).toContain('"--billing",');
+  expect(billingBuild).toContain("`${provider},chargily,manual`,");
+  expect(billingBuild).toContain('"--with-eve",');
+  expect(billingBuild).toContain("installAndVerify(projectRoot, `billing-${provider}`, {");
   for (const project of ["tanstack-messaging", "tanstack-convex", "custom-heavy", "multi-app"]) {
     expect(source).toContain(`createProject("${project}"`);
   }

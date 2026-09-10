@@ -133,12 +133,12 @@ describe("generated lint gates fail closed", () => {
       }),
       { dryRun: true },
     );
-    const frontendHome = source(frontend, "src/renderer/routes/index.tsx");
+    const frontendHome = source(frontend, "src/renderer/features/home/screen.tsx");
     expect(frontendHome).not.toContain('import { Skeleton } from "@/components/ui/skeleton"');
     expect(frontendHome).not.toContain("<Skeleton");
 
     const full = generateProjectFiles(config({ apps: ["web", "desktop"] }), { dryRun: true });
-    const fullHome = source(full, "apps/desktop/src/renderer/routes/index.tsx");
+    const fullHome = source(full, "apps/desktop/src/renderer/features/home/screen.tsx");
     expect(fullHome).toContain('import { Skeleton } from "@/components/ui/skeleton"');
     expect(fullHome).toContain("<Skeleton");
   });

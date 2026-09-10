@@ -1,3 +1,4 @@
+import { notificationBellWorkflowContent } from "../../src/templates/apps/capability-clients/notification-workspace.js";
 // @allow-long 940: one inventory gate compares every reviewed primitive and consumer category across four generated web targets
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -126,8 +127,8 @@ function consumerPaths(target: GeneratedTarget): ConsumerPaths {
       adminUserTable: `${feature}/components/user-table.tsx`,
       adminSchema: `${feature}/schema.ts`,
       adminTranslations: `${feature}/translations.ts`,
-      adminHook: `${feature}/hooks/use-admin-users.ts`,
-      dangerZone: "features/settings/danger-zone-section.tsx",
+      adminHook: `${feature}/use-admin-users.ts`,
+      dangerZone: "features/account-deletion/components/danger-zone-view.tsx",
       header: "components/header.tsx",
     };
   }
@@ -139,8 +140,8 @@ function consumerPaths(target: GeneratedTarget): ConsumerPaths {
     adminUserTable: `${feature}/components/user-table.tsx`,
     adminSchema: `${feature}/schema.ts`,
     adminTranslations: `${feature}/translations.ts`,
-    adminHook: `${feature}/hooks/use-admin-users.ts`,
-    dangerZone: "app/settings/components/danger-zone-card.tsx",
+    adminHook: `${feature}/use-admin-users.ts`,
+    dangerZone: "features/account-deletion/components/danger-zone-view.tsx",
     header: "components/header.tsx",
   };
 }
@@ -176,6 +177,7 @@ function reviewedRecords(target: GeneratedTarget): ReviewedGapRecord[] {
     ...repeatedReviewedRecord("nonfunctional-select", "components/ui/select.tsx"),
     ...repeatedReviewedRecord("partial-notification-bell", "components/NotificationBell.tsx"),
     ...repeatedReviewedRecord("pending-boolean-or-spinner", "components/ui/form.tsx"),
+    ...repeatedReviewedRecord("pending-boolean-or-spinner", "components/ui/form-submit.tsx"),
     ...repeatedReviewedRecord("ungrouped-select-item", "components/form-fields/SelectField.tsx"),
   ];
   const consumer = [
@@ -268,40 +270,24 @@ function rawInteractiveElements(path: string, content: string): string[] {
 function pendingFormExpectations(
   target: GeneratedTarget,
 ): Array<{ relativePath: string; count: number; appForm?: boolean }> {
-  const auth =
-    target.framework === "nextjs"
-      ? [
-          "components/auth/two-factor-form.tsx",
-          "app/forgot-password/page.tsx",
-          "components/auth/reset-password-form.tsx",
-          "components/auth/sign-in-form.tsx",
-          "components/auth/sign-up-form.tsx",
-        ]
-      : [
-          "components/auth/two-factor-form.tsx",
-          "routes/forgot-password.tsx",
-          "components/auth/reset-password-form.tsx",
-          "components/auth/sign-in-form.tsx",
-          "components/auth/sign-up-form.tsx",
-        ];
+  const auth = [
+    "features/auth/components/two-factor-form.tsx",
+    "features/auth/components/forgot-password-form.tsx",
+    "features/auth/components/reset-password-form.tsx",
+    "features/auth/components/sign-in-form.tsx",
+    "features/auth/components/sign-up-form.tsx",
+  ];
   const expectations: Array<{ relativePath: string; count: number; appForm?: boolean }> = auth.map(
     (relativePath) => ({ relativePath, count: 1 }),
   );
   const consumers = consumerPaths(target);
   expectations.push({ relativePath: consumers.adminCreate, count: 1, appForm: true });
-  if (target.framework === "nextjs") {
-    expectations.push({
-      relativePath: "app/settings/components/profile-card.tsx",
-      count: 1,
-    });
-  } else {
-    expectations.push(
-      { relativePath: "features/settings/profile-card.tsx", count: 1 },
-      { relativePath: "features/settings/password-card.tsx", count: 1 },
-      { relativePath: "features/settings/two-factor-card.tsx", count: 3 },
-      { relativePath: "features/settings/danger-zone-section.tsx", count: 1 },
-    );
-  }
+  expectations.push(
+    { relativePath: "features/settings/components/profile-view.tsx", count: 1 },
+    { relativePath: "features/settings/components/password-view.tsx", count: 1 },
+    { relativePath: "features/settings/components/two-factor-view.tsx", count: 3 },
+    { relativePath: "features/account-deletion/components/danger-zone-view.tsx", count: 1 },
+  );
   return expectations;
 }
 
@@ -319,6 +305,7 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   const notification = source(target, "components/NotificationBell.tsx");
   const [selectPath, select] = ui("select.tsx");
   const [formPath, form] = ui("form.tsx");
+  const [submitPath, submit] = ui("form-submit.tsx");
 
   addMissingTokens(records, "field-composition", selectFieldPath, selectField, [
     "<Field",
@@ -426,22 +413,42 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     "<PopoverDescription>",
     "<Empty>",
     "formatNotification(notification.type, notification.payload)",
-    "getNotificationHref(notification.type, notification.payload)",
-    "onClick={async () => {",
-    "if (notification.readAt === null) await onMarkRead?.(notification.id);",
-    "if (isCurrent() && destination) onNavigate?.(destination.href);",
+    "onActivate?.(notification)",
   ]);
 
-  addMissingTokens(records, "pending-boolean-or-spinner", formPath, form, [
+  addMissingTokens(
+    records,
+    "partial-notification-bell",
+    notificationPath,
+    notificationBellWorkflowContent(target.framework),
+    [
+      "async (item: NotificationItem, isCurrent) =>",
+      "if (item.readAt === null) await markNotificationRead(item.id);",
+      "if (isCurrent()) await invalidateInbox();",
+      "getNotificationHref(item.type, item.payload)",
+      "if (isCurrent() && destination)",
+      "onActivate: (item: NotificationItem) => { void mutation.run(item); }",
+    ],
+  );
+
+  addMissingTokens(records, "pending-boolean-or-spinner", submitPath, submit, [
     "export function AppFormSubmitButton",
     "<form.Subscribe selector=",
-    "disabled={!canSubmit || isSubmitting}",
+    "disabled={disabled || !canSubmit || isSubmitting}",
     "<Spinner data-icon=",
-    "SubmitButton: AppFormSubmitButton",
   ]);
-  for (const forbidden of ["isPending?:", "isPending={", "border-t-transparent"]) {
-    if (form.includes(forbidden)) {
-      records.push({ category: "pending-boolean-or-spinner", path: formPath, evidence: forbidden });
+  addMissingTokens(records, "pending-boolean-or-spinner", formPath, form, [
+    "SubmitButton: AppFormSubmitButton",
+    'from "./form-submit"',
+  ]);
+  for (const [path, content] of [
+    [formPath, form],
+    [submitPath, submit],
+  ] as const) {
+    for (const forbidden of ["isPending?:", "isPending={", "border-t-transparent"]) {
+      if (content.includes(forbidden)) {
+        records.push({ category: "pending-boolean-or-spinner", path, evidence: forbidden });
+      }
     }
   }
   for (const file of target.files.filter(({ path }) => path.startsWith(`${target.sourceRoot}/`))) {
@@ -458,8 +465,33 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     const path = `${target.sourceRoot}/${relativePath}`;
     const content = [
       source(target, relativePath),
-      ...(relativePath === "features/settings/two-factor-card.tsx"
-        ? [source(target, "features/settings/use-two-factor-settings.ts")]
+      ...((
+        {
+          "features/auth/components/two-factor-form.tsx": ["features/auth/use-two-factor-form.ts"],
+          "features/auth/components/forgot-password-form.tsx": [
+            "features/auth/use-forgot-password-form.ts",
+          ],
+          "features/auth/components/reset-password-form.tsx": [
+            "features/auth/use-reset-password-form.ts",
+          ],
+          "features/auth/components/sign-in-form.tsx": ["features/auth/use-sign-in-form.ts"],
+          "features/auth/components/sign-up-form.tsx": ["features/auth/use-sign-up-form.ts"],
+          "features/settings/components/profile-view.tsx": [
+            "features/settings/use-profile-form.ts",
+          ],
+          "features/settings/components/password-view.tsx": [
+            "features/settings/use-password-form.ts",
+          ],
+          "features/settings/components/two-factor-view.tsx": [
+            "features/settings/use-two-factor-settings.ts",
+          ],
+          "features/account-deletion/components/danger-zone-view.tsx": [
+            "features/account-deletion/use-account-deletion.ts",
+          ],
+        } as Record<string, string[]>
+      )[relativePath]?.map((path) => source(target, path)) ?? []),
+      ...(relativePath === "features/admin-users/components/create-user-form.tsx"
+        ? [source(target, "features/admin-users/use-create-admin-user.ts")]
         : []),
     ].join("\n");
     const useFormCount = (content.match(/\buse(?:App)?Form\(\{/g) ?? []).length;
@@ -541,7 +573,11 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   }
 
   const adminFiltersPath = `${target.sourceRoot}/${consumers.adminFilters}`;
-  const adminFilters = source(target, consumers.adminFilters);
+  // Validate the form contract across its typed view and its workflow owner.
+  const adminFilters =
+    source(target, consumers.adminFilters) +
+    "\n" +
+    source(target, "features/admin-users/use-admin-user-filters.ts");
   addMissingTokens(records, "field-composition", adminFiltersPath, adminFilters, [
     "<form.AppForm>",
     "<form.AppField",
@@ -561,7 +597,10 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   ]);
 
   const adminCreatePath = `${target.sourceRoot}/${consumers.adminCreate}`;
-  const adminCreate = source(target, consumers.adminCreate);
+  const adminCreate =
+    source(target, consumers.adminCreate) +
+    "\n" +
+    source(target, "features/admin-users/use-create-admin-user.ts");
   addMissingTokens(records, "field-composition", adminCreatePath, adminCreate, [
     "<FieldGroup",
     "<form.AppForm>",
@@ -661,7 +700,10 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     'translate("validation.emailInvalid")',
   ]);
   const adminTranslationsPath = `${target.sourceRoot}/${consumers.adminTranslations}`;
-  const adminTranslations = source(target, consumers.adminTranslations);
+  const adminTranslations =
+    source(target, consumers.adminTranslations) +
+    "\n" +
+    source(target, "features/admin-users/use-admin-users-translations.ts");
   addMissingTokens(records, "field-composition", adminTranslationsPath, adminTranslations, [
     "export const ADMIN_USERS_MESSAGE_KEYS",
     "export type AdminUsersTranslate",
@@ -676,7 +718,10 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
     });
   }
   const adminHookPath = `${target.sourceRoot}/${consumers.adminHook}`;
-  const adminHook = source(target, consumers.adminHook);
+  const adminHook =
+    source(target, consumers.adminHook) +
+    "\n" +
+    source(target, "features/admin-users/use-create-admin-user.ts");
   addMissingTokens(records, "field-composition", adminHookPath, adminHook, [
     "useAdminUsersData(filters",
     "useAdminUserMutations()",
@@ -709,9 +754,8 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   }
 
   if (target.mode === "single") {
-    const forgotPath =
-      target.framework === "nextjs" ? "app/forgot-password/page.tsx" : "routes/forgot-password.tsx";
-    const resetPath = "components/auth/reset-password-form.tsx";
+    const forgotPath = "features/auth/components/forgot-password-form.tsx";
+    const resetPath = "features/auth/components/reset-password-form.tsx";
     const forgot = source(target, forgotPath);
     const reset = source(target, resetPath);
     if (forgot.includes("<form.AppField")) {
@@ -743,7 +787,11 @@ function collectPrimitiveRecords(target: GeneratedTarget): PrimitiveRecord[] {
   if (target.mode === "single" && target.framework === "tanstack-start") {
     const settingsPath = `${target.sourceRoot}/features/settings`;
     const settings = target.files
-      .filter(({ path }) => path.startsWith(`${settingsPath}/`))
+      .filter(
+        ({ path }) =>
+          path.startsWith(`${settingsPath}/`) ||
+          path.startsWith(`${target.sourceRoot}/features/account-deletion/`),
+      )
       .map(({ content }) => content)
       .join("\n");
     addMissingTokens(records, "field-composition", settingsPath, settings, [
@@ -855,7 +903,7 @@ describe("generated shared frontend primitives", () => {
   for (const target of targets) {
     test(`${target.label} enumerates and parses every reviewed primitive record`, () => {
       const inventory = reviewedRecords(target);
-      expect(inventory).toHaveLength(36);
+      expect(inventory).toHaveLength(37);
       const reviewedRelativePaths = new Set([
         ...inventory.map(({ relativePath }) => relativePath),
         ...pendingFormExpectations(target).map(({ relativePath }) => relativePath),
@@ -937,8 +985,13 @@ describe("generated shared frontend primitives", () => {
           { ...config(mode, framework), features: ["i18n"] },
           { dryRun: false },
         );
-        const disabled = disabledFiles.find(({ path }) => path === translationPath)?.content ?? "";
-        const enabled = enabledFiles.find(({ path }) => path === translationPath)?.content ?? "";
+        const translationHookPath = `${sourceRoot}/features/admin-users/use-admin-users-translations.ts`;
+        const disabled = [translationPath, translationHookPath]
+          .map((target) => disabledFiles.find(({ path }) => path === target)?.content ?? "")
+          .join("\n");
+        const enabled = [translationPath, translationHookPath]
+          .map((target) => enabledFiles.find(({ path }) => path === target)?.content ?? "")
+          .join("\n");
         const enabledFeature = enabledFiles
           .filter(({ path }) => path.startsWith(`${sourceRoot}/features/admin-users/`))
           .map(({ content }) => content)

@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { createAuthClient } from "better-auth/client";
 import { z } from "zod";
 import { identityClientAdapterContent } from "../../src/templates/apps/fragments/auth/client-adapter.js";
-import { tanstackSettingsDataFeatureFiles } from "../../src/templates/apps/fragments/settings/tanstack-feature.js";
+import { identityModelContent } from "../../src/templates/apps/fragments/auth/client-validation.js";
+import { settingsFeatureHarness, settingsSource } from "../helpers/settings-feature-harness.js";
 import { generatedFormHarness } from "../helpers/generated-form-harness.js";
 
 describe("account deletion identity-client boundary", () => {
@@ -38,10 +39,14 @@ describe("account deletion identity-client boundary", () => {
         },
       },
     });
-    const adapter = generatedFormHarness(identityClientAdapterContent(), ["identityClient"], {
-      authClient: client,
-      z,
-    }).module.identityClient as unknown as {
+    const adapter = generatedFormHarness(
+      identityModelContent() + "\n" + identityClientAdapterContent(),
+      ["identityClient"],
+      {
+        authClient: client,
+        z,
+      },
+    ).module.identityClient as unknown as {
       deleteAccount(input?: { password: string }): Promise<{ error?: { code?: string } | null }>;
     };
     const states: unknown[] = [];
@@ -82,17 +87,27 @@ describe("account deletion identity-client boundary", () => {
   });
 
   test("the TanStack adapter preserves typed refusals and discards provider details", async () => {
-    const source = tanstackSettingsDataFeatureFiles(
-      "src/features/settings",
-      false,
-      "",
-      true,
-      false,
-    ).find(({ path }) => path.endsWith("/mutations.ts"))?.content;
-    if (!source) throw new Error("Missing settings mutation adapter");
+    const source =
+      identityModelContent() +
+      "\n" +
+      settingsSource(
+        "single",
+        "tanstack",
+        "account-deletion/model.ts",
+        "account-deletion/mutations.ts",
+        "account-deletion/use-account-deletion.ts",
+      );
     let failure: string | Error | undefined;
     const passwords: string[] = [];
-    const harness = generatedFormHarness(source, ["useSettingsMutations"], {
+    const events: string[] = [];
+    const harness = settingsFeatureHarness(source, ["useAccountDeletion"], {
+      useNavigate: () => () => {
+        events.push("redirect");
+      },
+      transitionQueryAuthScope: () => {
+        events.push("retire");
+      },
+      createRequiredPasswordSchema: () => ({}),
       identityClient: {
         deleteAccount: async ({ password }: { password: string }) => {
           passwords.push(password);
@@ -101,23 +116,31 @@ describe("account deletion identity-client boundary", () => {
         },
       },
     });
-    const mutations = harness.render("useSettingsMutations");
-    if (!mutations || typeof mutations !== "object") throw new Error("Missing settings mutations");
-    const deleteAccount = Reflect.get(mutations, "deleteAccount");
-    if (typeof deleteAccount !== "function") throw new Error("Missing account deletion mutation");
-    for (const code of [
-      "ACCOUNT_DELETION_RESTRICTED",
-      "SESSION_EXPIRED",
-      "SESSION_NOT_FRESH",
-      "INVALID_PASSWORD",
+    const render = () => harness.render("useAccountDeletion") as { error: string | null };
+    render();
+    const form = harness.forms[0]!;
+    form.values.password = "fixture-password";
+    for (const [code, message] of [
+      ["ACCOUNT_DELETION_RESTRICTED", "danger.retainedRecordError"],
+      ["SESSION_EXPIRED", "danger.reauthenticate"],
+      ["SESSION_NOT_FRESH", "danger.reauthenticate"],
+      ["INVALID_PASSWORD", "danger.invalidPassword"],
     ]) {
       failure = code;
-      expect(await deleteAccount("fixture-password")).toEqual({ ok: false, code });
+      await form.handleSubmit();
+      expect(render().error).toBe(message);
+      expect(render().error).not.toContain("private provider detail");
+      expect(form.values.password).toBe("fixture-password");
+      expect(events).toEqual([]);
     }
     failure = new Error("private provider detail");
-    expect(await deleteAccount("fixture-password")).toEqual({ ok: false, code: "REQUEST_FAILED" });
+    await form.handleSubmit();
+    expect(render().error).toBe("danger.genericError");
+    expect(events).toEqual([]);
     failure = undefined;
-    expect(await deleteAccount("fixture-password")).toEqual({ ok: true });
+    await form.handleSubmit();
+    expect(render().error).toBeNull();
+    expect(events).toEqual(["retire", "redirect"]);
     expect(passwords).toEqual(Array.from({ length: 6 }, () => "fixture-password"));
   });
 });

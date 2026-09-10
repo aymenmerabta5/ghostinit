@@ -80,7 +80,8 @@ export function useCreateUser() { return useMutation(orpc.adminUsers.create.muta
     expect(adapterFindings).toEqual([]);
   });
 
-  test("rejects native Convex clients from feature presentation adapters", async () => {
+  test("permits exact generated Convex client references in feature-root data adapters", async () => {
+    fixture("convex/_generated/api.js", "export const api = {};");
     fixture(
       "src/features/admin-users/queries.ts",
       `"use client";
@@ -108,10 +109,7 @@ export function useCreateUser() { return { create: authClient.admin.createUser, 
           "ui-imports-vendor",
         ].includes(finding.id),
     );
-    expect(adapterFindings.length).toBeGreaterThanOrEqual(2);
-    expect(adapterFindings.map(({ specifier }) => specifier)).toEqual(
-      expect.arrayContaining(["../../../convex/_generated/api"]),
-    );
+    expect(adapterFindings).toEqual([]);
   });
 
   test("rejects remote-state and server imports from monorepo feature components", async () => {

@@ -247,6 +247,8 @@ export function parseFile(source: string, ext: string): ParsedFile {
     });
 
   return {
+    program: result.program,
+    comments: result.comments,
     imports,
     importReferences,
     directives,

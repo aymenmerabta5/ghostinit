@@ -2,7 +2,7 @@ import { nativeI18nImportPath, nativeI18nTemplate } from "../../fragments/native
 import type { DesktopMode } from "../model.js";
 import { desktopKernelSpecifier, desktopOrpcSpecifier } from "./specifiers.js";
 
-export function desktopRouteAdminUsersContent(
+export function desktopAdminUsersSource(
   _isConvex = false,
   mode: DesktopMode = "monorepo",
   hasI18n = false,
@@ -111,13 +111,13 @@ ${dataState}
         <h1 className="text-2xl font-semibold tracking-tight">${i18n.child("native.users", "Users")}</h1>
         <Button render={<Link to="/admin/users/create" />} nativeButton={false} size="sm">${i18n.child("list.create", "Create user")}</Button>
       </div>
-      <p className="text-sm text-muted-foreground max-w-[65ch]">${i18n.child("list.description", "Manage accounts, roles, and bans.")} <span>{${hasI18n ? '(data?.total ?? 0) === 1 ? t("counts.accountOne", { count: data?.total ?? 0 }) : t("counts.accountMany", { count: data?.total ?? 0 })' : "`Total ${data?.total ?? 0} users.`"}}</span></p>
+      <p className="text-sm text-muted-foreground max-w-[65ch]">${i18n.child("list.description", "Manage accounts, roles, and bans.")} {data ? <span>{${hasI18n ? '(data.total) === 1 ? t("counts.accountOne", { count: data.total }) : t("counts.accountMany", { count: data.total })' : "`Total ${data.total} users.`"}}</span> : null}</p>
       <Separator />
       {error ? <Alert variant="destructive"><AlertTitle>${i18n.child("list.loadErrorTitle", "Failed to load")}</AlertTitle><AlertDescription>{${hasI18n ? 't("errors.requestFailed")' : "error"}}</AlertDescription></Alert> : null}
       <Card>
-        <CardHeader><CardTitle>${i18n.child("list.title", "All users")}</CardTitle><CardDescription>{data?.users.length === 0 ? ${i18n.value("list.emptyTitle", "No users found.")} : ${hasI18n ? '(data?.users.length ?? 0) === 1 ? t("counts.accountOne", { count: data?.users.length ?? 0 }) : t("counts.accountMany", { count: data?.users.length ?? 0 })' : "`" + "${data?.users.length ?? 0} users" + "`"}}</CardDescription></CardHeader>
+        <CardHeader><CardTitle>${i18n.child("list.title", "All users")}</CardTitle>{data ? <CardDescription>{data.users.length === 0 && !loading && !error ? ${i18n.value("list.emptyTitle", "No users found.")} : ${hasI18n ? '(data.users.length) === 1 ? t("counts.accountOne", { count: data.users.length }) : t("counts.accountMany", { count: data.users.length })' : "`" + "${data.users.length} users" + "`"}}</CardDescription> : null}</CardHeader>
         <CardContent className="flex flex-col divide-y divide-border">
-          {loading ? <div className="flex flex-col gap-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div> : data && data.users.length === 0 ? <Empty><EmptyHeader><EmptyTitle>${i18n.child("list.emptyTitle", "No users found.")}</EmptyTitle><EmptyDescription>${i18n.child("list.description", "Manage accounts, roles, and bans.")}</EmptyDescription></EmptyHeader></Empty> : data ? data.users.map((u) => (
+          {loading ? <div className="flex flex-col gap-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div> : data && data.users.length === 0 && !error ? <Empty><EmptyHeader><EmptyTitle>${i18n.child("list.emptyTitle", "No users found.")}</EmptyTitle><EmptyDescription>${i18n.child("list.description", "Manage accounts, roles, and bans.")}</EmptyDescription></EmptyHeader></Empty> : data ? data.users.map((u) => (
             <div key={u.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col gap-1 min-w-0">
                 <div className="flex items-center gap-2"><p className="font-medium truncate">{u.name ?? u.email}</p><Badge variant="secondary">{${hasI18n ? 'u.role === "admin" ? t("roles.admin") : t("roles.user")' : "u.role"}}</Badge>{u.banned ? <Badge variant="destructive">${i18n.child("status.suspended", "banned")}</Badge> : null}</div>
@@ -134,7 +134,7 @@ ${dataState}
 `;
 }
 
-export function desktopRouteAdminCreateUserContent(
+export function desktopAdminCreateSource(
   _isConvex = false,
   mode: DesktopMode = "monorepo",
   hasI18n = false,
@@ -214,5 +214,26 @@ ${i18n.hookLine}
     </main>
   );
 }
+`;
+}
+
+export function desktopRouteAdminUsersContent(
+  _isConvex = false,
+  mode: DesktopMode = "monorepo",
+  _hasI18n = false,
+): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { AdminUsersScreen } from "${mode === "single" ? "@/renderer" : "@"}/features/admin-users/screen";
+export const Route = createFileRoute("/admin/users")({ component: AdminUsersScreen });
+`;
+}
+export function desktopRouteAdminCreateUserContent(
+  _isConvex = false,
+  mode: DesktopMode = "monorepo",
+  _hasI18n = false,
+): string {
+  return `import { createFileRoute } from "@tanstack/react-router";
+import { AdminCreateUserScreen } from "${mode === "single" ? "@/renderer" : "@"}/features/admin-users/create-screen";
+export const Route = createFileRoute("/admin/users/create")({ component: AdminCreateUserScreen });
 `;
 }

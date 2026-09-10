@@ -163,16 +163,18 @@ infrastructure changes, not cosmetic config edits.
 
 ## Release Evidence
 
-The repository's `bun run test:workers` gate generates four real projects:
+The repository's `bun run test:workers` gate generates eight real projects:
 
-- `cloudflare-next-monorepo` (web + Expo + Electron, Convex + all billing
-  providers + i18n + messaging,
-  notifications, feature flags, jobs, and Redis cache);
-- `cloudflare-next-single` (database-free API profile);
-- `cloudflare-tanstack-monorepo` (web + Expo + Electron, Convex + all billing
-  providers + i18n + messaging,
-  notifications, feature flags, jobs, and Redis cache);
-- `cloudflare-tanstack-single` (database-free API profile).
+- `cloudflare-next-monorepo`, `cloudflare-next-monorepo-stripe`, and
+  `cloudflare-next-monorepo-polar`: web + Expo + Electron with Convex, each
+  selecting one global provider plus Chargily/manual, i18n, messaging/storage,
+  notifications, feature flags, jobs and Redis cache. The unsuffixed corner selects Paddle.
+- `cloudflare-next-single`: database-free API profile.
+- `cloudflare-tanstack-monorepo`, `cloudflare-tanstack-monorepo-stripe`, and
+  `cloudflare-tanstack-monorepo-polar`: the same capability families with TanStack
+  Start, again selecting one global provider plus Chargily/manual. The unsuffixed
+  corner selects Paddle.
+- `cloudflare-tanstack-single`: database-free API profile.
 
 Each must install and audit, format, pass architecture/type/lint/tests, run the
 conventional root build (including selected native artifacts), secret-scan,
@@ -182,7 +184,7 @@ pass a Wrangler dry run, and serve HTTP 200 for `/` and
 every layout. Health responses, preview-port ownership, production CSP, and
 same-origin redirects are validated. The monorepos select Bun and the single
 projects select Node, exercising both advertised execution-runtime choices.
-The all-provider monorepos also POST empty webhook bodies and require safe 4xx
+The provider-specific monorepos also POST empty webhook bodies and require safe 4xx
 responses (never 500), then require a privileged auth route to return 404 before
 remote Convex access.
 Those negative-path probes prove route loading and safe rejection only; they do

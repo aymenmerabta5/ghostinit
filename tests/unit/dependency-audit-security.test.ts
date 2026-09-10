@@ -12,11 +12,20 @@ import {
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { describe, expect, test } from "bun:test";
+import { runInNewContext } from "node:vm";
+import { runtime, supplyChain } from "../../packages/versions/src/index.js";
+import type { DependencySecurityRunOptions } from "../../src/lib/dependency-security/runtime-types.js";
 import {
   createReviewedImageSizeAuditFixture,
   reviewedImageSizeFixtureRoot,
 } from "../helpers/reviewed-image-size-fixture.js";
 import { projectConfigSchema } from "../../src/lib/config.js";
+import { FsTransaction } from "../../src/lib/fs.js";
+import { dependencySecurityPolicy } from "../../src/templates/tooling/dependency-security-policy.js";
+import {
+  dependencySecurityFiles,
+  dependencySecurityLauncherContent,
+} from "../../src/templates/tooling/dependency-security.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import {
   dependencyAuditScriptContent,
@@ -174,10 +183,10 @@ describe("reviewed image-size advisory containment", () => {
         expect(manifest.scripts?.["audit:dependencies"]).toBe("bun scripts/audit-dependencies.ts");
         expect(manifest.scripts?.preinstall).toBe("bun scripts/audit-dependencies.ts --lock-only");
         expect(manifest.scripts?.["install:verified"]).toBe(
-          "bun run audit:lock && bun install --frozen-lockfile && bun run audit:dependencies",
+          "bun scripts/security-dependencies.cjs install",
         );
         expect(manifest.scripts?.["install:bootstrap"]).toBe(
-          "bun run lock:resolve && bun run audit:lock:refresh && bun run install:verified",
+          "bun scripts/security-dependencies.cjs install --bootstrap",
         );
         expect(byPath.get("scripts/audit-dependencies.ts")).toBe(
           dependencyAuditScriptContent(mobile),
@@ -313,7 +322,7 @@ describe("reviewed image-size advisory containment", () => {
     }
   });
 
-  test("bootstraps a fresh lock without lifecycle scripts, then enforces evidence before lifecycle", () => {
+  test("bootstraps a fresh lock without lifecycle scripts, then enforces evidence before lifecycle", async () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), "ghostinit-audit-bootstrap-"));
     try {
       mkdirSync(resolve(temporaryRoot, "scripts"), { recursive: true });
@@ -369,6 +378,24 @@ describe("reviewed image-size advisory containment", () => {
           "",
         ].join("\n"),
       );
+
+      const securityTransaction = new FsTransaction(temporaryRoot);
+      for (const file of dependencySecurityFiles(false)) {
+        await securityTransaction.write(
+          file.path,
+          file.path === "scripts/security-dependencies.cjs"
+            ? dependencySecurityLauncherContent({
+                ...dependencySecurityPolicy(false),
+                auditScriptContent: dependencyAuditWithMockedBunAudit(
+                  false,
+                  mockedAdvisoryResult({}, 0),
+                ),
+              })
+            : file.content,
+        );
+      }
+      expect(securityTransaction.getStagedFiles()).toHaveLength(3);
+      await securityTransaction.commit();
 
       expect(existsSync(resolve(temporaryRoot, "bun.lock"))).toBe(false);
       const bootstrap = spawnSync(process.execPath, ["run", "install:bootstrap"], {
@@ -729,7 +756,7 @@ const fetch = async () => {
     expect(attributes).toContain("*.sh text eol=lf");
   });
 
-  test("keeps fresh no-install guidance and executable callers on the verified bootstrap", () => {
+  test("keeps fresh no-install guidance and executable callers on the verified bootstrap", async () => {
     for (const relativePath of [
       "README.md",
       "CONTRIBUTING.md",
@@ -744,9 +771,46 @@ const fetch = async () => {
         "bun run install:bootstrap",
       );
     }
-    expect(readFileSync(resolve(root, "src/commands/create/installer.ts"), "utf8")).toContain(
-      'argv: ["run", "install:bootstrap"]',
-    );
+    const policy = dependencySecurityPolicy(true);
+    expect(policy.expectedBunVersion).toBe(runtime.bun);
+    expect(policy.minimumReleaseAgeSeconds).toBe(supplyChain.minimumReleaseAgeSeconds);
+    expect(policy.auditScriptContent).toBe(dependencyAuditScriptContent(true));
+    let observed!: DependencySecurityRunOptions;
+    let complete!: () => void;
+    const finished = new Promise<void>((resolveDone) => {
+      complete = resolveDone;
+    });
+    runInNewContext(dependencySecurityLauncherContent(policy), {
+      process: {
+        argv: ["bun", "security-dependencies.cjs", "install", "--bootstrap"],
+        cwd: () => "/fixture",
+        exitCode: 0,
+      },
+      console: { log: () => complete() },
+      require: (specifier: string) => {
+        expect(specifier).toBe("./lib/dependency-security-integrity.cjs");
+        return {
+          loadDependencySecurityRuntime: () => {
+            return {
+              runDependencySecurity: async (input: DependencySecurityRunOptions) => {
+                observed = input;
+                return {
+                  status: "clean",
+                  dryRun: false,
+                  applied: false,
+                  installedVerified: true,
+                  changes: [],
+                  remaining: [],
+                  verifiedPatchAdvisories: [],
+                };
+              },
+            };
+          },
+        };
+      },
+    });
+    await finished;
+    expect(observed).toMatchObject({ cwd: "/fixture", mode: "install", bootstrap: true, policy });
     expect(readFileSync(resolve(root, "scripts/test-generated.ts"), "utf8")).toContain(
       'await run(BUN_EXECUTABLE, ["run", "install:bootstrap"], directory)',
     );

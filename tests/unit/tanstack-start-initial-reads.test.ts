@@ -107,19 +107,15 @@ describe("TanStack Start-native initial reads", () => {
         const messagingRoute = read(generated, mode, "src/routes/messages.tsx");
         expect(messagingRoute).toContain("loadInitialConversations(context)");
         if (database === "postgres") {
-          const messagingQueries = read(generated, mode, "src/routes/-hooks/use-messaging.ts");
+          const messagingQueries = read(generated, mode, "src/features/messaging/queries.ts");
           expect(messagingQueries).toContain("messagingConversationsQueryKey(scope)");
         } else {
-          expect(messagingRoute).toContain('from "./-components/messages/convex-messages"');
+          expect(messagingRoute).toContain('from "@/features/messaging/screen"');
           expect(messagingRoute).toContain("component: ConvexMessagesPage");
-          const messagingPage = read(
-            generated,
-            mode,
-            "src/routes/-components/messages/convex-messages.tsx",
-          );
-          expect(messagingPage).toContain("messagingConversationsQueryKey(scope)");
-          expect(messagingPage).toContain("conversations: Array<{ id: string }>");
-          expect(messagingPage).toContain("liveConversations.map((conversation)");
+          const messagingPage = read(generated, mode, "src/features/messaging/queries.ts");
+          expect(messagingPage).toContain("messagingConversationsQueryKey(owner.scope)");
+          expect(messagingPage).toContain("conversations: InitialConversation[]");
+          expect(messagingPage).toContain("live.map((conversation)");
           expect(messagingPage).toContain("liveId: null");
           expect(messagingPage).not.toContain('conversations: Array<{ _id: Id<"conversations"> }>');
         }
@@ -176,14 +172,19 @@ describe("TanStack Start-native initial reads", () => {
     }
 
     expect(read(generated, "monorepo", "src/features/storage/mutations.ts")).toContain(
-      "downloads are explicit binary/base64 HTTP operations",
+      "orpcClient.storage.uploadBase64",
+    );
+    expect(read(generated, "monorepo", "src/features/storage/queries.ts")).toContain(
+      "orpcClient.storage.downloadBase64",
     );
     expect(read(generated, "monorepo", "src/features/jobs/queries.ts")).toContain(
-      "there is no list-runs contract",
+      "orpcClient.jobs.getRun",
     );
-    expect(read(generated, "monorepo", "src/routes/pdf.tsx")).toContain(
-      "PDF bytes are produced only after an explicit POST",
-    );
+    const pdfClient = generated.files.find(
+      (file) => file.physicalPath === "packages/pdf/src/client/usePdf.ts",
+    )?.content;
+    expect(pdfClient).toContain('method: "POST"');
+    expect(pdfClient).toContain('"/api/pdf"');
     expect(read(generated, "monorepo", "src/routes/agent.tsx")).toContain(
       "Eve output is a user-triggered stream",
     );

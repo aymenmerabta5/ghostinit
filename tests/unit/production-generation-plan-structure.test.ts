@@ -7,6 +7,10 @@ import { resolveCreateConfig } from "../../src/commands/create/resolution";
 import { getCapabilityScopedGlobalEnvKeys } from "../../src/generation/capability-environment-sanitizer";
 import { parseFile } from "../../src/lib/architecture/parsers/imports";
 import { buildProjectGenerationPlan } from "../../src/templates/default";
+import {
+  dependencyAuditFiles,
+  isDependencyAuditToolingFile,
+} from "../../src/templates/tooling/dependency-audit.js";
 
 type CreateInput = Parameters<typeof resolveCreateConfig>[0];
 
@@ -144,6 +148,20 @@ describe("production GenerationPlan structure", () => {
         expect(parseSync(file.physicalPath, file.content).errors, file.physicalPath).toEqual([]);
       }
       expect(unresolvedRelativeImports(plan), corner.label).toEqual([]);
+      const dependencyTools = dependencyAuditFiles(
+        corner.input.apps?.includes("mobile") === true,
+      ).filter((file) => isDependencyAuditToolingFile(file.path));
+      expect(dependencyTools).toHaveLength(4);
+      for (const tool of dependencyTools) {
+        const emitted = plan.files.filter((file) => file.physicalPath === tool.path);
+        expect(emitted, `${corner.label} core dependency tool ${tool.path}`).toHaveLength(1);
+        expect(emitted[0].content, `${corner.label} canonical bytes ${tool.path}`).toBe(
+          tool.content,
+        );
+        expect(emitted[0].owner).toBe("tooling");
+        expect(emitted[0].lifecycle).toBe("generator-owned");
+        expect(emitted[0].provenance.capability).toBeNull();
+      }
       const turboFile = plan.files.find(({ physicalPath }) => physicalPath === "turbo.json");
       if (resolved.mode === "monorepo") {
         const globalEnv = (JSON.parse(turboFile?.content ?? "{}") as { globalEnv?: string[] })
@@ -163,6 +181,8 @@ describe("production GenerationPlan structure", () => {
       expect(paths, corner.label).not.toContain("src/lib/storage.ts");
       expect(paths, corner.label).not.toContain("packages/database/src/schema/posts.ts");
       expect(paths, corner.label).not.toContain("packages/database/src/schema/enums.ts");
+      expect(paths, corner.label).not.toContain("packages/pdf/package.json");
+      expect(paths, corner.label).not.toContain("src/server/pdf/index.ts");
     });
   }
 

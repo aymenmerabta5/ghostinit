@@ -138,6 +138,8 @@ export const cloudflare = {
   "@opennextjs/cloudflare": "1.20.2",
   "@opennextjs/aws": "4.1.0",
   "@cloudflare/vite-plugin": "1.53.1",
+  // GHSA-rgj7-g3m4-5g8c: Miniflare's exact 0.35.2 pin needs the patched decoder.
+  sharp: "0.35.4",
   dotenv: "17.4.2",
   wrangler: "4.125.0",
 } as const;

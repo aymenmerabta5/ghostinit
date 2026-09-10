@@ -17,7 +17,7 @@ import { providersFileContent } from "../../src/templates/apps/fragments/theme.j
 import { singleProvidersTanstackContent } from "../../src/templates/modes/single/components/providers.js";
 import { adminDataFiles } from "../../src/templates/apps/fragments/admin/feature-data.js";
 import { webIdentityWorkspaceDataFiles } from "../../src/templates/apps/fragments/identity-workspace/web-data.js";
-import { tanstackSettingsDataFeatureFiles } from "../../src/templates/apps/fragments/settings/tanstack-feature.js";
+import { webSettingsFeatureFiles } from "../../src/templates/apps/fragments/settings/feature.js";
 import { headerUserMenuContent } from "../../src/templates/apps/fragments/header/user-menu.js";
 import { tanstackUseBillingHookContent } from "../../src/templates/apps/fragments/core/hooks.js";
 import { resolveCreateConfig } from "../../src/commands/create/resolution.js";
@@ -374,9 +374,10 @@ describe("generated TanStack authenticated Query boundary", () => {
       "QueryAuthCacheBoundary",
     );
 
-    const tanstackSignOut = headerUserMenuContent("tanstack");
-    expect(tanstackSignOut).toContain("transitionQueryAuthScope(getQueryClient(), null)");
-    expect(headerUserMenuContent("next")).toContain("transitionQueryAuthScope");
+    for (const router of ["tanstack", "next"] as const) {
+      expect(headerUserMenuContent(router)).toContain("void onSignOut()");
+      expect(headerUserMenuContent(router)).not.toContain("authClient");
+    }
   });
 
   test("emits Next cache ownership and matching request-scoped session data in both modes", () => {
@@ -416,7 +417,7 @@ describe("generated TanStack authenticated Query boundary", () => {
           "queryAuthScopeFromSession",
         );
         expect(read("src/app/settings/page.tsx")).toContain("initialScope={initialScope}");
-        expect(read("src/app/settings/sessions.ts")).toContain(
+        expect(read("src/features/settings/queries.ts")).toContain(
           "queryInitialDataForScope(scope, initialScope, initialData)",
         );
         expect(read("tests/query-auth.test.ts")).toContain("new QueryObserver(client");
@@ -471,7 +472,9 @@ describe("generated TanStack authenticated Query boundary", () => {
     const paths = files.map(({ path }) => path);
     expect(paths).toContain("src/routes/billing.tsx");
     expect(paths).toContain("src/features/billing/billing-page.tsx");
-    expect(paths).toContain("src/features/billing/use-billing.ts");
+    expect(paths).toContain("src/features/billing/queries.ts");
+    expect(paths).toContain("src/features/billing/mutations.ts");
+    expect(paths).toContain("src/features/billing/use-billing-page.ts");
     const route = files.find(({ path }) => path === "src/routes/billing.tsx")?.content ?? "";
     expect(route).toContain('import { BillingPage } from "@/features/billing/billing-page"');
     expect(route).toContain("requireProtectedRoute(context.queryClient)");
@@ -481,7 +484,8 @@ describe("generated TanStack authenticated Query boundary", () => {
   test("TanStack messaging is protected and scoped without changing the Next transport", () => {
     const tanstack = messagingTanstackFiles("monorepo");
     const route = tanstack.find(({ path }) => path.endsWith("/routes/messages.tsx"))?.content ?? "";
-    const hook = tanstack.find(({ path }) => path.endsWith("/use-messaging.ts"))?.content ?? "";
+    const hook =
+      tanstack.find(({ path }) => path.endsWith("/features/messaging/queries.ts"))?.content ?? "";
     expect(route).toContain("requireProtectedRoute(context.queryClient)");
     expect(route).toContain("loadInitialConversations(context)");
     expect(hook).toContain("messagingConversationsQueryKey(scope)");
@@ -512,13 +516,7 @@ describe("generated TanStack authenticated Query boundary", () => {
     const identity = webIdentityWorkspaceDataFiles("monorepo", "tanstack")
       .map(({ content }) => content)
       .join("\n");
-    const settings = tanstackSettingsDataFeatureFiles(
-      "apps/web/src/features/settings",
-      true,
-      "",
-      true,
-      true,
-    )
+    const settings = webSettingsFeatureFiles("apps/web/src", "tanstack", true, true, true)
       .map(({ content }) => content)
       .join("\n");
     const billing = tanstackUseBillingHookContent();
@@ -549,8 +547,9 @@ describe("generated TanStack authenticated Query boundary", () => {
     expect(nextQueries).toContain("authScopedQueryKey(scope, meOptions.queryKey)");
     expect(nextQueries).toContain("authScopedQueryKey(scope, options.queryKey)");
     expect(nextMutations).toContain(
-      'authScopedQueryKey(scope, orpc.identity.organizations.hasPermission.key({ type: "query" }))',
+      'orpc.identity.organizations.hasPermission.key({ type: "query" })',
     );
+    expect(nextMutations).toContain("queryKey: authScopedQueryKey(scope, key)");
     expect(nextMutations).toContain('from "@/app/settings/workspace/actions"');
     expect(nextMutations).not.toContain(".mutationOptions(");
     expect(nextActions).toContain('"use server";');

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
+import { exactPinAuditWindow, type PinAuditWindow } from "../../scripts/dependency-audit-window.js";
 import * as versions from "../../packages/versions/src/index.js";
 import {
   compareStableVersions,
@@ -32,6 +33,7 @@ const evidence = JSON.parse(
   }>;
   nonNpm: Array<{ scope: string; value: string; reason: string }>;
   pins: Array<{
+    auditWindow?: PinAuditWindow;
     scope: string;
     group: string;
     key: string;
@@ -138,13 +140,19 @@ describe("dependency version audit evidence", () => {
       evidence.holds.map((hold) => [`${hold.package}@${hold.pinned}`, new Set(hold.scopes)]),
     );
     for (const pin of evidence.pins) {
+      const pinCutoff = pin.auditWindow
+        ? exactPinAuditWindow(
+            { scope: pin.scope, package: pin.package, version: pin.pinned },
+            { ...pin, auditWindow: pin.auditWindow },
+            evidence.auditedAt,
+            versions.supplyChain.minimumReleaseAgeSeconds,
+          ).cutoffMilliseconds
+        : cutoffMilliseconds;
       expect(Number.isFinite(Date.parse(pin.pinnedPublishedAt)), pin.scope).toBe(true);
-      expect(Date.parse(pin.pinnedPublishedAt), pin.scope).toBeLessThanOrEqual(cutoffMilliseconds);
+      expect(Date.parse(pin.pinnedPublishedAt), pin.scope).toBeLessThanOrEqual(pinCutoff);
       expect(Number.isFinite(Date.parse(pin.registryLatestPublishedAt)), pin.scope).toBe(true);
       expect(Number.isFinite(Date.parse(pin.eligibleLatestPublishedAt)), pin.scope).toBe(true);
-      expect(Date.parse(pin.eligibleLatestPublishedAt), pin.scope).toBeLessThanOrEqual(
-        cutoffMilliseconds,
-      );
+      expect(Date.parse(pin.eligibleLatestPublishedAt), pin.scope).toBeLessThanOrEqual(pinCutoff);
       if (pin.pinned === pin.eligibleLatest) {
         expect(pin.status, pin.scope).toBe("latest");
         continue;

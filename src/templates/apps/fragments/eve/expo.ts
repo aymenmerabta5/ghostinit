@@ -1,6 +1,7 @@
 import { file, type TemplateFile } from "../../../shared.js";
 import { nativeI18nImportPath, nativeI18nTemplate } from "../native-i18n.js";
 import type { EvePlatformMode } from "./protocol.js";
+import { nativeEveFeatureFiles, nativeEveRouteContent } from "./native-feature.js";
 
 export function expoEveClientContent(mode: EvePlatformMode): string {
   const configImport = mode === "monorepo" ? "@repo/config/expo" : "@/lib/env/expo";
@@ -62,7 +63,7 @@ export type { EveInvokeOptions, EveInvokeResult, EveSessionCursor } from "./eve-
 `;
 }
 
-export function expoEveRouteContent(mode: EvePlatformMode = "monorepo", hasI18n = false): string {
+function expoEveViewSource(mode: EvePlatformMode = "monorepo", hasI18n = false): string {
   const i18n = nativeI18nTemplate(hasI18n, "agent", nativeI18nImportPath("mobile", mode));
   return `import * as React from "react";
 import { ActivityIndicator, ScrollView, View } from "react-native";
@@ -159,6 +160,10 @@ export function expoEveFiles(mode: EvePlatformMode, hasI18n = false): TemplateFi
   const root = mode === "monorepo" ? "apps/mobile/" : "";
   return [
     file(`${root}src/lib/eve-client.ts`, expoEveClientContent(mode)),
-    file(`${root}app/agent.tsx`, expoEveRouteContent(mode, hasI18n)),
+    ...nativeEveFeatureFiles("expo", mode, hasI18n, expoEveViewSource(mode, hasI18n)),
   ];
+}
+
+export function expoEveRouteContent(mode: EvePlatformMode = "monorepo", _hasI18n = false): string {
+  return nativeEveRouteContent("expo", mode);
 }

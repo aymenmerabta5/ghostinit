@@ -566,7 +566,7 @@ if (operation === "put") {
     }
   });
 
-  test("normalizes S3 not-found responses and rejects oversized downloads", async () => {
+  test("normalizes S3 not-found responses, rejects oversized downloads and conditionally creates reserved keys", async () => {
     const implementation = storagePackage("single").find(
       (file) => file.path === "src/server/storage/index.ts",
     )?.content;
@@ -593,20 +593,27 @@ export class DeleteObjectCommand extends Command {}
 export class HeadObjectCommand extends Command {}
 export class S3Client {
   constructor(readonly config: unknown) {}
-  async send(_command: unknown): Promise<unknown> {
+  async send(command: { input: unknown }, options?: unknown): Promise<unknown> {
     const state = (globalThis as Record<string, unknown>)[${JSON.stringify(stateName)}] as {
       error?: unknown;
       output?: unknown;
+      input?: unknown;
+      options?: unknown;
     };
+    state.input = command.input;
+    state.options = options;
     if (state.error !== undefined) throw state.error;
     return state.output ?? {};
   }
 }
 `;
     const module = await temporaryModule(source, "storage-s3", { "fake-s3.ts": fakeS3 });
-    const getFile = module.getFile as (key: string) => Promise<Uint8Array | null>;
+    const getFile = module.getFile as (
+      key: string,
+      signal?: AbortSignal,
+    ) => Promise<Uint8Array | null>;
     const key = "00000000-0000-4000-8000-000000000000";
-    const state: { error?: unknown; output?: unknown } = {};
+    const state: { error?: unknown; output?: unknown; input?: unknown; options?: unknown } = {};
     (globalThis as Record<string, unknown>)[stateName] = state;
     try {
       state.error = Object.assign(new Error("missing"), { name: "NoSuchKey" });
@@ -627,12 +634,53 @@ export class S3Client {
         },
       };
       await expect(getFile(key)).rejects.toThrow(/10MB limit/);
+      const putFile = module.putFile as (
+        data: Uint8Array,
+        name: string,
+        mimeType: string,
+        key?: string,
+        signal?: AbortSignal,
+      ) => Promise<unknown>;
+      state.output = {};
+      const controller = new AbortController();
+      await putFile(
+        new TextEncoder().encode("receipt"),
+        "receipt.pdf",
+        "application/pdf",
+        key,
+        controller.signal,
+      );
+      expect(state.options).toEqual({ abortSignal: controller.signal });
+      expect(state.input).toMatchObject({
+        Key: key,
+        IfNoneMatch: "*",
+        ServerSideEncryption: "AES256",
+      });
+      state.error = Object.assign(new Error("already exists"), {
+        $metadata: { httpStatusCode: 412 },
+      });
+      await expect(
+        putFile(new TextEncoder().encode("changed"), "receipt.pdf", "application/pdf", key),
+      ).rejects.toThrow("already exists");
       expect(transformed).toBe(false);
 
+      state.error = undefined;
       state.output = {
         Body: { transformToByteArray: async () => new Uint8Array(10 * 1024 * 1024 + 1) },
       };
       await expect(getFile(key)).rejects.toThrow(/10MB limit/);
+      state.output = { Body: { transformToByteArray: async () => new Uint8Array([1]) } };
+      expect(await getFile(key, controller.signal)).toEqual(new Uint8Array([1]));
+      expect(state.options).toEqual({ abortSignal: controller.signal });
+      const deleteFile = module.deleteFile as (key: string, signal?: AbortSignal) => Promise<void>;
+      await deleteFile(key, controller.signal);
+      expect(state.options).toEqual({ abortSignal: controller.signal });
+      controller.abort(new Error("fixture deadline exceeded"));
+      await expect(
+        putFile(new Uint8Array([1]), "receipt.pdf", "application/pdf", key, controller.signal),
+      ).rejects.toThrow("fixture deadline exceeded");
+      await expect(getFile(key, controller.signal)).rejects.toThrow("fixture deadline exceeded");
+      await expect(deleteFile(key, controller.signal)).rejects.toThrow("fixture deadline exceeded");
     } finally {
       delete (globalThis as Record<string, unknown>)[stateName];
     }

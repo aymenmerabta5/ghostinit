@@ -24,13 +24,16 @@ ghostinit create my-app
 
 - `ghostinit create <name> [--cwd dir] [--no-install] [--force]` – generate a new monorepo
 - `ghostinit init [name]` – generate into the current directory (same pipeline as create)
-- `ghostinit upgrade [--dry-run]` – hash-gated transactional desired-state upgrade/re-render; preserves user-owned seed edits and stops on managed-file conflicts
+- `ghostinit upgrade [--dry-run] [--no-install]` – reconcile managed files, then repair and verify dependencies; preserves user-owned seed edits and stops on managed-file conflicts
+- `ghostinit security [audit|fix] [--dry-run] [--json]` – inspect dependencies or apply compatible security fixes and verify the project
 - `ghostinit status` – show project metadata and lock state
 - `ghostinit doctor` – verify host tooling and environment
 - `ghostinit check` – run the architecture checker (GhostInit Layered 6-layer + vendor/capability isolation)
 - `ghostinit sync [--check|--dry-run]` – reconcile pending desired configuration, then rebuild deterministic registries
 - `ghostinit add module <name>` – add an empty bounded-context module
-- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing stripe,chargily,paddle,polar|both|all|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none --deploy vercel|fly|docker|cloudflare|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
+- `create` options: `--mode monorepo|single --framework nextjs|tanstack-start --billing <providers>|none --database postgres|convex|none --apps web,mobile,desktop|both|all --preset saas|frontend|custom --with-eve --with-i18n --cache redis|none --deploy vercel|fly|docker|cloudflare|none` (`--features eve,i18n` deprecated alias for `--with-eve/--with-i18n`)
+
+Billing accepts `manual`, `chargily`, or one global provider (`stripe`, `paddle`, or `polar`) alone. Combine manual and Chargily with each other and with one global provider, for example `--billing manual,chargily,stripe`. Global providers cannot be combined with each other.
 
 Deployment artifacts keep Bun package management on exact catalog version `1.4.0`. Vercel's `bunVersion: "1.4.x"` is a provider-managed function-runtime patch line, while its install/build commands still invoke exact Bun `1.4.0`; use Docker or Fly when the execution runtime itself must remain byte-exact. Vercel, Docker, Fly, and Cloudflare require a verified regular root `bun.lock`: after `--no-install`, run `bun run install:bootstrap` with Bun `1.4.0` to resolve without lifecycle scripts, attest public-registry integrity and release age, then perform a frozen install and vulnerability audit. Vercel runs the shared lock guard before both dependency installation and application build; Docker/Fly and the Cloudflare Worker build wrapper run it before their frozen build path rather than trusting Bun's missing-lock behavior. Docker emits a BuildKit-secret build, health check, 30-second graceful-stop Compose contract, and explicit named Eve Workflow volume when selected. The local Postgres 18 Compose path mounts `/var/lib/postgresql` so its versioned data directory persists.
 
@@ -43,6 +46,25 @@ Production API mutations require `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_RES
 Electron production builds require `DESKTOP_API_URL=https://api.example.com` in the build environment or the generated `.env.production.local`. electron-vite validates and embeds only that non-secret origin before electron-builder packages the app. Managed launches may override it with a runtime `DESKTOP_API_URL`; ordinary Explorer/Finder launches use the embedded origin. Credentials, query strings, fragments, non-HTTPS production URLs, and server secrets are rejected or excluded, and only development may fall back to `http://localhost:3000`. Generated desktop projects include a dedicated packaging guide.
 
 - Single-mode Expo/Electron is frontend-only: no backend host or external remote-host contract is generated. Use monorepo `web,mobile` or `web,desktop` for auth, API, billing, messaging, storage, and other server-backed capabilities.
+
+## Dependency security
+
+Creation with installation, `bun run install:bootstrap`, `bun run install:verified`,
+and `ghostinit upgrade` automatically apply compatible security fixes that meet
+the seven-day release-age policy. Unresolved high/critical findings block the
+repair; lower-severity findings remain visible. No age exclusions or incompatible
+upgrades are applied automatically.
+
+Use `ghostinit security audit` for a read-only report, `ghostinit security fix
+--dry-run` to preview, and `ghostinit security fix` to repair and run the installed
+audit plus `typecheck`, `lint:all`, and `test`. Generated projects also expose
+`bun run security:audit` and `bun run security:fix` without requiring GhostInit as
+a dependency. Ordinary `ghostinit check` remains read-only.
+
+`--no-install` defers security verification for create and upgrade. A failed
+installation can leave source changes applied with a recovery journal; installed
+dependencies are not rolled back. See the [dependency security workflow](./skills/ghostinit-use/references/dependency-security.md)
+for results, persistent security floors, and recovery.
 
 ## Development
 
@@ -73,7 +95,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 - Drizzle ORM + PostgreSQL / Convex
 - Better Auth (email/password, 2FA, admin)
 - oRPC 1.15 contract-first + OpenAPI (pure, no Elysia dual RPC)
-- Billing flexible any combo: stripe, chargily (Algeria EDAHABIA/CIB server-only), paddle, polar
+- Billing: one of Stripe, Paddle, or Polar, plus optional Chargily and manual payments. Manual DZD balance top-ups use private receipts and administrator approval.
 - TanStack Query / Form, Tailwind v4 + Base UI + shadcn
 - oxlint + oxfmt, Turborepo 2.10, t3env validation
 - Architecture enforcer via catalog-pinned oxc-parser

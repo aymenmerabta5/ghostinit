@@ -72,10 +72,10 @@ describe("optional web surface localization", () => {
         test(`${mode}/${framework}/${database} routes all optional copy through typed catalogs`, () => {
           const files = generate(mode, framework, database, true);
           const sourceRoot = root(mode);
-          const storage = read(files, `${sourceRoot}/features/storage/page.tsx`);
-          const flags = read(files, `${sourceRoot}/features/feature-flags/page.tsx`);
-          const jobs = read(files, `${sourceRoot}/features/jobs/page.tsx`);
-          const pdf = read(files, `${sourceRoot}/features/pdf/pdf-workspace.tsx`);
+          const storage = matchingSource(files, new RegExp(`^${sourceRoot}/features/storage/`));
+          const flags = matchingSource(files, new RegExp(`^${sourceRoot}/features/feature-flags/`));
+          const jobs = matchingSource(files, new RegExp(`^${sourceRoot}/features/jobs/`));
+          const pdf = matchingSource(files, new RegExp(`^${sourceRoot}/features/pdf/`));
           const agent =
             read(
               files,
@@ -86,7 +86,7 @@ describe("optional web surface localization", () => {
           const messages = matchingSource(
             files,
             new RegExp(
-              `^${sourceRoot}/(?:app/(?:\\(app\\)/)?messages|routes/(?:-components/)?messages)`,
+              `^${sourceRoot}/(?:features/messaging/|app/(?:\\(app\\)/)?messages|routes/(?:-components/)?messages)`,
             ),
           );
 
@@ -154,7 +154,7 @@ describe("optional web surface localization", () => {
         const optionalSource = matchingSource(
           files,
           new RegExp(
-            `^${sourceRoot}/(?:features/(?:storage|feature-flags|jobs)|app/(?:\\(app\\)/)?messages|routes/(?:-components/)?messages|app/(?:pdf|agent)|routes/(?:pdf|agent))`,
+            `^${sourceRoot}/(?:features/(?:storage|feature-flags|jobs|messaging|pdf|agent)/|app/(?:\\(app\\)/)?messages|routes/(?:-components/)?messages|app/(?:pdf|agent)|routes/(?:pdf|agent))`,
           ),
         );
         expect(optionalSource).toContain('from "@/lib/translations"');
@@ -193,12 +193,22 @@ describe("optional web surface localization", () => {
         }),
         { dryRun: true, validate: true },
       );
-      const web = read(files, "apps/web/src/features/pdf/pdf-workspace.tsx");
-      const mobile = read(files, "apps/mobile/app/pdf.tsx");
+      const web = read(files, "apps/web/src/features/pdf/use-pdf-workspace.ts");
+      const mobile = read(files, "apps/mobile/src/features/pdf/use-pdf-workspace.ts");
       const mobileClient = read(files, "apps/mobile/src/hooks/usePdf.ts");
-      const desktop = read(files, "apps/desktop/src/renderer/routes/pdf.tsx");
+      const desktop = read(files, "apps/desktop/src/renderer/features/pdf/use-pdf-workspace.ts");
       const desktopClient = read(files, "apps/desktop/src/lib/pdf.ts");
 
+      expect(read(files, "apps/web/src/features/pdf/pdf-workspace.tsx")).toContain(
+        "usePdfWorkspace()",
+      );
+      expect(read(files, "apps/mobile/app/pdf.tsx")).toContain('from "@/features/pdf/page"');
+      expect(read(files, "apps/desktop/src/renderer/routes/pdf.tsx")).toContain(
+        'from "../features/pdf/page"',
+      );
+      for (const sourceRoot of ["apps/mobile/src", "apps/desktop/src/renderer"]) {
+        expect(read(files, `${sourceRoot}/features/pdf/page.tsx`)).toContain("usePdfWorkspace()");
+      }
       expect(web).toContain("const locale = useSurfaceLocale()");
       for (const source of [mobile, desktop]) {
         expect(source).toContain("const { locale } = usePlatformI18n()");

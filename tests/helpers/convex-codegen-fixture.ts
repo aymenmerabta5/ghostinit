@@ -13,6 +13,10 @@ import { projectConfigSchema } from "../../src/lib/config.js";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import { minimumReleaseAgeBunfigContent } from "./bunfig.js";
+import {
+  convexManualRuntimeProbeSource,
+  convexManualRuntimeScriptSource,
+} from "./convex-manual-runtime-fixture.js";
 
 export const ROOT_PROBE_PATH = "convex/codegenProbe.ts";
 export const COMPONENT_PROBE_PATH = "components/counter/counter.ts";
@@ -32,7 +36,7 @@ export const read = query({
 `;
 }
 
-const proofSource = `import { api, components } from "../convex/_generated/api.js";
+const proofSource = `import { api, components, internal } from "../convex/_generated/api.js";
 import type { Doc, Id } from "../convex/_generated/dataModel.js";
 import type { Doc as CounterDoc } from "../components/counter/_generated/dataModel.js";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
@@ -52,11 +56,19 @@ export type TypedContracts = [
   Assert<Equal<FunctionReturnType<typeof api.posts.create>, Id<"posts">>>,
   Assert<Equal<Doc<"posts">["title"], string>>,
   Assert<Equal<Doc<"users">["authId"], string>>,
+  Assert<Equal<Doc<"manual_payments">["amountMinor"], number>>,
+  Assert<Equal<FunctionReturnType<typeof api.manualPayments.summary>["currency"], "DZD">>,
+  Assert<Equal<FunctionArgs<typeof api.manualPayments.review>["decision"], "approved" | "rejected">>,
+  Assert<Equal<FunctionArgs<typeof internal.manualPayments.submit>["receiptStorageId"], Id<"_storage">>>,
   Assert<Equal<CounterDoc<"counters">["value"], number>>,
 ];
 
 // @ts-expect-error Real codegen must reject a missing root function.
 export const missingRoot = api.codegenProbe.missing;
+// @ts-expect-error Receipt bytes and submission finalization are private HTTP/internal operations.
+export const privateReceipt = api.manualPayments.receipt;
+// @ts-expect-error Clients cannot call receipt attachment directly.
+export const privateSubmission = api.manualPayments.submit;
 // @ts-expect-error Real codegen must reject a missing component.
 export const missingComponent = components.missing;
 // @ts-expect-error Real codegen must reject a missing component function.
@@ -103,12 +115,12 @@ export async function prepareCodegenFixture(root: string): Promise<CodegenFixtur
       i18n: false,
       pdf: false,
       messaging: false,
-      storage: false,
+      storage: true,
       notifications: false,
       featureFlags: "none",
       jobs: false,
       cache: "none",
-      billing: [],
+      billing: ["manual"],
       features: [],
     }),
     { dryRun: true },
@@ -179,6 +191,8 @@ export async function prepareCodegenFixture(root: string): Promise<CodegenFixtur
     'import { defineSchema, defineTable } from "convex/server";\nimport { v } from "convex/values";\nexport default defineSchema({ counters: defineTable({ value: v.number() }) });\n',
   );
   await transaction.write(ROOT_PROBE_PATH, codegenProbeSource(false));
+  await transaction.write("convex/manualRuntimeProbe.ts", convexManualRuntimeProbeSource());
+  await transaction.write(".manual-runtime-proof.ts", convexManualRuntimeScriptSource());
   await transaction.write(COMPONENT_PROBE_PATH, codegenProbeSource(true));
   await transaction.write("proof/contracts.ts", proofSource);
   await transaction.write(

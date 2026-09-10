@@ -279,7 +279,27 @@ CI should gate:
 ghostinit sync --check || (echo "Registries out of sync, run ghostinit sync" && exit 1)
 ```
 
-## 9. Troubleshooting Quick
+## 9. Dependency maintenance
+
+After a committed clone, use `bun run install:verified`; fresh `--no-install`
+output needs `bun run install:bootstrap`. Both automatically repair compatible,
+age-eligible vulnerabilities and verify the installed dependency graph.
+
+```bash
+ghostinit security audit --json
+ghostinit security fix --dry-run --json
+ghostinit security fix --json
+ghostinit upgrade --dry-run --json
+ghostinit upgrade --json
+```
+
+Dedicated fix and upgrade also run `typecheck`, `lint:all`, and `test`. Preserve
+`ghostinit.config.json.dependencySecurity` floors through later sync/upgrade.
+`upgrade --no-install` intentionally leaves security unverified. Read the
+[dependency security workflow](dependency-security.md) for remaining findings,
+seven-day eligibility, and failure recovery before retrying an interrupted install.
+
+## 10. Troubleshooting Quick
 
 - `Invalid project name` → lowercase hyphens only `^[a-z][a-z0-9-]*$`
 - `Billing requires postgres or convex` → set `--database postgres`

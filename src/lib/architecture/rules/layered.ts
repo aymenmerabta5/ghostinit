@@ -6,7 +6,12 @@
  */
 
 import type { ArchitectureFinding, ImportKind, LayerInfo } from "../types.js";
-import { isFeatureFile, isVendorDirectImport } from "./vendor.js";
+import {
+  isFeatureDataAdapterFile,
+  isFeatureFile,
+  isFeatureProviderViewFile,
+  isVendorDirectImport,
+} from "./vendor.js";
 import {
   getLayerFromFilePath,
   getLayerFromImport,
@@ -23,11 +28,21 @@ export function checkLayeredDependency(
   specifier: string,
   resolvedTarget?: string,
   importKind?: ImportKind,
+  typeOnly = false,
 ): void {
   const sourceLayer = getLayerFromFilePath(file);
   if (!sourceLayer) return;
   const targetLayer = getLayerFromImport(specifier, resolvedTarget);
   const imp = specifier.replace(/\\/g, "/");
+  const resolved = resolvedTarget?.replace(/\\/g, "/");
+  // These generated client contracts carry function references and erased DTOs.
+  // Backend files and similarly named nested trees retain their normal restrictions.
+  if (
+    isFeatureFile(file) &&
+    ((isFeatureDataAdapterFile(file) && resolved === "convex/_generated/api.js") ||
+      (typeOnly && resolved === "convex/_generated/dataModel.d.ts"))
+  )
+    return;
 
   if (isFeatureFile(file) && isForbiddenFeatureDependency(imp, targetLayer, resolvedTarget)) {
     findings.push({
@@ -116,7 +131,9 @@ function isForbiddenFeatureDependency(
     specifier.startsWith("bun:") ||
     specifier === "next/headers" ||
     specifier === "next/server" ||
-    /(?:^|\/)(?:server|services|db|database|providers)(?:\/|$)/.test(resolved) ||
+    /(?:^|\/)convex\/_generated\//.test(resolved) ||
+    /(?:^|\/)(?:server|services|db|database)(?:\/|$)/.test(resolved) ||
+    (/(?:^|\/)providers(?:\/|$)/.test(resolved) && !isFeatureProviderViewFile(resolvedTarget)) ||
     isVendorDirectImport(specifier)
   );
 }

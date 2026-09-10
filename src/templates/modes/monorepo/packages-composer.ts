@@ -1,6 +1,5 @@
 import type { TemplateFile } from "../../shared.js";
 import { packageFiles as genPackageFiles } from "../../packages.js";
-import { toolingFiles as genToolingFiles } from "../../tooling.js";
 import { analyticsFiles as genAnalyticsFiles } from "../../analytics.js";
 import type { AppName, DeployTarget } from "../../../lib/addons.js";
 
@@ -38,7 +37,6 @@ export function packagesComposerFiles(
   );
   return [
     ...pkgFiltered,
-    ...genToolingFiles(),
     ...(hasAnalytics ? genAnalyticsFiles({ mode: "monorepo", runtime, framework, deploy }) : []),
   ];
 }

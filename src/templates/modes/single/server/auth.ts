@@ -81,7 +81,6 @@ export function authClientSingle(
     "import { createAuthClient } from 'better-auth/react';",
     "import { passkeyClient } from '@better-auth/passkey/client';",
     `import { adminClient, organizationClient, twoFactorClient${hasEmail ? ", magicLinkClient" : ""} } from 'better-auth/client/plugins';`,
-    "import { z } from 'zod';",
     "",
     "export const authClient = createAuthClient({",
     "  plugins: [",
@@ -115,7 +114,6 @@ export function authClientSingleConvex(
     "import { createAuthClient } from 'better-auth/react';",
     "import { convexClient } from '@convex-dev/better-auth/client/plugins';",
     `import { twoFactorClient${hasEmail ? ", magicLinkClient" : ""} } from 'better-auth/client/plugins';`,
-    "import { z } from 'zod';",
     "",
     "export const authClient = createAuthClient({",
     "  plugins: [",
@@ -142,7 +140,8 @@ export function authClientSingleConvex(
 export function serverAuthSingle(hasEmail = true, options: SingleServerAuthOptions = {}): string {
   const expoScheme = normalizedExpoScheme(options);
   return [
-    "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
+    "import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';",
+    "import type { Auth as BetterAuthServer } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { transactionalAccountDeletion } from './account-deletion';",
     ...profileUpdateValidationImports.split("\n"),
@@ -286,7 +285,8 @@ export function serverAuthTanstackSingle(
 ): string {
   const expoScheme = normalizedExpoScheme(options);
   return [
-    "import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from 'better-auth';",
+    "import { betterAuth, type BetterAuthOptions } from 'better-auth/minimal';",
+    "import type { Auth as BetterAuthServer } from 'better-auth';",
     "import { drizzleAdapter } from 'better-auth/adapters/drizzle';",
     "import { transactionalAccountDeletion } from './account-deletion';",
     ...profileUpdateValidationImports.split("\n"),

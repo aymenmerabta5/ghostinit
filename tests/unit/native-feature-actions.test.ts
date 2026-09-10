@@ -1,25 +1,46 @@
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
+import { generatedFormHarness, flush } from "../helpers/generated-form-harness.js";
 import { describe, expect, test } from "bun:test";
 import { notificationClientFiles } from "../../src/templates/apps/capability-clients/notifications.js";
-import { desktopRouteRootContent } from "../../src/templates/apps/desktop/shell/root.js";
+import { desktopShellFeatureFiles } from "../../src/templates/apps/desktop/shell/root.js";
 import { fullDesktopCapabilities } from "../../src/templates/apps/desktop/model.js";
 
 async function checkUpdate(result: { isUpdateAvailable: boolean } | Error): Promise<unknown[]> {
-  const source = desktopRouteRootContent({ ...fullDesktopCapabilities, hasI18n: false });
-  const start = source.indexOf("  const check = React.useCallback");
-  const fragment = source.slice(start, source.indexOf("\n  return <Button", start));
-  const executable = new Bun.Transpiler({ loader: "tsx" }).transformSync(fragment);
-  const states: unknown[] = [];
-  const check = new Function(
-    "React",
-    "window",
-    "setStatus",
-    "timeoutRef",
-    "setTimeout",
-    "clearTimeout",
-    executable + ";return check;",
-  )(
-    { useCallback: (callback: () => Promise<void>) => callback },
-    {
+  const files = desktopShellFeatureFiles(
+    { ...fullDesktopCapabilities, hasI18n: false },
+    "monorepo",
+  );
+  const source = ["mutations.ts", "use-update-check.ts"]
+    .map((name) => files.find(({ path }) => path.endsWith("/" + name))!.content)
+    .join("\n");
+  let operation: () => Promise<{ isUpdateAvailable: boolean }>;
+  const mutation = {
+    isPending: false,
+    data: null as { isUpdateAvailable: boolean } | null,
+    error: null as Error | null,
+    reset() {
+      mutation.data = null;
+      mutation.error = null;
+    },
+    async mutateAsync() {
+      mutation.isPending = true;
+      try {
+        mutation.data = await operation();
+      } catch (cause) {
+        mutation.error = cause as Error;
+        throw cause;
+      } finally {
+        mutation.isPending = false;
+      }
+    },
+  };
+  const harness = generatedFormHarness(source, ["useUpdateCheck"], {
+    useMutation: (options: { mutationFn: typeof operation }) => {
+      operation = options.mutationFn;
+      return mutation;
+    },
+    window: {
       desktopBridge: {
         updatesCheck: async () => {
           if (result instanceof Error) throw result;
@@ -27,12 +48,18 @@ async function checkUpdate(result: { isUpdateAvailable: boolean } | Error): Prom
         },
       },
     },
-    (value: unknown) => states.push(value),
-    { current: null },
-    () => 0,
-    () => {},
-  ) as () => Promise<void>;
-  await check();
+    setTimeout: () => 0,
+    clearTimeout() {},
+  });
+  const render = () =>
+    harness.render("useUpdateCheck") as { status: unknown; check(): Promise<void> };
+  const model = render();
+  harness.flushEffects();
+  const checked = model.check();
+  const states = [render().status];
+  await checked;
+  states.push(render().status);
+  harness.unmount();
   return states;
 }
 
@@ -47,7 +74,10 @@ describe("native feature action outcomes", () => {
       "Checking…",
       "Update server unavailable",
     ]);
-    const localized = desktopRouteRootContent({ ...fullDesktopCapabilities, hasI18n: true });
+    const localized = desktopShellFeatureFiles(
+      { ...fullDesktopCapabilities, hasI18n: true },
+      "monorepo",
+    ).find(({ path }) => path.endsWith("/use-update-check.ts"))!.content;
     expect(localized).toContain('t("updatesAvailable")');
   });
 
@@ -66,53 +96,103 @@ describe("native feature action outcomes", () => {
           requestApplication: true,
         });
         const source = files.find((file) =>
-          file.path.endsWith("/features/notifications/page.tsx"),
+          file.path.endsWith("/features/notifications/use-notification-workspace.ts"),
         )!.content;
-        const start = source.indexOf("  async function runAction");
-        const fragment = source.slice(
-          start,
-          source.indexOf("  async function openNotification", start),
+        let failure: string | null = null;
+        let invalidations = 0;
+        const marked: string[] = [];
+        const navigation: string[] = [];
+        const devices: string[] = [];
+        const mutations = queryMutationHarness();
+        const harness = generatedFormHarness(
+          authOwnedMutationContent() + "\n" + source,
+          ["useNotificationWorkspace"],
+          {
+            Platform: { OS: "ios" },
+            Notification: undefined,
+            useMutation: mutations.useMutation,
+            useQueryClient: () => ({}),
+            currentQueryAuthGeneration: () => 0,
+            subscribeQueryAuthGeneration: () => () => {},
+            useAuthOwnedEffect: () => () => () => true,
+            useRouter: () => ({ push: (path: string) => navigation.push(path) }),
+            useNavigate:
+              () =>
+              async ({ to }: { to: string }) => {
+                navigation.push(to);
+              },
+            useNotificationInbox: () => ({
+              data: [],
+              isPending: false,
+              isFetching: false,
+              error: null,
+              refetch() {},
+            }),
+            useInvalidateNotificationInbox: () => async () => {
+              invalidations++;
+            },
+            publishSelfNotification: async () => {
+              if (failure) throw new Error(failure);
+              return { title: "notice", body: "body" };
+            },
+            markNotificationRead: async (id: string) => {
+              marked.push(id);
+            },
+            resolveNotificationDestination: (href: string) => href,
+            usePushNotifications: () => ({
+              requestPermission: async () => {
+                if (failure) throw new Error(failure);
+                return "push-token";
+              },
+            }),
+            registerNotificationDevice: async (platform: string, token: string) => {
+              devices.push(`${platform}:${token}`);
+            },
+          },
         );
-        const executable = new Bun.Transpiler({ loader: "ts" }).transformSync(fragment);
-        const errors: unknown[] = [];
-        const actionInFlight = { current: false };
-        const runAction = new Function(
-          "setError",
-          "actionInFlight",
-          "setPending",
-          "invalidateInbox",
-          "captureEffect",
-          executable + ";return runAction;",
-        )(
-          (value: unknown) => errors.push(value),
-          actionInFlight,
-          () => {},
-          async () => {},
-          () => () => true,
-        ) as (action: () => Promise<void>) => Promise<void>;
+        const render = () =>
+          harness.render("useNotificationWorkspace") as {
+            publish(): void;
+            markRead(id: string): void;
+            open(item: unknown): void;
+            enablePush(): void;
+            displayedError: string | null;
+            pending: boolean;
+          };
         for (const message of [
           "Notification access denied",
           "Expo push notifications require an EAS project ID",
         ]) {
-          await expect(
-            runAction(async () => {
-              throw new Error(message);
-            }),
-          ).resolves.toBeUndefined();
-          expect(errors.at(-1)).toBe(message);
-          expect(actionInFlight.current).toBe(false);
+          failure = message;
+          render().publish();
+          await flush();
+          expect(render().displayedError).toBe(message);
+          expect(render().pending).toBe(false);
         }
-        await runAction(async () => {});
-        expect(errors.at(-1)).toBeNull();
-        expect(source).toContain("void runAction(() => openNotification(item))");
-        expect(source).toContain(
-          "void runAction(async () => { await markNotificationRead(item.id); })",
-        );
-        expect(source).toContain("await invalidateInbox()");
+        expect(invalidations).toBe(0);
         if (target === "mobile") {
-          expect(source).toContain("void runAction(async () => { const platform = Platform.OS;");
-          expect(source).toContain("if (token) await registerNotificationDevice(platform, token)");
+          render().enablePush();
+          await flush();
+          expect(render().displayedError).toBe(failure);
+          expect(devices).toEqual([]);
         }
+        failure = null;
+        render().publish();
+        await flush();
+        expect(render().displayedError).toBeNull();
+        expect(invalidations).toBe(1);
+        render().markRead("notice-1");
+        await flush();
+        render().open({ id: "notice-2", href: "/settings", readAt: null });
+        await flush();
+        expect(marked).toEqual(["notice-1", "notice-2"]);
+        expect(navigation).toEqual(["/settings"]);
+        if (target === "mobile") {
+          render().enablePush();
+          await flush();
+          expect(devices).toEqual(["ios:push-token"]);
+        }
+        expect(render().pending).toBe(false);
       });
     }
   }

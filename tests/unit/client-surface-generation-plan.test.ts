@@ -186,11 +186,14 @@ describe("GenerationPlan client surface evidence", () => {
       desiredConfig: resolution.desiredConfig,
     });
     const route = plan.files.find(({ physicalPath }) => physicalPath === "src/routes/billing.tsx");
-    const adapter = plan.files.find(
-      ({ physicalPath }) => physicalPath === "src/features/billing/use-billing.ts",
+    const adapters = plan.files.filter(({ physicalPath }) =>
+      ["src/features/billing/queries.ts", "src/features/billing/mutations.ts"].includes(
+        physicalPath,
+      ),
     );
+    expect(adapters).toHaveLength(2);
 
-    for (const file of [route, adapter]) {
+    for (const file of [route, ...adapters]) {
       expect(file?.provenance).toMatchObject({
         capability: "billing",
         appId: "web",
@@ -211,7 +214,7 @@ describe("GenerationPlan client surface evidence", () => {
         .filter(({ provenance }) => provenance.capability === "billing")
         .flatMap(({ provenance }) => provenance.acceptance),
     ).not.toContain("billing.payment-link.v1");
-    expect(adapter?.provenance.artifacts).toContain("adapter");
+    for (const adapter of adapters) expect(adapter.provenance.artifacts).toContain("adapter");
   });
 
   for (const database of ["postgres", "convex"] as const) {

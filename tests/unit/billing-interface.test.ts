@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { billingFiles } from "../../src/templates/billing-generator";
 import { generateProjectFiles } from "../../src/templates/default";
 import { billingProviders } from "../../src/lib/addons";
+import { ONLINE_BILLING_PROVIDERS } from "../../src/domain/project/choices.js";
 import { BILLING_PROVIDER_NAMES } from "../../src/templates/billing/providers/interface";
 import { billingProviderSupportsClientOperation } from "../../src/domain/capabilities/billing-provider-operations.js";
 
@@ -30,7 +31,7 @@ function aggSchema(_files?: any[]) {
     runtime: "bun",
     version: "0.1.0",
     mode: "monorepo",
-    billing: ["stripe", "chargily", "paddle", "polar"],
+    billing: ["chargily", "stripe"],
     features: [],
     database: "postgres",
     framework: "nextjs",
@@ -43,13 +44,20 @@ function aggSchema(_files?: any[]) {
 }
 
 describe("billing interface — provider enum", () => {
-  it("contains 4 providers stripe|chargily|paddle|polar", () => {
-    expect(billingProviders.length).toBe(4);
-    expect([...billingProviders].sort()).toEqual(["chargily", "paddle", "polar", "stripe"]);
+  it("contains four online providers and the manual workflow selection", () => {
+    expect(billingProviders.length).toBe(5);
+    expect([...billingProviders].sort()).toEqual([
+      "chargily",
+      "manual",
+      "paddle",
+      "polar",
+      "stripe",
+    ]);
   });
 
-  it("BILLING_PROVIDER_NAMES type matches addons list", () => {
-    expect([...BILLING_PROVIDER_NAMES].sort()).toEqual([...billingProviders].sort());
+  it("BILLING_PROVIDER_NAMES contains only online SDK providers", () => {
+    expect([...BILLING_PROVIDER_NAMES].sort()).toEqual([...ONLINE_BILLING_PROVIDERS].sort());
+    expect(BILLING_PROVIDER_NAMES).not.toContain("manual");
   });
 
   it("interface file exists via billingFiles monorepo", () => {

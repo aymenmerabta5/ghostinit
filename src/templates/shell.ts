@@ -96,26 +96,10 @@ import * as React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { authClient } from "@/lib/auth-client";
-
-interface NavbarUser {
-  email?: string;
-  role?: string;
-}
-
-function readNavbarUser(session: unknown): NavbarUser | undefined {
-  if (typeof session !== "object" || session === null || !("user" in session)) return undefined;
-  const candidate = session.user;
-  if (typeof candidate !== "object" || candidate === null) return undefined;
-  return {
-    email: "email" in candidate && typeof candidate.email === "string" ? candidate.email : undefined,
-    role: "role" in candidate && typeof candidate.role === "string" ? candidate.role : undefined,
-  };
-}
+import { useDashboardNavbar } from "./use-dashboard-navbar";
 
 export function DashboardNavbar(): React.JSX.Element {
-  const { data: session } = authClient.useSession();
-  const user = readNavbarUser(session);
+  const { user, onSignOut } = useDashboardNavbar();
   return (
     <header className="sticky top-0 z-20 flex h-12 items-center justify-between border-b bg-background px-4">
       <div className="flex items-center gap-2">
@@ -126,7 +110,7 @@ export function DashboardNavbar(): React.JSX.Element {
         {user ? (
           <>
             <span className="hidden sm:inline text-xs text-muted-foreground">{user.email}</span>
-            <Button size="sm" variant="ghost" onClick={() => authClient.signOut()}>Sign out</Button>
+            <Button size="sm" variant="ghost" onClick={() => void onSignOut()}>Sign out</Button>
           </>
         ) : (
           <Button size="sm" render={<Link href="/sign-in">Sign in</Link>} />
@@ -140,10 +124,63 @@ export function DashboardNavbar(): React.JSX.Element {
 
 export function shellFiles(mode: ProjectMode = "monorepo", hasBilling = true): TemplateFile[] {
   const base = shellContent(mode);
+  const feature = `${mode === "single" ? "src" : "apps/web/src"}/features/dashboard-shell`;
   return [
     file(`${base}/StatsCard.tsx`, statsCardContent()),
     file(`${base}/Masthead.tsx`, mastheadContent()),
     file(`${base}/Sidebar.tsx`, sidebarContent(hasBilling)),
-    file(`${base}/Navbar.tsx`, navbarContent()),
+    file(
+      `${base}/Navbar.tsx`,
+      'export { DashboardNavbar } from "@/features/dashboard-shell/dashboard-navbar";\n',
+    ),
+    file(`${feature}/dashboard-navbar.tsx`, navbarContent()),
+    file(`${feature}/navbar-user.ts`, navbarUserContent()),
+    file(
+      `${feature}/queries.ts`,
+      `"use client";
+import { authClient } from "@/lib/auth-client";
+import { readNavbarUser } from "./navbar-user";
+export function useNavbarUser() {
+  const { data: session } = authClient.useSession();
+  return readNavbarUser(session);
+}
+`,
+    ),
+    file(
+      `${feature}/mutations.ts`,
+      `"use client";
+import { authClient } from "@/lib/auth-client";
+export async function signOutNavbar(): Promise<void> { await authClient.signOut(); }
+`,
+    ),
+    file(
+      `${feature}/use-dashboard-navbar.ts`,
+      `"use client";
+import { useNavbarUser } from "./queries";
+import { signOutNavbar } from "./mutations";
+export function useDashboardNavbar() {
+  return { user: useNavbarUser(), onSignOut: signOutNavbar };
+}
+`,
+    ),
   ];
+}
+
+function navbarUserContent(): string {
+  return `export interface NavbarUser {
+  email?: string;
+  role?: string;
+}
+
+export function readNavbarUser(session: unknown): NavbarUser | undefined {
+  if (typeof session !== "object" || session === null || !("user" in session)) return undefined;
+  const candidate = session.user;
+  if (typeof candidate !== "object" || candidate === null) return undefined;
+  return {
+    email: "email" in candidate && typeof candidate.email === "string" ? candidate.email : undefined,
+    role: "role" in candidate && typeof candidate.role === "string" ? candidate.role : undefined,
+  };
+}
+
+`;
 }

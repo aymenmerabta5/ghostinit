@@ -60,17 +60,26 @@ describe("web+mobile generation RNR+Uniwind - shared theme single source", () =>
     expect(metro).toContain("global.css");
     expect(metro).toContain("dtsFile");
 
-    const marketing =
-      files.find((f) => f.path.includes("apps/mobile") && f.path.includes("index.tsx"))?.content ??
-      "";
+    const marketingPath = "apps/mobile/src/features/marketing/screen.tsx";
+    expect(paths).toContain(marketingPath);
+    const marketingRoute = files.find((f) => f.path === "apps/mobile/app/index.tsx")?.content ?? "";
+    expect(marketingRoute).toContain(
+      'export { MarketingScreen as default } from "@/features/marketing/screen"',
+    );
+    const marketing = files.find((f) => f.path === marketingPath)?.content ?? "";
     expect(marketing).toContain("components/ui/button");
     expect(marketing).toContain("className");
     expect(marketing.includes("StyleSheet.create")).toBe(false);
     expect(marketing.includes("#111827")).toBe(false);
 
-    const dashboard =
-      files.find((f) => f.path.includes("apps/mobile") && f.path.includes("dashboard"))?.content ??
-      "";
+    const dashboardPath = "apps/mobile/src/features/dashboard/screen.tsx";
+    expect(paths).toContain(dashboardPath);
+    const dashboardRoute =
+      files.find((f) => f.path === "apps/mobile/app/dashboard.tsx")?.content ?? "";
+    expect(dashboardRoute).toContain(
+      'export { DashboardScreen as default } from "@/features/dashboard/screen"',
+    );
+    const dashboard = files.find((f) => f.path === dashboardPath)?.content ?? "";
     expect(dashboard).toContain("bg-background");
     expect(dashboard.includes("StyleSheet.create")).toBe(false);
   });

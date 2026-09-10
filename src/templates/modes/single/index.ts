@@ -44,7 +44,13 @@ import { deployFiles } from "../../root/deploy.js";
 import { normalizeCloudflareTemplateFiles } from "../../cloudflare-normalization.js";
 import { composeRequestLocalizedPages } from "../../apps/fragments/request-localized-page.js";
 import { bunfig } from "../../root/package.js";
-import { githubWorkflow } from "../../root/config.js";
+import {
+  dockerCompose,
+  githubWorkflow,
+  oxlintConfig,
+  oxlintIgnore,
+  oxfmtConfig,
+} from "../../root/config.js";
 import { integrateAdapterFiles } from "../../adapters/integration.js";
 import { integrateEveSecurityFiles } from "../../eve/security/index.js";
 import { capabilityClientFiles } from "../../apps/capability-clients/index.js";
@@ -291,6 +297,7 @@ export function singleFiles(
             hasAnalytics,
             secrets,
             compositionAddons,
+            config.deploy,
           )
         : buildNextFiles(
             config.name,
@@ -303,6 +310,7 @@ export function singleFiles(
             hasAnalytics,
             secrets,
             compositionAddons,
+            config.deploy,
           );
 
   const effectiveDatabaseSingle = (config.database ?? "postgres") as DatabaseProvider;
@@ -383,6 +391,7 @@ export function singleFiles(
     packageFile.content = `${JSON.stringify(manifest, null, 2)}\n`;
   }
   const hasWebSingle = effectiveApps.includes("web");
+  if (hasWebSingle && effectiveDatabaseSingle === "postgres") withoutOld.push(dockerCompose());
   const hasPdfEarly = hasAddon(addonMap, "pdf") || config.pdf === true;
   if (hasWebSingle) withoutOld.push(singleWebSmokeTest());
   const isNextSingle =
@@ -398,7 +407,7 @@ export function singleFiles(
     ))
       withoutOld.push(f);
   for (const f of accessFiles(mode)) withoutOld.push(f);
-  if (hasWebSingle && isNextSingle)
+  if (hasWebSingle && isNextSingle && effectiveAuth)
     for (const f of shellFiles(mode, effectiveBilling.length > 0)) withoutOld.push(f);
   for (const f of deployFiles(config.name, config.deploy ?? "none", runtime, {
     mode: "single",
@@ -503,7 +512,6 @@ export function singleFiles(
     },
   });
 
-  for (const f of lintScriptFiles()) adapterIntegrated.push(f);
   // Same-path emissions collapse here; differing content is a real conflict and
   // fails loudly rather than dropping one implementation. See ../../shared.ts.
   let deduped = dedupeFilesOrThrow(adapterIntegrated);
@@ -598,6 +606,12 @@ export function singleFiles(
   );
   deduped = dedupeFilesOrThrow([
     ...deduped,
+    // Tooling inspects every capability; its detector vocabulary is not an app
+    // dependency and must never be removed by application capability filtering.
+    ...lintScriptFiles(),
+    oxlintConfig(),
+    oxlintIgnore(),
+    oxfmtConfig(),
     ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
   ]);
   if (hasWebSingle && isNextSingle && hasI18n) {

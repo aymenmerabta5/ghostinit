@@ -1,3 +1,4 @@
+import { file, type TemplateFile } from "../../../shared.js";
 /**
  * Expo fragments: React Native layout content - RNR + Uniwind className
  */
@@ -20,7 +21,7 @@ export interface ExpoRootLayoutOptions {
   isConvex?: boolean;
 }
 
-export function expoRootLayoutContent(options: ExpoRootLayoutOptions = {}): string {
+function expoProvidersContent(options: ExpoRootLayoutOptions = {}): string {
   const hasAuth = options.hasAuth ?? true;
   const hasApi = options.hasApi ?? true;
   const hasCanonicalAuth = hasAuth && hasApi;
@@ -160,8 +161,7 @@ ${featureFlagScreen}${twoFactorScreen}${authScreens}${protectedScreens}      </S
 
   const app = `  const app = <AppNavigation />;`;
 
-  return `import "../global.css";
-import { Stack } from "expo-router";
+  return `import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useMemo } from "react";
@@ -180,7 +180,7 @@ ${hasCanonicalAuth ? "const readCurrentApplication = () => orpcClient.me();" : "
 
 ${navigation}
 
-export default function RootLayout() {
+export function ExpoRootLayout() {
 ${app}
 ${analyticsAssignment}
 ${i18nAssignment}
@@ -188,4 +188,14 @@ ${i18nAssignment}
 ${providerReturn}
 }
 `;
+}
+
+export function expoRootLayoutContent(_options: ExpoRootLayoutOptions = {}): string {
+  return 'import "../global.css";\nexport { ExpoRootLayout as default } from "@/components/providers";\n';
+}
+export function expoProviderFiles(
+  sourceRoot: string,
+  options: ExpoRootLayoutOptions,
+): TemplateFile[] {
+  return [file(`${sourceRoot}/components/providers.tsx`, expoProvidersContent(options))];
 }

@@ -96,8 +96,8 @@ describe("Eve chat component inventory", () => {
           ).toEqual([]);
 
           const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
-          const safeHeader = `${sourceRoot}/features/agent/agent-header.tsx`;
-          const serverClassifiedHeader = `${sourceRoot}/features/eve/agent-header.tsx`;
+          const safeHeader = `${sourceRoot}/features/agent/components/agent-header.tsx`;
+          const serverClassifiedHeader = `${sourceRoot}/features/eve/components/agent-header.tsx`;
           expect(files.some(({ path }) => path === serverClassifiedHeader)).toBe(false);
           expect(files.some(({ path }) => path === safeHeader)).toBe(true);
         }
@@ -114,9 +114,11 @@ describe("Eve chat component inventory", () => {
         const root = mode === "monorepo" ? "apps/web/src" : "src";
         const routePath =
           framework === "nextjs" ? `${root}/app/agent/page.tsx` : `${root}/routes/agent.tsx`;
-        const headerPath = `${root}/features/agent/agent-header.tsx`;
+        const headerPath = `${root}/features/agent/components/agent-header.tsx`;
         const route = source(files, routePath);
         const header = source(files, headerPath);
+        const screen = source(files, `${root}/features/agent/page.tsx`);
+        const workspace = source(files, `${root}/features/agent/components/agent-workspace.tsx`);
 
         for (const entry of files.filter(
           ({ path }) =>
@@ -130,12 +132,12 @@ describe("Eve chat component inventory", () => {
         }
         if (framework === "tanstack-start")
           expect(route).toContain('export const Route = createFileRoute("/agent")');
-        expect(route).toContain('import { AgentHeader } from "@/features/agent/agent-header"');
-        expect(route).toContain(
-          'import { AgentTranscript } from "@/features/agent/agent-transcript"',
-        );
-        expect(route).toContain('import { AgentPrompt } from "@/features/agent/agent-prompt"');
-        expect(route).toContain("<AgentHeader />");
+        expect(route).toContain('from "@/features/agent/page"');
+        expect(screen).toContain("<AgentWorkspace {...useAgentConversation()} />");
+        expect(workspace).toContain('import { AgentHeader } from "./agent-header"');
+        expect(workspace).toContain('import { AgentTranscript } from "./agent-transcript"');
+        expect(workspace).toContain('import { AgentPrompt } from "./agent-prompt"');
+        expect(workspace).toContain("<AgentHeader />");
         expect(header).toContain('useSurfaceTranslations("agent")');
         expect(header).toContain('t("webDescription")');
         expect(header).not.toContain("agentRoot");
@@ -170,11 +172,26 @@ describe("Eve chat component inventory", () => {
 
   test("Electron uses the constrained preload client plus existing Base UI-backed controls", () => {
     const files = filesFor("monorepo", "tanstack-start", ["web", "desktop"]);
-    const content = source(files, "apps/desktop/src/renderer/routes/agent.tsx");
+    const root = "apps/desktop/src/renderer";
+    expect(source(files, `${root}/routes/agent.tsx`)).toContain(
+      'import { AgentScreen } from "@/features/agent/screen"',
+    );
+    expect(source(files, `${root}/features/agent/screen.tsx`)).toContain(
+      "composer={<AgentPrompt send={conversation.send}",
+    );
+    const content = source(files, `${root}/features/agent/components/agent-view.tsx`);
+    const prompt = source(files, `${root}/features/agent/components/agent-prompt.tsx`);
     expect(content).toContain('from "@/components/ui/button"');
     expect(content).toContain('from "@/components/ui/card"');
     expect(content).toContain('from "@/components/ui/chat"');
-    expect(content).toContain('from "@/components/ui/input"');
+    expect(prompt).toContain('from "@/components/ui/form"');
+    expect(prompt).toContain("<field.TextField");
+    expect(source(files, `${root}/components/ui/form.tsx`)).toContain(
+      'from "../form-fields/text-field"',
+    );
+    expect(source(files, `${root}/components/form-fields/text-field.tsx`)).toContain(
+      'from "../ui/input"',
+    );
     expect(content).toContain("<MessageScrollerProvider autoScroll>");
     expect(content).toContain("<Bubble align={message.role");
     expect(content).not.toContain("<Card key={message.id}");
@@ -184,10 +201,22 @@ describe("Eve chat component inventory", () => {
 
   test("Expo composes its chat from React Native Reusables controls and cards", () => {
     const files = filesFor("monorepo", "tanstack-start", ["web", "mobile"]);
-    const content = source(files, "apps/mobile/app/agent.tsx");
+    const root = "apps/mobile/src";
+    expect(source(files, "apps/mobile/app/agent.tsx")).toContain(
+      'import { AgentScreen } from "@/features/agent/screen"',
+    );
+    expect(source(files, `${root}/features/agent/screen.tsx`)).toContain(
+      "composer={<AgentPrompt send={conversation.send}",
+    );
+    const content = source(files, `${root}/features/agent/components/agent-view.tsx`);
+    const prompt = source(files, `${root}/features/agent/components/agent-prompt.tsx`);
     expect(content).toContain('from "@/components/ui/button"');
     expect(content).toContain('from "@/components/ui/card"');
-    expect(content).toContain('from "@/components/ui/input"');
+    expect(prompt).toContain("<NativeFormField");
+    expect(prompt).toContain('from "@/components/form-fields/native-field"');
+    expect(source(files, `${root}/components/form-fields/native-field.tsx`)).toContain(
+      'from "@/components/ui/input"',
+    );
     expect(content).toContain('from "@/components/ui/text"');
     expect(content).toContain("<Card className={message.role");
     expect(content).not.toMatch(/<(?:button|input)\b/);

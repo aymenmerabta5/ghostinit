@@ -7,6 +7,7 @@ import type {
   PlannedSecretOperation,
 } from "../domain/generation/types.js";
 import type { ResolvedProjectConfig } from "../domain/project/config.js";
+import { applyDependencySecurityResolutions } from "./dependency-security.js";
 
 export interface AggregateGenerationPlanInput {
   readonly config: ResolvedProjectConfig;
@@ -49,7 +50,7 @@ export function aggregateGenerationPlan(input: AggregateGenerationPlanInput): Ge
   }
   const plan = buildGenerationPlan({
     projectConfigHash: input.config.configHash,
-    files,
+    files: applyDependencySecurityResolutions(files, input.config.dependencySecurity),
     secrets,
   });
   assertClientSurfaceCoverage(input.config, plan);

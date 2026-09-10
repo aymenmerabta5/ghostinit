@@ -5,6 +5,8 @@ import { pageFiles } from "../../src/templates/apps/pages.js";
 import { tanstackPageFiles } from "../../src/templates/apps/tanstack-pages.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
+import { parseFile } from "../../src/lib/architecture/parsers/imports.js";
+import { analyzeFrontendFile } from "../../src/lib/architecture/frontend/index.js";
 
 type Framework = "next" | "tanstack";
 type Mode = "monorepo" | "single";
@@ -46,7 +48,12 @@ describe("generated admin frontend architecture", () => {
             "types.ts",
             "queries.ts",
             "mutations.ts",
-            "hooks/use-admin-users.ts",
+            "use-admin-users.ts",
+            "use-admin-user-filters.ts",
+            "use-create-admin-user.ts",
+            "use-admin-user-action.ts",
+            "use-admin-users-translations.ts",
+            "user-row.tsx",
             "components/filters.tsx",
             "components/user-table.tsx",
             "components/user-results.tsx",
@@ -59,7 +66,7 @@ describe("generated admin frontend architecture", () => {
 
           const queries = read(files, `${root}/queries.ts`);
           const mutations = read(files, `${root}/mutations.ts`);
-          const hook = read(files, `${root}/hooks/use-admin-users.ts`);
+          const hook = read(files, `${root}/use-admin-users.ts`);
           const featureIndex = read(files, `${root}/index.tsx`);
           const filters = read(files, `${root}/components/filters.tsx`);
           const createForm = read(files, `${root}/components/create-user-form.tsx`);
@@ -97,7 +104,10 @@ describe("generated admin frontend architecture", () => {
           expect(presentation).not.toContain("convex/react");
           expect(presentation).not.toContain("authClient");
           expect(presentation).not.toContain("useAdminUserMutations");
-          expect(featureIndex).toContain("const mutations = useAdminUserMutations()");
+          expect(featureIndex).toContain("const create = useCreateAdminUser(onCreated)");
+          expect(read(files, `${root}/use-create-admin-user.ts`)).toContain(
+            "const mutations = useAdminUserMutations()",
+          );
           expect(featureIndex).toContain("<CreateUserForm");
           expect(`${presentation}\n${hook}`).not.toContain("as unknown as");
           expect(`${presentation}\n${hook}`).not.toContain("safeParse");
@@ -112,6 +122,22 @@ describe("generated admin frontend architecture", () => {
           expect(presentation).not.toContain("pr-");
           expect(presentation).not.toContain("text-left");
           expect(presentation).not.toContain("text-right");
+          expect(presentation).not.toContain("useAppForm(");
+          expect(presentation).not.toContain("useState(");
+          for (const emitted of files.filter(({ path }) => path.startsWith(root + "/"))) {
+            const parsed = parseFile(emitted.content, emitted.path.endsWith("x") ? "tsx" : "ts");
+            expect(parsed.diagnostics, emitted.path).toEqual([]);
+            expect(
+              analyzeFrontendFile({
+                file: emitted.path,
+                source: emitted.content,
+                program: parsed.program,
+                comments: parsed.comments,
+                imports: parsed.importReferences,
+              }),
+              emitted.path,
+            ).toEqual([]);
+          }
 
           expect(queries).toContain("orpc.adminUsers.list.queryOptions");
           if (framework === "next") {

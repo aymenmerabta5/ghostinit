@@ -114,8 +114,8 @@ export const COMMAND_SPECS = {
   },
   upgrade: {
     description: "Hash-gated transactional desired-state upgrade",
-    usage: "upgrade [--dry-run] [--force]",
-    options: [...PROJECT_OPTIONS, "dry-run", "force"],
+    usage: "upgrade [--dry-run] [--force] [--no-install]",
+    options: [...PROJECT_OPTIONS, "dry-run", "force", "no-install"],
     minPositionals: 0,
     maxPositionals: 0,
   },
@@ -153,6 +153,13 @@ export const COMMAND_SPECS = {
     options: [...PROJECT_OPTIONS, "dry-run", "fix", "verbose"],
     minPositionals: 0,
     maxPositionals: 0,
+  },
+  security: {
+    description: "Audit dependencies or apply compatible security fixes",
+    usage: "security [audit|fix] [--dry-run]",
+    options: [...PROJECT_OPTIONS, "dry-run"],
+    minPositionals: 0,
+    maxPositionals: 1,
   },
   capabilities: {
     description: "Print the typed support catalog",

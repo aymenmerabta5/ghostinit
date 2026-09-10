@@ -6,6 +6,7 @@ import { file, type TemplateFile } from "../shared.js";
 export interface RequestApplicationSelection {
   readonly admin: boolean;
   readonly billing: boolean;
+  readonly manualBilling?: boolean;
   readonly featureFlags?: boolean;
   readonly identity: boolean;
   readonly messaging?: boolean;
@@ -208,6 +209,7 @@ type NotificationService = notificationCapability.NotificationService;`
     selection.admin ? "  readonly admin: AdminService;" : "",
     selection.identity ? "  readonly identity: IdentityService;" : "",
     selection.billing ? "  readonly billing: BillingApplicationPort;" : "",
+    selection.manualBilling ? "  readonly manualBilling: ManualPaymentService;" : "",
     selection.messaging ? "  readonly messaging: MessagingApplicationPort;" : "",
     selection.notifications ? "  readonly notifications: NotificationService;" : "",
   ]
@@ -435,6 +437,7 @@ function toNotificationDeviceDto(value: NotificationDeviceRegistration) { return
         await dependencies.rateLimit("billing:payment-link:" + principal.userId, 10, 60_000);
         return await dependencies.billing.createPaymentLink(principal, input);
       },
+${selection.manualBilling ? manualBillingFacadeContent() : ""}
     },`
     : "";
   const notificationsFacade = selection.notifications
@@ -503,6 +506,12 @@ ${capabilityImport}
 ${adminImport}
 ${identityImport}
 ${notificationImport}
+${
+  selection.manualBilling
+    ? `import type { manualPaymentServiceContract } from "${stableServicesModule(mode)}";
+type ManualPaymentService = typeof manualPaymentServiceContract;`
+    : ""
+}
 import { RequestApplicationError } from "./errors.js";
 import type {
 ${selection.billing ? "  BillingCheckoutDto,\n  BillingCheckoutInput,\n  BillingPaymentLinkInput,\n  BillingPortalInput,\n" : ""}
@@ -558,6 +567,42 @@ export { createRequestApplicationForRequest } from "./server.js";
 ${selection.featureFlags ? 'export { evaluateAuthenticatedFeatureFlag, type AuthenticatedFeatureFlagUser } from "./feature-flags.js";\n' : ""}export { RequestApplicationError, type RequestApplicationErrorCode } from "./errors.js";
 export type { BillingCheckoutDto, BillingCheckoutInput, BillingPaymentLinkInput, BillingPortalInput, BillingSnapshotDto, ConversationDto, CurrentRequestDto, CurrentUserDto, PublicRecord } from "./types.js";
 `;
+}
+
+function manualBillingFacadeContent(): string {
+  return `      manual: {
+        summary: async () => {
+          const principal = requireActivePrincipal(dependencies.principal);
+          await dependencies.rateLimit("manual:summary:" + principal.userId, 60, 60_000);
+          const summary = await dependencies.manualBilling.summary({ id: principal.userId, role: principal.role ?? "user" });
+          return { ...summary, allowedMethods: [...summary.allowedMethods], canReview: principal.role === "admin" || principal.role === "superAdmin" };
+        },
+        list: async () => {
+          const principal = requireActivePrincipal(dependencies.principal);
+          await dependencies.rateLimit("manual:list:" + principal.userId, 60, 60_000);
+          return await dependencies.manualBilling.list({ id: principal.userId, role: principal.role ?? "user" });
+        },
+        submit: async (input: Parameters<ManualPaymentService["submit"]>[1]) => {
+          const principal = requireActivePrincipal(dependencies.principal);
+          await dependencies.rateLimit("manual:submit:" + principal.userId, 5, 60_000);
+          return await dependencies.manualBilling.submit({ id: principal.userId, role: principal.role ?? "user" }, input);
+        },
+        reviewQueue: async () => {
+          const principal = requireAdminPrincipal(requireActivePrincipal(dependencies.principal));
+          await dependencies.rateLimit("manual:queue:" + principal.userId, 60, 60_000);
+          return await dependencies.manualBilling.reviewQueue({ id: principal.userId, role: principal.role ?? "user" });
+        },
+        receipt: async (input: { id: string }) => {
+          const principal = requireActivePrincipal(dependencies.principal);
+          await dependencies.rateLimit("manual:receipt:" + principal.userId, 30, 60_000);
+          return await dependencies.manualBilling.receipt({ id: principal.userId, role: principal.role ?? "user" }, input.id);
+        },
+        review: async (input: Parameters<ManualPaymentService["review"]>[1]) => {
+          const principal = requireAdminPrincipal(requireActivePrincipal(dependencies.principal));
+          await dependencies.rateLimit("manual:review:" + principal.userId, 30, 60_000);
+          return await dependencies.manualBilling.review({ id: principal.userId, role: principal.role ?? "user" }, input);
+        },
+      },`;
 }
 
 export function requestApplicationFiles(

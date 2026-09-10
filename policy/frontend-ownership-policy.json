@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ghostinit.dev/schemas/frontend-ownership-policy.schema.json",
+  "schemaVersion": 1,
+  "workflow": { "maxCodeLines": 200, "maxReturnedFields": 20 },
+  "infrastructure": [
+    "src/components/providers.tsx",
+    "src/components/query-auth-boundary.tsx",
+    "src/components/request-owned-snapshot.tsx",
+    "src/components/providers/convex-client-provider.tsx",
+    "src/components/convex-client-provider.tsx",
+    "src/renderer/components/providers.tsx",
+    "src/renderer/components/query-auth-boundary.tsx",
+    "src/renderer/lib/providers.tsx"
+  ]
+}

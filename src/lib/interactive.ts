@@ -3,7 +3,7 @@
  *
  * Implements:
  * - isInteractiveMode(opts): bool if TTY and not json/yes/ci
- * - parseCreateArgs(flags): handles mode, billing (comma/repeat/both/all/none), features, database
+ * - parseCreateArgs(flags): handles mode, billing (comma/repeat/both/none), features, database
  * - Project name validation regex and helpers
  */
 
@@ -127,7 +127,7 @@ function combineToSingleString(value?: string | string[]): string {
 /**
  * Parse create flags handling:
  * - mode: monorepo|single (single value, last wins)
- * - billing: comma-separated or repeat (--billing stripe --billing chargily), special both/all/none, deduped
+ * - billing: comma-separated or repeat (--billing stripe --billing chargily), special both/none, deduped
  * - features: comma-separated
  * - database: postgres|convex|none (single value, last wins)
  * - framework: nextjs|tanstack-start (single value, last wins)
@@ -231,9 +231,8 @@ export function parseCreateArgs(
 export function normalizeBillingSelection(selection: string[]): BillingProviderName[] {
   if (!selection || selection.length === 0) return [];
   const lower = selection.map((s) => s.trim().toLowerCase());
-  if (lower.includes("none")) return [];
-  const input = lower.join(",");
-  return parseBillingInput(input);
+  const parsed = parseBillingInput(lower.join(","));
+  return lower.includes("none") ? [] : parsed;
 }
 
 export function normalizeFeaturesSelection(selection: string[]): FeatureName[] {

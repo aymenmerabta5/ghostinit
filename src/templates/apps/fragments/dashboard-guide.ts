@@ -28,9 +28,9 @@ export function ArchitectureCard(): React.JSX.Element {
 export function checksCardContent(hasAdminNavigation: boolean): string {
   return `"use client";
 import type * as React from "react";
-${hasAdminNavigation ? 'import { Link } from "@tanstack/react-router";\nimport { Button } from "@/components/ui/button";\nimport { useDashboardIdentity } from "./queries";' : ""}
+${hasAdminNavigation ? 'import { Link } from "@tanstack/react-router";\nimport { Button } from "@/components/ui/button";' : ""}
 import { useSurfaceTranslations } from "@/lib/translations";
-import type { DashboardUser } from "./types";
+import type { DashboardUser } from "../types";
 
 const CHECKS = [
   ["checks.architecture", "bun run check"],
@@ -38,9 +38,8 @@ const CHECKS = [
   ["checks.lint", "bun run lint:all"],
 ] as const;
 
-export function ChecksCard(${hasAdminNavigation ? "{ user: initialUser }" : "_props"}: { user?: DashboardUser } = {}): React.JSX.Element {
+export function ChecksCard(${hasAdminNavigation ? "{ user }" : "_props"}: { user?: DashboardUser | null } = {}): React.JSX.Element {
   const t = useSurfaceTranslations("dashboard");
-  ${hasAdminNavigation ? "const { user } = useDashboardIdentity(initialUser);" : ""}
   return <section className="min-w-0 lg:col-span-5">
     <h3 className="text-base font-semibold tracking-tight">{t("checks.title")}</h3>
     <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("checks.instructions")}</p>

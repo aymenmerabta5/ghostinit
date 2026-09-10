@@ -5,6 +5,18 @@ import {
   startRejectingE2EPostgresAuthentication,
 } from "./e2e-postgres.js";
 
+import { createRequire } from "node:module";
+import { PGlite } from "@electric-sql/pglite";
+
+interface PostgreSqlProbeClient {
+  connect(): Promise<void>;
+  query(text: string, values?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+  end(): Promise<void>;
+}
+const { Client } = createRequire(import.meta.url)("pg") as {
+  Client: new (options: { connectionString: string }) => PostgreSqlProbeClient;
+};
+
 test("embedded E2E PostgreSQL serves real SQL and preserves fatal 28P01 auth failures", async () => {
   const postgres = await startIsolatedE2EPostgres();
   const sql = new SQL(postgres.environment.DATABASE_URL ?? "");
@@ -45,4 +57,72 @@ test("embedded E2E PostgreSQL serves real SQL and preserves fatal 28P01 auth fai
       await rejectingPostgres.close();
     }
   }
+});
+
+test("embedded PostgreSQL bounds its shared cache and preserves defaults and transaction behavior", async () => {
+  const defaultStartParams = [...PGlite.defaultStartParams];
+  const postgres = await startIsolatedE2EPostgres();
+  const connectionString = postgres.environment.DATABASE_URL ?? "";
+  const client = new Client({ connectionString });
+  const observer = new Client({ connectionString });
+  try {
+    await client.connect();
+    expect(PGlite.defaultStartParams).toEqual(defaultStartParams);
+    expect((await client.query("SHOW shared_buffers")).rows[0]?.shared_buffers).toBe("16MB");
+    expect(
+      (await client.query("SELECT pg_size_bytes(current_setting('shared_buffers'))::text AS bytes"))
+        .rows[0]?.bytes,
+    ).toBe("16777216");
+    expect((await client.query("SHOW work_mem")).rows[0]?.work_mem).toBe("4MB");
+    for (let index = 0; index < defaultStartParams.length; index += 1) {
+      if (defaultStartParams[index] !== "-c") continue;
+      const setting = defaultStartParams[index + 1];
+      expect(setting).toBeDefined();
+      const separator = setting!.indexOf("=");
+      expect(separator).toBeGreaterThan(0);
+      const name = setting!.slice(0, separator);
+      const value = setting!.slice(separator + 1);
+      const expected = value === "false" ? "off" : value === "true" ? "on" : value;
+      const result = await client.query("SELECT current_setting($1) AS value", [name]);
+      expect(result.rows[0]?.value, name).toBe(expected);
+    }
+    await client.query(
+      "CREATE TABLE cache_budget_accounts (id integer PRIMARY KEY, balance integer NOT NULL CHECK (balance >= 0))",
+    );
+    await client.query("INSERT INTO cache_budget_accounts VALUES (1, 1000), (2, 500)");
+    await client.query("BEGIN");
+    await client.query("UPDATE cache_budget_accounts SET balance = balance - 100 WHERE id = 1");
+    await client.query("UPDATE cache_budget_accounts SET balance = balance + 100 WHERE id = 2");
+    await client.query("COMMIT");
+    await observer.connect();
+    expect(
+      (await observer.query("SELECT id, balance FROM cache_budget_accounts ORDER BY id")).rows,
+    ).toEqual([
+      { id: 1, balance: 900 },
+      { id: 2, balance: 600 },
+    ]);
+    await client.query("BEGIN");
+    await client.query("UPDATE cache_budget_accounts SET balance = 0 WHERE id = 1");
+    await client.query("ROLLBACK");
+    expect(
+      (await observer.query("SELECT balance FROM cache_budget_accounts WHERE id = 1")).rows[0]
+        ?.balance,
+    ).toBe(900);
+    await observer.query("UPDATE cache_budget_accounts SET balance = balance + 1 WHERE id = 2");
+    expect(
+      (await client.query("SELECT balance FROM cache_budget_accounts WHERE id = 2")).rows[0]
+        ?.balance,
+    ).toBe(601);
+  } finally {
+    try {
+      await observer.end();
+    } finally {
+      try {
+        await client.end();
+      } finally {
+        await postgres.close();
+      }
+    }
+  }
+  expect(PGlite.defaultStartParams).toEqual(defaultStartParams);
 });

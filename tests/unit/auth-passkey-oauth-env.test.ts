@@ -77,7 +77,9 @@ describe("generated Better Auth passkey and OAuth env contracts", () => {
         expect(client).not.toMatch(
           /import \{[^}]*\bpasskeyClient\b[^}]*\} from ["']better-auth\/client\/plugins["'];/s,
         );
-        expect(server).toContain("type Auth as BetterAuthServer");
+        expect(server).toMatch(
+          /import type \{ Auth as BetterAuthServer \} from ["']better-auth["'];/,
+        );
         expect(server).toContain("type BetterAuthOptions");
         expect(server).toContain("type PortableAuthOptions = BetterAuthOptions");
         expect(server).toContain("interface AdminCreationAuthContext");

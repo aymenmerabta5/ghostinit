@@ -234,7 +234,8 @@ import {
     ),
     file(
       "packages/auth/src/server.ts",
-      `import { betterAuth, type Auth as BetterAuthServer, type BetterAuthOptions } from "better-auth";
+      `import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
+import type { Auth as BetterAuthServer } from "better-auth";
 
 declare global {
   // eslint-disable-next-line no-var

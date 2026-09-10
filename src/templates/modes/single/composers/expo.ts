@@ -1,3 +1,5 @@
+import { expoSettingsFeatureFiles } from "../../../apps/fragments/settings/native-expo.js";
+import { DEPENDENCY_SECURITY_INTEGRITY_PATH } from "../../../../domain/dependency-security/artifacts.js";
 // @allow-long 667: single-mode Expo composition keeps capability closure and flat-path ownership together
 import { uiUtilsContent } from "../../../ui/utils.js";
 import { file, type TemplateFile } from "../../../shared.js";
@@ -9,6 +11,12 @@ import type { RootSecrets } from "../../../root.js";
 import { servicesFiles } from "../../../services.js";
 import { billingFiles } from "../../../billing-generator.js";
 import { billingMoneyFile } from "../../../billing/ui/money.js";
+import { manualMobileFeatureFiles } from "../../../billing/ui/manual/mobile.js";
+import { authOwnedEffectFile } from "../../../apps/fragments/auth-owned-effect.js";
+import { authOwnedMutationFile } from "../../../apps/fragments/auth-owned-mutation.js";
+import { identityPureClientFiles } from "../../../apps/fragments/auth/client-validation.js";
+import { platformSurfaceTranslationFiles } from "../../../apps/fragments/platform-surface-translations.js";
+import { nativeFormFieldFiles } from "../../../apps/fragments/native-form-fields.js";
 import { emailFiles } from "../../../email.js";
 import { eveFiles as genEveFiles } from "../../../eve.js";
 
@@ -21,34 +29,24 @@ import {
   metroConfigContent,
   expoEnvDtsContent,
 } from "../../../apps/expo-core.js";
-import { expoRootLayoutContent } from "../../../apps/fragments/expo/layout.js";
+import { expoRootLayoutContent, expoProviderFiles } from "../../../apps/fragments/expo/layout.js";
 import { canonicalQueryAuthHookContent } from "../../../apps/fragments/query-auth.js";
-import { expoDashboardPageContent } from "../../../apps/expo-pages.js";
+import { expoDashboardPageContent, expoDashboardFeatureFiles } from "../../../apps/expo-pages.js";
 import {
   expoFullSettingsContent,
-  expoEmailFlowFiles,
   expoIdentityWorkspaceFiles,
 } from "../../../apps/fragments/identity-workspace/index.js";
-import { expoAnalyticsFile } from "../../../apps/fragments/expo/analytics.js";
+import { expoAnalyticsFiles } from "../../../apps/fragments/expo/analytics.js";
 import {
   eveProtocolAcceptanceFile,
   eveProtocolFile,
   expoEveFiles,
 } from "../../../apps/fragments/eve/index.js";
 import { platformI18nFiles } from "../../../apps/fragments/platform-i18n.js";
-import { buildExpoMarketingContent } from "../../../apps/fragments/expo/marketing.js";
-import {
-  expoSignInContent,
-  expoSignUpContent,
-  expoForgotPasswordContent,
-  expoResetPasswordContent,
-  expoTwoFactorContent,
-} from "../../../apps/fragments/expo/auth.js";
-import {
-  expoSettingsContent,
-  expoNotFoundContent,
-} from "../../../apps/fragments/expo/dashboard.js";
-import { expoBillingContent } from "../../../apps/fragments/expo/billing.js";
+import { expoMarketingFiles } from "../../../apps/fragments/expo/marketing.js";
+import { expoAuthFeatureFiles } from "../../../apps/fragments/auth/native.js";
+import { expoSettingsContent, expoSystemFiles } from "../../../apps/fragments/expo/dashboard.js";
+import { nativeBillingFeatureFiles } from "../../../apps/fragments/billing/native.js";
 import { mobileGlobalCssContent } from "../../../apps/fragments/css.js";
 import { rnrTextContent } from "../../../apps/fragments/expo/rnr/text.js";
 import { rnrButtonContent } from "../../../apps/fragments/expo/rnr/button.js";
@@ -57,8 +55,8 @@ import { rnrInputContent } from "../../../apps/fragments/expo/rnr/input.js";
 import { rnrLabelContent } from "../../../apps/fragments/expo/rnr/label.js";
 import { rnrBadgeContent } from "../../../apps/fragments/expo/rnr/badge.js";
 import { rnrAvatarContent } from "../../../apps/fragments/expo/rnr/avatar.js";
-import { rnrTabsContent } from "../../../apps/fragments/expo/rnr/tabs.js";
-import { rnrDialogContent } from "../../../apps/fragments/expo/rnr/dialog.js";
+import { rnrTabsFiles } from "../../../apps/fragments/expo/rnr/tabs.js";
+import { rnrDialogFiles } from "../../../apps/fragments/expo/rnr/dialog.js";
 import { expoAuthClientContent, expoOrpcClientContent } from "../../../apps/fragments/expo/orpc.js";
 import {
   expoNativeQueryClientContent,
@@ -69,6 +67,7 @@ import { convexClientProviderExpoContent } from "../../../apps/fragments/convex-
 import {
   expoHeaderContent,
   expoSignOutButtonContent,
+  expoShellFeatureFiles,
 } from "../../../apps/fragments/expo/header.js";
 import { webhookContent } from "../../../billing/webhooks/factory.js";
 
@@ -520,7 +519,7 @@ function singleHeaderContent(
   if (hasBilling) return content;
   const billingLabel = hasI18n ? '{t("billing")}' : "Billing";
   return content.replace(
-    `              <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>${billingLabel}</Text></Button></Link>\n`,
+    `          <Link href="/billing" asChild><Button variant="ghost" size="sm"><Text>${billingLabel}</Text></Button></Link>\n`,
     "",
   );
 }
@@ -609,35 +608,26 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
   const manifest = JSON.parse(readFileSync(resolve(import.meta.dir, "../package.json"), "utf8"));
   expect(manifest.main).toBe("expo-router/entry");
   expect(manifest.scripts.typecheck).toBe("tsc --noEmit");
-  expect(manifest.scripts.lint).toBe("oxlint --deny-warnings .");
+  expect(manifest.scripts.lint).toBe(${JSON.stringify("bun " + DEPENDENCY_SECURITY_INTEGRITY_PATH + " && oxlint --deny-warnings .")});
 });
 `,
     ),
   );
 
   files.push(file("app/_layout.tsx", expoRootLayoutContent(capabilities)));
+  files.push(...expoProviderFiles("src", capabilities));
   files.push(
-    file(
-      "app/index.tsx",
-      buildExpoMarketingContent({
-        hasAuth,
-        hasApi,
-        hasBilling,
-        hasI18n: effectiveHasI18n,
-      }),
-    ),
+    ...expoMarketingFiles("", {
+      hasAuth,
+      hasApi,
+      hasBilling,
+      hasI18n: effectiveHasI18n,
+    }),
   );
   if (hasAuth) {
-    files.push(file("app/(auth)/sign-in.tsx", expoSignInContent(hasEmail, effectiveHasI18n)));
-    files.push(file("app/(auth)/sign-up.tsx", expoSignUpContent(effectiveHasI18n, hasEmail)));
-    if (hasEmail) {
-      files.push(
-        file("app/(auth)/forgot-password.tsx", expoForgotPasswordContent(effectiveHasI18n)),
-      );
-      files.push(file("app/(auth)/reset-password.tsx", expoResetPasswordContent(effectiveHasI18n)));
-    }
-    if (hasEmail) files.push(file("app/2fa.tsx", expoTwoFactorContent(effectiveHasI18n)));
+    files.push(...expoAuthFeatureFiles("single", hasEmail, effectiveHasI18n));
     files.push(file("app/dashboard.tsx", expoDashboardPageContent(capabilities)));
+    files.push(...expoDashboardFeatureFiles("src", capabilities));
     files.push(
       file(
         "app/settings.tsx",
@@ -647,17 +637,24 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
       ),
     );
     if (capabilities.hasApi) files.push(...expoIdentityWorkspaceFiles("single", effectiveHasI18n));
-    if (hasEmail) files.push(...expoEmailFlowFiles("single", effectiveHasI18n));
   }
   if (hasBilling)
     files.push(
+      ...(effectiveBilling.includes("manual")
+        ? manualMobileFeatureFiles("single", effectiveHasI18n)
+        : []),
       billingMoneyFile("src"),
-      file("app/billing.tsx", expoBillingContent("single", effectiveBilling, effectiveHasI18n)),
+      ...nativeBillingFeatureFiles("expo", "single", effectiveBilling, effectiveHasI18n),
     );
-  files.push(file("app/+not-found.tsx", expoNotFoundContent(effectiveHasI18n)));
+  files.push(...expoSystemFiles("", effectiveHasI18n));
 
   if (hasAuth) {
     files.push(
+      authOwnedEffectFile("src"),
+      authOwnedMutationFile("src"),
+      ...identityPureClientFiles("src"),
+      ...platformSurfaceTranslationFiles("src", effectiveHasI18n),
+      ...nativeFormFieldFiles("src"),
       file(
         "src/lib/auth-client.ts",
         expoAuthClientContent(projectName, isConvex, "single", hasEmail),
@@ -684,7 +681,7 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
   if (hasAuth && hasApi) {
     files.push(file("src/lib/query-auth-scope.ts", canonicalQueryAuthHookContent()));
   }
-  if (hasAnalytics) files.push(expoAnalyticsFile("single"));
+  if (hasAnalytics) files.push(...expoAnalyticsFiles("single"));
   if (hasEveClient) {
     files.push(
       eveProtocolFile("expo", "single"),
@@ -710,13 +707,14 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
   files.push(file("src/components/ui/label.tsx", rnrLabelContent()));
   files.push(file("src/components/ui/badge.tsx", rnrBadgeContent()));
   files.push(file("src/components/ui/avatar.tsx", rnrAvatarContent()));
-  files.push(file("src/components/ui/tabs.tsx", rnrTabsContent()));
-  files.push(file("src/components/ui/dialog.tsx", rnrDialogContent()));
+  files.push(...rnrTabsFiles("src"));
+  files.push(...rnrDialogFiles("src"));
   if (hasAuth) {
     files.push(
-      file(
-        "src/components/header.tsx",
+      ...expoShellFeatureFiles(
+        "src",
         singleHeaderContent(hasBilling, effectiveHasI18n, hasEveClient, capabilities.hasPdf),
+        effectiveHasI18n,
       ),
     );
     files.push(
@@ -729,6 +727,7 @@ test("declares an Expo Router entrypoint and native quality scripts", () => {
 
   if (isConvex) {
     if (hasAuth) {
+      files.push(...expoSettingsFeatureFiles("single", capabilities.hasApi, hasEmail));
       files.push(file("src/server/auth/index.ts", serverAuthSingleConvex()));
       files.push(file("src/server/db/index.ts", serverDbIndexSingleConvex()));
     }

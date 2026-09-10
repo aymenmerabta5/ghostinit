@@ -77,8 +77,8 @@ describe("generated email capability", () => {
         read(signInPath),
         read(
           corner.mode === "monorepo"
-            ? "apps/web/src/components/auth/sign-in-form.tsx"
-            : "src/components/auth/sign-in-form.tsx",
+            ? "apps/web/src/features/auth/components/sign-in-form.tsx"
+            : "src/features/auth/components/sign-in-form.tsx",
         ),
       ].join("\n");
       const auth = read(authPath);
@@ -129,8 +129,10 @@ describe("generated email capability", () => {
         expect(auth).toContain("sendVerificationEmail");
         expect(read(forgotPath)).not.toBe("");
         expect(read(resetPath)).not.toBe("");
-        expect(read(`${authFormRoot}/components/auth/reset-password-form.tsx`)).not.toBe("");
-        expect(read(`${authFormRoot}/components/auth/two-factor-form.tsx`)).not.toBe("");
+        expect(read(`${authFormRoot}/features/auth/components/reset-password-form.tsx`)).not.toBe(
+          "",
+        );
+        expect(read(`${authFormRoot}/features/auth/components/two-factor-form.tsx`)).not.toBe("");
         expect(signInFeature).toContain("/forgot-password");
         expect(envExample).toContain("RESEND_API_KEY=");
         expect(envLocal).toContain("RESEND_API_KEY=");
@@ -194,8 +196,8 @@ describe("generated email capability", () => {
         expect(auth).not.toContain("magicLink(");
         expect(read(forgotPath)).toBe("");
         expect(read(resetPath)).toBe("");
-        expect(read(`${authFormRoot}/components/auth/reset-password-form.tsx`)).toBe("");
-        expect(read(`${authFormRoot}/components/auth/two-factor-form.tsx`)).toBe("");
+        expect(read(`${authFormRoot}/features/auth/components/reset-password-form.tsx`)).toBe("");
+        expect(read(`${authFormRoot}/features/auth/components/two-factor-form.tsx`)).toBe("");
         expect(signInFeature).not.toContain("/forgot-password");
         expect(envExample).not.toContain("RESEND_API_KEY");
         expect(envLocal).not.toContain("RESEND_API_KEY");

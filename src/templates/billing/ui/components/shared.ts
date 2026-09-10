@@ -1,6 +1,9 @@
 import type { ProjectMode } from "../../../../lib/addons.js";
 import type { AddonInstallerMap } from "../../../../lib/addons.js";
-import { BILLING_PROVIDERS as allBillingProviders } from "../../../../lib/constants.js";
+import {
+  BILLING_PROVIDERS as allBillingProviders,
+  ONLINE_BILLING_PROVIDERS,
+} from "../../../../lib/constants.js";
 
 type Runtime = "node" | "bun";
 
@@ -25,7 +28,14 @@ export function normalize(
   }
   if (runtimeOrAddons && typeof runtimeOrAddons === "object" && !Array.isArray(runtimeOrAddons)) {
     const maybe = runtimeOrAddons as Record<string, unknown>;
-    if (maybe.stripe || maybe.chargily || maybe.paddle || maybe.polar || maybe.billing)
+    if (
+      maybe.stripe ||
+      maybe.chargily ||
+      maybe.paddle ||
+      maybe.polar ||
+      maybe.manual ||
+      maybe.billing
+    )
       addons = runtimeOrAddons as AddonInstallerMap;
   }
   if (maybeAddons && typeof maybeAddons === "object") addons = maybeAddons as AddonInstallerMap;
@@ -33,7 +43,7 @@ export function normalize(
 }
 
 export function selectedProviders(addons?: AddonInstallerMap): string[] {
-  if (!addons || Object.keys(addons).length === 0) return [...allBillingProviders];
+  if (!addons || Object.keys(addons).length === 0) return [...ONLINE_BILLING_PROVIDERS];
   const sel: string[] = [];
   let anyProviderKeyPresent = false;
   for (const p of allBillingProviders) {
@@ -41,7 +51,7 @@ export function selectedProviders(addons?: AddonInstallerMap): string[] {
     if ((addons as Record<string, { inUse: boolean }>)[p]?.inUse) sel.push(p);
   }
   const legacyBilling = (addons as Record<string, { inUse: boolean }>)["billing"]?.inUse;
-  if (sel.length === 0 && legacyBilling) return [...allBillingProviders];
+  if (sel.length === 0 && legacyBilling) return [...ONLINE_BILLING_PROVIDERS];
   if (sel.length === 0 && anyProviderKeyPresent) return [];
   return sel;
 }

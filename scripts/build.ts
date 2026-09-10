@@ -26,6 +26,8 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { embedTemplateSources } from "./embed-template-sources.js";
+import { embedFrontendRuntime } from "./embed-frontend-runtime.js";
+import { embedDependencySecurityRuntime } from "./embed-dependency-security-runtime.js";
 import { verifyDistClosure } from "./package-contract.js";
 
 const REPO_ROOT = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
@@ -165,6 +167,8 @@ async function main(): Promise<void> {
 
   try {
     embedTemplateSources();
+    await embedFrontendRuntime();
+    await embedDependencySecurityRuntime();
 
     console.log("[build] Step 1/3: Bundling JS with Bun.build()");
     console.log(`        entry: ./src/cli.ts -> ./${basename(stageDir)}/cli.js`);

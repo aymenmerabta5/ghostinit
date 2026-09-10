@@ -76,7 +76,7 @@ describe("generated Polar provider panel boundaries", () => {
       const generated = generateProjectFiles(config(mode, "nextjs"), { dryRun: true });
       const byPath = new Map(generated.map((entry) => [entry.path, entry.content]));
       const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
-      const providerRoot = `${sourceRoot}/app/billing/components/providers`;
+      const providerRoot = `${sourceRoot}/features/billing/components/providers`;
       const polarFiles = generated.filter(({ path }) => path.startsWith(`${providerRoot}/polar-`));
 
       expect(polarFiles.map(({ path }) => posix.basename(path)).sort()).toEqual(
@@ -130,7 +130,7 @@ describe("generated Polar provider panel boundaries", () => {
       const sourceRoot = mode === "monorepo" ? "apps/web/src" : "src";
       expect(
         generated.some(({ path }) =>
-          path.startsWith(`${sourceRoot}/app/billing/components/providers/`),
+          path.startsWith(`${sourceRoot}/features/billing/components/providers/`),
         ),
       ).toBe(false);
       expect(generated.some(({ path }) => path === `${sourceRoot}/routes/billing.tsx`)).toBe(true);

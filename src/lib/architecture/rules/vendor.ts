@@ -33,13 +33,21 @@ export function isFeatureFile(file: string): boolean {
   if (/(?:^|\/)(?:packages|tooling)\/[^/]+\/src\/features(?:\/|$)/.test(normalized)) {
     return false;
   }
-  return /(?:^|\/)(?:apps\/[^/]+\/)?src\/features\/[^/]+(?:\/|$)/.test(normalized);
+  return /(?:^|\/)(?:apps\/[^/]+\/)?src\/(?:renderer\/)?features\/[^/]+(?:\/|$)/.test(normalized);
 }
 
 /** Components are the prop-driven/presentational edge of a generated feature. */
 export function isFeatureComponentFile(file: string): boolean {
   const normalized = file.replace(/\\/g, "/");
-  return isFeatureFile(normalized) && /(?:^|\/)src\/features\/[^/]+\/components\//.test(normalized);
+  return (
+    isFeatureFile(normalized) &&
+    /(?:^|\/)src\/(?:renderer\/)?features\/[^/]+\/components\//.test(normalized)
+  );
+}
+
+/** A provider-named folder cannot turn a feature's checked JSX views into vendors. */
+export function isFeatureProviderViewFile(file: string | undefined): boolean {
+  return typeof file === "string" && isFeatureComponentFile(file) && /\.[jt]sx$/.test(file);
 }
 
 /** Only these feature-root modules own remote-state adapter imports. */
@@ -47,7 +55,9 @@ export function isFeatureDataAdapterFile(file: string): boolean {
   const normalized = file.replace(/\\/g, "/");
   return (
     isFeatureFile(normalized) &&
-    /(?:^|\/)src\/features\/[^/]+\/(?:queries|mutations)\.[cm]?[jt]sx?$/.test(normalized)
+    /(?:^|\/)src\/(?:renderer\/)?features\/[^/]+\/(?:queries|mutations)\.[cm]?[jt]sx?$/.test(
+      normalized,
+    )
   );
 }
 
@@ -57,7 +67,7 @@ export function isFeatureRemoteAdapterImport(imp: string): boolean {
   return (
     FEATURE_REMOTE_PACKAGES.has(base) ||
     normalized.startsWith("@orpc/") ||
-    /(?:^|\/)lib\/(?:orpc|auth-client)(?:\.[cm]?[jt]sx?)?$/.test(normalized) ||
+    /(?:^|\/)lib\/(?:orpc|auth-client|realtime)(?:\.[cm]?[jt]sx?)?$/.test(normalized) ||
     normalized.includes("convex/_generated/api")
   );
 }

@@ -1,10 +1,11 @@
+import { notificationBellWorkflowContent } from "../../src/templates/apps/capability-clients/notification-workspace.js";
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { webUiFiles } from "../../src/templates/apps/fragments/web-ui/index.js";
 import { notificationsLibFiles } from "../../src/templates/apps/fragments/lib/notifications.js";
 import { authPackage } from "../../src/templates/auth.js";
-import { settingsTwoFactorCard } from "../../src/templates/apps/fragments/settings/two-factor-card.js";
+import { webSettingsFeatureFiles } from "../../src/templates/apps/fragments/settings/feature.js";
 
 const content = (files: Array<{ path: string; content: string }>, path: string): string =>
   files.find((file) => file.path === path)?.content ?? "";
@@ -41,23 +42,28 @@ describe("shared web UI contracts", () => {
     const files = notificationsLibFiles();
     const source = content(files, "apps/web/src/components/NotificationBell.tsx");
     const navigationSource = content(files, "apps/web/src/lib/notifications.ts");
-    const format = source.indexOf("formatNotification(notification.type, notification.payload)");
-    const destination = source.indexOf(
-      "getNotificationHref(notification.type, notification.payload)",
-    );
-    const markRead = source.indexOf(
-      "if (notification.readAt === null) await onMarkRead?.(notification.id);",
-    );
-    const captureOwner = source.indexOf("const isCurrent = captureAction?.() ?? (() => true);");
-    const navigate = source.indexOf(
-      "if (isCurrent() && destination) onNavigate?.(destination.href);",
-    );
-    expect(format).toBeGreaterThanOrEqual(0);
-    expect(destination).toBeGreaterThan(format);
-    expect(captureOwner).toBeGreaterThan(destination);
-    expect(markRead).toBeGreaterThan(captureOwner);
-    expect(navigate).toBeGreaterThan(markRead);
-    expect(source.match(/onMarkRead\?\.\(notification\.id\)/g) ?? []).toHaveLength(1);
+    expect(source).toContain("formatNotification(notification.type, notification.payload)");
+    expect(source).toContain("onActivate?.(notification)");
+    expect(source).not.toContain("markNotificationRead");
+    for (const framework of ["nextjs", "tanstack-start"] as const) {
+      const workflow = notificationBellWorkflowContent(framework);
+      const captureOwner = workflow.indexOf("async (item: NotificationItem, isCurrent) =>");
+      const markRead = workflow.indexOf(
+        "if (item.readAt === null) await markNotificationRead(item.id);",
+      );
+      const invalidate = workflow.indexOf("if (isCurrent()) await invalidateInbox();");
+      const destination = workflow.indexOf("getNotificationHref(item.type, item.payload)");
+      const navigate = workflow.indexOf("if (isCurrent() && destination)");
+      expect(captureOwner).toBeGreaterThanOrEqual(0);
+      expect(markRead).toBeGreaterThan(captureOwner);
+      expect(invalidate).toBeGreaterThan(markRead);
+      expect(destination).toBeGreaterThan(invalidate);
+      expect(navigate).toBeGreaterThan(destination);
+      expect(workflow.match(/await markNotificationRead\(item\.id\)/g) ?? []).toHaveLength(1);
+      expect(workflow).toContain(
+        "onActivate: (item: NotificationItem) => { void mutation.run(item); }",
+      );
+    }
     expect(source).toContain('aria-label={t("title")}');
     expect(source).toContain('<PopoverTitle>{t("title")}</PopoverTitle>');
     expect(navigationSource).toContain(
@@ -70,7 +76,11 @@ describe("shared web UI contracts", () => {
   test("shared auth output has no stale pending or callback bindings", () => {
     const form = content(webUiFiles(), "apps/web/src/components/ui/form.tsx");
     expect(form).not.toContain("isPending?:");
-    const twoFactor = settingsTwoFactorCard().content;
+    const twoFactor = content(
+      webSettingsFeatureFiles("apps/web/src", "next", true, true, true),
+      "apps/web/src/features/settings/components/two-factor-view.tsx",
+    );
+    expect(twoFactor).not.toBe("");
     expect(twoFactor).not.toContain("import { Button }");
     expect(twoFactor).not.toContain("as unknown as");
     const auth = content(authPackage(), "packages/auth/src/server.ts");

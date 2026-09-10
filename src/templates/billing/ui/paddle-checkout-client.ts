@@ -91,23 +91,17 @@ export function startPaddleCheckout(
 }
 `;
 
-export function paddleCheckoutComponentContent(
-  mode: ProjectMode,
-  framework: FrameworkName,
-): string {
+export function paddleCheckoutHookContent(mode: ProjectMode, framework: FrameworkName): string {
   const audience = framework === "nextjs" ? "next" : "vite";
   const prefix = framework === "nextjs" ? "NEXT_PUBLIC" : "VITE";
   return `"use client";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { env } from "${mode === "monorepo" ? "@repo/config" : "@/lib/env"}/${audience}";
-import { useSurfaceTranslations } from "@/lib/translations";
+import type { SurfaceMessageKey } from "@/lib/translations";
 import { startPaddleCheckout, validPaddleClientToken, type PaddleCheckoutStatus } from "@/adapters/billing/paddle";
 import type { PaddleCheckoutPageData } from "@/contracts/billing";
 
-export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): React.JSX.Element {
-  const t = useSurfaceTranslations("billing");
+export function usePaddleCheckout(data: PaddleCheckoutPageData) {
   const [status, setStatus] = React.useState<PaddleCheckoutStatus>("loading");
   const token = env.${prefix}_PADDLE_CLIENT_TOKEN;
   const configured = data.state === "ready" && env.${prefix}_PADDLE_ENVIRONMENT === data.options.environment && validPaddleClientToken(token, data.options.environment);
@@ -115,14 +109,48 @@ export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): 
     if (data.state !== "ready" || !configured || !token) return;
     return startPaddleCheckout(data.options, token, setStatus);
   }, [data, configured, token]);
-  const description = data.state !== "ready" ? "paddleCheckoutInvalid" : !configured ? "paddleCheckoutUnavailable" : status === "error" ? "paddleCheckoutError" : status === "ready" ? "paddleCheckoutReady" : status === "canceled" ? "checkoutCancelledDescription" : status === "returning" ? "paddleCheckoutReturning" : "paddleCheckoutLoading";
-  return <main data-paddle-checkout-state={data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status} className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-xl items-start px-5 py-10 sm:px-8 sm:py-14"><Card className="w-full"><CardHeader><CardTitle as="h1" className="text-3xl tracking-tight">{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
-    {configured && status === "error" ? <Button onClick={() => window.location.reload()}>{t("retryCheckout")}</Button> : null}
+  const description: SurfaceMessageKey<"billing"> = data.state !== "ready" ? "paddleCheckoutInvalid" : !configured ? "paddleCheckoutUnavailable" : status === "error" ? "paddleCheckoutError" : status === "ready" ? "paddleCheckoutReady" : status === "canceled" ? "checkoutCancelledDescription" : status === "returning" ? "paddleCheckoutReturning" : "paddleCheckoutLoading";
+  return { configured, status, description, viewState: data.state !== "ready" ? "invalid" : !configured ? "unconfigured" : status, retry: () => window.location.reload() };
+}
+`;
+}
+
+export function paddleCheckoutComponentContent(
+  _mode: ProjectMode,
+  _framework: FrameworkName,
+): string {
+  return `"use client";
+import type * as React from "react";
+import { usePaddleCheckout } from "./use-paddle-checkout";
+import { PaddleCheckoutView, PaddleCheckoutLoadingView } from "./components/paddle-checkout";
+import type { PaddleCheckoutPageData } from "@/contracts/billing";
+
+export function PaddleCheckoutPage({ data }: { data: PaddleCheckoutPageData }): React.JSX.Element {
+  const state = usePaddleCheckout(data);
+  return <PaddleCheckoutView state={state} />;
+}
+export function PaddleCheckoutLoading(): React.JSX.Element {
+  return <PaddleCheckoutLoadingView />;
+}
+`;
+}
+
+export function paddleCheckoutViewContent(): string {
+  return `"use client";
+import type * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSurfaceTranslations } from "@/lib/translations";
+import type { PaddleCheckoutState } from "../paddle-types";
+
+export function PaddleCheckoutView({ state }: { state: PaddleCheckoutState }): React.JSX.Element {
+  const t = useSurfaceTranslations("billing");
+  return <main data-paddle-checkout-state={state.viewState} className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-xl items-start px-5 py-10 sm:px-8 sm:py-14"><Card className="w-full"><CardHeader><CardTitle as="h1" className="text-3xl tracking-tight">{t("paddleTitle")}</CardTitle><CardDescription role="status">{t(state.description)}</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
+    {state.configured && state.status === "error" ? <Button onClick={state.retry}>{t("retryCheckout")}</Button> : null}
     <Button variant="outline" render={<a href="/billing" />} nativeButton={false}>{t("backToBilling")}</Button>
   </CardContent></Card></main>;
 }
-
-export function PaddleCheckoutLoading(): React.JSX.Element {
+export function PaddleCheckoutLoadingView(): React.JSX.Element {
   const t = useSurfaceTranslations("billing");
   return <main className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-xl items-start px-5 py-10 sm:px-8 sm:py-14" role="status" aria-busy="true">{t("paddleCheckoutLoading")}</main>;
 }

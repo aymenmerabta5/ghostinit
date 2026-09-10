@@ -9,7 +9,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "emitDeclarationOnly": true,
-    "tsBuildInfoFile": "../dist/.tsbuildinfo/src.tsbuildinfo",
+    "tsBuildInfoFile": "../.tsbuildinfo/src.tsbuildinfo",
     "paths": {
       "@/*": ["./*"],
       "@repo/versions": ["../packages/versions/src/index.ts"],

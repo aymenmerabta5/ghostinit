@@ -2,6 +2,7 @@
 import {
   nextRootLayoutContent,
   notFoundFileContent,
+  systemFeatureFiles,
   errorFileContent,
   loadingFileContent,
   globalErrorFileContent,
@@ -16,16 +17,8 @@ import {
   marketingQuickStartComponentContent,
 } from "./fragments/marketing.js";
 import type { MarketingOptions } from "./fragments/marketing/shared.js";
-import {
-  authOAuthButtonsContent,
-  signInFormContent,
-  signInMethodsContent,
-  signInPageContent,
-  signUpFormContent,
-  signUpPageContent,
-  twoFactorPageContent,
-  twoFactorFormContent,
-} from "./fragments/auth.js";
+import { signInPageContent, signUpPageContent, twoFactorPageContent } from "./fragments/auth.js";
+import { authFeatureFiles } from "./fragments/auth/feature.js";
 import { nextDashboardFeatureFiles, nextDashboardPageContent } from "./fragments/dashboard-next.js";
 import { settingsFiles } from "./fragments/settings/index.js";
 import { webIdentityWorkspaceFiles } from "./fragments/identity-workspace/index.js";
@@ -72,13 +65,14 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
   const hasBilling =
     typeof addonsOrHasEve === "object" && !Array.isArray(addonsOrHasEve)
       ? hasAddon(addonsOrHasEve as AddonInstallerMap, "billing") ||
-        (["stripe", "chargily", "paddle", "polar"] as const).some((provider) =>
+        (["stripe", "chargily", "paddle", "polar", "manual"] as const).some((provider) =>
           hasAddon(addonsOrHasEve as AddonInstallerMap, provider),
         )
       : true;
   const hasAdminUi = hasAuth && hasApi && (isConvex || isPostgres);
   return [
     layout(hasI18n),
+    ...systemFeatureFiles("next", "apps/web/src", hasAuth),
     globalErrorPage(),
     ...(hasAuth ? [unauthorizedPage(), forbiddenPage()] : []),
     notFoundPage(),
@@ -103,7 +97,7 @@ export function pageFiles(addonsOrHasEve: FeatureInput = false): TemplateFile[] 
           signInPage(hasEmail),
           signUpPage(),
           ...authFormComponents(hasEmail, isPostgres),
-          ...(hasEmail ? [twoFactorPage(), twoFactorForm()] : []),
+          ...(hasEmail ? [twoFactorPage()] : []),
           dashboardPage(isConvex),
           ...nextDashboardFeatureFiles(hasBilling, hasAdminUi),
           ...settingsFiles(
@@ -174,24 +168,10 @@ function signUpPage(): TemplateFile {
   return file("apps/web/src/app/sign-up/page.tsx", signUpPageContent("next"));
 }
 function authFormComponents(hasEmail = true, hasPasskey = true): TemplateFile[] {
-  return [
-    file("apps/web/src/components/auth/oauth-buttons.tsx", authOAuthButtonsContent()),
-    file(
-      "apps/web/src/components/auth/sign-in-methods.tsx",
-      signInMethodsContent("next", hasPasskey),
-    ),
-    file(
-      "apps/web/src/components/auth/sign-in-form.tsx",
-      signInFormContent("next", hasEmail, hasPasskey),
-    ),
-    file("apps/web/src/components/auth/sign-up-form.tsx", signUpFormContent("next", hasEmail)),
-  ];
+  return authFeatureFiles({ router: "next", hasEmail, hasPasskey });
 }
 function twoFactorPage(): TemplateFile {
   return file("apps/web/src/app/2fa/page.tsx", twoFactorPageContent("next"));
-}
-function twoFactorForm(): TemplateFile {
-  return file("apps/web/src/components/auth/two-factor-form.tsx", twoFactorFormContent("next"));
 }
 function dashboardPage(isConvex = false): TemplateFile {
   return file("apps/web/src/app/dashboard/page.tsx", nextDashboardPageContent(isConvex));

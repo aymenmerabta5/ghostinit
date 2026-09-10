@@ -23,7 +23,6 @@ export function desktopAuthContent(
   return `import { createAuthClient } from "better-auth/react";
 ${authPluginImport}
 ${convexImport}
-import { z } from "zod";
 import { desktopBridgeFetch } from "../adapters/desktop-fetch";
 
 function getAuthBaseUrl(): string {

@@ -1,98 +1,35 @@
 import type { RouterType } from "./imports.js";
+import { authRouteContent } from "./feature-routes.js";
 
 export function twoFactorPageContent(router: RouterType): string {
-  const isTanstack = router === "tanstack";
-  const imports = isTanstack
-    ? `"use client";
-import type * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { TwoFactorForm } from "@/components/auth/two-factor-form";
-import { ArrowLeft } from "lucide-react";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export const Route = createFileRoute("/2fa")({ component: TwoFactorPage });`
-    : `"use client";
-import type * as React from "react";
-import Link from "next/link";
-import { TwoFactorForm } from "@/components/auth/two-factor-form";
-import { ArrowLeft } from "lucide-react";
-import { useSurfaceTranslations } from "@/lib/translations";`;
-  const backHome = isTanstack
-    ? `<Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />{t("twoFactor.backHome")}</Link>`
-    : `<Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />{t("twoFactor.backHome")}</Link>`;
-
-  return `${imports}
-
-${isTanstack ? "function" : "export default function"} TwoFactorPage(): React.JSX.Element {
-  const t = useSurfaceTranslations("auth");
-  return (
-    <main className="flex min-h-[calc(100svh-4rem)] items-start justify-center bg-background px-5 py-10 sm:px-8 sm:py-14">
-      <div className="flex w-full max-w-[440px] flex-col gap-8">
-        ${backHome}
-        <TwoFactorForm />
-        <p className="mx-auto max-w-[48ch] text-center text-xs leading-5 text-muted-foreground">{t("twoFactor.securityNote")}</p>
-      </div>
-    </main>
-  );
-}
-`;
+  return authRouteContent(router, "2fa", "TwoFactorScreen");
 }
 
 export function twoFactorFormContent(router: RouterType): string {
   const isTanstack = router === "tanstack";
   const routerImport = isTanstack
-    ? `import { Link, useNavigate } from "@tanstack/react-router";`
-    : `import Link from "next/link";
-import { useRouter } from "next/navigation";`;
+    ? `import { Link } from "@tanstack/react-router";`
+    : `import Link from "next/link";`;
   const imports = `"use client";
 import type * as React from "react";
 ${routerImport}
-import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldGroup } from "@/components/ui/field";
-import { Form, useAppForm } from "@/components/ui/form";
-import { createTwoFactorChallengeSchema, identityClient } from "@/lib/auth-client";
+import { Form } from "@/components/ui/form";
+import type { TwoFactorFormState } from "../types";
 import { useSurfaceTranslations } from "@/lib/translations";`;
-  const routerHook = isTanstack
-    ? "  const navigate = useNavigate();"
-    : "  const router = useRouter();";
-  const navigate = isTanstack
-    ? `      void navigate({ to: "/dashboard" });`
-    : `      router.push("/dashboard");`;
   const footer = isTanstack
     ? `<Link to="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link>`
     : `<Link href="/sign-in" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">{t("twoFactor.backSignIn")}</Link>`;
 
   return `${imports}
 
-export function TwoFactorForm(): React.JSX.Element {
-${routerHook}
+export function TwoFactorForm({ state }: { state: TwoFactorFormState }): React.JSX.Element {
   const t = useSurfaceTranslations("auth");
-  const [error, setError] = useState<string | null>(null);
-  const [useBackupCode, setUseBackupCode] = useState(false);
-  const form = useAppForm({
-    defaultValues: { code: "", trustDevice: false },
-    validators: { onSubmit: createTwoFactorChallengeSchema(
-      useBackupCode ? "backup" : "authenticator",
-      t(useBackupCode ? "twoFactor.backupCodeDescription" : "validation.codeSixDigits"),
-    ) },
-    onSubmit: async ({ value }) => {
-      setError(null);
-      const input = { code: value.code.trim(), trustDevice: value.trustDevice };
-      const result = useBackupCode
-        ? await identityClient.verifyBackupCode(input)
-        : await identityClient.verifyTwoFactor(input);
-      if (result.error) {
-        setError(t("twoFactor.genericError"));
-        return;
-      }
-${navigate}
-    },
-  });
-
+  const { form, error, useBackupCode, toggleMethod } = state;
   return (
         <Card className="border-0 bg-transparent p-0 shadow-none">
           <CardHeader className="gap-3 p-0 pb-6 sm:p-0 sm:pb-6">
@@ -118,11 +55,7 @@ ${navigate}
               </Form>
             </form.AppForm>
             <form.Subscribe selector={(state) => state.isSubmitting}>
-              {(isSubmitting) => <Button className="w-auto self-start" variant="ghost" disabled={isSubmitting} onClick={() => {
-                setUseBackupCode((current) => !current);
-                setError(null);
-                form.reset();
-              }}>{t(useBackupCode ? "twoFactor.useAuthenticatorCode" : "twoFactor.useBackupCode")}</Button>}
+              {(isSubmitting) => <Button className="w-auto self-start" variant="ghost" disabled={isSubmitting} onClick={toggleMethod}>{t(useBackupCode ? "twoFactor.useAuthenticatorCode" : "twoFactor.useBackupCode")}</Button>}
             </form.Subscribe>
           </CardContent>
           <CardFooter className="mt-6 flex-col gap-3 border-t border-border/70 p-0 pt-5 sm:p-0 sm:pt-5"><div className="flex w-full flex-wrap justify-between gap-3 text-sm">${footer}</div></CardFooter>

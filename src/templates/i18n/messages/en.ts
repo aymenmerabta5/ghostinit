@@ -1,4 +1,6 @@
+import { EN_BILLING_STATUS_MESSAGES } from "./billing-status.js";
 // @allow-long 1337: typed locale catalog covers every generated application surface
+import { EN_MANUAL_BILLING_MESSAGES } from "./manual-billing.js";
 export const EN_MESSAGES = {
   common: {
     hello: "Hello, world!",
@@ -273,6 +275,9 @@ export const EN_MESSAGES = {
     desktopDescription: "Manage your organizations, members, teams, and invitations.",
     settings: "Settings",
     operationError: "Workspace operation failed",
+    operationErrorDescription: "Review the current workspace state, then try the action again.",
+    organizationsReadError: "Unable to load organizations",
+    organizationsReadErrorDescription: "Retry to load your organization list.",
     organizations: "Organizations",
     organizationsDescription: "Choose the organization you want to work in.",
     loadingOrganizations: "Loading organizations",
@@ -902,7 +907,7 @@ export const EN_MESSAGES = {
       revokingOthers: "Revoking other sessions...",
       loading: "Loading sessions...",
       refresh: "Refresh",
-      empty: "No other active sessions - this device only.",
+      empty: "No active sessions found.",
       current: "current",
       revoke: "Revoke",
       revoking: "Revoking...",
@@ -1077,6 +1082,8 @@ export const EN_MESSAGES = {
     manifestDescription: "Your opinionated modular monolith.",
   },
   billing: {
+    ...EN_BILLING_STATUS_MESSAGES,
+    ...EN_MANUAL_BILLING_MESSAGES,
     title: "Billing",
     checkoutReturnTitle: "Checkout returned",
     checkoutReturnDescription:

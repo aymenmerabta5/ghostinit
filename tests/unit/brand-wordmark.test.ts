@@ -54,8 +54,10 @@ describe("generated text branding integration", () => {
                 `${prefix}src/components/workspace-navigation-trigger.tsx`,
               ]
             : target.app === "mobile"
-              ? [`${prefix}${singleNative ? "app/index.tsx" : "src/components/header.tsx"}`]
-              : [`${prefix}src/renderer/routes/__root.tsx`];
+              ? [
+                  `${prefix}${singleNative ? "src/features/marketing/screen.tsx" : "src/features/app-shell/header.tsx"}`,
+                ]
+              : [`${prefix}src/renderer/features/app-shell/app-shell.tsx`];
         for (const path of consumers) {
           const source = files.get(path);
           expect(source, path).toBeDefined();

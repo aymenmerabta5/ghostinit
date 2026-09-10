@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ghostinit.dev/schemas/frontend-ownership-policy.schema.json",
+  "title": "Reviewed frontend ownership policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workflow", "infrastructure"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxCodeLines", "maxReturnedFields"],
+      "properties": { "maxCodeLines": { "const": 200 }, "maxReturnedFields": { "const": 20 } }
+    },
+    "infrastructure": {
+      "const": [
+        "src/components/providers.tsx",
+        "src/components/query-auth-boundary.tsx",
+        "src/components/request-owned-snapshot.tsx",
+        "src/components/providers/convex-client-provider.tsx",
+        "src/components/convex-client-provider.tsx",
+        "src/renderer/components/providers.tsx",
+        "src/renderer/components/query-auth-boundary.tsx",
+        "src/renderer/lib/providers.tsx"
+      ]
+    }
+  }
+}

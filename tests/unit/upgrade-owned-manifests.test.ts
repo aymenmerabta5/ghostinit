@@ -129,8 +129,9 @@ describe("unchanged generated manifest upgrades", () => {
     for (const priorLifecycle of ["seed-once", "generator-owned"] as const) {
       test(`${mode} preserves relocated page edits previously tracked as ${priorLifecycle}`, async () => {
         const { root, state, current } = await previousGeneration(mode, true, true);
-        const app = mode === "single" ? "src/app" : "apps/web/src/app";
-        const path = `${app}/sign-in/page.client.tsx`;
+        const sourceRoot = mode === "single" ? "src" : "apps/web/src";
+        const app = `${sourceRoot}/app`;
+        const path = `${app}/admin/users/create/page.client.tsx`;
         const original = readFileSync(join(root, path), "utf8");
         expect(state.files[path].lifecycle).toBe("seed-once");
         await saveStateV2(root, state, {
@@ -141,7 +142,7 @@ describe("unchanged generated manifest upgrades", () => {
           desiredConfigAlreadyWritten: true,
         });
         const previous = (await loadState(root))!;
-        const edited = `${original}\n// Product-specific sign-in customization\n`;
+        const edited = `${original}\n// Product-specific admin creation customization\n`;
         const transaction = new FsTransaction(root);
         await transaction.writeIfUnchanged(path, edited, original);
         await transaction.commit();
@@ -149,7 +150,7 @@ describe("unchanged generated manifest upgrades", () => {
         expect(plan.conflicts).toEqual([]);
         expect(plan.preserved).toContain(path);
         expect(plan.rewrites.some((change) => change.path === "package.json")).toBe(true);
-        expect(plan.targets[`${app}/billing/hooks/use-billing-page.ts`].lifecycle).toBe(
+        expect(plan.targets[`${sourceRoot}/features/billing/use-billing-page.ts`].lifecycle).toBe(
           "generator-owned",
         );
         await applyReconcilePlan(root, previous, plan, "upgrade");
@@ -192,8 +193,9 @@ describe("unchanged generated manifest upgrades", () => {
 
     test(`${mode} migrates an untouched misclassified hook while keeping real pages seed-once`, async () => {
       const { root, state } = await previousGeneration(mode, true);
-      const app = mode === "single" ? "src/app" : "apps/web/src/app";
-      const path = `${app}/billing/hooks/use-billing-page.ts`;
+      const sourceRoot = mode === "single" ? "src" : "apps/web/src";
+      const app = `${sourceRoot}/app`;
+      const path = `${sourceRoot}/features/billing/use-billing-page.ts`;
       const current = readFileSync(join(root, path), "utf8");
       expect(state.files[path].lifecycle).toBe("generator-owned");
       expect(state.files[`${app}/billing/page.tsx`].lifecycle).toBe("seed-once");

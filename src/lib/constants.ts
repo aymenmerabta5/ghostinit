@@ -63,7 +63,13 @@ export function looksLikeSecret(key: string): boolean {
 /* Billing constants — single source of truth                          */
 /* ------------------------------------------------------------------ */
 
-export const BILLING_PROVIDERS = ["stripe", "chargily", "paddle", "polar"] as const;
+import { BILLING_PROVIDERS } from "../domain/project/choices.js";
+export {
+  BILLING_PROVIDERS,
+  ONLINE_BILLING_PROVIDERS,
+  GLOBAL_BILLING_PROVIDERS,
+} from "../domain/project/choices.js";
+export type { OnlineBillingProvider } from "../domain/project/choices.js";
 export type BillingProviderName = (typeof BILLING_PROVIDERS)[number];
 
 // Compatibility aliases — addons.ts historically exported `billingProviders`

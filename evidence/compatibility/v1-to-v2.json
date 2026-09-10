@@ -23,7 +23,7 @@
       "status": "retained",
       "v2": "upgrade",
       "reason": "Managed projects require a migration command.",
-      "migration": "Run upgrade --dry-run first; V2 changes only proven generator-owned files."
+      "migration": "Run upgrade --dry-run first. Upgrade reconciles hash-proven owned files, then repairs and verifies dependencies; --no-install defers security verification and reports it as not-run."
     },
     {
       "name": "add",
@@ -80,6 +80,13 @@
       "v2": "capabilities",
       "reason": "Agents need the finite proof-gated support catalog.",
       "migration": "Use capabilities --json to discover supported V2 bindings before create."
+    },
+    {
+      "name": "security",
+      "status": "added",
+      "v2": "security",
+      "reason": "Compatible security maintenance is available explicitly and during installation or upgrade.",
+      "migration": "Use security audit for read-only reporting, security fix --dry-run for preview, and security fix to repair eligible dependencies and run project verification."
     }
   ],
   "options": [
@@ -116,7 +123,7 @@
       "status": "retained",
       "v2": "dry-run",
       "reason": "Safe preview is required.",
-      "migration": "Keep using --dry-run; V2 performs no lock, write, cleanup, install, or secret action."
+      "migration": "Use --dry-run to leave project files, leases, installed dependencies, and secrets unchanged. Security repair preview may resolve public-registry metadata in an isolated temporary candidate and Bun cache."
     },
     {
       "name": "force",
@@ -130,7 +137,7 @@
       "status": "retained",
       "v2": "no-install",
       "reason": "Users may defer dependency installation.",
-      "migration": "Keep using --no-install; V2 still preflights the full project plan."
+      "migration": "Use --no-install on create/init/upgrade to defer dependency repair and installation. Bootstrap fresh output afterward; upgrade reports security verification as not-run."
     },
     {
       "name": "runtime",
@@ -402,7 +409,7 @@
       "status": "retained",
       "v2": "DRIFT",
       "reason": "Read-only drift remains scriptable.",
-      "migration": "sync --check now consistently returns 8."
+      "migration": "sync --check returns 8 for drift. security audit/fix returns 8 for blocked repairs or remaining unreviewed low/moderate findings; inspect status and installedVerified."
     },
     {
       "name": "CANCELLED",
@@ -507,25 +514,71 @@
       "v2": "ghostinit.config.json",
       "reason": "V2 needs human-editable desired state.",
       "migration": "upgrade --dry-run derives this file from V1 state and flags."
+    },
+    {
+      "name": "ghostinit.config.json.dependencySecurity",
+      "status": "added",
+      "v2": "dependencySecurity",
+      "reason": "Verified declaration floors must survive later generation and reconciliation.",
+      "migration": "Preserve machine-verified version, integrity, publication and advisory evidence. Floors enter the plan before hashing, retain higher compatible pins, and do not recreate removed dependencies."
     }
   ],
   "capabilities": {
-    "modes": ["monorepo", "single"],
-    "frameworks": ["nextjs", "tanstack-start"],
-    "apps": ["web", "mobile", "desktop"],
-    "databases": ["postgres", "convex", "none"],
-    "billingProviders": ["stripe", "chargily", "paddle", "polar"],
-    "features": ["eve", "i18n"],
-    "presets": ["saas", "frontend", "custom"],
-    "cacheProviders": ["redis", "none"],
-    "deployTargets": ["vercel", "fly", "docker", "none"],
-    "stacks": ["nextjs", "tanstack-start", "expo", "both"]
+    "modes": [
+      "monorepo",
+      "single"
+    ],
+    "frameworks": [
+      "nextjs",
+      "tanstack-start"
+    ],
+    "apps": [
+      "web",
+      "mobile",
+      "desktop"
+    ],
+    "databases": [
+      "postgres",
+      "convex",
+      "none"
+    ],
+    "billingProviders": [
+      "stripe",
+      "chargily",
+      "paddle",
+      "polar"
+    ],
+    "features": [
+      "eve",
+      "i18n"
+    ],
+    "presets": [
+      "saas",
+      "frontend",
+      "custom"
+    ],
+    "cacheProviders": [
+      "redis",
+      "none"
+    ],
+    "deployTargets": [
+      "vercel",
+      "fly",
+      "docker",
+      "none"
+    ],
+    "stacks": [
+      "nextjs",
+      "tanstack-start",
+      "expo",
+      "both"
+    ]
   },
   "upgrade": {
     "name": "upgrade-v1",
     "status": "changed",
     "v2": "upgrade-v2",
     "reason": "V1 can overwrite fresh state and user-modified files.",
-    "migration": "Run V2 upgrade --dry-run; only hash-proven owned files change automatically and every conflict is reported."
+    "migration": "Run V2 upgrade --dry-run. Only hash-proven owned files change automatically; compatible dependency repair and project verification follow unless --no-install is explicit. Security failure may occur after source reconciliation, so inspect upgraded and recovery details."
   }
 }

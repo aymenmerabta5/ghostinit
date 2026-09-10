@@ -19,16 +19,8 @@ function flattenMessages(
 function adapterContent(options: AdminTemplateOptions): string {
   const englishMessages = flattenMessages(EN_MESSAGES.adminUsers);
   const keys = Object.keys(englishMessages).sort();
-  const frameworkImport = !options.i18n
-    ? ""
-    : options.framework === "next"
-      ? 'import { useTranslations as useFrameworkTranslations } from "next-intl";'
-      : 'import { useTranslations as useFrameworkTranslations } from "@/lib/i18n";';
   const hookImplementation = options.i18n
-    ? `export function useAdminUsersTranslations(): AdminUsersTranslate {
-  const translate = useFrameworkTranslations("adminUsers");
-  return (key, values) => translate(key, values);
-}`
+    ? ""
     : `const ENGLISH_ADMIN_USERS_MESSAGES: Readonly<Record<AdminUsersMessageKey, string>> = ${JSON.stringify(englishMessages, null, 2)};
 
 function interpolate(message: string, values?: AdminUsersTranslationValues): string {
@@ -39,19 +31,11 @@ function interpolate(message: string, values?: AdminUsersTranslationValues): str
   });
 }
 
-const translateEnglish: AdminUsersTranslate = (key, values) =>
+export const translateEnglish: AdminUsersTranslate = (key, values) =>
   interpolate(ENGLISH_ADMIN_USERS_MESSAGES[key], values);
+`;
 
-export function useAdminUsersTranslations(): AdminUsersTranslate {
-  return translateEnglish;
-}`;
-
-  return `"use client";
-
-${frameworkImport}
-import { resolveRpcError } from "@/lib/query-client";
-
-export const ADMIN_USERS_MESSAGE_KEYS = ${JSON.stringify(keys, null, 2)} as const;
+  return `export const ADMIN_USERS_MESSAGE_KEYS = ${JSON.stringify(keys, null, 2)} as const;
 
 export type AdminUsersMessageKey = (typeof ADMIN_USERS_MESSAGE_KEYS)[number];
 export type AdminUsersTranslationValues = Readonly<Record<string, string | number>>;
@@ -89,13 +73,12 @@ const ERROR_KEYS: Readonly<Record<string, AdminUsersMessageKey>> = {
 };
 
 export function translateAdminUsersError(
-  error: unknown,
+  error: { applicationCode?: string; transportCode?: string } | null,
   translate: AdminUsersTranslate,
   fallbackKey: "errors.createFailed" | "errors.requestFailed" = "errors.requestFailed",
 ): string | null {
   if (!error) return null;
-  const rpcError = resolveRpcError(error);
-  const code = rpcError?.applicationCode ?? rpcError?.transportCode;
+  const code = error.applicationCode ?? error.transportCode;
   return translate((code && ERROR_KEYS[code]) || fallbackKey);
 }
 `;
@@ -103,4 +86,22 @@ export function translateAdminUsersError(
 
 export function adminTranslationsFile(options: AdminTemplateOptions): TemplateFile {
   return file(`${adminFeatureRoot(options)}/translations.ts`, adapterContent(options));
+}
+
+export function adminTranslationsHookFile(options: AdminTemplateOptions): TemplateFile {
+  const implementation = options.i18n
+    ? `import { useTranslations as useFrameworkTranslations } from "${options.framework === "next" ? "next-intl" : "@/lib/i18n"}";
+export function useAdminUsersTranslations(): AdminUsersTranslate {
+  const translate = useFrameworkTranslations("adminUsers");
+  return (key, values) => translate(key, values);
+}`
+    : `import { translateEnglish } from "./translations";
+export function useAdminUsersTranslations(): AdminUsersTranslate { return translateEnglish; }`;
+  return file(
+    `${adminFeatureRoot(options)}/use-admin-users-translations.ts`,
+    `"use client";
+import type { AdminUsersTranslate } from "./translations";
+${implementation}
+`,
+  );
 }

@@ -1,5 +1,3 @@
-import { file, type TemplateFile } from "../../../shared.js";
-
 export const passkeyQueryImports = `import { useRef } from "react";
 import { useQueryAuthSession } from "@/components/query-auth-boundary";
 import { useAuthOwnedEffect } from "@/hooks/use-auth-owned-effect";`;
@@ -40,18 +38,4 @@ export function usePasskeyListQuery() {
   }));
 }
 `;
-}
-
-export function settingsPasskeyDataContent(): string {
-  return `"use client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { identityClient, identityPasskeyClient } from "@/lib/auth-client";
-import { authScopedQueryKey, currentQueryAuthGeneration, queryAuthIdentityFromSession, queryAuthIdentitySignature, type QueryAuthIdentity } from "@/lib/query-client";
-${passkeyQueryImports}
-
-${passkeyQueryHelpersContent()}`;
-}
-
-export function settingsPasskeyData(): TemplateFile {
-  return file("apps/web/src/app/settings/passkeys.ts", settingsPasskeyDataContent());
 }

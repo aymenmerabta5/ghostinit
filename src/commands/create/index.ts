@@ -242,16 +242,23 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
     throw new ConflictError(`Target directory already exists: ${projectRoot}`);
   }
 
-  const { filesWritten, installFailed, stagedFiles, totalBytes, isDryRun, plan } =
-    await runProjectInstall({
-      projectName,
-      projectRoot,
-      desiredConfig,
-      resolvedConfig: resolvedProjectConfig,
-      options,
-      noInstall,
-      requireAbsentTarget: !options.force,
-    });
+  const {
+    filesWritten,
+    installFailed,
+    stagedFiles,
+    totalBytes,
+    isDryRun,
+    plan,
+    resolvedProjectConfig: installedProjectConfig,
+  } = await runProjectInstall({
+    projectName,
+    projectRoot,
+    desiredConfig,
+    resolvedConfig: resolvedProjectConfig,
+    options,
+    noInstall,
+    requireAbsentTarget: !options.force,
+  });
 
   if (isDryRun) {
     const previewFiles = (stagedFiles ?? []).slice(0, 100).map((f) => ({ ...f }));
@@ -281,7 +288,7 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
             cache: effectiveCache,
             deploy,
             resolvedConfig: config,
-            resolvedProjectConfig,
+            resolvedProjectConfig: installedProjectConfig,
             configHash: plan.projectConfigHash,
             planHash: plan.planHash,
             plan: publicGenerationPlan(plan),
@@ -327,14 +334,14 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
           cache: effectiveCache,
           deploy,
           resolvedConfig: config,
-          resolvedProjectConfig,
+          resolvedProjectConfig: installedProjectConfig,
           configHash: plan.projectConfigHash,
           planHash: plan.planHash,
         },
         error: installFailed
           ? {
               message:
-                "Project files were generated, but dependency installation or formatting failed",
+                "Project creation did not complete because dependency installation, formatting, or verification failed",
               code: exitCodeName(ExitCode.GENERATION_ERROR),
             }
           : undefined,
@@ -343,7 +350,13 @@ export async function createCommand(args: string[], options: GlobalOptions): Pro
       }),
     );
   } else if (!options.json) {
-    options.logger.info(`Created ${projectName} with ${filesWritten} files at ${projectRoot}`);
+    if (installFailed) {
+      options.logger.error(
+        `Project creation did not complete at ${projectRoot}. Review the installation or verification error before retrying.`,
+      );
+    } else {
+      options.logger.info(`Created ${projectName} with ${filesWritten} files at ${projectRoot}`);
+    }
   }
 
   return installFailed ? ExitCode.GENERATION_ERROR : ExitCode.OK;

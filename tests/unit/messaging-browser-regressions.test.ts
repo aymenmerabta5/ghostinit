@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { generatedUiOutput } from "../helpers/generated-ui-output.js";
+import { authOwnedMutationContent } from "../../src/templates/apps/fragments/auth-owned-mutation.js";
+import { queryMutationHarness } from "../helpers/query-mutation-harness.js";
 import {
   deferred,
   elements,
@@ -8,18 +10,32 @@ import {
   textContent,
 } from "../helpers/generated-form-harness.js";
 
+function ownedBindings() {
+  const mutation = queryMutationHarness();
+  return {
+    useMutation: mutation.useMutation,
+    useAuthOwnedEffect: () => () => () => true,
+    currentQueryAuthGeneration: () => 0,
+    subscribeQueryAuthGeneration: () => () => {},
+    useQueryClient: () => ({}),
+    useCallback: (callback: unknown) => callback,
+  };
+}
+
 describe("messaging browser regressions", () => {
   for (const framework of ["nextjs", "tanstack-start"] as const) {
     for (const mode of ["single", "monorepo"] as const) {
       test(`${mode}/${framework} retains real oRPC Date values and invalidates a newly created conversation`, async () => {
         const output = generatedUiOutput(framework, mode);
-        const hooks = output.read(
-          framework === "nextjs"
-            ? `${output.root}/app/(app)/messages/hooks/use-messaging.ts`
-            : `${output.root}/routes/-hooks/use-messaging.ts`,
-        );
+        const hooks = [
+          authOwnedMutationContent(),
+          ...["model.ts", "queries.ts", "mutations.ts"].map((name) =>
+            output.read(`${output.root}/features/messaging/${name}`),
+          ),
+        ].join("\n");
         const invalidations: unknown[] = [];
         const runtime = generatedFormHarness(hooks, ["toMessage", "useStartConversation"], {
+          ...ownedBindings(),
           useQueryClient: () => ({
             async invalidateQueries(options: unknown) {
               invalidations.push(options);
@@ -27,13 +43,9 @@ describe("messaging browser regressions", () => {
           }),
           currentQueryAuthScope: () => ({ userId: "fixture-member", sessionId: "fixture-session" }),
           messagingConversationsQueryKey: () => ["scoped-conversations"],
-          useMutation: (options: { onSuccess(): Promise<void> }) => ({
-            isPending: false,
-            async mutateAsync() {
-              await options.onSuccess();
-              return { id: "new-conversation" };
-            },
-          }),
+          orpcClient: {
+            messaging: { getOrCreateConversation: async () => ({ id: "new-conversation" }) },
+          },
           orpc: {
             messaging: {
               listConversations: { key: () => ["conversations"] },
@@ -68,16 +80,19 @@ describe("messaging browser regressions", () => {
 
       test(`${mode}/${framework} send errors retain the draft, settle the UI event and permit one retry`, async () => {
         const output = generatedUiOutput(framework, mode);
-        const source = output.read(
-          framework === "nextjs"
-            ? `${output.root}/app/(app)/messages/_components/message-composer.tsx`
-            : `${output.root}/routes/-components/messages/message-composer.tsx`,
-        );
+        const source = [
+          authOwnedMutationContent(),
+          output.read(`${output.root}/features/messaging/use-message-composer.ts`),
+          output.read(`${output.root}/features/messaging/components/message-composer-view.tsx`),
+        ].join("\n");
         const first = deferred<void>();
         const second = deferred<void>();
         const queue = [first, second];
         let sends = 0;
-        const ui = generatedFormHarness(source, ["MessageComposer"], {
+        const pendingUpload = { current: null };
+        const ui = generatedFormHarness(source, ["useMessageComposer", "MessageComposerView"], {
+          ...ownedBindings(),
+          useRef: () => pendingUpload,
           Input: "Input",
           useSendMessage: () => ({
             isPending: false,
@@ -92,7 +107,8 @@ describe("messaging browser regressions", () => {
             },
           }),
         });
-        const render = () => ui.render("MessageComposer", { conversationId: "owned-conversation" });
+        const render = () =>
+          ui.render("MessageComposerView", ui.render("useMessageComposer", "owned-conversation"));
         const input = elements(render()).find(
           (node) => node.type === "Input" && node.props.type !== "file",
         )!;
@@ -124,33 +140,46 @@ describe("messaging browser regressions", () => {
 
       test(`${mode}/${framework} start failures keep the peer ID and expose a retryable error beneath the page heading`, async () => {
         const output = generatedUiOutput(framework, mode);
-        const source = output.read(
-          framework === "nextjs"
-            ? `${output.root}/app/(app)/messages/client.tsx`
-            : `${output.root}/routes/messages.tsx`,
-        );
+        const source = [
+          authOwnedMutationContent(),
+          ...[
+            "mutations.ts",
+            "use-messaging-workspace.ts",
+            "components/messaging-workspace-view.tsx",
+          ].map((name) => output.read(`${output.root}/features/messaging/${name}`)),
+        ].join("\n");
         const gate = deferred<string>();
         let calls = 0;
-        const ui = generatedFormHarness(source, ["MessagesPage"], {
-          createFileRoute: () => (options: unknown) => options,
-          Input: "Input",
-          Field: "Field",
-          FieldLabel: "FieldLabel",
-          FieldDescription: "FieldDescription",
-          ConversationList: "ConversationList",
-          MessageThread: "MessageThread",
-          Empty: "Empty",
-          EmptyHeader: "EmptyHeader",
-          EmptyTitle: "EmptyTitle",
-          useStartConversation: () => ({
-            isPending: false,
-            start: () => {
-              calls += 1;
-              return gate.promise;
+        const ui = generatedFormHarness(
+          source,
+          ["useMessagingWorkspace", "MessagingWorkspaceView"],
+          {
+            ...ownedBindings(),
+            createFileRoute: () => (options: unknown) => options,
+            Input: "Input",
+            Field: "Field",
+            FieldLabel: "FieldLabel",
+            FieldDescription: "FieldDescription",
+            ConversationList: "ConversationList",
+            MessageThread: "MessageThread",
+            Empty: "Empty",
+            EmptyHeader: "EmptyHeader",
+            EmptyTitle: "EmptyTitle",
+            EmptyDescription: "EmptyDescription",
+            useConversations: () => ({ data: [], isLoading: false }),
+            useInvalidateConversations: () => async () => {},
+            orpcClient: {
+              messaging: {
+                getOrCreateConversation: async () => {
+                  calls += 1;
+                  return { id: await gate.promise };
+                },
+              },
             },
-          }),
-        });
-        const render = () => ui.render("MessagesPage", { initialConversations: [] });
+          },
+        );
+        const render = () =>
+          ui.render("MessagingWorkspaceView", ui.render("useMessagingWorkspace"));
         expect(elements(render()).filter((node) => node.type === "h1")).toHaveLength(1);
         const pageElements = elements(render());
         const input = pageElements.find((node) => node.type === "Input")!;

@@ -1,27 +1,13 @@
-// @allow-long 481: shared layout fragments deduplicated Next/TanStack
+export {
+  notFoundFileContent,
+  errorFileContent,
+  globalErrorFileContent,
+  unauthorizedFileContent,
+  forbiddenFileContent,
+  loadingFileContent,
+  systemFeatureFiles,
+} from "./system-pages.js";
 export type RouterType = "next" | "tanstack";
-
-export const sharedNotFoundInner = {
-  title: "Page not found",
-  description: "The page you are looking for does not exist or was moved.",
-  cardClass: "w-full max-w-[440px] border-0 bg-transparent shadow-none",
-  mainClass:
-    "flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-background px-5 py-10 sm:px-8",
-};
-
-export const sharedErrorInner = {
-  title: "Something went wrong",
-  description: "An unexpected error occurred. You can try again.",
-  cardClass: "w-full max-w-[440px] border-0 bg-transparent shadow-none",
-};
-
-export const sharedLoadingSkeletons = `<div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
-        <div className="space-y-3"><Skeleton className="h-9 w-48" /><Skeleton className="h-5 w-64 max-w-full" /></div>
-        <div className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
-          <Skeleton className="h-64 rounded-lg" />
-          <Skeleton className="h-64 rounded-lg" />
-        </div>
-      </div>`;
 
 export function nextRootLayoutContent(hasI18n = false): string {
   const i18nImports = hasI18n
@@ -134,14 +120,15 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Scripts,
+  useRouter,
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { AppProviders } from '../components/providers.js'
 import { AppShell } from '../components/app-shell.js'
 import {
   useStandaloneSurfaceLocale,
-  useStandaloneSurfaceTranslations,
 } from '../lib/translations.standalone.js'
+import { RouteErrorScreen, RouteNotFoundScreen } from '@/features/system/route-fallbacks'
 import appCss from '../styles/app.css?url'
 ${localeImports}
 
@@ -167,34 +154,22 @@ ${headMetadata}
 })
 
 function RootErrorComponent({ error }: { error: unknown }): React.JSX.Element {
+  const router = useRouter()
   const locale = useStandaloneSurfaceLocale()
-  const t = useStandaloneSurfaceTranslations("errors")
   void locale
-  React.useEffect(() => { console.error(error) }, [error])
   return (
 ${fallbackDocumentOpen}
-      <main className="${sharedNotFoundInner.mainClass}">
-        <div className="w-full max-w-[440px] space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{t("unexpected.title")}</h1>
-          <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{t("unexpected.description")}</p>
-        </div>
-      </main>
+      <RouteErrorScreen error={error} retry={() => { void router.invalidate() }} />
     </RootDocument>
   )
 }
 
 function RootNotFoundComponent(): React.JSX.Element {
   const locale = useStandaloneSurfaceLocale()
-  const t = useStandaloneSurfaceTranslations("errors")
   void locale
   return (
 ${fallbackDocumentOpen}
-      <main className="${sharedNotFoundInner.mainClass}">
-        <div className="w-full max-w-[440px] space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{t("notFound.title")}</h1>
-          <p className="text-sm text-muted-foreground max-w-[60ch] mt-2">{t("notFound.shortDescription")}</p>
-        </div>
-      </main>
+      <RouteNotFoundScreen />
     </RootDocument>
   )
 }
@@ -222,286 +197,6 @@ ${documentSignature}
       </body>
     </html>
   )
-}
-`;
-}
-
-export function notFoundFileContent(router: RouterType): string {
-  if (router === "tanstack") {
-    return `import * as React from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export const Route = createFileRoute('/$notFound')({
-  component: NotFoundPage,
-})
-
-function NotFoundPage(): React.JSX.Element {
-  const t = useSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("notFound.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link to="/" />} nativeButton={false} aria-label={t("notFound.backHome")}>{t("notFound.backHome")}</Button>
-        </CardContent>
-      </Card>
-    </main>
-  )
-}
-`;
-  }
-  return `import Link from "next/link";
-import { Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { getSurfaceTranslations } from "@/lib/translations.server";
-
-async function NotFoundContent(): Promise<React.JSX.Element> {
-  const t = await getSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("notFound.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("notFound.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link href="/" />} nativeButton={false} aria-label={t("notFound.backHome")}>
-            {t("notFound.backHome")}
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
-  );
-}
-
-export default function NotFound(): React.JSX.Element {
-  return <Suspense fallback={<main className="${sharedNotFoundInner.mainClass}" aria-busy="true" />}><NotFoundContent /></Suspense>;
-}
-`;
-}
-export function errorFileContent(router: RouterType): string {
-  if (router === "tanstack") {
-    // TanStack embeds errorComponent in __root.tsx; but provide standalone for completeness.
-    return tanstackRootDocumentContent();
-  }
-  return `"use client";
-
-import * as React from "react";
-import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export default function Error({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}): React.JSX.Element {
-  const t = useSurfaceTranslations("errors");
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedErrorInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unexpected.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("unexpected.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={() => reset()}>{t("unexpected.retry")}</Button>
-        </CardContent>
-      </Card>
-    </main>
-  );
-}
-`;
-}
-export function globalErrorFileContent(): string {
-  return `"use client";
-
-import * as React from "react";
-import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  standaloneSurfaceDirection,
-  useStandaloneSurfaceLocale,
-  useStandaloneSurfaceTranslations,
-} from "@/lib/translations.standalone";
-import "./globals.css";
-
-export default function GlobalError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}): React.JSX.Element {
-  const locale = useStandaloneSurfaceLocale();
-  const t = useStandaloneSurfaceTranslations("errors");
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  return (
-    <html lang={locale} dir={standaloneSurfaceDirection(locale)} suppressHydrationWarning>
-      <body className="antialiased bg-background text-foreground">
-        <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10 sm:px-8">
-          <div className="w-full max-w-[440px] space-y-3">
-            <h1 className="text-3xl font-semibold tracking-tight">{t("global.title")}</h1>
-            <p className="text-sm text-muted-foreground max-w-[65ch] mt-2">{t("global.description")}</p>
-            <Button onClick={() => reset()} className="mt-6">
-              {t("global.retry")}
-            </Button>
-          </div>
-        </main>
-      </body>
-    </html>
-  );
-}
-`;
-}
-
-export function unauthorizedFileContent(router: RouterType): string {
-  if (router === "tanstack") {
-    return `import * as React from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export const Route = createFileRoute('/unauthorized')({
-  component: UnauthorizedPage,
-})
-
-function UnauthorizedPage(): React.JSX.Element {
-  const t = useSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unauthorized.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link to="/sign-in" />} nativeButton={false} aria-label={t("unauthorized.signIn")}>{t("unauthorized.signIn")}</Button>
-        </CardContent>
-      </Card>
-    </main>
-  )
-}
-`;
-  }
-  return `import Link from "next/link";
-import { Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { getSurfaceTranslations } from "@/lib/translations.server";
-
-async function UnauthorizedContent(): Promise<React.JSX.Element> {
-  const t = await getSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("unauthorized.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("unauthorized.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link href="/sign-in" />} nativeButton={false} aria-label={t("unauthorized.signIn")}>
-            {t("unauthorized.signIn")}
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
-  );
-}
-
-export default function Unauthorized(): React.JSX.Element {
-  return <Suspense fallback={<main className="${sharedNotFoundInner.mainClass}" aria-busy="true" />}><UnauthorizedContent /></Suspense>;
-}
-`;
-}
-export function forbiddenFileContent(router: RouterType): string {
-  if (router === "tanstack") {
-    return `import * as React from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { useSurfaceTranslations } from "@/lib/translations";
-
-export const Route = createFileRoute('/forbidden')({
-  component: ForbiddenPage,
-})
-
-function ForbiddenPage(): React.JSX.Element {
-  const t = useSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("forbidden.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link to="/" />} nativeButton={false} aria-label={t("forbidden.backHome")}>{t("forbidden.backHome")}</Button>
-        </CardContent>
-      </Card>
-    </main>
-  )
-}
-`;
-  }
-  return `import Link from "next/link";
-import { Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { getSurfaceTranslations } from "@/lib/translations.server";
-
-async function ForbiddenContent(): Promise<React.JSX.Element> {
-  const t = await getSurfaceTranslations("errors");
-  return (
-    <main className="${sharedNotFoundInner.mainClass}">
-      <Card className="${sharedNotFoundInner.cardClass}">
-        <CardHeader>
-          <CardTitle as="h1" className="text-3xl tracking-tight">{t("forbidden.title")}</CardTitle>
-          <CardDescription className="max-w-[60ch]">{t("forbidden.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button render={<Link href="/" />} nativeButton={false} aria-label={t("forbidden.backHome")}>
-            {t("forbidden.backHome")}
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
-  );
-}
-
-export default function Forbidden(): React.JSX.Element {
-  return <Suspense fallback={<main className="${sharedNotFoundInner.mainClass}" aria-busy="true" />}><ForbiddenContent /></Suspense>;
-}
-`;
-}
-export function loadingFileContent(): string {
-  return `import * as React from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-
-export default function Loading(): React.JSX.Element {
-  return (
-    <main className="min-h-[calc(100dvh-4rem)] bg-background" aria-busy="true">
-      ${sharedLoadingSkeletons}
-    </main>
-  );
 }
 `;
 }

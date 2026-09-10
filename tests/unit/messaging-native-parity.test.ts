@@ -70,36 +70,55 @@ describe("hosted native messaging parity", () => {
           const expected = paths(mode, database, app);
           const adapter = read(files, expected.adapter);
           const route = read(files, expected.route);
+          const root =
+            app === "mobile"
+              ? "apps/mobile/src/features/messaging"
+              : "apps/desktop/src/renderer/features/messaging";
+          const queries = read(files, `${root}/queries.ts`);
+          const mutations = read(files, `${root}/mutations.ts`);
+          const composer = read(files, `${root}/components/message-composer-view.tsx`);
+          const view = [
+            "messaging-workspace-view",
+            "messaging-conversations-view",
+            "messaging-thread-view",
+          ]
+            .map((name) => read(files, `${root}/components/${name}.tsx`))
+            .join("\n");
+          for (const entry of files.filter(({ path }) => path.startsWith(root))) {
+            expect(parseSync(entry.path, entry.content).errors).toEqual([]);
+          }
           expect(parseSync(expected.adapter, adapter).errors).toEqual([]);
           expect(parseSync(expected.route, route).errors).toEqual([]);
           expect(route).not.toMatch(
             /@tanstack\/react-query|convex\/react|@\/lib\/orpc|api\.messaging/,
           );
           expect(route).not.toContain("use web for now");
-          expect(route).toContain("startConversation");
-          expect(route).toContain("sendMessage");
-          expect(route).toMatch(/pickNativeAttachment|type="file"/);
-          expect(route).toMatch(/downloadNativeAttachment|downloadDesktopAttachment/);
-          expect(route).toContain("maxLength={4000}");
-          expect(adapter).toContain("getOrCreateConversation");
-          expect(adapter).toContain("listConversations");
-          expect(adapter).toContain("listMessages");
-          expect(adapter).toContain("sendMessage");
-          expect(adapter).toContain("sendTyping");
+          expect(route).toContain("features/messaging/screen");
+          expect(route).not.toMatch(/useState|useEffect|useForm/);
+          expect(mutations).toContain("useStartConversationMutation");
+          expect(mutations).toContain("useSendMessageMutation");
+          expect(composer).toMatch(/pickAttachment|type="file"/);
+          expect(mutations).toMatch(/downloadNativeAttachment|downloadDesktopAttachment/);
+          expect(composer).toContain("maxLength={4000}");
+          expect(mutations).toContain("getOrCreateConversation");
+          expect(queries).toContain("listConversations");
+          expect(queries).toContain("listMessages");
+          expect(mutations).toContain("sendMessage");
+          expect(mutations).toContain("sendTyping");
           expect(adapter).toMatch(/uploadNativeAttachment|uploadDesktopAttachment/);
           expect(adapter).toMatch(/downloadNativeAttachment|downloadDesktopAttachment/);
 
           if (database === "postgres") {
-            expect(adapter).toContain('refetchInterval: transport === "polling" ? 5_000 : false');
-            expect(adapter).toContain("subscribeRealtime(conversationId");
-            expect(adapter).toContain('setTransport("polling")');
-            expect(route).toContain("Realtime with polling fallback");
-            expect(route).toContain("secure realtime connection is unavailable");
+            expect(queries).toContain('refetchInterval: transport === "polling" ? 5_000 : false');
+            expect(queries).toContain("subscribeRealtime(conversationId");
+            expect(queries).toContain('transport: connected ? "realtime" : "polling"');
+            expect(view).toContain("Realtime with polling fallback");
+            expect(view).toContain("secure realtime connection is unavailable");
           } else {
-            expect(adapter).toContain("api.messaging.listTyping");
-            expect(adapter).toContain("api.messaging.sendTyping");
-            expect(adapter).not.toContain("refetchInterval");
-            expect(route).toContain("Native realtime");
+            expect(queries).toContain("api.messaging.listTyping");
+            expect(mutations).toContain("api.messaging.sendTyping");
+            expect(queries).not.toContain("refetchInterval");
+            expect(view).toContain("Native realtime");
           }
 
           if (app === "mobile") {
@@ -108,8 +127,8 @@ describe("hosted native messaging parity", () => {
             };
             expect(manifest.dependencies?.["expo-file-system"]).toBeDefined();
             expect(manifest.dependencies?.["expo-sharing"]).toBeDefined();
-            expect(route).toContain("messaging.messages.length === 0");
-            expect(route).toContain("No messages yet. Say hello.");
+            expect(view).toContain("messaging.messages.length === 0");
+            expect(view).toContain("No messages yet. Say hello.");
           } else {
             expect(adapter).toContain(
               `import { desktopBridgeFetch } from "${mode === "monorepo" ? "@/adapters/desktop-fetch" : "@/renderer/adapters/desktop-fetch"}"`,
@@ -131,8 +150,10 @@ describe("hosted native messaging parity", () => {
     const files = generate("monorepo", "postgres", "mobile");
     for (const path of [
       "apps/web/src/app/(app)/messages/page.tsx",
-      "apps/web/src/app/(app)/messages/hooks/use-messaging.ts",
-      "apps/web/src/app/(app)/messages/_components/message-composer.tsx",
+      "apps/web/src/features/messaging/queries.ts",
+      "apps/web/src/features/messaging/mutations.ts",
+      "apps/web/src/features/messaging/use-message-composer.ts",
+      "apps/web/src/features/messaging/components/message-composer-view.tsx",
     ]) {
       expect(read(files, path)).not.toBe("");
     }

@@ -17,6 +17,7 @@ import { projectConfigSchema, type ProjectConfig } from "../lib/config.js";
 import { buildAddonInstallerMap } from "../lib/addons.js";
 import type { RootSecrets } from "../templates/root.js";
 import type { TemplateFile } from "../templates/shared.js";
+import { isDependencyAuditToolingFile } from "../templates/tooling/dependency-audit.js";
 import { sanitizeLegacyCapabilityOutput } from "./capability-output-sanitizer.js";
 import { clientFileAttribution } from "./client-surface-attribution.js";
 import { emitLegacyTemplateTarget, type LegacyTemplateTarget } from "./legacy-template-adapter.js";
@@ -55,6 +56,11 @@ const PLACEHOLDER_SECRETS: RootSecrets = Object.freeze({
 });
 
 const TANSTACK_SERVER_FUNCTIONS_PATH = /^(?:apps\/web\/)?src\/lib\/server-functions\.ts$/;
+const MANUAL_PAYMENT_CONFIGURATION_PATHS = new Set([
+  "packages/billing/src/manual-payment-config.ts",
+  "src/server/billing/manual-payment-config.ts",
+  "convex/manualPaymentConfig.ts",
+]);
 
 const CAPABILITY_PATH_RULES: readonly {
   readonly capability: CapabilityId;
@@ -95,10 +101,16 @@ function capabilityForPath(path: string): CapabilityId | null {
   // provenance never depends on which of the two capabilities is enabled.
   if (/(?:^|\/)(?:i18n\/)?messages\/[^/]+\.json$/i.test(path)) return "i18n";
   if (TANSTACK_SERVER_FUNCTIONS_PATH.test(path)) return "transport";
+  if (
+    /(?:^|\/)manual-payments?(?:\/|[.-])/.test(path) ||
+    /^convex\/manualPayment(?:Config|Retention|Uploads|s|sHttp)\.ts$/.test(path)
+  )
+    return "billing";
   return CAPABILITY_PATH_RULES.find(({ pattern }) => pattern.test(path))?.capability ?? null;
 }
 
 function ownerForPath(path: string): FileOwner {
+  if (isDependencyAuditToolingFile(path)) return "tooling";
   if (path === "ghostinit.config.json" || path.startsWith(".ghostinit/")) return "ghostinit";
   if (/\.(?:md|mdc)$/.test(path)) return "documentation";
   if (path.startsWith("tooling/") || path.startsWith(".github/")) return "tooling";
@@ -161,6 +173,9 @@ function lifecycleForPath(path: string, capability: CapabilityId | null): FileLi
   // They must remain user/tool-owned on later syncs rather than conflicting with
   // or overwriting the authoritative deployment-generated output.
   if (path.startsWith("convex/_generated/")) return "seed-once";
+  // Receiving account instructions are configured by the application owner.
+  // Sync and upgrade must preserve these edits after the initial generation.
+  if (MANUAL_PAYMENT_CONFIGURATION_PATHS.has(path)) return "seed-once";
   if (
     path === "package.json" ||
     path.endsWith("/package.json") ||

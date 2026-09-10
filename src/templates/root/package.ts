@@ -60,7 +60,8 @@ export function rootPackageJson(
     "lint:imports": "bun scripts/check-import-aliases.cjs",
     "lint:next-parity": "bun scripts/check-next-parity.cjs",
     "lint:navigation": "bun scripts/check-navigation-imports.cjs",
-    "lint:architecture": "bun scripts/check-feature-folder.cjs",
+    "lint:architecture":
+      "bun scripts/check-feature-folder.cjs && bun scripts/check-frontend-ownership.cjs",
     "lint:rtl": "bun scripts/check-rtl-logical.cjs",
     "lint:animations": "bun scripts/check-animation-imports.cjs",
     "lint:server-only": "bun scripts/check-server-only.cjs",
@@ -163,7 +164,13 @@ export function rootPackageJson(
             : {}),
         }
       : {},
-    overrides: hasPdf ? { pdfkit: v.pdf.pdfkit } : undefined,
+    overrides:
+      hasPdf || isCloudflare
+        ? {
+            ...(hasPdf ? { pdfkit: v.pdf.pdfkit } : {}),
+            ...(isCloudflare ? { sharp: v.cloudflare.sharp } : {}),
+          }
+        : undefined,
     patchedDependencies:
       isCloudflare && profile?.framework === "nextjs"
         ? { [OPENNEXT_AWS_WINDOWS_PATCH_KEY]: OPENNEXT_AWS_WINDOWS_PATCH_PATH }

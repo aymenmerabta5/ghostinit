@@ -1,46 +1,32 @@
 import { expect } from "bun:test";
-import {
-  settingsDangerZoneCardContent,
-  tanstackSettingsFeatureFiles,
-} from "../../src/templates/apps/fragments/settings/index.js";
-import { settingsDangerZoneCardSingle } from "../../src/templates/modes/single/pages/settings.js";
+import { accountDeletionFeatureFiles } from "../../src/templates/apps/fragments/settings/deletion-feature.js";
+import { identityModelContent } from "../../src/templates/apps/fragments/auth/client-validation.js";
+import { settingsFeatureHarness } from "./settings-feature-harness.js";
 import { EN_MESSAGES } from "../../src/templates/i18n/messages/en.js";
-import { elements, generatedFormHarness, type TestElement } from "./generated-form-harness.js";
-
-type Transport = "identity-client" | "settings-action";
+import { elements, type TestElement } from "./generated-form-harness.js";
 
 interface Scenario {
   label: string;
-  component: "DangerZoneCard" | "DangerZoneSection";
+  router: "next" | "tanstack";
   source: string;
-  transport: Transport;
+  transport: "identity-client";
 }
 
 export function scenarios(hasEmail = true): Scenario[] {
-  return (["monorepo", "single"] as const).flatMap<Scenario>((mode) => {
-    const next: Scenario = {
-      label: `${mode}/next`,
-      component: "DangerZoneCard",
-      source:
-        mode === "single"
-          ? settingsDangerZoneCardSingle(hasEmail)
-          : settingsDangerZoneCardContent(hasEmail),
+  return (["monorepo", "single"] as const).flatMap<Scenario>((mode) =>
+    (["next", "tanstack"] as const).map((router) => ({
+      label: `${mode}/${router}`,
+      router,
       transport: "identity-client",
-    };
-    const danger = tanstackSettingsFeatureFiles(mode, true, hasEmail, false).find(({ path }) =>
-      path.endsWith("/danger-zone-section.tsx"),
-    );
-    if (!danger) throw new Error(`Missing ${mode} TanStack danger section`);
-    return [
-      next,
-      {
-        label: `${mode}/tanstack`,
-        component: "DangerZoneSection",
-        source: danger.content,
-        transport: "settings-action",
-      },
-    ];
-  });
+      source:
+        identityModelContent() +
+        "\n" +
+        accountDeletionFeatureFiles(mode === "single" ? "src" : "apps/web/src", router, hasEmail)
+          .filter(({ path }) => !path.endsWith("/account-deletion.tsx"))
+          .map(({ content }) => content)
+          .join("\n"),
+    })),
+  );
 }
 
 export function element(tree: unknown, type: string): TestElement {
@@ -62,55 +48,57 @@ export function deletionHarness(
 ) {
   const destinations: string[] = [];
   const events: string[] = [];
-  const queryClient = {};
-  const harness = generatedFormHarness(scenario.source, [scenario.component], {
-    ...Object.fromEntries(
-      [
-        "CardFooter",
-        "Dialog",
-        "DialogContent",
-        "DialogDescription",
-        "DialogFooter",
-        "DialogHeader",
-        "DialogTitle",
-        "DialogTrigger",
-        "Separator",
-      ].map((name) => [name, name]),
-    ),
-    createRequiredPasswordSchema: () => ({}),
-    identityClient: { deleteAccount },
-    getQueryClient: () => queryClient,
-    transitionQueryAuthScope: (client: unknown, scope: unknown) => {
-      expect(client).toBe(queryClient);
-      expect(scope).toBeNull();
-      events.push("retire");
-    },
-    isIdentityRecentAuthenticationError: (error: { code?: string }) =>
-      error.code === "SESSION_EXPIRED" || error.code === "SESSION_NOT_FRESH",
-    useNavigate:
-      () =>
-      ({ to }: { to: string }) => {
-        events.push("navigate");
-        destinations.push(to);
+  let queryClient: unknown;
+  const harness = settingsFeatureHarness(
+    scenario.source,
+    ["useAccountDeletion", "DangerZoneView"],
+    {
+      ...Object.fromEntries(
+        [
+          "CardFooter",
+          "Dialog",
+          "DialogContent",
+          "DialogDescription",
+          "DialogFooter",
+          "DialogHeader",
+          "DialogTitle",
+          "DialogTrigger",
+          "Separator",
+        ].map((name) => [name, name]),
+      ),
+      createRequiredPasswordSchema: () => ({}),
+      identityClient: { deleteAccount },
+      transitionQueryAuthScope: (client: unknown, scope: unknown) => {
+        expect(client).toBe(queryClient);
+        expect(scope).toBeNull();
+        events.push("retire");
       },
-    useRouter: () => ({
-      push: (to: string) => {
-        events.push("navigate");
-        destinations.push(to);
+      useNavigate:
+        () =>
+        ({ to }: { to: string }) => {
+          events.push("navigate");
+          destinations.push(to);
+        },
+      useRouter: () => ({
+        push: (to: string) => {
+          events.push("navigate");
+          destinations.push(to);
+        },
+        refresh: () => events.push("refresh"),
+      }),
+      useSurfaceTranslations: () => (key: string) => {
+        const value = translations
+          ? Reflect.get(translations, key.replace(/^danger\./, ""))
+          : undefined;
+        return typeof value === "string" ? value : key;
       },
-      refresh: () => events.push("refresh"),
-    }),
-    useSurfaceTranslations: () => (key: string) => {
-      const value = translations
-        ? Reflect.get(translations, key.replace(/^danger\./, ""))
-        : undefined;
-      return typeof value === "string" ? value : key;
     },
-  });
+  );
+  queryClient = harness.queryClient;
   return {
     ...harness,
     destinations,
     events,
-    render: () => harness.render(scenario.component, { deleteAccount }),
+    render: () => harness.render("DangerZoneView", { model: harness.render("useAccountDeletion") }),
   };
 }

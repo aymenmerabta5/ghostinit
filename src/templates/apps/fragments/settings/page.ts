@@ -10,18 +10,18 @@ export function settingsPageContent(
   const applicationModule =
     mode === "monorepo" ? "@repo/services/application" : "@/server/services/application";
   const sessionsImport = hasIdentityTransport
-    ? `import { SessionsCard } from "./components/sessions-card.js";`
+    ? `import { SessionsCard } from "@/features/settings/sessions-card";`
     : "";
   const sessionsCard = hasIdentityTransport ? "      <SessionsCard />" : "";
   const passwordImports = hasEmail
-    ? `import { PasswordCard } from "./components/password-card.js";
-import { TwoFactorCard } from "./components/two-factor-card.js";`
+    ? `import { PasswordCard } from "@/features/settings/password-card";
+import { TwoFactorCard } from "@/features/settings/two-factor-card";`
     : "";
   const passwordCards = hasEmail
     ? '<div className="grid items-start gap-6 xl:grid-cols-2"><PasswordCard /><TwoFactorCard /></div>'
     : "";
   const passkeyImport = hasPasskey
-    ? `import { PasskeyCard } from "./components/passkey-card.js";`
+    ? `import { PasskeyCard } from "@/features/settings/passkey-card";`
     : "";
   const passkeyCard = hasPasskey ? "      <PasskeyCard />" : "";
   if (useRsc && hasIdentityTransport) {
@@ -32,10 +32,10 @@ import { Suspense } from "react";
 import { createRequestApplicationForRequest } from "${applicationModule}";
 import { RequestOwnedSnapshot } from "@/components/request-owned-snapshot";
 import { QueryAuthStatus } from "@/components/query-auth-boundary";
-import { ProfileCard } from "./components/profile-card.js";
+import { ProfileCard } from "@/features/settings/profile-card";
 ${passwordImports}
 ${passkeyImport}
-import { DangerZoneCard } from "./components/danger-zone-card.js";
+import { DangerZoneCard } from "@/features/account-deletion/account-deletion";
 ${sessionsImport}
 
 async function SettingsData(): Promise<React.JSX.Element> {
@@ -66,10 +66,10 @@ export default function SettingsPage(): React.JSX.Element {
   }
   return `"use client";
 import * as React from "react";
-import { ProfileCard } from "./components/profile-card.js";
+import { ProfileCard } from "@/features/settings/profile-card";
 ${passwordImports}
 ${passkeyImport}
-import { DangerZoneCard } from "./components/danger-zone-card.js";
+import { DangerZoneCard } from "@/features/account-deletion/account-deletion";
 ${sessionsImport}
 export default function SettingsPage(): React.JSX.Element {
   return (

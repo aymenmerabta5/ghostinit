@@ -221,8 +221,12 @@ describe("generated privileged auth mutation boundary", () => {
   test("routes desktop admin operations through the typed audited oRPC service", () => {
     for (const database of ["postgres", "convex"] as const) {
       const files = generateProjectFiles(config({ database, apps: ["web", "desktop"] }));
-      const users = content(files, "apps/desktop/src/renderer/routes/admin.users.tsx");
-      const create = content(files, "apps/desktop/src/renderer/routes/admin.users.create.tsx");
+      const users = ["queries.ts", "mutations.ts", "screen.tsx"]
+        .map((name) => content(files, `apps/desktop/src/renderer/features/admin-users/${name}`))
+        .join("\n");
+      const create = ["mutations.ts", "use-create-admin-user.ts", "create-screen.tsx"]
+        .map((name) => content(files, `apps/desktop/src/renderer/features/admin-users/${name}`))
+        .join("\n");
       const auth = content(files, "apps/desktop/src/renderer/lib/auth.ts");
 
       expect(users, database).toContain("orpc.adminUsers.list.queryOptions");
@@ -260,10 +264,22 @@ describe("generated privileged auth mutation boundary", () => {
       ].map((path) => content(files, path));
       const joined = adminRoutes.join("\n");
 
-      for (const route of adminRoutes) {
-        expect(route, framework).toContain("desktopQueryOptions.me()");
-      }
-      expect(joined.match(/desktopQueryOptions\.me\(\)/g), framework).toHaveLength(3);
+      const feature = (name: string) =>
+        content(files, `apps/desktop/src/renderer/features/admin-users/${name}`);
+      expect(feature("queries.ts"), framework).toContain("desktopQueryOptions.me()");
+      expect(feature("overview-screen.tsx"), framework).toContain("useAdminIdentity()");
+      expect(feature("screen.tsx"), framework).toContain("useAdminUsersData()");
+      expect(feature("use-create-admin-user.ts"), framework).toContain("useAdminIdentity()");
+      for (const route of adminRoutes) expect(route, framework).toContain("/features/admin-users/");
+      const identitySources = [
+        feature("queries.ts"),
+        feature("overview-screen.tsx"),
+        feature("screen.tsx"),
+        feature("use-create-admin-user.ts"),
+      ].join("\n");
+      expect(identitySources, framework).not.toMatch(
+        /convex\/react|convex\/_generated\/api|api\.users\.me|useConvexQuery/,
+      );
       expect(joined, framework).not.toContain("convex/react");
       expect(joined, framework).not.toContain("convex/_generated/api");
       expect(joined, framework).not.toContain("api.users.me");

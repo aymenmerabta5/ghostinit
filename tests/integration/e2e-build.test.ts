@@ -445,7 +445,11 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
       if (isolatedPostgres) {
         await pushGeneratedPostgresSchema(projectRoot, label, production.environment);
       }
-      await verifyNextDevelopmentConfig(nextCompilerConfig, production.environment);
+      await verifyNextDevelopmentConfig(
+        nextCompilerConfig,
+        production.environment,
+        options.messagingBoundary,
+      );
       const build = await runCommand(
         BUN_EXECUTABLE,
         ["run", "build"],
@@ -588,19 +592,24 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
     TEST_TIMEOUT_MS,
   );
 
-  it(
-    "builds and starts billing=all with Eve",
-    async () => {
-      expect(E2E_BUILD_ENABLED).toBe(true);
-      const projectRoot = await createProject("billall", ["--billing", "all", "--with-eve"]);
-      await installAndVerify(projectRoot, "billing-all", {
-        stockNextLoopback: true,
-        productionCsp: true,
-        publicAssetRoots: ["apps/web/.next/static"],
-      });
-    },
-    TEST_TIMEOUT_MS,
-  );
+  for (const provider of ["stripe", "paddle", "polar"] as const)
+    it(
+      `builds and starts ${provider},chargily,manual billing with Eve`,
+      async () => {
+        expect(E2E_BUILD_ENABLED).toBe(true);
+        const projectRoot = await createProject(`billing-${provider}`, [
+          "--billing",
+          `${provider},chargily,manual`,
+          "--with-eve",
+        ]);
+        await installAndVerify(projectRoot, `billing-${provider}`, {
+          stockNextLoopback: true,
+          productionCsp: true,
+          publicAssetRoots: ["apps/web/.next/static"],
+        });
+      },
+      TEST_TIMEOUT_MS,
+    );
 
   it(
     "builds and starts single TanStack Postgres messaging",
@@ -648,46 +657,48 @@ describeE2E("e2e: installed production builds (E2E_BUILD=1 opt-in)", () => {
     TEST_TIMEOUT_MS,
   );
 
-  it(
-    "builds and starts single Next with Eve, messaging and server capabilities",
-    async () => {
-      expect(E2E_BUILD_ENABLED).toBe(true);
-      const projectRoot = await createProject("custom-heavy", [
-        "--mode",
-        "single",
-        "--preset",
-        "custom",
-        "--database",
-        "postgres",
-        "--billing",
-        "stripe,chargily",
-        "--with-auth",
-        "--with-api",
-        "--with-email",
-        "--with-analytics",
-        "--with-eve",
-        "--with-i18n",
-        "--with-pdf",
-        "--with-messaging",
-        "--with-storage",
-        "--with-notifications",
-        "--feature-flags",
-        "posthog",
-        "--with-jobs",
-        "--cache",
-        "redis",
-      ]);
-      await installAndVerify(projectRoot, "custom-capability-heavy", {
-        messagingBoundary: true,
-        pdfTemplates: true,
-        environmentOverrides: E2E_REDIS_ENVIRONMENT,
-        isolatedPostgres: true,
-        productionCsp: true,
-        publicAssetRoots: [".next/static"],
-      });
-    },
-    TEST_TIMEOUT_MS,
-  );
+  for (const mode of ["single", "monorepo"] as const) {
+    it(
+      mode + " Next with Eve, messaging and server capabilities builds and starts",
+      async () => {
+        expect(E2E_BUILD_ENABLED).toBe(true);
+        const projectRoot = await createProject("custom-heavy", [
+          "--mode",
+          mode,
+          "--preset",
+          "custom",
+          "--database",
+          "postgres",
+          "--billing",
+          "stripe,chargily",
+          "--with-auth",
+          "--with-api",
+          "--with-email",
+          "--with-analytics",
+          "--with-eve",
+          "--with-i18n",
+          "--with-pdf",
+          "--with-messaging",
+          "--with-storage",
+          "--with-notifications",
+          "--feature-flags",
+          "posthog",
+          "--with-jobs",
+          "--cache",
+          "redis",
+        ]);
+        await installAndVerify(projectRoot, "custom-capability-heavy", {
+          messagingBoundary: true,
+          pdfTemplates: true,
+          environmentOverrides: E2E_REDIS_ENVIRONMENT,
+          isolatedPostgres: true,
+          productionCsp: true,
+          publicAssetRoots: [mode === "single" ? ".next/static" : "apps/web/.next/static"],
+        });
+      },
+      TEST_TIMEOUT_MS,
+    );
+  }
 
   it(
     "builds web, Expo, and Electron client artifacts without server secrets",

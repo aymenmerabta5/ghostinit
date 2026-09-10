@@ -1,8 +1,15 @@
+import { settingsFeatureHarness, settingsSource } from "../helpers/settings-feature-harness.js";
+import { webSettingsFeatureFiles } from "../../src/templates/apps/fragments/settings/feature.js";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 import { parseSync } from "oxc-parser";
+import { authFeatureFiles } from "../../src/templates/apps/fragments/auth/feature.js";
+import {
+  identityModelContent,
+  identityValidationContent,
+} from "../../src/templates/apps/fragments/auth/client-validation.js";
 import {
   IDENTITY_OAUTH_PROVIDERS,
   identityClientAdapterContent,
@@ -21,18 +28,6 @@ import {
   resetPasswordPageContent,
   resetPasswordFormContent,
 } from "../../src/templates/apps/fragments/recovery/index.js";
-import {
-  settingsDangerZoneCardContent,
-  settingsPasswordCardContent,
-  settingsProfileCardContent,
-  settingsSessionsCardContent,
-  settingsSessionsDataContent,
-  settingsSessionsListContent,
-  settingsTwoFactorCardContent,
-  settingsTwoFactorHookContent,
-  tanstackSettingsFeatureFiles,
-  tanstackSettingsPageContent,
-} from "../../src/templates/apps/fragments/settings/index.js";
 import { adminDataFiles } from "../../src/templates/apps/fragments/admin/feature-data.js";
 import {
   signInFormSingleContent,
@@ -46,16 +41,6 @@ import {
   resetPasswordPageSingle,
   resetPasswordFormSingleContent,
 } from "../../src/templates/modes/single/pages/password.js";
-import {
-  settingsDangerZoneCardSingle,
-  settingsPasswordCardSingle,
-  settingsProfileCardSingle,
-  settingsSessionsCardSingle,
-  settingsSessionsDataSingle,
-  settingsSessionsListSingle,
-  settingsTwoFactorCardSingle,
-  settingsTwoFactorHookSingle,
-} from "../../src/templates/modes/single/pages/settings.js";
 import {
   singleForgotPasswordRouteTanstackContent,
   singleResetPasswordRouteTanstackContent,
@@ -74,6 +59,8 @@ let schemaModule: Record<string, unknown>;
 
 beforeAll(async () => {
   await mkdir(tempRoot, { recursive: true });
+  await writeFile(path.join(tempRoot, "auth-model.ts"), identityModelContent(), "utf8");
+  await writeFile(path.join(tempRoot, "auth-validation.ts"), identityValidationContent(), "utf8");
   await writeFile(
     schemaModulePath,
     `import { z } from "zod";\nconst authClient = {};\n${identityClientAdapterContent()}`,
@@ -200,9 +187,11 @@ describe("generated identity forms and queries", () => {
     for (const [sharedFiles, singleFiles] of pairs) {
       expect(singleFiles).toEqual(sharedFiles);
       const shared = sharedFiles.join("\n");
-      expect(shared).toContain("useAppForm({");
-      expect(shared).toContain(".AppField name=");
-      expect(shared).toContain(".SubmitButton");
+      expect(shared).not.toContain("useAppForm({");
+      if (sharedFiles.length > 1 || shared.includes("TwoFactorForm")) {
+        expect(shared).toContain(".AppField name=");
+        expect(shared).toContain(".SubmitButton");
+      }
       expect(shared).not.toContain("TanStackField");
       expect(shared).not.toContain("safeParse");
       expect(shared).not.toContain("useEffect");
@@ -210,63 +199,103 @@ describe("generated identity forms and queries", () => {
         expect(parseSync(`identity-form-${index}.tsx`, source).errors).toHaveLength(0);
       }
     }
-  });
-
-  test("shares settings form renderers and keeps remote operations behind identityClient", () => {
-    const pairs = [
-      [settingsProfileCardContent(), settingsProfileCardSingle()],
-      [settingsPasswordCardContent(), settingsPasswordCardSingle()],
-      [settingsTwoFactorCardContent(), settingsTwoFactorCardSingle()],
-      [settingsTwoFactorHookContent(), settingsTwoFactorHookSingle()],
-      [settingsSessionsCardContent(), settingsSessionsCardSingle()],
-      [settingsSessionsDataContent(), settingsSessionsDataSingle()],
-      [settingsSessionsListContent(), settingsSessionsListSingle()],
-      [settingsDangerZoneCardContent(), settingsDangerZoneCardSingle()],
-    ] as const;
-    for (const [shared, single] of pairs) expect(single).toBe(shared);
-
-    const forms = pairs
-      .filter(([source]) => !source.includes("identitySessionsQueryOptions"))
-      .map(([source]) => source)
-      .join("\n");
-    expect(forms).toContain("useAppForm({");
-    expect(forms).toContain(".AppField name=");
-    expect(forms).not.toContain("TanStackField");
-    expect(forms).not.toContain("safeParse");
-    expect(forms).not.toContain("useEffect");
-    expect(forms).not.toMatch(/authClient\.(?:updateUser|changePassword|deleteUser|twoFactor)/);
-
-    for (const isConvex of [false, true]) {
-      const route = tanstackSettingsPageContent(isConvex);
-      const featureFiles = tanstackSettingsFeatureFiles("monorepo", true);
-      const settings = [route, ...featureFiles.map(({ content }) => content)].join("\n");
-      expect(settings).toContain("useAppForm({");
-      expect(settings).toContain("identityClient.updateProfile");
-      expect(settings).not.toContain("useEffect");
-      expect(settings).not.toContain("safeParse");
-      expect(parseSync("settings.tsx", route).errors).toHaveLength(0);
-      for (const feature of featureFiles) {
-        expect(parseSync(feature.path, feature.content).errors).toHaveLength(0);
+    for (const router of ["next", "tanstack"] as const) {
+      const files = authFeatureFiles({ router, hasEmail: true, hasPasskey: true });
+      const workflows = files.filter(({ path }) => /\/use-.*-form\.ts$/.test(path));
+      expect(workflows).toHaveLength(6);
+      for (const workflow of workflows) expect(workflow.content).toContain("useAppForm({");
+      for (const entry of files.filter(({ path }) => path.includes("/components/"))) {
+        expect(entry.content).not.toContain("identityClient");
+        expect(entry.content).not.toContain("useAppForm(");
       }
     }
   });
 
-  test("sessions use typed identity query options and invalidate after every mutation", () => {
-    const tanstackSessions = tanstackSettingsFeatureFiles("monorepo", true)
-      .filter(({ path }) => path.endsWith("/queries.ts") || path.endsWith("/mutations.ts"))
-      .map(({ content }) => content)
-      .join("\n");
-    for (const source of [settingsSessionsDataContent(), tanstackSessions ?? ""]) {
+  test("shares emitted settings views and keeps remote operations behind identityClient", () => {
+    const paths = [
+      "settings/components/profile-view.tsx",
+      "settings/components/password-view.tsx",
+      "settings/components/two-factor-view.tsx",
+      "settings/components/session-list.tsx",
+      "account-deletion/components/danger-zone-view.tsx",
+    ];
+    for (const path of paths) {
+      const shared = settingsSource("monorepo", "next", path);
+      expect(settingsSource("single", "next", path)).toBe(shared);
+      expect(settingsSource("single", "tanstack", path)).toBe(shared);
+      expect(shared).not.toContain("useAppForm(");
+      expect(shared).not.toContain("identityClient");
+      expect(shared).not.toContain("useEffect");
+      expect(shared).not.toContain("safeParse");
+    }
+    for (const router of ["next", "tanstack"] as const) {
+      const files = webSettingsFeatureFiles("src", router, true, true, true);
+      const settings = files.map(({ content }) => content).join("\n");
+      expect(settings).toContain("useAppForm({");
+      expect(settings).toContain(".AppField name=");
+      expect(settings).toContain("identityClient.updateProfile");
+      expect(settings).not.toMatch(
+        /authClient\.(?:updateUser|changePassword|deleteUser|twoFactor)/,
+      );
+      expect(settings).not.toContain("TanStackField");
+      expect(settings).not.toContain("safeParse");
+      for (const feature of files)
+        expect(parseSync(feature.path, feature.content).errors).toHaveLength(0);
+    }
+  });
+
+  test("sessions use typed identity queries and invalidate after each revocation", async () => {
+    for (const router of ["next", "tanstack"] as const) {
+      const source = settingsSource(
+        "single",
+        router,
+        "settings/model.ts",
+        "settings/queries.ts",
+        "settings/mutations.ts",
+      );
       expect(source).toMatch(/orpc\.identity\.sessions\.list\.queryOptions\(\{\s*input: \{\}/);
       expect(source).toContain('orpc.identity.sessions.list.key({ type: "query" })');
-      expect(source).toContain("orpc.identity.sessions.revoke.mutationOptions");
-      expect(source).toContain("orpc.identity.sessions.revokeOthers.mutationOptions");
-      expect(
-        source.match(/onSuccess: async \(\) => invalidateIdentitySessions\(queryClient\)/g),
-      ).toHaveLength(2);
-      expect(source).not.toContain("useEffect");
       expect(source).not.toContain("authClient.listSessions");
       expect(source).not.toContain("authClient.revoke");
+      const calls: unknown[] = [];
+      const revoke = async (input: unknown) => {
+        calls.push(input);
+        return { ok: true };
+      };
+      const others = async () => {
+        calls.push("others");
+        return { ok: true };
+      };
+      const ui = settingsFeatureHarness(source, ["useRevokeSessionMutation"], {
+        revokeIdentitySessionAction: revoke,
+        revokeOtherIdentitySessionsAction: others,
+        orpc: {
+          identity: {
+            sessions: {
+              list: { key: () => ["sessions"] },
+              revoke: { call: revoke },
+              revokeOthers: { call: others },
+            },
+          },
+        },
+        authScopedQueryKey: (scope: { userId: string; sessionId: string }, key: string[]) => [
+          scope.userId,
+          scope.sessionId,
+          ...key,
+        ],
+      });
+      type Mutation = { run(input: unknown): Promise<unknown> };
+      await expect(
+        (ui.render("useRevokeSessionMutation") as Mutation).run({ sessionId: "other-session" }),
+      ).resolves.toMatchObject({ status: "success" });
+      await expect(
+        (ui.render("useRevokeSessionMutation") as Mutation).run({ others: true }),
+      ).resolves.toMatchObject({ status: "success" });
+      expect(calls).toEqual([{ sessionId: "other-session" }, "others"]);
+      expect(ui.invalidations).toEqual([
+        { queryKey: ["owner", "session", "sessions"] },
+        { queryKey: ["owner", "session", "sessions"] },
+      ]);
     }
   });
 

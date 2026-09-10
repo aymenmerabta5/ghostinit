@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { settingsSessionsListContent } from "../../src/templates/apps/fragments/settings/sessions-card.js";
+import { settingsSource } from "../helpers/settings-feature-harness.js";
 import { EN_MESSAGES } from "../../src/templates/i18n/messages/en.js";
 import { FR_MESSAGES } from "../../src/templates/i18n/messages/fr.js";
 import { AR_MESSAGES } from "../../src/templates/i18n/messages/ar.js";
 import { elements, generatedFormHarness, textContent } from "../helpers/generated-form-harness.js";
 
-const source = settingsSessionsListContent();
+const source = settingsSource("single", "next", "settings/components/session-list.tsx");
 const chromeWindows =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142.0.0.0 Safari/537.36";
 const { sessionDevice } = generatedFormHarness(source, ["sessionDevice"]).module;

@@ -113,7 +113,9 @@ describe("generated Expo foundation", () => {
       tanstack["@tanstack/query-persist-client-core"],
     );
 
-    const dialog = content(files, "apps/mobile/src/components/ui/dialog.tsx");
+    const dialog = ["dialog.tsx", "dialog-context.ts", "dialog-content.tsx"]
+      .map((name) => content(files, `apps/mobile/src/components/ui/${name}`))
+      .join("\n");
     expect(dialog).toContain("BackHandler.addEventListener");
     expect(dialog).toContain("<Modal");
     expect(dialog).not.toContain("document");
@@ -253,7 +255,10 @@ describe("generated Expo foundation", () => {
       expect(provider).not.toContain("ConvexBetterAuthProvider");
       expect(provider).not.toContain("as unknown as");
       expect(provider).not.toContain("orpc");
-      const layout = content(files, generatedPath(mode, "app/_layout.tsx"));
+      const layout = content(files, generatedPath(mode, "src/components/providers.tsx"));
+      expect(content(files, generatedPath(mode, "app/_layout.tsx"))).toContain(
+        'from "@/components/providers"',
+      );
       expect(layout).toContain("<ConvexClientProvider>");
       expect(layout).toContain("useMemo(() => makeNativeQueryClient(), [])");
       expect(layout).toContain(
@@ -265,7 +270,7 @@ describe("generated Expo foundation", () => {
       expect(layout).toContain('import { Header } from "@/components/header"');
       expect(layout).toContain("<Stack.Protected guard={isAuthenticated}>");
       expect(layout).toContain("useOfflineSync(queryClient");
-      const header = content(files, generatedPath(mode, "src/components/header.tsx"));
+      const header = content(files, generatedPath(mode, "src/features/app-shell/header.tsx"));
       expect(header).toContain(
         'horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1 px-4 pb-2"',
       );
@@ -286,6 +291,26 @@ describe("generated Expo foundation", () => {
     expect(content(singleFiles, "global.css")).not.toContain("@repo/ui");
     expect(content(singleFiles, "src/platform/ui/styles/theme.css")).toContain("@theme inline");
     expect(singleFiles.some(({ path }) => path === "src/styles/theme.css")).toBe(false);
+  });
+
+  test("authenticated navigation includes billing exactly when its route is emitted", () => {
+    for (const mode of MODES)
+      for (const i18n of [false, true])
+        for (const billing of [[], ["stripe"]] as const) {
+          const files = generateMobile(mode, {
+            auth: true,
+            api: true,
+            billing: [...billing],
+            i18n,
+            features: i18n ? ["i18n"] : [],
+          });
+          const header = content(files, generatedPath(mode, "src/features/app-shell/header.tsx"));
+          const selected = billing.length > 0;
+          expect(header.includes('href="/billing"'), `${mode}/${i18n}`).toBe(selected);
+          expect(files.some(({ path }) => path === generatedPath(mode, "app/billing.tsx"))).toBe(
+            selected,
+          );
+        }
   });
 
   test("removes API, auth, and billing files and dependencies when disabled", () => {
@@ -319,10 +344,13 @@ describe("generated Expo foundation", () => {
       expect(paths.has(generatedPath(mode, "app/(auth)/sign-in.tsx")), mode).toBe(false);
       expect(paths.has(generatedPath(mode, "app/dashboard.tsx")), mode).toBe(false);
 
-      const layout = content(files, generatedPath(mode, "app/_layout.tsx"));
+      const layout = content(files, generatedPath(mode, "src/components/providers.tsx"));
+      expect(content(files, generatedPath(mode, "app/_layout.tsx"))).toContain(
+        'from "@/components/providers"',
+      );
       expect(layout).not.toContain('name="(auth)"');
       expect(layout).not.toContain('name="billing"');
-      const marketing = content(files, generatedPath(mode, "app/index.tsx"));
+      const marketing = content(files, generatedPath(mode, "src/features/marketing/screen.tsx"));
       expect(marketing).not.toContain('href="/(auth)');
       expect(marketing).not.toContain('href="/billing"');
     }

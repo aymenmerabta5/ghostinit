@@ -2,7 +2,7 @@
  * Billing barrel safety net — validates SSOT and no export *.
  *
  * SSOT chain:
- *   src/lib/constants.ts BILLING_PROVIDERS  <- CLI canonical
+ *   src/lib/constants.ts ONLINE_BILLING_PROVIDERS  <- CLI canonical
  *   src/templates/billing/providers/interface/types.ts BILLING_PROVIDER_NAMES <- template mirror
  *   src/templates/billing/index.ts ALL_BILLING_PROVIDERS <- re-export of BILLING_PROVIDER_NAMES
  *
@@ -13,7 +13,7 @@
  *   - register the factory export in billing-generator.ts
  *   - add webhook fragments in billing/webhooks/providers/<name>.ts
  *   - add env vars in shared/env/billing.ts billingEnvLines() (same loop pattern via
- *     BILLING_PROVIDERS — codegen pattern reused, dogfooding possible)
+ *     ONLINE_BILLING_PROVIDERS — codegen pattern reused, dogfooding possible)
  *   - turbo.json globalEnv, pgEnum, UI panels etc still need touch — env and provider
  *     registry generation already loop over the canonical provider list.
  */
@@ -27,13 +27,13 @@ const thisFile = fileURLToPath(import.meta.url);
 const repoRoot = join(dirname(thisFile), "..", "..");
 
 // Canonical SSOT from CLI
-import { BILLING_PROVIDERS } from "../../src/lib/constants.js";
+import { ONLINE_BILLING_PROVIDERS } from "../../src/lib/constants.js";
 // Template SSOT (mirror)
 import { BILLING_PROVIDER_NAMES } from "../../src/templates/billing/providers/interface/types.js";
 
 describe("billing barrel — SSOT and filesystem safety net", () => {
-  it("BILLING_PROVIDERS (constants.ts) matches BILLING_PROVIDER_NAMES (interface/types.ts)", () => {
-    const cli = [...BILLING_PROVIDERS].sort();
+  it("ONLINE_BILLING_PROVIDERS (constants.ts) matches BILLING_PROVIDER_NAMES (interface/types.ts)", () => {
+    const cli = [...ONLINE_BILLING_PROVIDERS].sort();
     const tmpl = [...BILLING_PROVIDER_NAMES].sort();
     expect(tmpl).toEqual(cli);
   });
@@ -50,7 +50,7 @@ describe("billing barrel — SSOT and filesystem safety net", () => {
     const explicitImports = (
       content.match(/import\("\.\/providers\/(stripe|chargily|paddle|polar)"\)/g) ?? []
     ).length;
-    expect(explicitImports).toBe(BILLING_PROVIDERS.length);
+    expect(explicitImports).toBe(ONLINE_BILLING_PROVIDERS.length);
     expect(content).not.toContain("import(`./providers/${provider}.js`)");
     expect(content).not.toMatch(/import\("\.\/providers\/(stripe|chargily|paddle|polar)\.js"\)/);
     expect(content).toContain("billingProviderLoaders");
@@ -72,7 +72,7 @@ describe("billing barrel — SSOT and filesystem safety net", () => {
       }
     });
     const fsProviders = dirs.sort();
-    const ssot = [...BILLING_PROVIDERS].sort();
+    const ssot = [...ONLINE_BILLING_PROVIDERS].sort();
     expect(fsProviders).toEqual(ssot);
 
     // Also validate webhooks/providers shared re-exports SSOT
@@ -85,7 +85,7 @@ describe("billing barrel — SSOT and filesystem safety net", () => {
   it("each provider folder has core expected files (client, checkout, customer, webhook, subscriptions)", () => {
     const providersDir = join(repoRoot, "src/templates/billing/providers");
     const coreFiles = ["client.ts", "checkout.ts", "customer.ts", "webhook.ts", "subscriptions.ts"];
-    for (const provider of BILLING_PROVIDERS) {
+    for (const provider of ONLINE_BILLING_PROVIDERS) {
       const folder = join(providersDir, provider);
       const files = readdirSync(folder);
       for (const core of coreFiles) {

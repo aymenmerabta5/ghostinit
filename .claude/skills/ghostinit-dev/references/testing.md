@@ -51,17 +51,39 @@ the runner frozen-installs each fixture exactly once.
   - Each fixture has its own `package.json` and `bun.lock`. Run `bun run test:fixtures` once; `scripts/test-fixtures.ts` performs every stage with bounded timeouts.
   - Skip on narrow iterations unless touching oRPC/Drizzle, Next/Tailwind, or Expo/Uniwind compatibility because the three installs are slow.
 
-- `bun run test:workers` — four installed Cloudflare release corners: Next and
+- `bun run test:workers` — eight installed Cloudflare release corners: Next and
   TanStack Start in both monorepo and single mode, across Convex and
   database-free profiles. Every corner runs the ordinary generated-project
   audit/format/architecture/type/lint/test sequence, then Worker build and an
   independent sentinel scan, Wrangler dry-run, and bounded local `/` plus
-  `/api/health` HTTP 200 smoke with verified process-tree cleanup. The Next
-  Convex corner also covers billing, i18n, and Convex-native messaging. The
-  database-free single profiles add API and validate `/api/rpc/health`, while
-  Convex monorepos avoid external-service calls. Monorepos select Bun and single
+  `/api/health` HTTP 200 smoke with verified process-tree cleanup. Both framework families have three
+  Convex monorepo corners selecting one global provider plus Chargily/manual and
+  the reviewed capability families. All eight validate `/api/rpc/health`;
+  database-free singles add API, while Convex monorepo probes avoid external-service calls. Monorepos select Bun and single
   projects select Node. TanStack's independent scan targets the app-level
   `.wrangler/ghostinit-dry-run` upload bundle rather than only Vite `dist`.
+
+## Dependency-security verification
+
+For changes to the shared security runtime or integration, verify strict Bun JSON
+parsing, stable range boundaries, unambiguous manifest/catalog edits, and unchanged
+source/lease guards. Cover high/unknown blockers, lower-severity partial outcomes,
+seven-day release-age blockers, exact patch checks, dry-run immutability, interrupted
+install recovery, and unverified cleanup blocking later mutations.
+
+Prove repairs on real installed direct, workspace, and Bun catalog dependencies,
+including failure after source publication. Verify persistent floors through later
+create/upgrade/sync compilation, retaining higher compatible pins and removing
+absent dependencies. Dedicated CLI and generated fixes plus upgrade must run
+`typecheck`, `lint:all`, and root tests; install scripts must prove canonical
+installed audit. No-install/dry-run results cannot claim installed verification.
+
+Build regenerates the standalone dependency-security runtime; verify emitted imports
+stay within its allowed boundary and the bundle runs without GhostInit installed.
+Keep fixture and generated-project audits, full app/runtime/build checks, and the
+release artifact proof. Metadata probes or mocked subprocess reports do not replace
+real installation evidence. See the
+[maintenance contract](../../ghostinit-use/references/dependency-security.md).
 
 ## Architecture Checker in Tests
 
@@ -80,7 +102,7 @@ cat bunfig.toml                                      # hoist=true
 ls packages/ packages/billing/src/providers/         # stripe + chargily present
 bun run install:bootstrap && bun run typecheck && bun run lint:all
 # variants
-bunx ghostinit create demo2 --yes --no-install --cwd /tmp/gi-test --mode monorepo --framework tanstack-start --database postgres --billing all --features eve
+bunx ghostinit create demo2 --yes --no-install --cwd /tmp/gi-test --mode monorepo --framework tanstack-start --database postgres --billing manual,chargily,stripe --features eve
 bunx ghostinit create demo3 --yes --no-install --cwd /tmp/gi-test --mode single --database postgres --billing stripe
 ```
 
@@ -112,7 +134,7 @@ Build script verifies real d.ts >10 bytes not fake `export {}` stub via declarat
 ## Fixtures Deep
 
 - `bun.lock` per fixture isolated via host `bunfig.toml` `linker=isolated,hoist=false` hermetic vs generated hoist=true.
-- All three fixture manifests target the canonical `runtime.bun` version. The compatibility fixtures deliberately differ from emitted apps: the Next fixture retains a TS6 baseline, while Drizzle/oRPC and Expo fixtures cover TS7. Generated Next apps use the TS7 CLI; generated TanStack, shared tooling, and Expo use the TS6 JavaScript compiler API. Read each fixture manifest when changing compiler coverage. The fixture runner enforces Bun, frozen-installs each manifest, and invokes every fixture's typecheck script.
+- All three fixture manifests target the canonical `runtime.bun` version. The Next, Drizzle/oRPC and Expo compatibility fixtures all pin TypeScript 7.0.2. Generated apps and shared tooling all use the catalog TS7 pin; Next invokes the project-local compiler CLI. Read each fixture manifest when changing compiler coverage. The fixture runner enforces Bun, frozen-installs each manifest, and invokes every fixture's typecheck script.
 - oRPC uses one lockstep catalog line; `@orpc/next` is omitted because its latest 1.14.11 was an accidental deprecated v2 publish, so GhostInit uses pure RPCHandler route handlers instead.
 
 ## Troubleshooting Tests

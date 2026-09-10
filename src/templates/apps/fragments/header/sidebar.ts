@@ -44,10 +44,15 @@ import { WorkspaceNavigation } from "./workspace-navigation";
 export function WorkspaceNavigationTrigger({ pathname, identity }: {
   pathname: string; identity: WorkspaceIdentity;
 }): React.JSX.Element {
+  const owner = identity.status === "authenticated" ? identity.user.email : identity.status;
+  return <WorkspaceNavigationSheet key={JSON.stringify([pathname, owner])} pathname={pathname} identity={identity} />;
+}
+
+function WorkspaceNavigationSheet({ pathname, identity }: {
+  pathname: string; identity: WorkspaceIdentity;
+}): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const t = useSurfaceTranslations("header");
-  const owner = identity.status === "authenticated" ? identity.user.email : identity.status;
-  React.useEffect(() => { setOpen(false); }, [pathname, owner]);
   return <Sheet open={open} onOpenChange={setOpen}>
     <SheetTrigger render={<Button variant="ghost" size="icon" className="shrink-0 lg:hidden" aria-label={t("openNavigation")} />}><PanelLeft className="size-5" aria-hidden /></SheetTrigger>
     <SheetContent side="start" className="flex w-[min(320px,calc(100%-32px))] flex-col gap-6 bg-sidebar p-5" aria-describedby={undefined}>

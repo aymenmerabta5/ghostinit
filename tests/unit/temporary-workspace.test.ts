@@ -103,7 +103,15 @@ console.log(JSON.stringify({ removed: !existsSync(owned), rejected,
     // Keep any private fixture diagnostics out of an assertion's rendered value.
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString() + result.stderr.toString();
-    expect(/\b2 pass\b/.test(output)).toBe(true);
+    // Both alias scenarios run for each supported global provider selection.
+    expect(/\b6 pass\b/.test(output)).toBe(true);
+    for (const provider of ["stripe", "paddle", "polar"]) {
+      expect(
+        output.includes(
+          `${provider} billing selection > Worker fixture bindings > monorepo/nextjs stages declared audiences once and restores exact originals`,
+        ),
+      ).toBe(true);
+    }
     expect(/\b0 fail\b/.test(output)).toBe(true);
   });
 

@@ -8,7 +8,37 @@ export type PlatformI18nMode = "monorepo" | "single";
 function sharedRuntime(imports: string, platformRuntime: string, switcher: string): string {
   return `import * as React from "react";
 ${imports}
-import arMessages from "../i18n/messages/ar.json";
+import { isLocale, locales, localeDirection, translate, type Locale, type PlatformI18nContext, type TranslationKey, type TranslationValues, type TranslationNamespace, type NamespaceTranslationKey, type NamespaceTranslate } from "./i18n-model";
+export { isLocale, locales, localeDirection, translate } from "./i18n-model";
+export type { Locale, LocaleDirection, PlatformI18nContext, TranslationKey, TranslationValues, TranslationNamespace, NamespaceTranslationKey, NamespaceTranslate } from "./i18n-model";
+
+const I18nContext = React.createContext<PlatformI18nContext | null>(null);
+
+${platformRuntime}
+
+export function usePlatformI18n(): PlatformI18nContext {
+  const context = React.useContext(I18nContext);
+  if (!context) throw new Error("usePlatformI18n must be used within PlatformI18nProvider");
+  return context;
+}
+
+export function useTranslations<Namespace extends TranslationNamespace>(
+  namespace: Namespace,
+): NamespaceTranslate<Namespace> {
+  const { t } = usePlatformI18n();
+  return React.useCallback(
+    (key: NamespaceTranslationKey<Namespace>, values?: TranslationValues) =>
+      t((namespace + "." + key) as TranslationKey, values),
+    [namespace, t],
+  );
+}
+
+${switcher}
+`;
+}
+
+export function platformI18nModelContent(): string {
+  return `import arMessages from "../i18n/messages/ar.json";
 import enMessages from "../i18n/messages/en.json";
 import frMessages from "../i18n/messages/fr.json";
 
@@ -81,28 +111,6 @@ export interface PlatformI18nContext {
   t(key: TranslationKey, values?: TranslationValues): string;
 }
 
-const I18nContext = React.createContext<PlatformI18nContext | null>(null);
-
-${platformRuntime}
-
-export function usePlatformI18n(): PlatformI18nContext {
-  const context = React.useContext(I18nContext);
-  if (!context) throw new Error("usePlatformI18n must be used within PlatformI18nProvider");
-  return context;
-}
-
-export function useTranslations<Namespace extends TranslationNamespace>(
-  namespace: Namespace,
-): NamespaceTranslate<Namespace> {
-  const { t } = usePlatformI18n();
-  return React.useCallback(
-    (key: NamespaceTranslationKey<Namespace>, values?: TranslationValues) =>
-      t((namespace + "." + key) as TranslationKey, values),
-    [namespace, t],
-  );
-}
-
-${switcher}
 `;
 }
 
@@ -279,5 +287,6 @@ export function platformI18nFiles(
     makeMessagesFile(`${root}/i18n/messages/fr.json`, FR_MESSAGES),
     makeMessagesFile(`${root}/i18n/messages/ar.json`, AR_MESSAGES),
     file(`${root}/lib/i18n.tsx`, target === "expo" ? expoI18nContent() : desktopI18nContent()),
+    file(`${root}/lib/i18n-model.ts`, platformI18nModelContent()),
   ];
 }

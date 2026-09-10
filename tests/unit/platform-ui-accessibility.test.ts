@@ -3,6 +3,12 @@ import { parseSync } from "oxc-parser";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
 import type { TemplateFile } from "../../src/templates/shared.js";
+import {
+  elements,
+  flush,
+  generatedFormHarness,
+  textContent,
+} from "../helpers/generated-form-harness.js";
 
 type Mode = "monorepo" | "single";
 type Platform = "desktop" | "mobile";
@@ -76,12 +82,73 @@ function emittedColor(theme: string, appearance: "light" | "dark", token: string
 }
 
 describe("generated desktop and Expo accessibility contract", () => {
+  test("Expo identity read failures render a shared alert and retry both identity reads", async () => {
+    const files = generated("monorepo", "mobile");
+    const root = "apps/mobile/src/features/settings";
+    for (const failedRead of ["session", "application"] as const) {
+      let sessionRetries = 0;
+      let applicationRetries = 0;
+      const ui = generatedFormHarness(
+        ["queries.ts", "settings-screen.tsx"]
+          .map((name) => source(files, `${root}/${name}`))
+          .join("\n"),
+        ["SettingsScreen"],
+        {
+          identityClient: {
+            useSession: () => ({
+              isPending: false,
+              error: failedRead === "session" ? new Error("Session unavailable") : null,
+              data: { user: { id: "user-1" }, session: { id: "session-1" } },
+              refetch: async () => {
+                sessionRetries += 1;
+              },
+            }),
+          },
+          useQueryClient: () => ({}),
+          currentQueryAuthScope: () => ({ userId: "user-1", sessionId: "session-1" }),
+          authScopedQueryKey: (_scope: unknown, key: unknown) => key,
+          orpc: { me: { queryOptions: () => ({ queryKey: ["me"] }) } },
+          useQuery: () => ({
+            isPending: false,
+            data: undefined,
+            error:
+              failedRead === "application" ? new Error("Application identity unavailable") : null,
+            refetch: async () => {
+              applicationRetries += 1;
+            },
+          }),
+          ActivityIndicator: "ActivityIndicator",
+          View: "View",
+          Text: "Text",
+          Link: "Link",
+        },
+      );
+      const tree = ui.render("SettingsScreen");
+      const alert = elements(tree).find((node) => node.type === "Alert");
+      expect(alert?.props.accessibilityRole).toBe("alert");
+      expect(alert?.props.variant).toBe("destructive");
+      expect(elements(tree).find((node) => node.type === "AlertTitle")).toBeDefined();
+      expect(elements(tree).find((node) => node.type === "AlertDescription")).toBeDefined();
+      expect(textContent(tree)).toContain("genericDescription");
+      expect(textContent(tree)).not.toContain("native.signInRequired");
+      const retry = elements(tree).find((node) => node.type === "Button");
+      expect(retry).toBeDefined();
+      (retry!.props.onPress as () => void)();
+      await flush();
+      expect(sessionRetries).toBe(1);
+      expect(applicationRetries).toBe(1);
+    }
+  });
+
   test("Expo identity feedback uses the shared React Native Reusables alert", () => {
     const files = generated("monorepo", "mobile");
-    for (const path of ["app/workspace.tsx", "app/admin.tsx", "app/settings.tsx"]) {
-      const content = source(files, `apps/mobile/${path}`);
-      expect(content, path).toContain(
-        'import { Alert, AlertDescription } from "@/components/ui/alert"',
+    for (const path of ["identity-workspace", "admin-users", "settings"]) {
+      const content = files
+        .filter((entry) => entry.path.startsWith(`apps/mobile/src/features/${path}/`))
+        .map((entry) => entry.content)
+        .join("\n");
+      expect(content, path).toMatch(
+        /import \{[^}]*AlertDescription[^}]*\} from "@\/components\/ui\/alert"/,
       );
       expect(content, path).toContain("<Alert");
       expect(content, path).toContain("<AlertDescription>");
@@ -145,31 +212,58 @@ describe("generated desktop and Expo accessibility contract", () => {
       }
 
       const routeSources = files
-        .filter(({ path }) => path.startsWith(`${prefix}src/renderer/routes/`))
+        .filter(({ path }) => path.startsWith(`${prefix}src/renderer/features/`))
         .map(({ content }) => content);
-      const forms = routeSources.filter((content) => content.includes("<form"));
+      const forms = routeSources.filter((content) => /<(?:form[. ]|Form )/.test(content));
       expect(forms.length).toBeGreaterThanOrEqual(6);
       for (const content of forms) {
-        expect(content).toContain('from "@/components/ui/field"');
-        expect(content).toContain('from "@/components/ui/input"');
         expect(content).not.toContain(
           'className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"',
         );
-        const controlCount = (content.match(/<(?:Input|SelectTrigger|select)\b/g) ?? []).length;
-        expect(content.match(/\bid=/g)).toHaveLength(controlCount * 3);
-        expect(content.match(/\baria-describedby=/g)).toHaveLength(controlCount);
-        expect(content.match(/\baria-errormessage=/g)).toHaveLength(controlCount);
-        expect(content.match(/\baria-invalid=/g)).toHaveLength(controlCount);
       }
-
-      const twoFactor = source(files, `${prefix}src/renderer/routes/2fa.tsx`);
-      expect(twoFactor).toContain('htmlFor="two-factor-code"');
-      expect(twoFactor).toContain('id="two-factor-code"');
-      expect(twoFactor).toContain('id="two-factor-code-description"');
-      expect(twoFactor).toContain('id="two-factor-code-error"');
-      expect(twoFactor).toContain(
-        'aria-errormessage={codeError ? "two-factor-code-error" : undefined}',
+      const fieldRoot = componentRoot.replace(/\/ui$/, "/form-fields");
+      const fields = generatedFormHarness(
+        [
+          source(files, `${fieldRoot}/field-shared.ts`),
+          source(files, `${fieldRoot}/text-field.tsx`),
+        ].join("\n"),
+        ["TextField"],
+        {
+          Input: "Input",
+          Field: "Field",
+          FieldLabel: "FieldLabel",
+          FieldDescription: "FieldDescription",
+          FieldError: "FieldError",
+          useFieldContext: () => ({
+            name: "code",
+            state: { value: "123", meta: { errors: ["Enter six digits"] } },
+            handleChange() {},
+            handleBlur() {},
+          }),
+        },
       );
+      const rendered = elements(
+        fields.render("TextField", { label: "Code", description: "Six digits" }),
+      );
+      const control = rendered.find((node) => node.type === "Input")!;
+      expect(control.props["aria-invalid"]).toBe(true);
+      expect(rendered.find((node) => node.type === "FieldLabel")?.props.htmlFor).toBe(
+        control.props.id,
+      );
+      expect(rendered.find((node) => node.type === "FieldDescription")?.props.id).toBe(
+        control.props["aria-describedby"],
+      );
+      expect(rendered.find((node) => node.type === "FieldError")?.props.id).toBe(
+        control.props["aria-errormessage"],
+      );
+      const twoFactor = source(
+        files,
+        `${prefix}src/renderer/features/auth/components/two-factor-form.tsx`,
+      );
+      expect(twoFactor).toContain('name="code"');
+      expect(twoFactor).toContain("<field.OtpField");
+      expect(twoFactor).toContain('label={t("twoFactor.codeLabel")}');
+      expect(twoFactor).toContain('description={t("twoFactor.codeDescription")}');
 
       const button = source(files, `${componentRoot}/button.tsx`);
       const input = source(files, `${componentRoot}/input.tsx`);
@@ -195,8 +289,12 @@ describe("generated desktop and Expo accessibility contract", () => {
     for (const mode of ["monorepo", "single"] as const) {
       const files = generated(mode, "mobile");
       const prefix = mode === "monorepo" ? "apps/mobile/" : "";
-      const tabs = source(files, `${prefix}src/components/ui/tabs.tsx`);
-      const dialog = source(files, `${prefix}src/components/ui/dialog.tsx`);
+      const tabs = ["tabs.tsx", "tabs-context.ts", "tabs-trigger.tsx"]
+        .map((name) => source(files, `${prefix}src/components/ui/${name}`))
+        .join("\n");
+      const dialog = ["dialog.tsx", "dialog-context.ts", "dialog-content.tsx"]
+        .map((name) => source(files, `${prefix}src/components/ui/${name}`))
+        .join("\n");
 
       expect(tabs).toContain('accessibilityRole="tablist"');
       expect(tabs).toContain('accessibilityRole="tab"');
@@ -223,7 +321,7 @@ describe("generated desktop and Expo accessibility contract", () => {
       expect(dialog).toContain('animationType={reduceMotion ? "none" : "fade"}');
       expect(dialog).toContain("onRequestClose={close}");
 
-      const billing = source(files, `${prefix}app/billing.tsx`);
+      const billing = source(files, `${prefix}src/features/billing/mutations.ts`);
       expect(billing).toContain('import * as Linking from "expo-linking"');
       expect(billing).toContain("billingReturnUrl");
       expect(billing).toContain("EXPO_PUBLIC_APP_URL");
@@ -239,8 +337,8 @@ describe("generated desktop and Expo accessibility contract", () => {
       const files = generated(mode, "mobile");
       const prefix = mode === "monorepo" ? "apps/mobile/" : "";
       const button = source(files, `${prefix}src/components/ui/button.tsx`);
-      const header = source(files, `${prefix}src/components/header.tsx`);
-      const auth = source(files, `${prefix}app/(auth)/sign-in.tsx`);
+      const header = source(files, `${prefix}src/features/app-shell/header.tsx`);
+      const auth = source(files, `${prefix}src/features/auth/components/auth-frame.tsx`);
       expect(button).toContain('sm: "min-h-11 px-3"');
       expect(button).toContain('icon: "size-11"');
       expect(header).toContain('<Button variant="ghost" size="sm"');
@@ -251,7 +349,9 @@ describe("generated desktop and Expo accessibility contract", () => {
       const nativeSources = files
         .filter(
           ({ path }) =>
-            path.startsWith(`${prefix}app/`) || path.startsWith(`${prefix}src/components/`),
+            path.startsWith(`${prefix}app/`) ||
+            path.startsWith(`${prefix}src/components/`) ||
+            path.startsWith(`${prefix}src/features/`),
         )
         .map(({ content }) => content)
         .join("\n");

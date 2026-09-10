@@ -46,8 +46,9 @@ describe("Convex Better Auth email ownership", () => {
           files,
           mode === "monorepo" ? "packages/auth/src/client.ts" : "src/lib/auth-client.ts",
         );
-        const signIn = read(files, `${root}src/components/auth/sign-in-form.tsx`);
-        const signUp = read(files, `${root}src/components/auth/sign-up-form.tsx`);
+        const signIn = read(files, `${root}src/features/auth/use-sign-in-form.ts`);
+        const signUp = read(files, `${root}src/features/auth/use-sign-up-form.ts`);
+        const mutations = read(files, `${root}src/features/auth/mutations.ts`);
 
         expect(parseSync("convex/auth.ts", auth).errors).toEqual([]);
         expect(parseSync("convex/authEmail.ts", delivery).errors).toEqual([]);
@@ -68,8 +69,10 @@ describe("Convex Better Auth email ownership", () => {
         );
         expect(auth).toContain("magicLink({");
         expect(client).toContain("magicLinkClient");
-        expect(signIn).toContain("identityClient.signInWithEmail");
-        expect(signUp).toContain("identityClient.signUpWithEmail");
+        expect(signIn).toContain("await signInWithEmail(value)");
+        expect(signUp).toContain("await signUpWithEmail(value)");
+        expect(mutations).toContain("identityClient.signInWithEmail");
+        expect(mutations).toContain("identityClient.signUpWithEmail");
 
         expect(auth).toContain("ctx.scheduler");
         expect(auth).toContain("internal.authEmail.send");
@@ -120,9 +123,10 @@ describe("Convex Better Auth email ownership", () => {
           files,
           mode === "monorepo" ? "packages/auth/src/client.ts" : "src/lib/auth-client.ts",
         );
-        const signIn = read(files, `${root}src/components/auth/sign-in-form.tsx`);
-        const signInMethods = read(files, `${root}src/components/auth/sign-in-methods.tsx`);
-        const signUp = read(files, `${root}src/components/auth/sign-up-form.tsx`);
+        const signIn = read(files, `${root}src/features/auth/components/sign-in-form.tsx`);
+        const signInMethods = read(files, `${root}src/features/auth/use-auth-methods.ts`);
+        const signUp = read(files, `${root}src/features/auth/components/sign-up-form.tsx`);
+        const mutations = read(files, `${root}src/features/auth/mutations.ts`);
 
         expect(parseSync("convex/auth.ts", auth).errors).toEqual([]);
         expect(auth).toContain("emailAndPassword: { enabled: false }");
@@ -134,13 +138,16 @@ describe("Convex Better Auth email ownership", () => {
         expect(files.some(({ path }) => path === "convex/authEmail.ts")).toBe(false);
 
         expect(signIn).toContain('t("signIn.emailDisabled")');
-        expect(signIn).toContain("<SignInMethods />");
+        expect(signIn).toContain("<SignInMethods state={methods}");
         expect(signIn).not.toContain("identityClient.signInWithOAuth");
-        expect(signInMethods).toContain("identityClient.signInWithOAuth");
+        expect(signInMethods).toContain("await signInWithOAuth(provider)");
         expect(signInMethods).not.toContain("identityClient.signInWithEmail");
         expect(signIn).not.toContain("identityClient.signInWithEmail");
         expect(signUp).toContain('t("signUp.emailDisabled")');
-        expect(signUp).toContain("identityClient.signInWithOAuth");
+        expect(signUp).toContain("<AuthOAuthButtons");
+        expect(mutations).toContain("identityClient.signInWithOAuth");
+        expect(mutations).not.toContain("identityClient.signInWithEmail");
+        expect(mutations).not.toContain("identityClient.signUpWithEmail");
         expect(signUp).not.toContain("identityClient.signUpWithEmail");
 
         for (const segment of ["forgot-password", "reset-password", "verify-email", "magic-link"]) {
@@ -188,9 +195,25 @@ describe("Convex Better Auth email ownership", () => {
     ]) {
       const source = read(files, path);
       expect(parseSync(path, source).errors, path).toEqual([]);
-      expect(source, path).toMatch(/(?:Email\/password sign-in|Password signup).*unavailable/);
-      expect(source, path).not.toContain("authClient.signIn.email");
-      expect(source, path).not.toContain("authClient.signUp.email");
+      expect(source, path).toContain("features/auth/");
+      const root = path.startsWith("apps/mobile/")
+        ? "apps/mobile/src"
+        : "apps/desktop/src/renderer";
+      const feature = files
+        .filter((entry) => entry.path.startsWith(`${root}/features/auth/`))
+        .map((entry) => entry.content)
+        .join("\n");
+      const copy = JSON.parse(read(files, `${root}/lib/translations.en.json`)) as {
+        auth: { signIn: { emailDisabled: string }; signUp: { emailDisabled: string } };
+      };
+      expect(feature, path).toContain("emailDisabled");
+      expect(copy.auth.signIn.emailDisabled, path).toContain("sign-in options");
+      expect(copy.auth.signUp.emailDisabled, path).toContain("option");
+      expect(feature, path).not.toMatch(/name="(?:password|email)"|type="password"/);
+      expect(feature, path).not.toContain("authClient.signIn.email");
+      expect(feature, path).not.toContain("authClient.signUp.email");
+      expect(feature, path).not.toContain("identityClient.signInWithEmail");
+      expect(feature, path).not.toContain("identityClient.signUpWithEmail");
     }
   });
 });

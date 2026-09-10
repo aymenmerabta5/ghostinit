@@ -1,10 +1,10 @@
-// @allow-long 611: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
+// @allow-long 617: detector, catalog projection, and baseline CLI stay together so the committed gate has one executable definition
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseSync } from "oxc-parser";
-import { billingProviders } from "../../src/lib/addons.js";
+import { GLOBAL_BILLING_PROVIDERS } from "../../src/domain/project/choices.js";
 import { projectConfigSchema, type ProjectConfig } from "../../src/lib/config.js";
 import { FsTransaction, type StagedFile } from "../../src/lib/fs.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -331,19 +331,20 @@ function catalogConfig(
   framework: "nextjs" | "tanstack-start",
   database: "postgres" | "convex",
   capabilities: "off" | "on",
+  globalProvider?: (typeof GLOBAL_BILLING_PROVIDERS)[number],
 ): CatalogConfiguration {
   const enabled = capabilities === "on";
   const allApps = enabled && mode === "monorepo";
   const profile = allApps ? "capabilities-on-all-apps" : `capabilities-${capabilities}`;
   return {
-    configKey: `${mode}/${framework}/${database}/${profile}`,
+    configKey: `${mode}/${framework}/${database}/${profile}${enabled ? `/billing-${globalProvider}-chargily-manual` : ""}`,
     config: projectConfigSchema.parse({
       name: "unsafe-syntax-catalog",
       runtime: "bun",
       version: "0.1.0",
       mode,
       preset: "custom",
-      billing: enabled ? [...billingProviders] : [],
+      billing: enabled ? [globalProvider, "chargily", "manual"] : [],
       features: [],
       database,
       framework,
@@ -357,17 +358,18 @@ function singleNonWebCatalogConfig(
   framework: "nextjs" | "tanstack-start",
   database: "postgres" | "convex" | "none",
   app: "mobile" | "desktop",
+  globalProvider?: (typeof GLOBAL_BILLING_PROVIDERS)[number],
 ): CatalogConfiguration {
   const enabled = database !== "none";
   return {
-    configKey: `single/${framework}/${database}/capabilities-${enabled ? "on" : "off"}-${app}`,
+    configKey: `single/${framework}/${database}/capabilities-${enabled ? "on" : "off"}-${app}${enabled ? `/billing-${globalProvider}-chargily-manual` : ""}`,
     config: projectConfigSchema.parse({
       name: "unsafe-syntax-catalog",
       runtime: "bun",
       version: "0.1.0",
       mode: "single",
       preset: "custom",
-      billing: enabled ? [...billingProviders] : [],
+      billing: enabled ? [globalProvider, "chargily", "manual"] : [],
       features: [],
       database,
       framework,
@@ -404,16 +406,16 @@ function statelessCatalogConfig(
 const modes = ["monorepo", "single"] as const;
 const frameworks = ["nextjs", "tanstack-start"] as const;
 const databases = ["postgres", "convex"] as const;
-const capabilitySettings = ["off", "on"] as const;
 
 export const PROJECTION_CONFIGURATIONS: CatalogConfiguration[] = modes
   .flatMap((mode) =>
     frameworks.flatMap((framework) =>
-      databases.flatMap((database) =>
-        capabilitySettings.map((capabilities) =>
-          catalogConfig(mode, framework, database, capabilities),
+      databases.flatMap((database) => [
+        catalogConfig(mode, framework, database, "off"),
+        ...GLOBAL_BILLING_PROVIDERS.map((provider) =>
+          catalogConfig(mode, framework, database, "on", provider),
         ),
-      ),
+      ]),
     ),
   )
   .concat(
@@ -428,8 +430,12 @@ export const PROJECTION_CONFIGURATIONS: CatalogConfiguration[] = modes
   .concat(
     frameworks.flatMap((framework) =>
       ([...databases, "none"] as const).flatMap((database) =>
-        (["mobile", "desktop"] as const).map((app) =>
-          singleNonWebCatalogConfig(framework, database, app),
+        (["mobile", "desktop"] as const).flatMap((app) =>
+          database === "none"
+            ? [singleNonWebCatalogConfig(framework, database, app)]
+            : GLOBAL_BILLING_PROVIDERS.map((provider) =>
+                singleNonWebCatalogConfig(framework, database, app, provider),
+              ),
         ),
       ),
     ),
@@ -444,7 +450,7 @@ export const GATE_CONFIGURATIONS: CatalogConfiguration[] = [
       version: "0.1.0",
       mode: "monorepo",
       preset: "saas",
-      billing: [...billingProviders],
+      billing: ["stripe", "chargily"],
       features: [],
       database: "postgres",
       framework: "nextjs",
@@ -460,7 +466,7 @@ export const GATE_CONFIGURATIONS: CatalogConfiguration[] = [
       version: "0.1.0",
       mode: "single",
       preset: "saas",
-      billing: [...billingProviders],
+      billing: ["stripe"],
       features: [],
       database: "postgres",
       framework: "nextjs",

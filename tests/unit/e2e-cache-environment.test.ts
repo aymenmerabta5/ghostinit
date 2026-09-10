@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  parseSync,
+  Visitor,
+  type BlockStatement,
+  type CallExpression,
+  type ForOfStatement,
+} from "oxc-parser";
 import { z } from "zod";
 import { projectConfigSchema } from "../../src/lib/config.js";
 import { generateProjectFiles } from "../../src/templates/default.js";
@@ -150,11 +157,50 @@ describe("cache-enabled production E2E configuration", () => {
     );
     const url = harness.match(/UPSTASH_REDIS_REST_URL: "([^"]+)"/)?.[1] ?? "";
     const token = harness.match(/UPSTASH_REDIS_REST_TOKEN: "([^"]+)"/)?.[1] ?? "";
+    const parsed = parseSync("e2e-build.test.ts", harness);
+    expect(parsed.errors).toEqual([]);
+    const callbacks: BlockStatement[] = [];
+    const creations: CallExpression[] = [];
+    const providerLoops: ForOfStatement[] = [];
+    new Visitor({
+      CallExpression(node) {
+        if (node.callee.type !== "Identifier") return;
+        if (node.callee.name === "createProject") creations.push(node);
+        const callback = node.arguments[1];
+        if (
+          node.callee.name === "it" &&
+          (callback?.type === "ArrowFunctionExpression" ||
+            callback?.type === "FunctionExpression") &&
+          callback.body.type === "BlockStatement"
+        ) {
+          callbacks.push(callback.body);
+        }
+      },
+      ForOfStatement(node) {
+        if (
+          node.left.type === "VariableDeclaration" &&
+          node.left.declarations.some(
+            ({ id }) => id.type === "Identifier" && id.name === "provider",
+          )
+        ) {
+          providerLoops.push(node);
+        }
+      },
+    }).visit(parsed.program);
     const scenario = (name: string): string => {
-      const start = harness.indexOf(`createProject("${name}"`);
-      expect(start).toBeGreaterThanOrEqual(0);
-      const end = harness.indexOf("\n  it(", start);
-      return harness.slice(start, end < 0 ? harness.length : end);
+      const matches = creations.filter(({ arguments: [argument] }) =>
+        argument?.type === "Literal"
+          ? argument.value === name
+          : argument?.type === "TemplateLiteral" &&
+            harness.slice(argument.start + 1, argument.end - 1) === name,
+      );
+      expect(matches, `one createProject call for ${name}`).toHaveLength(1);
+      const creation = matches[0]!;
+      const owners = callbacks.filter(
+        (callback) => callback.start <= creation.start && callback.end >= creation.end,
+      );
+      expect(owners, `one test callback for ${name}`).toHaveLength(1);
+      return harness.slice(owners[0]!.start, owners[0]!.end);
     };
     const customHeavy = scenario("custom-heavy");
 
@@ -170,8 +216,29 @@ describe("cache-enabled production E2E configuration", () => {
     expect(harness).toContain("await expectPostgresAuthenticationFailureIsFatal");
     expect(harness).toContain("await isolatedPostgres?.close()");
     expect(harness).toContain("...options.environmentOverrides");
-    for (const name of ["smoke", "billall", "multi-app"]) {
-      expect(scenario(name)).toContain("stockNextLoopback: true");
+    expect(providerLoops).toHaveLength(1);
+    const providerLoop = providerLoops[0]!;
+    const providers =
+      providerLoop.right.type === "TSAsExpression"
+        ? providerLoop.right.expression
+        : providerLoop.right;
+    expect(
+      providers.type === "ArrayExpression"
+        ? providers.elements.map((provider) =>
+            provider?.type === "Literal" ? provider.value : undefined,
+          )
+        : [],
+    ).toEqual(["stripe", "paddle", "polar"]);
+    const billing = scenario("billing-${provider}");
+    expect(harness.slice(providerLoop.body.start, providerLoop.body.end)).toContain(billing);
+    expect(billing).toContain('"--billing"');
+    expect(billing).toContain("`${provider},chargily,manual`");
+    expect(billing).toContain('"--with-eve"');
+    for (const name of ["smoke", "billing-${provider}", "multi-app"]) {
+      const body = scenario(name);
+      expect(body).toContain("stockNextLoopback: true");
+      expect(body).not.toContain("environmentOverrides: E2E_REDIS_ENVIRONMENT");
+      expect(body).not.toContain("isolatedPostgres: true");
     }
     expect(harness.match(/stockNextLoopback: true/g)).toHaveLength(3);
     expect(customHeavy).toContain("messagingBoundary: true");

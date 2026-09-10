@@ -57,6 +57,45 @@ function issueKey(issue: {
 }
 
 describe("V2 desired-state resolution", () => {
+  test("rejects each global provider conflict with and without manual or Chargily", () => {
+    for (const providers of [
+      ["stripe", "polar"],
+      ["stripe", "paddle"],
+      ["paddle", "polar"],
+      ["manual", "chargily", "stripe", "polar"],
+    ] as const) {
+      const result = resolveProjectConfig(
+        desired({ capabilities: { billing: { providers: [...providers] } } }),
+      );
+      expect(result.ok).toBe(false);
+      expect(
+        result.issues.some(
+          (issue) =>
+            issue.code === "billing-provider-conflict" &&
+            issue.path === "/capabilities/billing/providers",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  test("accepts manual alone and Chargily with each optional global provider", () => {
+    for (const providers of [
+      ["manual"],
+      ["chargily"],
+      ["manual", "chargily"],
+      ["manual", "chargily", "stripe"],
+      ["manual", "chargily", "polar"],
+      ["manual", "chargily", "paddle"],
+    ] as const) {
+      const result = resolveProjectConfig(
+        desired({ capabilities: { billing: { providers: [...providers] } } }),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok)
+        expect(result.config.capabilities.billing.providers).toEqual([...providers].sort());
+    }
+  });
+
   test("fails closed for an unreviewed Cloudflare capability without a backend", () => {
     const result = resolveProjectConfig(
       desired({
