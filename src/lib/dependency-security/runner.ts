@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import {
   buildInstallEnv,
   INSTALL_TIMEOUT_MS,
@@ -40,6 +40,13 @@ export class SecurityCommandRunner {
     );
     this.environment.HOME = join(privateDirectory, "home");
     this.environment.USERPROFILE = join(privateDirectory, "home");
+    const pathEntries = Object.entries(this.environment).filter(
+      ([key]) => key.toUpperCase() === "PATH",
+    );
+    if (pathEntries.length > 1) invalid("installer environment contains ambiguous PATH entries");
+    const [pathKey = process.platform === "win32" ? "Path" : "PATH", pathValue] =
+      pathEntries[0] ?? [];
+    this.environment[pathKey] = [dirname(this.bun), pathValue].filter(Boolean).join(delimiter);
   }
 
   async run(

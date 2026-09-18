@@ -66,19 +66,19 @@ describe("process-tree cleanup", () => {
   test("resolves Windows cleanup tools from canonical System32 despite cwd and PATH shadows", () => {
     if (process.platform !== "win32") return;
     const root = mkdtempSync(join(tmpdir(), "ghostinit-system-tool-shadow-"));
-    const originalCwd = process.cwd();
-    const originalPath = process.env.PATH;
     try {
       const harmlessExecutable = join(process.env.SystemRoot!, "System32", "where.exe");
       const fakeTaskkill = join(root, "taskkill.exe");
       const fakePowerShell = join(root, "powershell.exe");
       copyFileSync(harmlessExecutable, fakeTaskkill);
       copyFileSync(harmlessExecutable, fakePowerShell);
-      process.chdir(root);
-      process.env.PATH = `${root};${originalPath ?? ""}`;
+      const pathEntry = Object.entries(process.env).find(([key]) => key.toUpperCase() === "PATH");
+      if (!pathEntry) throw new Error("Windows PATH is unavailable");
+      const [pathKey, pathValue] = pathEntry;
       const shadowed = spawnSync("taskkill", ["where.exe"], {
         cwd: root,
         encoding: "utf8",
+        env: { ...process.env, [pathKey]: `${root};${pathValue}` },
         shell: false,
         windowsHide: true,
       });
@@ -99,9 +99,6 @@ describe("process-tree cleanup", () => {
         );
       }
     } finally {
-      process.chdir(originalCwd);
-      if (originalPath === undefined) delete process.env.PATH;
-      else process.env.PATH = originalPath;
       rmSync(root, { recursive: true, force: true });
     }
   });

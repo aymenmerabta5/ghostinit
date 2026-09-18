@@ -113,7 +113,7 @@ export function securityProcessFixture(): SecurityProcessFixture {
     commands,
     candidates,
     dependencies: {
-      resolveBun: () => "verified-bun-test-executable",
+      resolveBun: () => resolve("verified-bun-test-executable"),
       runCommand: async (input) => {
         commands.push(input);
         const argv = input.argv.filter((part) => part !== "--no-env-file");

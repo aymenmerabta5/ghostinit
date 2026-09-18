@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { readFile, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { FsTransaction } from "../../src/lib/fs.js";
 import { runDependencySecurityWithDependencies } from "../../src/lib/dependency-security/runtime.js";
 import {
@@ -77,6 +77,11 @@ describe("dependency security phase coordination", () => {
     expect(audit).toMatchObject({ status: "blocked", applied: false, installedVerified: false });
     expect(audit.remaining[0].package).toBe("vulnerable-child");
     expect(fixture.commands.some((input) => input.argv.includes("fix"))).toBe(false);
+    for (const input of fixture.commands) {
+      const pathEntries = Object.entries(input.env).filter(([key]) => key.toUpperCase() === "PATH");
+      expect(pathEntries).toHaveLength(1);
+      expect(pathEntries[0]?.[1]?.split(delimiter)[0]).toBe(dirname(input.command));
+    }
     expect(await securityTreeBytes(root)).toEqual(before);
   });
 
