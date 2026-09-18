@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { FsTransaction } from "../../src/lib/fs.js";
-import { runDependencySecurityWithDependencies } from "../../src/lib/dependency-security/runtime.js";
+import {
+  createCanonicalSecurityTemporaryRoot,
+  runDependencySecurityWithDependencies,
+} from "../../src/lib/dependency-security/runtime.js";
 import {
   assertSecurityInputsUnchanged,
   snapshotSecurityWorkspace,
@@ -31,6 +35,23 @@ describe("dependency security phase coordination", () => {
     for (const candidate of retainedCandidates)
       await rm(candidate, { recursive: true, force: true });
     retainedCandidates.clear();
+  });
+
+  it("creates security candidates through the canonical target of a temporary alias", async () => {
+    const parent = await mkdtemp(join(await realpath(tmpdir()), "ghostinit-security-alias-"));
+    try {
+      const target = join(parent, "target");
+      const alias = join(parent, "alias");
+      await mkdir(target);
+      await symlink(target, alias, process.platform === "win32" ? "junction" : "dir");
+
+      const temporary = await createCanonicalSecurityTemporaryRoot(alias);
+      expect(temporary).toBe(await realpath(temporary));
+      expect(dirname(temporary)).toBe(await realpath(target));
+      await rm(temporary, { recursive: true, force: true });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
   });
 
   it("previews actual compatible fixes without project bytes, locks, source copies, or installs", async () => {

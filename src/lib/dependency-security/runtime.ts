@@ -96,6 +96,16 @@ function validatePolicy(policy: DependencySecurityPolicy): void {
   }
 }
 
+/** @internal Lock generation must not bind to a short-path, symlink, or junction temp alias. */
+export async function createCanonicalSecurityTemporaryRoot(parent = tmpdir()): Promise<string> {
+  const canonicalParent = await realpath(parent);
+  const temporary = await mkdtemp(join(canonicalParent, "ghostinit-security-"));
+  const canonical = await realpath(temporary);
+  if (resolve(canonical) !== resolve(temporary))
+    invalid("dependency security temporary root must be canonical");
+  return canonical;
+}
+
 function mayBePatched(item: DependencySecurityAdvisory, policy: DependencySecurityPolicy): boolean {
   return policy.patchedAdvisories.some(
     (patch) =>
@@ -534,7 +544,7 @@ export async function runDependencySecurityWithDependencies(
     if (mutating && !options.leaseOwner) lease = await acquireLock(options.cwd, logger);
     owner = options.leaseOwner ?? lease?.owner;
     if (mutating && owner) await securityLeaseContent(options.cwd, owner);
-    temporary = await mkdtemp(join(tmpdir(), "ghostinit-security-"));
+    temporary = await createCanonicalSecurityTemporaryRoot();
     const nested = relative(resolve(options.cwd), resolve(temporary));
     if (nested === "" || (!nested.startsWith("..") && !isAbsolute(nested)))
       invalid("security candidates must be outside the project");
@@ -573,7 +583,7 @@ export async function runDependencySecurityWithDependencies(
   } finally {
     try {
       if (temporary && runner?.canRemoveTemporaryFiles !== false) {
-        // Only delete the exact directory returned by mkdtemp, never a project path.
+        // Only delete the exact canonical directory created above, never a project path.
         const canonical = await realpath(temporary);
         if (resolve(canonical) === resolve(temporary))
           await rm(temporary, { recursive: true, force: true });
