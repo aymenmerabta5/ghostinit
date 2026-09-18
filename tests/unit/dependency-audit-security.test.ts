@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   writeFileSync,
@@ -74,8 +75,8 @@ function generated(mode: "monorepo" | "single", mobile: boolean) {
 }
 
 function removeTemporaryDirectory(path: string): void {
-  const base = resolve(tmpdir());
-  const target = resolve(path);
+  const base = realpathSync.native(resolve(tmpdir()));
+  const target = realpathSync.native(resolve(path));
   const descendant = relative(base, target);
   if (
     descendant.length === 0 ||
@@ -323,7 +324,9 @@ describe("reviewed image-size advisory containment", () => {
   });
 
   test("bootstraps a fresh lock without lifecycle scripts, then enforces evidence before lifecycle", async () => {
-    const temporaryRoot = mkdtempSync(join(tmpdir(), "ghostinit-audit-bootstrap-"));
+    const temporaryRoot = realpathSync.native(
+      mkdtempSync(join(tmpdir(), "ghostinit-audit-bootstrap-")),
+    );
     try {
       mkdirSync(resolve(temporaryRoot, "scripts"), { recursive: true });
       mkdirSync(resolve(temporaryRoot, "packages/local"), { recursive: true });
