@@ -89,6 +89,23 @@ function removeTemporaryDirectory(path: string): void {
   rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
+function syntheticBootstrapDiagnostic(root: string, argv: readonly string[]): string {
+  const result = spawnSync(process.execPath, ["--no-env-file", ...argv], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 60_000,
+    windowsHide: true,
+  });
+  return JSON.stringify({
+    argv,
+    status: result.status,
+    signal: result.signal,
+    error: result.error?.message,
+    stdout: result.stdout.slice(-4_000),
+    stderr: result.stderr.slice(-4_000),
+  });
+}
+
 function dependencyAuditWithMockedBunAudit(
   hasImageSizePatch: boolean,
   spawnResultExpression: string,
@@ -407,9 +424,33 @@ describe("reviewed image-size advisory containment", () => {
         timeout: 180_000,
         windowsHide: true,
       });
+      const diagnostics =
+        bootstrap.status === 0
+          ? ""
+          : [
+              `Synthetic fixture state: ${JSON.stringify({
+                lock: existsSync(resolve(temporaryRoot, "bun.lock")),
+                evidence: existsSync(resolve(temporaryRoot, "dependency-lock-evidence.json")),
+                lifecycle: existsSync(resolve(temporaryRoot, "lifecycle-attested")),
+                journal: existsSync(
+                  resolve(temporaryRoot, ".ghostinit/security-installation.json"),
+                ),
+                nodeModules: existsSync(resolve(temporaryRoot, "node_modules")),
+              })}`,
+              syntheticBootstrapDiagnostic(temporaryRoot, [
+                "scripts/audit-dependencies.ts",
+                "--lock-only",
+              ]),
+              syntheticBootstrapDiagnostic(temporaryRoot, [
+                "install",
+                "--frozen-lockfile",
+                "--ignore-scripts",
+              ]),
+              syntheticBootstrapDiagnostic(temporaryRoot, ["install", "--frozen-lockfile"]),
+            ].join("\n");
       expect(
         bootstrap.status,
-        `Fresh bootstrap failed:\n${bootstrap.stdout}\n${bootstrap.stderr}`,
+        `Fresh bootstrap failed:\n${bootstrap.stdout}\n${bootstrap.stderr}\n${diagnostics}`,
       ).toBe(0);
       expect(existsSync(resolve(temporaryRoot, "bun.lock"))).toBe(true);
       expect(existsSync(resolve(temporaryRoot, "dependency-lock-evidence.json"))).toBe(true);
