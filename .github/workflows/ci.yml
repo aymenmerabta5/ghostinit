@@ -48,6 +48,8 @@ jobs:
       - name: Probe native Windows process discovery
         if: runner.os == 'Windows'
         run: bun test --timeout 120000 tests/unit/cloudflare-process-inspection.test.ts
+      - name: Test dependency security bootstrap portability
+        run: bun test --timeout 120000 tests/unit/dependency-audit-security.test.ts
       - name: Test installer, supervisors, process-tree, filesystem, and Bun portability
         run: >-
           bun test --timeout 120000
@@ -76,7 +78,6 @@ jobs:
           tests/unit/fs.test.ts
           tests/unit/bun-version-ssot.test.ts
           tests/unit/supply-chain-install-policy.test.ts
-          tests/unit/dependency-audit-security.test.ts
           tests/unit/external-readiness-harness.test.ts
           tests/unit/external-readiness-workflow.test.ts
       - name: Build CLI for portable package acceptance

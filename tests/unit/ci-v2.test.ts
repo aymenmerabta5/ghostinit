@@ -299,6 +299,17 @@ test("required CI uses exact branches, Bun, and retained gates", () => {
     matrix: { os: ["ubuntu-latest", "windows-latest", "macos-latest"] },
   });
   const portabilityRuns = normalizedRuns("portability");
+  const dependencySecurityPortability = portability.steps.find(
+    ({ name }) => name === "Test dependency security bootstrap portability",
+  );
+  expect(dependencySecurityPortability?.run).toBe(
+    "bun test --timeout 120000 tests/unit/dependency-audit-security.test.ts",
+  );
+  const combinedPortability = portability.steps.find(
+    ({ name }) =>
+      name === "Test installer, supervisors, process-tree, filesystem, and Bun portability",
+  );
+  expect(combinedPortability?.run).not.toContain("tests/unit/dependency-audit-security.test.ts");
   for (const required of [
     "bun install --frozen-lockfile",
     "Bun.version !== runtime.bun",

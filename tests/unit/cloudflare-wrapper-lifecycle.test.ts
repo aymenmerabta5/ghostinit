@@ -31,6 +31,25 @@ async function waitUntil(predicate: () => boolean, milliseconds = 15_000): Promi
   expect(predicate()).toBe(true);
 }
 
+interface EnvironmentLockRecord {
+  readonly pid: number;
+  readonly child?: {
+    readonly createdAt?: string;
+    readonly pid: number;
+    readonly processGroup: number;
+  };
+}
+
+function readCompleteEnvironmentLock(path: string): EnvironmentLockRecord | undefined {
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as EnvironmentLockRecord;
+  } catch (error) {
+    if (error instanceof SyntaxError) return undefined;
+    throw error;
+  }
+}
+
 function processIsLive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -199,8 +218,10 @@ describe("generated Worker process supervision", () => {
         const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
         try {
           await waitUntil(() => existsSync(join(fixture.root, ".descendant-heartbeat")));
+          await waitUntil(() => Boolean(readCompleteEnvironmentLock(lockPath)?.child?.createdAt));
           const runtimePid = Number(readFileSync(join(fixture.root, ".runtime-pid"), "utf8"));
-          const record = JSON.parse(readFileSync(lockPath, "utf8"));
+          const record = readCompleteEnvironmentLock(lockPath);
+          expect(record).toBeDefined();
           expect(record.pid).toBe(wrapper.child.pid);
           expect(record.child.processGroup).toBeGreaterThan(1);
           expect(processIsLive(runtimePid)).toBe(true);
@@ -231,7 +252,7 @@ describe("generated Worker process supervision", () => {
       const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
       try {
         await waitUntil(() => existsSync(join(fixture.root, ".descendant-heartbeat")));
-        await waitUntil(() => Boolean(JSON.parse(readFileSync(lockPath, "utf8")).child?.createdAt));
+        await waitUntil(() => Boolean(readCompleteEnvironmentLock(lockPath)?.child?.createdAt));
         // Windows TerminateProcess bypasses JS handlers; no graceful cleanup is claimed.
         wrapper.child.kill("SIGTERM");
         await wrapper.exited;
@@ -344,11 +365,7 @@ setInterval(() => {
       const wrapper = startWrapper(fixture, "dev");
       const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
       try {
-        await waitUntil(
-          () =>
-            existsSync(lockPath) &&
-            Boolean(JSON.parse(readFileSync(lockPath, "utf8")).child?.createdAt),
-        );
+        await waitUntil(() => Boolean(readCompleteEnvironmentLock(lockPath)?.child?.createdAt));
         writeFileSync(join(fixture.root, ".spawn-late-descendant"), "spawn");
         await waitUntil(() => wrapper.child.exitCode !== null);
         expect(await wrapper.exited).not.toBe(0);
