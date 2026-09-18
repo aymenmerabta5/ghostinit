@@ -218,7 +218,7 @@ describe("generated Worker process supervision", () => {
         const lockPath = join(fixture.root, ".dev.vars.ghostinit-build-lock");
         try {
           await waitUntil(() => existsSync(join(fixture.root, ".descendant-heartbeat")));
-          await waitUntil(() => Boolean(readCompleteEnvironmentLock(lockPath)?.child?.createdAt));
+          await waitUntil(() => Boolean(readCompleteEnvironmentLock(lockPath)?.child));
           const runtimePid = Number(readFileSync(join(fixture.root, ".runtime-pid"), "utf8"));
           const record = readCompleteEnvironmentLock(lockPath);
           expect(record).toBeDefined();
