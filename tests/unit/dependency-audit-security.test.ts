@@ -810,7 +810,14 @@ const fetch = async () => {
       },
     });
     await finished;
-    expect(observed).toMatchObject({ cwd: "/fixture", mode: "install", bootstrap: true, policy });
+    expect(observed).toEqual({
+      cwd: "/fixture",
+      mode: "install",
+      dryRun: false,
+      bootstrap: true,
+      verifyProject: false,
+      policy,
+    });
     expect(readFileSync(resolve(root, "scripts/test-generated.ts"), "utf8")).toContain(
       'await run(BUN_EXECUTABLE, ["run", "install:bootstrap"], directory)',
     );

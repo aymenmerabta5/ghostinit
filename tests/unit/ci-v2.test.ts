@@ -457,6 +457,12 @@ test("E2E smoke uses Bun and owns safe process and workspace cleanup", () => {
   expect(source).toContain("trap 'exit 143' TERM");
   expect(source).toContain("trap '' INT TERM");
   expect(source).toContain("setsid bun run dev &");
+  expect(source).toContain("capture_dev_process_group");
+  expect(source).toContain('if [ "$candidate" -gt 1 ] && [ "$candidate" = "$pid" ]');
+  expect(source).toContain('if ! kill -0 "$pid"');
+  expect(source.indexOf("capture_dev_process_group")).toBeLessThan(
+    source.lastIndexOf("capture_dev_process_group"),
+  );
   expect(source).toContain('kill -TERM -- "-$pgid"');
   expect(source).toContain('kill -KILL -- "-$pgid"');
   expect(source).toContain('wait "$pid"');
@@ -955,7 +961,7 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
   expect(source).toContain("health route returned a stale or cached stability payload");
   expect(processSource).toContain('detached: process.platform !== "win32"');
   expect(processSource).toContain("terminateProcessTree as terminateVerifiedProcessTree");
-  expect(processSource).toContain("await terminateVerifiedProcessTree(child)");
+  expect(processSource).toContain("posixGraceMs: SUPERVISED_PROCESS_TREE_GRACE_MS");
   expect(processSource).toContain("const completion = runSupervisedCommand({");
   expect(processSource).toContain("activeCommands.set(controller, completion)");
   expect(processSource).toContain('controller.abort("SIGTERM")');

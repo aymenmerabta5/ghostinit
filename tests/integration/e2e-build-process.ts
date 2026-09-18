@@ -61,6 +61,10 @@ const MAX_PUBLIC_ARTIFACT_BYTES = 512 * 1024 * 1024;
 const MAX_PUBLIC_ARTIFACT_FILES = 100_000;
 const MAX_PUBLIC_ARTIFACT_DEPTH = 64;
 const MAX_HEALTH_CLOCK_SKEW_MS = 60_000;
+// Generated supervisors own a 20s graceful phase plus a 5s forced phase for
+// their detached, scope-tagged children. The outer harness must not kill the
+// supervisor before that cleanup protocol has had time to finish.
+const SUPERVISED_PROCESS_TREE_GRACE_MS = 30_000;
 const activeChildren = new Set<ChildProcess>();
 const posixRootIdentities = new WeakMap<ChildProcess, PosixProcessIdentity>();
 const activeCommands = new Map<AbortController, Promise<CommandResult>>();
@@ -471,7 +475,9 @@ export async function assertLoopbackPortUnowned(port: number): Promise<void> {
 }
 
 export async function terminateProcessTree(child: ChildProcess): Promise<void> {
-  await terminateVerifiedProcessTree(child);
+  await terminateVerifiedProcessTree(child, [], {
+    posixGraceMs: SUPERVISED_PROCESS_TREE_GRACE_MS,
+  });
   activeChildren.delete(child);
 }
 

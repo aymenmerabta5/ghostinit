@@ -25,6 +25,11 @@ export interface WindowsProcessRecord {
   createdAt: string;
 }
 
+export interface ProcessTreeTerminationOptions {
+  /** Time allowed for a POSIX root to finish its own verified descendant cleanup. */
+  readonly posixGraceMs?: number;
+}
+
 function sameWindowsProcessIdentity(
   left: WindowsProcessRecord,
   right: WindowsProcessRecord,
@@ -616,7 +621,17 @@ async function terminateWindowsTree(
   }
 }
 
-async function terminatePosixGroup(child: ChildProcess, rootPid: number): Promise<void> {
+async function terminatePosixGroup(
+  child: ChildProcess,
+  rootPid: number,
+  options: ProcessTreeTerminationOptions,
+): Promise<void> {
+  const graceMs = options.posixGraceMs ?? 2_000;
+  if (!Number.isSafeInteger(graceMs) || graceMs < 100 || graceMs > 60_000) {
+    throw new ProcessTreeTerminationError(
+      "POSIX process-tree grace must be between 100 and 60000ms",
+    );
+  }
   if (!processGroupExists(rootPid)) {
     if (child.exitCode === null && child.signalCode === null) {
       throw new ProcessTreeTerminationError(
@@ -627,13 +642,17 @@ async function terminatePosixGroup(child: ChildProcess, rootPid: number): Promis
   }
 
   signalPosixProcessGroup(rootPid, "SIGTERM");
-  const childExitedAfterTerm = await waitForExit(child, 2_000);
-  const groupExitedAfterTerm = await waitForProcessGroupExit(rootPid, 2_000);
+  const [childExitedAfterTerm, groupExitedAfterTerm] = await Promise.all([
+    waitForExit(child, graceMs),
+    waitForProcessGroupExit(rootPid, graceMs),
+  ]);
   if (childExitedAfterTerm && groupExitedAfterTerm) return;
 
   signalPosixProcessGroup(rootPid, "SIGKILL");
-  const childExitedAfterKill = await waitForExit(child, 5_000);
-  const groupExitedAfterKill = await waitForProcessGroupExit(rootPid, 5_000);
+  const [childExitedAfterKill, groupExitedAfterKill] = await Promise.all([
+    waitForExit(child, 5_000),
+    waitForProcessGroupExit(rootPid, 5_000),
+  ]);
   if (!childExitedAfterKill || !groupExitedAfterKill) {
     throw new ProcessTreeTerminationError(
       `POSIX process group ${rootPid} did not terminate after SIGKILL`,
@@ -644,6 +663,7 @@ async function terminatePosixGroup(child: ChildProcess, rootPid: number): Promis
 export async function terminateProcessTree(
   child: ChildProcess,
   initiallyCaptured: readonly WindowsProcessRecord[] = [],
+  options: ProcessTreeTerminationOptions = {},
 ): Promise<void> {
   const pid = child.pid;
   if (pid === undefined) {
@@ -652,5 +672,5 @@ export async function terminateProcessTree(
     );
   }
   if (process.platform === "win32") await terminateWindowsTree(child, pid, initiallyCaptured);
-  else await terminatePosixGroup(child, pid);
+  else await terminatePosixGroup(child, pid, options);
 }

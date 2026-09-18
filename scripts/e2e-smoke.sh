@@ -65,6 +65,35 @@ dev_group_has_live_processes() {
   '
 }
 
+capture_dev_process_group() {
+  local pid="$DEV_PID"
+  local shell_pgid
+  local candidate
+
+  shell_pgid="$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
+  for _ in $(seq 1 100); do
+    candidate="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)"
+    case "$candidate" in
+      "" | *[!0-9]*) ;;
+      *)
+        if [ "$candidate" -gt 1 ] && [ "$candidate" = "$pid" ] && [ "$candidate" != "$shell_pgid" ]; then
+          DEV_PGID="$candidate"
+          return 0
+        fi
+        ;;
+    esac
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null || true
+      echo "  dev server exited before establishing its process group" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
+
+  echo "  dev server did not establish an isolated process group" >&2
+  return 1
+}
+
 terminate_dev_process() {
   local pid="$DEV_PID"
   local pgid="$DEV_PGID"
@@ -209,19 +238,7 @@ if [ "$INSTALL" = "1" ]; then
 
     setsid bun run dev &
     DEV_PID=$!
-    DEV_PGID_CANDIDATE="$(ps -o pgid= -p "$DEV_PID" 2>/dev/null | tr -d '[:space:]' || true)"
-    SHELL_PGID="$(ps -o pgid= -p "$$" 2>/dev/null | tr -d '[:space:]' || true)"
-    case "$DEV_PGID_CANDIDATE" in
-      "" | *[!0-9]*)
-        echo "  dev server did not expose a safe process group" >&2
-        exit 1
-        ;;
-    esac
-    if [ "$DEV_PGID_CANDIDATE" -le 1 ] || [ "$DEV_PGID_CANDIDATE" = "$SHELL_PGID" ]; then
-      echo "  dev server did not start in an isolated process group" >&2
-      exit 1
-    fi
-    DEV_PGID="$DEV_PGID_CANDIDATE"
+    capture_dev_process_group
     echo "  dev PID $DEV_PID"
 
     READY=0

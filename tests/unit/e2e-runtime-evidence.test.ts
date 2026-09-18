@@ -56,6 +56,20 @@ setTimeout(() => child.kill("SIGKILL"), 30_000);`;
   return track(spawnTracked(process.execPath, ["-e", supervise(supervise(server))], process.cwd()));
 }
 
+function delayedDetachedHealthServer(port: number): RunningProcess {
+  const listener = `const server = Bun.serve({ hostname: "127.0.0.1", port: ${port}, fetch() {
+    return Response.json({ status: "ok", time: new Date().toISOString() });
+  } });
+  process.once("SIGTERM", () => setTimeout(() => { server.stop(true); process.exit(0); }, 2500));`;
+  const supervisor = `const { spawn } = require("node:child_process");
+const child = spawn(process.execPath, ["-e", ${JSON.stringify(listener)}], { detached: true, stdio: "inherit" });
+process.once("SIGTERM", () => {
+  child.kill("SIGTERM");
+  child.once("exit", () => process.exit(0));
+});`;
+  return track(spawnTracked(process.execPath, ["-e", supervisor], process.cwd()));
+}
+
 afterEach(async () => {
   const failures: unknown[] = [];
   for (const process of running.splice(0).reverse()) {
@@ -101,6 +115,18 @@ describe("production E2E runtime evidence", () => {
     await terminateProcessTree(server.child);
     await assertLoopbackPortUnowned(port);
   });
+
+  test.skipIf(process.platform === "win32")(
+    "allows an owned supervisor to finish delayed detached-listener cleanup",
+    async () => {
+      const port = await reservePort();
+      const server = delayedDetachedHealthServer(port);
+      await waitForHealthyHttp(server, `http://127.0.0.1:${port}/api/health`, 5_000);
+
+      await terminateProcessTree(server.child);
+      await assertLoopbackPortUnowned(port);
+    },
+  );
 
   test("rejects an owned wildcard listener despite an exact health response", async () => {
     const port = await reservePort();
