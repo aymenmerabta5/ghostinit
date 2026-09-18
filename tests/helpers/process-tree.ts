@@ -1,11 +1,12 @@
-// @allow-long 551: cross-platform discovery, termination, and verification stay together so cleanup cannot fail open
+// @allow-long 750: cross-platform discovery, scoped termination, and verification stay together so cleanup cannot fail open
 import { spawn, type ChildProcess } from "node:child_process";
-import { lstatSync, realpathSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   listPosixProcessGroupMembers,
   sendPosixProcessGroupSignal,
 } from "../../src/lib/posix-process-groups.js";
+import { capturePosixProcessIdentity } from "./posix-process-tree.js";
 
 export interface TaskkillOutcome {
   status: number | null;
@@ -28,6 +29,11 @@ export interface WindowsProcessRecord {
 export interface ProcessTreeTerminationOptions {
   /** Time allowed for a POSIX root to finish its own verified descendant cleanup. */
   readonly posixGraceMs?: number;
+  /** Linux-only marker inherited by detached descendants that leave the root process group. */
+  readonly linuxScope?: {
+    readonly environmentKey: string;
+    readonly id: string;
+  };
 }
 
 function sameWindowsProcessIdentity(
@@ -272,14 +278,18 @@ async function waitForExit(child: ChildProcess, timeoutMs: number): Promise<bool
   });
 }
 
-function processGroupExists(pid: number): boolean {
+function processGroupMembers(pid: number): readonly number[] {
   try {
-    return listPosixProcessGroupMembers(pid).length > 0;
+    return listPosixProcessGroupMembers(pid);
   } catch (error) {
     throw new ProcessTreeTerminationError(
       `POSIX process group ${pid} could not be verified: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function processGroupExists(pid: number): boolean {
+  return processGroupMembers(pid).length > 0;
 }
 
 function signalPosixProcessGroup(pid: number, signal: NodeJS.Signals): void {
@@ -299,6 +309,99 @@ async function waitForProcessGroupExit(pid: number, timeoutMs: number): Promise<
     await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
   }
   return false;
+}
+
+interface LinuxScopedProcess {
+  readonly pid: number;
+  readonly started: string;
+}
+
+const linuxScopedProcessKey = ({ pid, started }: LinuxScopedProcess): string => `${pid}:${started}`;
+
+function linuxScopedProcessDisappeared(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return (
+    code === "ENOENT" ||
+    code === "ESRCH" ||
+    (error instanceof Error && error.message === "The spawned POSIX process is no longer live")
+  );
+}
+
+function linuxScopedProcesses(scope: NonNullable<ProcessTreeTerminationOptions["linuxScope"]>) {
+  if (process.platform !== "linux") {
+    throw new ProcessTreeTerminationError("Linux process scopes require Linux");
+  }
+  if (
+    !/^[A-Z][A-Z0-9_]{0,63}$/.test(scope.environmentKey) ||
+    !/^[a-zA-Z0-9-]{1,128}$/.test(scope.id)
+  ) {
+    throw new ProcessTreeTerminationError("Linux process scope is invalid");
+  }
+  const marker = Buffer.from(`${scope.environmentKey}=${scope.id}\0`, "utf8");
+  const result: LinuxScopedProcess[] = [];
+  let entries: import("node:fs").Dirent<string>[];
+  try {
+    entries = readdirSync("/proc", { withFileTypes: true });
+  } catch (error) {
+    throw new ProcessTreeTerminationError("Could not enumerate the Linux E2E process scope", {
+      cause: error,
+    });
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+    const pid = Number.parseInt(entry.name, 10);
+    if (pid <= 1 || pid === process.pid) continue;
+    try {
+      if (!readFileSync(`/proc/${entry.name}/environ`).includes(marker)) continue;
+      const identity = capturePosixProcessIdentity(pid);
+      result.push({ pid, started: identity.started });
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!linuxScopedProcessDisappeared(error) && !["EACCES", "EPERM"].includes(code ?? ""))
+        throw error;
+    }
+  }
+  return result;
+}
+
+function signalLinuxScope(processes: readonly LinuxScopedProcess[], signal: NodeJS.Signals): void {
+  for (const scoped of processes) {
+    try {
+      const current = capturePosixProcessIdentity(scoped.pid);
+      if (current.started !== scoped.started) continue;
+      process.kill(scoped.pid, signal);
+    } catch (error) {
+      if (!linuxScopedProcessDisappeared(error)) {
+        throw new ProcessTreeTerminationError(
+          `Could not send ${signal} to Linux scoped process ${scoped.pid}`,
+          { cause: error },
+        );
+      }
+    }
+  }
+}
+
+async function waitForLinuxScopeExit(
+  scope: NonNullable<ProcessTreeTerminationOptions["linuxScope"]>,
+  timeoutMs: number,
+  signal: NodeJS.Signals,
+  alreadySignaled: ReadonlySet<string>,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  const signaled = new Set(alreadySignaled);
+  while (Date.now() < deadline) {
+    const processes = linuxScopedProcesses(scope);
+    if (processes.length === 0) return true;
+    const pending = processes.filter((process) => !signaled.has(linuxScopedProcessKey(process)));
+    signalLinuxScope(pending, signal);
+    for (const process of pending) signaled.add(linuxScopedProcessKey(process));
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  const processes = linuxScopedProcesses(scope);
+  const pending = processes.filter((process) => !signaled.has(linuxScopedProcessKey(process)));
+  if (pending.length > 0) signalLinuxScope(pending, signal);
+  await new Promise<void>((resolveWait) => setTimeout(resolveWait, 50));
+  return linuxScopedProcesses(scope).length === 0;
 }
 
 async function runWindowsTaskkill(
@@ -632,7 +735,17 @@ async function terminatePosixGroup(
       "POSIX process-tree grace must be between 100 and 60000ms",
     );
   }
-  if (!processGroupExists(rootPid)) {
+  const scoped = options.linuxScope ? linuxScopedProcesses(options.linuxScope) : [];
+  if (
+    options.linuxScope &&
+    child.exitCode === null &&
+    child.signalCode === null &&
+    !scoped.some(({ pid }) => pid === rootPid)
+  ) {
+    throw new ProcessTreeTerminationError("Linux process scope could not verify its live root");
+  }
+  const gracefulGroupMembers = processGroupMembers(rootPid);
+  if (gracefulGroupMembers.length === 0 && scoped.length === 0) {
     if (child.exitCode === null && child.signalCode === null) {
       throw new ProcessTreeTerminationError(
         `POSIX process group ${rootPid} was missing while its root remained alive`,
@@ -641,19 +754,34 @@ async function terminatePosixGroup(
     return;
   }
 
-  signalPosixProcessGroup(rootPid, "SIGTERM");
-  const [childExitedAfterTerm, groupExitedAfterTerm] = await Promise.all([
+  if (gracefulGroupMembers.length > 0) signalPosixProcessGroup(rootPid, "SIGTERM");
+  const gracefullySignaledScope = new Set(
+    scoped.filter(({ pid }) => gracefulGroupMembers.includes(pid)).map(linuxScopedProcessKey),
+  );
+  const [childExitedAfterTerm, groupExitedAfterTerm, scopeExitedAfterTerm] = await Promise.all([
     waitForExit(child, graceMs),
     waitForProcessGroupExit(rootPid, graceMs),
+    options.linuxScope
+      ? waitForLinuxScopeExit(options.linuxScope, graceMs, "SIGTERM", gracefullySignaledScope)
+      : Promise.resolve(true),
   ]);
-  if (childExitedAfterTerm && groupExitedAfterTerm) return;
+  if (childExitedAfterTerm && groupExitedAfterTerm && scopeExitedAfterTerm) return;
 
-  signalPosixProcessGroup(rootPid, "SIGKILL");
-  const [childExitedAfterKill, groupExitedAfterKill] = await Promise.all([
+  const forcedGroupMembers = processGroupMembers(rootPid);
+  if (forcedGroupMembers.length > 0) signalPosixProcessGroup(rootPid, "SIGKILL");
+  const forciblySignaledScope = new Set(
+    (options.linuxScope ? linuxScopedProcesses(options.linuxScope) : [])
+      .filter(({ pid }) => forcedGroupMembers.includes(pid))
+      .map(linuxScopedProcessKey),
+  );
+  const [childExitedAfterKill, groupExitedAfterKill, scopeExitedAfterKill] = await Promise.all([
     waitForExit(child, 5_000),
     waitForProcessGroupExit(rootPid, 5_000),
+    options.linuxScope
+      ? waitForLinuxScopeExit(options.linuxScope, 5_000, "SIGKILL", forciblySignaledScope)
+      : Promise.resolve(true),
   ]);
-  if (!childExitedAfterKill || !groupExitedAfterKill) {
+  if (!childExitedAfterKill || !groupExitedAfterKill || !scopeExitedAfterKill) {
     throw new ProcessTreeTerminationError(
       `POSIX process group ${rootPid} did not terminate after SIGKILL`,
     );

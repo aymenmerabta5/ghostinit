@@ -1,4 +1,4 @@
-// @allow-long 700: production launch ownership, bounded artifact scanning, and verified cleanup form one E2E evidence boundary
+// @allow-long 740: production launch ownership, bounded artifact scanning, and verified scoped cleanup form one E2E evidence boundary
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -65,8 +65,10 @@ const MAX_HEALTH_CLOCK_SKEW_MS = 60_000;
 // their detached, scope-tagged children. The outer harness must not kill the
 // supervisor before that cleanup protocol has had time to finish.
 const SUPERVISED_PROCESS_TREE_GRACE_MS = 30_000;
+const E2E_PROCESS_SCOPE_ENV = "GHOSTINIT_E2E_PROCESS_SCOPE_ID";
 const activeChildren = new Set<ChildProcess>();
 const posixRootIdentities = new WeakMap<ChildProcess, PosixProcessIdentity>();
+const linuxProcessScopes = new WeakMap<ChildProcess, string>();
 const activeCommands = new Map<AbortController, Promise<CommandResult>>();
 let trackedTermination: Promise<void> | undefined;
 let unverifiedCommandCleanup: Error | undefined;
@@ -475,8 +477,12 @@ export async function assertLoopbackPortUnowned(port: number): Promise<void> {
 }
 
 export async function terminateProcessTree(child: ChildProcess): Promise<void> {
+  const linuxScope = linuxProcessScopes.get(child);
   await terminateVerifiedProcessTree(child, [], {
     posixGraceMs: SUPERVISED_PROCESS_TREE_GRACE_MS,
+    ...(linuxScope
+      ? { linuxScope: { environmentKey: E2E_PROCESS_SCOPE_ENV, id: linuxScope } }
+      : {}),
   });
   activeChildren.delete(child);
 }
@@ -490,15 +496,20 @@ export function spawnTracked(
   let stdout = "";
   let stderr = "";
   let spawnError: Error | undefined;
+  const linuxScope = process.platform === "linux" ? randomBytes(16).toString("hex") : undefined;
   const child = spawn(cmd, args, {
     cwd: cwdDirectory,
     detached: process.platform !== "win32",
-    env: environment,
+    env: {
+      ...environment,
+      ...(linuxScope ? { [E2E_PROCESS_SCOPE_ENV]: linuxScope } : {}),
+    },
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
   activeChildren.add(child);
+  if (linuxScope) linuxProcessScopes.set(child, linuxScope);
   if (process.platform !== "win32" && child.pid) {
     try {
       posixRootIdentities.set(child, capturePosixProcessIdentity(child.pid));

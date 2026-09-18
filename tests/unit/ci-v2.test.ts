@@ -973,6 +973,8 @@ test("production E2E builds representative runtimes with strict lifecycle cleanu
   expect(processSource).toContain('detached: process.platform !== "win32"');
   expect(processSource).toContain("terminateProcessTree as terminateVerifiedProcessTree");
   expect(processSource).toContain("posixGraceMs: SUPERVISED_PROCESS_TREE_GRACE_MS");
+  expect(processSource).toContain('E2E_PROCESS_SCOPE_ENV = "GHOSTINIT_E2E_PROCESS_SCOPE_ID"');
+  expect(processSource).toContain("linuxProcessScopes.set(child, linuxScope)");
   expect(processSource).toContain("const completion = runSupervisedCommand({");
   expect(processSource).toContain("activeCommands.set(controller, completion)");
   expect(processSource).toContain('controller.abort("SIGTERM")');

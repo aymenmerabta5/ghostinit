@@ -70,6 +70,18 @@ process.once("SIGTERM", () => {
   return track(spawnTracked(process.execPath, ["-e", supervisor], process.cwd()));
 }
 
+function orphanedDetachedHealthServer(port: number): RunningProcess {
+  const listener = `Bun.serve({ hostname: "127.0.0.1", port: ${port}, fetch() {
+    return Response.json({ status: "ok", time: new Date().toISOString() });
+  } });
+  setTimeout(() => process.exit(0), 30000);`;
+  const supervisor = `const { spawn } = require("node:child_process");
+const child = spawn(process.execPath, ["-e", ${JSON.stringify(listener)}], { detached: true, stdio: "inherit" });
+child.unref();
+setInterval(() => {}, 1000);`;
+  return track(spawnTracked(process.execPath, ["-e", supervisor], process.cwd()));
+}
+
 afterEach(async () => {
   const failures: unknown[] = [];
   for (const process of running.splice(0).reverse()) {
@@ -121,6 +133,18 @@ describe("production E2E runtime evidence", () => {
     async () => {
       const port = await reservePort();
       const server = delayedDetachedHealthServer(port);
+      await waitForHealthyHttp(server, `http://127.0.0.1:${port}/api/health`, 5_000);
+
+      await terminateProcessTree(server.child);
+      await assertLoopbackPortUnowned(port);
+    },
+  );
+
+  test.skipIf(process.platform !== "linux")(
+    "drains a detached listener orphaned outside the spawned process group",
+    async () => {
+      const port = await reservePort();
+      const server = orphanedDetachedHealthServer(port);
       await waitForHealthyHttp(server, `http://127.0.0.1:${port}/api/health`, 5_000);
 
       await terminateProcessTree(server.child);
