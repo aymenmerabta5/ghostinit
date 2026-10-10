@@ -1,0 +1,31 @@
+diff --git a/lib/rsa.js b/lib/rsa.js
+index a426482..bbeb2ab 100644
+--- a/lib/rsa.js
++++ b/lib/rsa.js
+@@ -275,6 +275,7 @@ var digestInfoValidator = {
+     tagClass: asn1.Class.UNIVERSAL,
+     type: asn1.Type.SEQUENCE,
+     constructed: true,
++    captureAsn1: 'digestAlgorithm',
+     value: [{
+       name: 'DigestInfo.DigestAlgorithm.algorithmIdentifier',
+       tagClass: asn1.Class.UNIVERSAL,
+@@ -1179,6 +1180,18 @@ pki.setRsaPublicKey = pki.rsa.setPublicKey = function(n, e) {
+             error.errors = errors;
+             throw error;
+           }
++          // GHSA-86w9-cpqp-85rv: asn1.validate accepts trailing elements, so
++          // a DigestAlgorithm SEQUENCE carrying extra nested elements passed
++          // validation. RFC 8017 permits only the OID plus optional NULL
++          // parameters; reject anything else.
++          var digestAlgorithm = capture.digestAlgorithm;
++          var expectedAlgorithmElements = ('parameters' in capture) ? 2 : 1;
++          if(!digestAlgorithm ||
++            digestAlgorithm.value.length !== expectedAlgorithmElements) {
++            throw new Error(
++              'ASN.1 object does not contain a valid RSASSA-PKCS1-v1_5 ' +
++              'DigestInfo value. Unexpected DigestAlgorithm elements.');
++          }
+           // check hash algorithm identifier
+           // see PKCS1-v1-5DigestAlgorithms in RFC 8017
+           // FIXME: add support to validator for strict value choices

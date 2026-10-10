@@ -77,6 +77,8 @@ export const FIXTURE_PLANS: readonly FixturePlan[] = [
       installStage,
       patchedAuditStage,
       scriptStage("check:image-size-patch"),
+      scriptStage("check:braces-patch"),
+      scriptStage("check:node-forge-patch"),
       scriptStage("typecheck"),
       scriptStage("check:tv"),
       scriptStage("check:twa"),

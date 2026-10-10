@@ -37,6 +37,16 @@ import {
   IMAGE_SIZE_PATCH_KEY,
   IMAGE_SIZE_PATCH_PATH,
   IMAGE_SIZE_PATCH_SHA256,
+  BRACES_PATCH_ADVISORIES,
+  BRACES_PATCH_CONTENT,
+  BRACES_PATCH_KEY,
+  BRACES_PATCH_PATH,
+  BRACES_PATCH_SHA256,
+  NODE_FORGE_PATCH_ADVISORIES,
+  NODE_FORGE_PATCH_CONTENT,
+  NODE_FORGE_PATCH_KEY,
+  NODE_FORGE_PATCH_PATH,
+  NODE_FORGE_PATCH_SHA256,
 } from "../../src/templates/tooling/dependency-audit.js";
 import { generatedGitattributesContent } from "../../src/templates/gitignore.js";
 import {
@@ -52,7 +62,12 @@ const reviewedInstalledDigests = [
   "ea073da10e66839d1f989dd62775312f85ba53e3d6b37476bce477f25da4e82f",
   "6786c3d52ea46fab31d0d7883c16041f15a1604356bd0f139c1b2adc261234c1",
 ] as const;
-const reviewedAdvisories = ["GHSA-5p2g-fcmc-qvqq", "GHSA-w3rx-r6r6-pgpr"] as const;
+const reviewedAdvisories = [
+  "GHSA-5p2g-fcmc-qvqq",
+  "GHSA-86w9-cpqp-85rv",
+  "GHSA-vfj7-8cjw-p6xm",
+  "GHSA-w3rx-r6r6-pgpr",
+] as const;
 
 function normalizeCheckoutLineEndings(value: string): string {
   return value.replaceAll("\r\n", "\n");
@@ -163,6 +178,46 @@ describe("reviewed image-size advisory containment", () => {
     }
   });
 
+  test("pins the reviewed braces and node-forge patch bytes and installed-file digests", () => {
+    for (const [key, path, content, sha, files] of [
+      [
+        BRACES_PATCH_KEY,
+        BRACES_PATCH_PATH,
+        BRACES_PATCH_CONTENT,
+        BRACES_PATCH_SHA256,
+        [
+          ["lib/compile.js", "a71354e4a311c711e88b814ccf9f67055999a1740fe3280a16e3ae4e7944160d"],
+          ["lib/expand.js", "e7e8585cac782c5ec279597c590d104384822f6a7efe35c7099f533401095953"],
+          ["lib/stringify.js", "0092609fb84653bbbef555721b57b6c067db87393fa1b1721584252301506dbf"],
+        ],
+      ],
+      [
+        NODE_FORGE_PATCH_KEY,
+        NODE_FORGE_PATCH_PATH,
+        NODE_FORGE_PATCH_CONTENT,
+        NODE_FORGE_PATCH_SHA256,
+        [["lib/rsa.js", "8010ab4231d66004e1c190af1ddeb28d4185f6e45d08df4a45436c7676aa07da"]],
+      ],
+    ] as const) {
+      const fixturePatch = readFileSync(resolve(fixtureRoot, path), "utf8");
+      expect(createHash("sha256").update(content).digest("hex")).toBe(sha);
+      expect(fixturePatch).toBe(content);
+      expect(fixturePatch).not.toContain("\r");
+      const audit = dependencyAuditScriptContent(true, false, true);
+      for (const [, digest] of files) expect(audit).toContain(digest);
+      for (const [file] of files) {
+        const bytes = readFileSync(
+          resolve(fixtureRoot, "node_modules", key.slice(0, key.indexOf("@")), file),
+        );
+        expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+          files.find(([name]) => name === file)?.[1],
+        );
+      }
+    }
+    expect([...BRACES_PATCH_ADVISORIES]).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
+    expect([...NODE_FORGE_PATCH_ADVISORIES]).toEqual(["GHSA-86w9-cpqp-85rv"]);
+  });
+
   test("accepts both Bun 1.4 text-lock versions and rejects unreviewed versions", () => {
     const fixtureV1 = Bun.JSONC.parse(readFileSync(resolve(fixtureRoot, "bun.lock"), "utf8")) as {
       lockfileVersion?: unknown;
@@ -199,7 +254,7 @@ describe("reviewed image-size advisory containment", () => {
           "bun scripts/security-dependencies.cjs install --bootstrap",
         );
         expect(byPath.get("scripts/audit-dependencies.ts")).toBe(
-          dependencyAuditScriptContent(mobile),
+          dependencyAuditScriptContent(mobile, false, mobile),
         );
         expect(byPath.get("bunfig.toml")).toContain('registry = "https://registry.npmjs.org/"');
         const workflow = byPath.get(".github/workflows/ci.yml") ?? "";
@@ -212,10 +267,18 @@ describe("reviewed image-size advisory containment", () => {
         if (mobile) {
           expect(manifest.patchedDependencies?.[IMAGE_SIZE_PATCH_KEY]).toBe(IMAGE_SIZE_PATCH_PATH);
           expect(byPath.get(IMAGE_SIZE_PATCH_PATH)).toBe(IMAGE_SIZE_PATCH_CONTENT);
+          expect(manifest.patchedDependencies?.[BRACES_PATCH_KEY]).toBe(BRACES_PATCH_PATH);
+          expect(byPath.get(BRACES_PATCH_PATH)).toBe(BRACES_PATCH_CONTENT);
+          expect(manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY]).toBe(NODE_FORGE_PATCH_PATH);
+          expect(byPath.get(NODE_FORGE_PATCH_PATH)).toBe(NODE_FORGE_PATCH_CONTENT);
           expect(byPath.get(".gitattributes")).toBe(IMAGE_SIZE_PATCH_GITATTRIBUTES);
         } else {
           expect(manifest.patchedDependencies?.[IMAGE_SIZE_PATCH_KEY]).toBeUndefined();
           expect(byPath.has(IMAGE_SIZE_PATCH_PATH)).toBe(false);
+          expect(manifest.patchedDependencies?.[BRACES_PATCH_KEY]).toBeUndefined();
+          expect(byPath.has(BRACES_PATCH_PATH)).toBe(false);
+          expect(manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY]).toBeUndefined();
+          expect(byPath.has(NODE_FORGE_PATCH_PATH)).toBe(false);
           expect(byPath.get(".gitattributes")).toBe(generatedGitattributesContent(false));
         }
       });
@@ -273,7 +336,7 @@ describe("reviewed image-size advisory containment", () => {
     const accepted = runFixtureAuditWithMockedBunAudit(mockedAdvisoryResult(reviewedReport));
     expect(accepted.status, `${accepted.stdout}\n${accepted.stderr}`).toBe(0);
     expect(`${accepted.stdout}\n${accepted.stderr}`).toContain(
-      "Dependency audit passed with 2 exactly patched image-size advisories",
+      "Dependency audit passed with 4 exactly patched advisories",
     );
 
     const unreviewed = runFixtureAuditWithMockedBunAudit(
@@ -755,7 +818,7 @@ const fetch = async () => {
       normalizeCheckoutLineEndings(
         readFileSync(resolve(fixtureRoot, "scripts/audit-dependencies.ts"), "utf8"),
       ),
-    ).toBe(normalizeCheckoutLineEndings(dependencyAuditScriptContent(true)));
+    ).toBe(normalizeCheckoutLineEndings(dependencyAuditScriptContent(true, false, true)));
     const harness = readFileSync(resolve(fixtureRoot, "check-image-size-patch.mjs"), "utf8");
     for (const scenario of [
       "Missing patch",

@@ -46,10 +46,12 @@ export function rootFiles(
     : undefined;
   const hasImageSizePatch = profile?.apps?.includes("mobile") ?? false;
   const hasOpenNextPatch = deploy === "cloudflare" && profile?.framework === "nextjs";
+  const hasExpoToolchainPatches = profile?.apps?.includes("mobile") ?? false;
   const packageFile = integrateDependencyAuditManifest(
     rootPackageJson(projectName, runtime, addonMap, profile),
     hasImageSizePatch,
     hasOpenNextPatch,
+    hasExpoToolchainPatches,
   );
   return [
     packageFile,
@@ -67,7 +69,7 @@ export function rootFiles(
     readme(projectName, runtime),
     githubWorkflow(runtime, deploy, profile),
     ...huskyFiles(),
-    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
+    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
     ...cloudflareWorkspaceFiles(deploy, profile),
     ...deployFiles(projectName, deploy, runtime, profile),
   ];

@@ -167,11 +167,20 @@ try {
     cpSync(join(root, path), join(auditRoot, path));
   }
   cpSync(join(root, "scripts", "audit-dependencies.ts"), join(auditRoot, "scripts", "audit-dependencies.ts"));
-  cpSync(
-    join(root, "patches", "image-size@1.2.1.patch"),
-    join(auditRoot, "patches", "image-size@1.2.1.patch"),
-  );
+  for (const patch of [
+    "image-size@1.2.1.patch",
+    "braces@3.0.3.patch",
+    "node-forge@1.4.0.patch",
+  ]) {
+    cpSync(join(root, "patches", patch), join(auditRoot, "patches", patch));
+  }
   cpSync(installedRoot, join(auditRoot, "node_modules", "image-size"), { recursive: true });
+  cpSync(join(root, "node_modules", "braces"), join(auditRoot, "node_modules", "braces"), {
+    recursive: true,
+  });
+  cpSync(join(root, "node_modules", "node-forge"), join(auditRoot, "node_modules", "node-forge"), {
+    recursive: true,
+  });
 
   expectAuditSuccess(auditRoot, "Reviewed Bun 1.4 fixture lock v1");
 

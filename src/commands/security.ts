@@ -26,9 +26,11 @@ export async function securityCommand(
   }
   const cwd = resolve(options.cwd ?? process.cwd());
   const { resolved } = await (dependencies.loadProject ?? loadDesiredProjectConfig)(cwd);
+  const hasExpoApp = resolved.apps.some((app) => app.target === "expo");
   const policy = dependencySecurityPolicy(
-    resolved.apps.some((app) => app.target === "expo"),
+    hasExpoApp,
     resolved.apps.some((app) => app.target === "nextjs" && app.deploy === "cloudflare"),
+    hasExpoApp,
   );
   const result = await (dependencies.run ?? runDependencySecurity)({
     cwd,

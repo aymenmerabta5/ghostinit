@@ -78,6 +78,7 @@ type JsonToken =
 
 const HAS_IMAGE_SIZE_PATCH = true;
 const HAS_OPENNEXT_PATCH = false;
+const HAS_EXPO_TOOLCHAIN_PATCHES = true;
 const PATCH_KEY = "image-size@1.2.1";
 const PATCH_PATH = "patches/image-size@1.2.1.patch";
 const PATCH_SHA256 = "7805ea36efb396516b71b6965774b03c7df465bdda1489b937dc19d3bde8a7d8";
@@ -90,6 +91,20 @@ const OPENNEXT_PATCH_PATH = "patches/@opennextjs+aws@4.1.0.patch";
 const OPENNEXT_PATCH_SHA256 = "8a3e9bc123a083789691009293f1be300d5e18152798103f976a418c2b2e9b4a";
 const OPENNEXT_PATCHED_FILE_SHA256 = "f40520e0a246206bbc7851bc3d505cc67dc070da3eb4bba59c02655445364ce7";
 const OPENNEXT_PATCH_VERSION = "4.1.0";
+const BRACES_PATCH_KEY = "braces@3.0.3";
+const BRACES_PATCH_PATH = "patches/braces@3.0.3.patch";
+const BRACES_PATCH_SHA256 = "98a40152d33700b668fb2dd619d3ed5bc37c985b88a163719735ca5c5fccc8fe";
+const PATCHED_BRACES_FILES = new Map<string, string>([
+  ["lib/compile.js", "a71354e4a311c711e88b814ccf9f67055999a1740fe3280a16e3ae4e7944160d"],
+  ["lib/expand.js", "e7e8585cac782c5ec279597c590d104384822f6a7efe35c7099f533401095953"],
+  ["lib/stringify.js", "0092609fb84653bbbef555721b57b6c067db87393fa1b1721584252301506dbf"],
+]);
+const NODE_FORGE_PATCH_KEY = "node-forge@1.4.0";
+const NODE_FORGE_PATCH_PATH = "patches/node-forge@1.4.0.patch";
+const NODE_FORGE_PATCH_SHA256 = "2cf4ae4201a9e12d8086535ca64419d7dd237d31d78badb2f081419a747500fa";
+const PATCHED_NODE_FORGE_FILES = new Map<string, string>([
+  ["lib/rsa.js", "8010ab4231d66004e1c190af1ddeb28d4185f6e45d08df4a45436c7676aa07da"],
+]);
 const EXPECTED_BUN_VERSION = "1.4.0";
 const MINIMUM_RELEASE_AGE_SECONDS = 604800;
 const PUBLIC_REGISTRY = "https://registry.npmjs.org";
@@ -109,6 +124,8 @@ const SHA512_INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const REVIEWED_ADVISORIES = new Map<string, string>([
   ["GHSA-w3rx-r6r6-pgpr", "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr"],
   ["GHSA-5p2g-fcmc-qvqq", "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq"],
+  ["GHSA-vfj7-8cjw-p6xm", "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"],
+  ["GHSA-86w9-cpqp-85rv", "https://github.com/advisories/GHSA-86w9-cpqp-85rv"],
 ]);
 const severityRank = new Map<string, number>([
   ["unknown", 0],
@@ -993,6 +1010,102 @@ function verifyOpenNextPatchInstalled(root: string, manifest: PackageManifest): 
   }
 }
 
+function verifyBracesPatchLock(
+  root: string,
+  manifest: PackageManifest,
+  lock: BunLock,
+  registryPackages: readonly LockedRegistryPackage[],
+): void {
+  if (manifest.patchedDependencies?.[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
+    fail("package.json does not bind the reviewed braces patch");
+  }
+  const patch = join(root, BRACES_PATCH_PATH);
+  if (sha256(root, patch, "reviewed braces patch") !== BRACES_PATCH_SHA256) {
+    fail("the reviewed braces patch is missing or its SHA-256 changed");
+  }
+  if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
+    fail("bun.lock does not bind the reviewed braces patch");
+  }
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "braces")
+    .map(({ name, version }) => name + "@" + version);
+  if (
+    lockResolutions.length === 0 ||
+    lockResolutions.some((resolution) => resolution !== BRACES_PATCH_KEY)
+  ) {
+    fail("bun.lock contains an unreviewed or missing braces resolution");
+  }
+}
+
+function verifyBracesPatchInstalled(root: string, manifest: PackageManifest): void {
+  const packages = installedPackages(root, manifest, "braces");
+  if (packages.length === 0) fail("braces@3.0.3 is not installed where Bun can verify it");
+  for (const packageRoot of packages) {
+    const installed = readJsonRecord(
+      root,
+      join(packageRoot, "package.json"),
+      "installed braces package manifest",
+    ) as InstalledPackageManifest;
+    if (installed.name !== "braces" || installed.version !== "3.0.3") {
+      fail("the reviewed patch resolved an unexpected braces package");
+    }
+    for (const [relativePath, digest] of PATCHED_BRACES_FILES) {
+      const target = join(packageRoot, relativePath);
+      if (sha256(root, target, "installed braces file " + relativePath) !== digest) {
+        fail("the installed braces patch was not applied exactly: " + relativePath);
+      }
+    }
+  }
+}
+
+function verifyNodeForgePatchLock(
+  root: string,
+  manifest: PackageManifest,
+  lock: BunLock,
+  registryPackages: readonly LockedRegistryPackage[],
+): void {
+  if (manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
+    fail("package.json does not bind the reviewed node-forge patch");
+  }
+  const patch = join(root, NODE_FORGE_PATCH_PATH);
+  if (sha256(root, patch, "reviewed node-forge patch") !== NODE_FORGE_PATCH_SHA256) {
+    fail("the reviewed node-forge patch is missing or its SHA-256 changed");
+  }
+  if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
+    fail("bun.lock does not bind the reviewed node-forge patch");
+  }
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "node-forge")
+    .map(({ name, version }) => name + "@" + version);
+  if (
+    lockResolutions.length === 0 ||
+    lockResolutions.some((resolution) => resolution !== NODE_FORGE_PATCH_KEY)
+  ) {
+    fail("bun.lock contains an unreviewed or missing node-forge resolution");
+  }
+}
+
+function verifyNodeForgePatchInstalled(root: string, manifest: PackageManifest): void {
+  const packages = installedPackages(root, manifest, "node-forge");
+  if (packages.length === 0) fail("node-forge@1.4.0 is not installed where Bun can verify it");
+  for (const packageRoot of packages) {
+    const installed = readJsonRecord(
+      root,
+      join(packageRoot, "package.json"),
+      "installed node-forge package manifest",
+    ) as InstalledPackageManifest;
+    if (installed.name !== "node-forge" || installed.version !== NODE_FORGE_PATCH_KEY.slice("node-forge@".length)) {
+      fail("the reviewed patch resolved an unexpected node-forge package");
+    }
+    for (const [relativePath, digest] of PATCHED_NODE_FORGE_FILES) {
+      const target = join(packageRoot, relativePath);
+      if (sha256(root, target, "installed node-forge file " + relativePath) !== digest) {
+        fail("the installed node-forge patch was not applied exactly: " + relativePath);
+      }
+    }
+  }
+}
+
 async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<PackageManifest> {
   verifyPublicRegistryConfiguration(root);
   const manifest = readJsonRecord(root, join(root, "package.json"), "package.json") as PackageManifest;
@@ -1002,6 +1115,8 @@ async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<P
   const registryPackages = lockedRegistryPackages(lock);
   if (HAS_IMAGE_SIZE_PATCH) verifyReviewedPatchLock(root, manifest, lock, registryPackages);
   if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchLock(root, manifest, lock, registryPackages);
+  if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchLock(root, manifest, lock, registryPackages);
+  if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchLock(root, manifest, lock, registryPackages);
   if (refreshEvidence) {
     const auditedAt = new Date().toISOString();
     const releases = await fetchReleaseEvidence(registryPackages, auditedAt);
@@ -1111,6 +1226,8 @@ if (lockOnly) {
 }
 if (HAS_IMAGE_SIZE_PATCH) verifyReviewedPatchInstalled(root, manifest);
 if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchInstalled(root, manifest);
+if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchInstalled(root, manifest);
+if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchInstalled(root, manifest);
 const parsedReport = await bunAuditReport(root);
 const unexpected: string[] = [];
 let reviewed = 0;
@@ -1127,9 +1244,13 @@ for (const [packageName, advisories] of Object.entries(parsedReport)) {
     }
     if (rank < 3) continue;
     const id = advisoryId(entry.url);
+    const isReviewedImageSizePatch =
+      HAS_IMAGE_SIZE_PATCH && packageName === "image-size";
+    const isReviewedExpoToolchainPatch =
+      HAS_EXPO_TOOLCHAIN_PATCHES &&
+      (packageName === "braces" || packageName === "node-forge");
     if (
-      HAS_IMAGE_SIZE_PATCH &&
-      packageName === "image-size" &&
+      (isReviewedImageSizePatch || isReviewedExpoToolchainPatch) &&
       REVIEWED_ADVISORIES.get(id) === entry.url
     ) {
       reviewed += 1;
@@ -1139,4 +1260,4 @@ for (const [packageName, advisories] of Object.entries(parsedReport)) {
   }
 }
 if (unexpected.length > 0) fail("unreviewed HIGH/CRITICAL advisories: " + unexpected.join(", "));
-console.log("Dependency audit passed" + (reviewed > 0 ? " with " + reviewed + " exactly patched image-size advisories" : ""));
+console.log("Dependency audit passed" + (reviewed > 0 ? " with " + reviewed + " exactly patched advisories" : ""));

@@ -8,7 +8,9 @@
     "check:tv": "bun check-tv.mjs",
     "check:twa": "bun check-twa.mjs",
     "check:uniwind": "bun check-uniwind.mjs",
-    "check:image-size-patch": "bun check-image-size-patch.mjs"
+    "check:image-size-patch": "bun check-image-size-patch.mjs",
+    "check:braces-patch": "bun check-braces-patch.mjs",
+    "check:node-forge-patch": "bun check-node-forge-patch.mjs"
   },
   "dependencies": {
     "react": "19.2.3",
@@ -44,6 +46,8 @@
   },
   "packageManager": "bun@1.4.0",
   "patchedDependencies": {
-    "image-size@1.2.1": "patches/image-size@1.2.1.patch"
+    "braces@3.0.3": "patches/braces@3.0.3.patch",
+    "image-size@1.2.1": "patches/image-size@1.2.1.patch",
+    "node-forge@1.4.0": "patches/node-forge@1.4.0.patch"
   }
 }

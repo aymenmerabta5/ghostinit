@@ -597,12 +597,14 @@ export function singleFiles(
   });
   const hasImageSizePatch = effectiveApps.includes("mobile");
   const hasOpenNextPatch = config.deploy === "cloudflare" && isNextSingle;
+  const hasExpoToolchainPatches = effectiveApps.includes("mobile");
   const packageIndex = deduped.findIndex((entry) => entry.path === "package.json");
   if (packageIndex === -1) throw new Error("Single mode did not emit a root package.json");
   deduped[packageIndex] = integrateDependencyAuditManifest(
     deduped[packageIndex],
     hasImageSizePatch,
     hasOpenNextPatch,
+    hasExpoToolchainPatches,
   );
   deduped = dedupeFilesOrThrow([
     ...deduped,
@@ -612,7 +614,7 @@ export function singleFiles(
     oxlintConfig(),
     oxlintIgnore(),
     oxfmtConfig(),
-    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch),
+    ...dependencyAuditFiles(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
   ]);
   if (hasWebSingle && isNextSingle && hasI18n) {
     deduped = composeRequestLocalizedPages(deduped, "src", {

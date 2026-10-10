@@ -176,7 +176,7 @@ describe("generated Expo foundation", () => {
         "react-native-safe-area-context": "5.7.0",
         "react-native-screens": "4.26.2",
         "react-native-gesture-handler": "2.32.0",
-        "react-native-web": "0.21.2",
+        "react-native-web": "0.21.3",
       })) {
         expect(manifest.dependencies[dependency], `${mode}: ${dependency}`).toBe(`~${version}`);
       }

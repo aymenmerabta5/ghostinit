@@ -75,9 +75,159 @@ export const IMAGE_SIZE_PATCH_SHA256 =
 const PATCHED_ICNS_SHA256 = "ea073da10e66839d1f989dd62775312f85ba53e3d6b37476bce477f25da4e82f";
 const PATCHED_UTILS_SHA256 = "6786c3d52ea46fab31d0d7883c16041f15a1604356bd0f139c1b2adc261234c1";
 
+export const BRACES_PATCH_KEY = "braces@3.0.3";
+export const BRACES_PATCH_ADVISORIES = ["GHSA-vfj7-8cjw-p6xm"] as const;
+export const BRACES_PATCH_PATH = "patches/braces@3.0.3.patch";
+
+export const BRACES_PATCH_CONTENT = `diff --git a/lib/compile.js b/lib/compile.js
+index dce69be..d029b02 100644
+--- a/lib/compile.js
++++ b/lib/compile.js
+@@ -4,7 +4,15 @@ const fill = require('fill-range');
+ const utils = require('./utils');
+ 
+ const compile = (ast, options = {}) => {
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    // GHSA-vfj7-8cjw-p6xm: the recursive AST walkers lacked depth guards, so
++    // deeply nested brace patterns under the character limit exhausted the
++    // call stack and terminated the process. Supported tooling never nests
++    // patterns anywhere near this limit; reject deeper input with a catchable
++    // error instead of crashing.
++    if (depth > 100) {
++      throw new RangeError('Braces pattern exceeds maximum nesting depth (100)');
++    }
+     const invalidBlock = utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     const invalid = invalidBlock === true || invalidNode === true;
+@@ -47,7 +55,7 @@ const compile = (ast, options = {}) => {
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += walk(child, node);
++        output += walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/expand.js b/lib/expand.js
+index 35b2c41..3f44248 100644
+--- a/lib/expand.js
++++ b/lib/expand.js
+@@ -33,7 +33,15 @@ const append = (queue = '', stash = '', enclose = false) => {
+ const expand = (ast, options = {}) => {
+   const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
+ 
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    // GHSA-vfj7-8cjw-p6xm: the recursive AST walkers lacked depth guards, so
++    // deeply nested brace patterns under the character limit exhausted the
++    // call stack and terminated the process. Supported tooling never nests
++    // patterns anywhere near this limit; reject deeper input with a catchable
++    // error instead of crashing.
++    if (depth > 100) {
++      throw new RangeError('Braces pattern exceeds maximum nesting depth (100)');
++    }
+     node.queue = [];
+ 
+     let p = parent;
+@@ -100,7 +108,7 @@ const expand = (ast, options = {}) => {
+       }
+ 
+       if (child.nodes) {
+-        walk(child, node);
++        walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/stringify.js b/lib/stringify.js
+index 8bcf872..9c465c1 100644
+--- a/lib/stringify.js
++++ b/lib/stringify.js
+@@ -3,7 +3,15 @@
+ const utils = require('./utils');
+ 
+ module.exports = (ast, options = {}) => {
+-  const stringify = (node, parent = {}) => {
++  const stringify = (node, parent = {}, depth = 0) => {
++    // GHSA-vfj7-8cjw-p6xm: the recursive AST walkers lacked depth guards, so
++    // deeply nested brace patterns under the character limit exhausted the
++    // call stack and terminated the process. Supported tooling never nests
++    // patterns anywhere near this limit; reject deeper input with a catchable
++    // error instead of crashing.
++    if (depth > 100) {
++      throw new RangeError('Braces pattern exceeds maximum nesting depth (100)');
++    }
+     const invalidBlock = options.escapeInvalid && utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     let output = '';
+@@ -21,7 +29,7 @@ module.exports = (ast, options = {}) => {
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += stringify(child);
++        output += stringify(child, undefined, depth + 1);
+       }
+     }
+     return output;
+`;
+
+export const BRACES_PATCH_SHA256 =
+  "98a40152d33700b668fb2dd619d3ed5bc37c985b88a163719735ca5c5fccc8fe";
+
+const PATCHED_BRACES_COMPILE_SHA256 =
+  "a71354e4a311c711e88b814ccf9f67055999a1740fe3280a16e3ae4e7944160d";
+const PATCHED_BRACES_EXPAND_SHA256 =
+  "e7e8585cac782c5ec279597c590d104384822f6a7efe35c7099f533401095953";
+const PATCHED_BRACES_STRINGIFY_SHA256 =
+  "0092609fb84653bbbef555721b57b6c067db87393fa1b1721584252301506dbf";
+
+export const NODE_FORGE_PATCH_KEY = "node-forge@1.4.0";
+export const NODE_FORGE_PATCH_ADVISORIES = ["GHSA-86w9-cpqp-85rv"] as const;
+export const NODE_FORGE_PATCH_PATH = "patches/node-forge@1.4.0.patch";
+
+export const NODE_FORGE_PATCH_CONTENT = `diff --git a/lib/rsa.js b/lib/rsa.js
+index a426482..bbeb2ab 100644
+--- a/lib/rsa.js
++++ b/lib/rsa.js
+@@ -275,6 +275,7 @@ var digestInfoValidator = {
+     tagClass: asn1.Class.UNIVERSAL,
+     type: asn1.Type.SEQUENCE,
+     constructed: true,
++    captureAsn1: 'digestAlgorithm',
+     value: [{
+       name: 'DigestInfo.DigestAlgorithm.algorithmIdentifier',
+       tagClass: asn1.Class.UNIVERSAL,
+@@ -1179,6 +1180,18 @@ pki.setRsaPublicKey = pki.rsa.setPublicKey = function(n, e) {
+             error.errors = errors;
+             throw error;
+           }
++          // GHSA-86w9-cpqp-85rv: asn1.validate accepts trailing elements, so
++          // a DigestAlgorithm SEQUENCE carrying extra nested elements passed
++          // validation. RFC 8017 permits only the OID plus optional NULL
++          // parameters; reject anything else.
++          var digestAlgorithm = capture.digestAlgorithm;
++          var expectedAlgorithmElements = ('parameters' in capture) ? 2 : 1;
++          if(!digestAlgorithm ||
++            digestAlgorithm.value.length !== expectedAlgorithmElements) {
++            throw new Error(
++              'ASN.1 object does not contain a valid RSASSA-PKCS1-v1_5 ' +
++              'DigestInfo value. Unexpected DigestAlgorithm elements.');
++          }
+           // check hash algorithm identifier
+           // see PKCS1-v1-5DigestAlgorithms in RFC 8017
+           // FIXME: add support to validator for strict value choices
+`;
+
+export const NODE_FORGE_PATCH_SHA256 =
+  "2cf4ae4201a9e12d8086535ca64419d7dd237d31d78badb2f081419a747500fa";
+
+const PATCHED_NODE_FORGE_RSA_SHA256 =
+  "8010ab4231d66004e1c190af1ddeb28d4185f6e45d08df4a45436c7676aa07da";
+
 export function dependencyAuditScriptContent(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
+  hasExpoToolchainPatches = false,
 ): string {
   return `// @allow-long 1200: one fail-closed verifier keeps lock parsing, release-age checks, graph traversal, and audit policy together
 import { spawnSync } from "node:child_process";
@@ -159,6 +309,7 @@ type JsonToken =
 
 const HAS_IMAGE_SIZE_PATCH = ${JSON.stringify(hasImageSizePatch)};
 const HAS_OPENNEXT_PATCH = ${JSON.stringify(hasOpenNextPatch)};
+const HAS_EXPO_TOOLCHAIN_PATCHES = ${JSON.stringify(hasExpoToolchainPatches)};
 const PATCH_KEY = ${JSON.stringify(IMAGE_SIZE_PATCH_KEY)};
 const PATCH_PATH = ${JSON.stringify(IMAGE_SIZE_PATCH_PATH)};
 const PATCH_SHA256 = ${JSON.stringify(IMAGE_SIZE_PATCH_SHA256)};
@@ -171,6 +322,20 @@ const OPENNEXT_PATCH_PATH = ${JSON.stringify(OPENNEXT_AWS_WINDOWS_PATCH_PATH)};
 const OPENNEXT_PATCH_SHA256 = ${JSON.stringify(OPENNEXT_AWS_WINDOWS_PATCH_SHA256)};
 const OPENNEXT_PATCHED_FILE_SHA256 = ${JSON.stringify(OPENNEXT_AWS_PATCHED_COPY_TRACED_FILES_SHA256)};
 const OPENNEXT_PATCH_VERSION = ${JSON.stringify(OPENNEXT_AWS_WINDOWS_PATCH_VERSION)};
+const BRACES_PATCH_KEY = ${JSON.stringify(BRACES_PATCH_KEY)};
+const BRACES_PATCH_PATH = ${JSON.stringify(BRACES_PATCH_PATH)};
+const BRACES_PATCH_SHA256 = ${JSON.stringify(BRACES_PATCH_SHA256)};
+const PATCHED_BRACES_FILES = new Map<string, string>([
+  ["lib/compile.js", ${JSON.stringify(PATCHED_BRACES_COMPILE_SHA256)}],
+  ["lib/expand.js", ${JSON.stringify(PATCHED_BRACES_EXPAND_SHA256)}],
+  ["lib/stringify.js", ${JSON.stringify(PATCHED_BRACES_STRINGIFY_SHA256)}],
+]);
+const NODE_FORGE_PATCH_KEY = ${JSON.stringify(NODE_FORGE_PATCH_KEY)};
+const NODE_FORGE_PATCH_PATH = ${JSON.stringify(NODE_FORGE_PATCH_PATH)};
+const NODE_FORGE_PATCH_SHA256 = ${JSON.stringify(NODE_FORGE_PATCH_SHA256)};
+const PATCHED_NODE_FORGE_FILES = new Map<string, string>([
+  ["lib/rsa.js", ${JSON.stringify(PATCHED_NODE_FORGE_RSA_SHA256)}],
+]);
 const EXPECTED_BUN_VERSION = ${JSON.stringify(runtime.bun)};
 const MINIMUM_RELEASE_AGE_SECONDS = ${JSON.stringify(supplyChain.minimumReleaseAgeSeconds)};
 const PUBLIC_REGISTRY = "https://registry.npmjs.org";
@@ -189,6 +354,8 @@ const SEMVER_PATTERN = /^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-
 const SHA512_INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 const REVIEWED_ADVISORIES = new Map<string, string>([
 ${IMAGE_SIZE_PATCH_ADVISORIES.map((id) => "  [" + JSON.stringify(id) + ", " + JSON.stringify("https://github.com/advisories/" + id) + "],").join("\n")}
+${BRACES_PATCH_ADVISORIES.map((id) => "  [" + JSON.stringify(id) + ", " + JSON.stringify("https://github.com/advisories/" + id) + "],").join("\n")}
+${NODE_FORGE_PATCH_ADVISORIES.map((id) => "  [" + JSON.stringify(id) + ", " + JSON.stringify("https://github.com/advisories/" + id) + "],").join("\n")}
 ]);
 const severityRank = new Map<string, number>([
   ["unknown", 0],
@@ -1073,6 +1240,102 @@ function verifyOpenNextPatchInstalled(root: string, manifest: PackageManifest): 
   }
 }
 
+function verifyBracesPatchLock(
+  root: string,
+  manifest: PackageManifest,
+  lock: BunLock,
+  registryPackages: readonly LockedRegistryPackage[],
+): void {
+  if (manifest.patchedDependencies?.[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
+    fail("package.json does not bind the reviewed braces patch");
+  }
+  const patch = join(root, BRACES_PATCH_PATH);
+  if (sha256(root, patch, "reviewed braces patch") !== BRACES_PATCH_SHA256) {
+    fail("the reviewed braces patch is missing or its SHA-256 changed");
+  }
+  if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
+    fail("bun.lock does not bind the reviewed braces patch");
+  }
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "braces")
+    .map(({ name, version }) => name + "@" + version);
+  if (
+    lockResolutions.length === 0 ||
+    lockResolutions.some((resolution) => resolution !== BRACES_PATCH_KEY)
+  ) {
+    fail("bun.lock contains an unreviewed or missing braces resolution");
+  }
+}
+
+function verifyBracesPatchInstalled(root: string, manifest: PackageManifest): void {
+  const packages = installedPackages(root, manifest, "braces");
+  if (packages.length === 0) fail("braces@3.0.3 is not installed where Bun can verify it");
+  for (const packageRoot of packages) {
+    const installed = readJsonRecord(
+      root,
+      join(packageRoot, "package.json"),
+      "installed braces package manifest",
+    ) as InstalledPackageManifest;
+    if (installed.name !== "braces" || installed.version !== "3.0.3") {
+      fail("the reviewed patch resolved an unexpected braces package");
+    }
+    for (const [relativePath, digest] of PATCHED_BRACES_FILES) {
+      const target = join(packageRoot, relativePath);
+      if (sha256(root, target, "installed braces file " + relativePath) !== digest) {
+        fail("the installed braces patch was not applied exactly: " + relativePath);
+      }
+    }
+  }
+}
+
+function verifyNodeForgePatchLock(
+  root: string,
+  manifest: PackageManifest,
+  lock: BunLock,
+  registryPackages: readonly LockedRegistryPackage[],
+): void {
+  if (manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
+    fail("package.json does not bind the reviewed node-forge patch");
+  }
+  const patch = join(root, NODE_FORGE_PATCH_PATH);
+  if (sha256(root, patch, "reviewed node-forge patch") !== NODE_FORGE_PATCH_SHA256) {
+    fail("the reviewed node-forge patch is missing or its SHA-256 changed");
+  }
+  if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
+    fail("bun.lock does not bind the reviewed node-forge patch");
+  }
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "node-forge")
+    .map(({ name, version }) => name + "@" + version);
+  if (
+    lockResolutions.length === 0 ||
+    lockResolutions.some((resolution) => resolution !== NODE_FORGE_PATCH_KEY)
+  ) {
+    fail("bun.lock contains an unreviewed or missing node-forge resolution");
+  }
+}
+
+function verifyNodeForgePatchInstalled(root: string, manifest: PackageManifest): void {
+  const packages = installedPackages(root, manifest, "node-forge");
+  if (packages.length === 0) fail("node-forge@1.4.0 is not installed where Bun can verify it");
+  for (const packageRoot of packages) {
+    const installed = readJsonRecord(
+      root,
+      join(packageRoot, "package.json"),
+      "installed node-forge package manifest",
+    ) as InstalledPackageManifest;
+    if (installed.name !== "node-forge" || installed.version !== NODE_FORGE_PATCH_KEY.slice("node-forge@".length)) {
+      fail("the reviewed patch resolved an unexpected node-forge package");
+    }
+    for (const [relativePath, digest] of PATCHED_NODE_FORGE_FILES) {
+      const target = join(packageRoot, relativePath);
+      if (sha256(root, target, "installed node-forge file " + relativePath) !== digest) {
+        fail("the installed node-forge patch was not applied exactly: " + relativePath);
+      }
+    }
+  }
+}
+
 async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<PackageManifest> {
   verifyPublicRegistryConfiguration(root);
   const manifest = readJsonRecord(root, join(root, "package.json"), "package.json") as PackageManifest;
@@ -1082,6 +1345,8 @@ async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<P
   const registryPackages = lockedRegistryPackages(lock);
   if (HAS_IMAGE_SIZE_PATCH) verifyReviewedPatchLock(root, manifest, lock, registryPackages);
   if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchLock(root, manifest, lock, registryPackages);
+  if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchLock(root, manifest, lock, registryPackages);
+  if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchLock(root, manifest, lock, registryPackages);
   if (refreshEvidence) {
     const auditedAt = new Date().toISOString();
     const releases = await fetchReleaseEvidence(registryPackages, auditedAt);
@@ -1191,6 +1456,8 @@ if (lockOnly) {
 }
 if (HAS_IMAGE_SIZE_PATCH) verifyReviewedPatchInstalled(root, manifest);
 if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchInstalled(root, manifest);
+if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchInstalled(root, manifest);
+if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchInstalled(root, manifest);
 const parsedReport = await bunAuditReport(root);
 const unexpected: string[] = [];
 let reviewed = 0;
@@ -1207,9 +1474,13 @@ for (const [packageName, advisories] of Object.entries(parsedReport)) {
     }
     if (rank < 3) continue;
     const id = advisoryId(entry.url);
+    const isReviewedImageSizePatch =
+      HAS_IMAGE_SIZE_PATCH && packageName === "image-size";
+    const isReviewedExpoToolchainPatch =
+      HAS_EXPO_TOOLCHAIN_PATCHES &&
+      (packageName === "braces" || packageName === "node-forge");
     if (
-      HAS_IMAGE_SIZE_PATCH &&
-      packageName === "image-size" &&
+      (isReviewedImageSizePatch || isReviewedExpoToolchainPatch) &&
       REVIEWED_ADVISORIES.get(id) === entry.url
     ) {
       reviewed += 1;
@@ -1219,6 +1490,6 @@ for (const [packageName, advisories] of Object.entries(parsedReport)) {
   }
 }
 if (unexpected.length > 0) fail("unreviewed HIGH/CRITICAL advisories: " + unexpected.join(", "));
-console.log("Dependency audit passed" + (reviewed > 0 ? " with " + reviewed + " exactly patched image-size advisories" : ""));
+console.log("Dependency audit passed" + (reviewed > 0 ? " with " + reviewed + " exactly patched advisories" : ""));
 `;
 }

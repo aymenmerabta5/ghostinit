@@ -25,6 +25,9 @@ export const runtime = {
   node: "24.19.0", // LTS target; do not replace with the current non-LTS Node line
   // Match the selected Node LTS line even though DefinitelyTyped's latest tag follows Node 26.
   "@types/node": "24.19.1",
+  // Bun toolchain declarations. Generated manifests emit `^${runtime.bun}`;
+  // the reviewed 1.4.0 line is held to match the pinned Bun toolchain.
+  "bun-types": "1.4.0",
   "server-only": "0.0.1",
 } as const;
 
@@ -136,7 +139,10 @@ export const tanstackStart = {
  */
 export const cloudflare = {
   "@opennextjs/cloudflare": "1.20.8",
-  "@opennextjs/aws": "4.1.7",
+  // Pinned by the reviewed Windows copyTracedFiles patch (see
+  // OPENNEXT_AWS_WINDOWS_PATCH_* in src/templates/root/cloudflare.ts); rebase
+  // the patch before moving off this release.
+  "@opennextjs/aws": "4.1.0",
   "@cloudflare/vite-plugin": "1.62.5",
   // GHSA-rgj7-g3m4-5g8c: Miniflare's exact 0.35.2 pin needs the patched decoder.
   sharp: "0.35.5",

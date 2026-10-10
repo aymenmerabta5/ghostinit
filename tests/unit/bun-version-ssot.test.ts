@@ -94,7 +94,10 @@ describe("Bun version single source of truth", () => {
     // These two exact paths are generated data, independently bound to their
     // owning recipes. No generation directory or filename pattern is exempted.
     const generatedSources = new Map([
-      [generatedAuditFixture, dependencyAuditScriptContent(true).replace(/\r\n?/g, "\n")],
+      [
+        generatedAuditFixture,
+        dependencyAuditScriptContent(true, false, true).replace(/\r\n?/g, "\n"),
+      ],
       [generatedSecurityRuntime, artifact.moduleContent],
     ]);
     const reauthored = `export const version = ${JSON.stringify(runtime.bun)};\n`;

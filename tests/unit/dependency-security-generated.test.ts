@@ -25,6 +25,9 @@ import {
   dependencyAuditScriptContent,
   dependencyAuditFiles,
   IMAGE_SIZE_PATCH_ADVISORIES,
+  BRACES_PATCH_ADVISORIES,
+  NODE_FORGE_PATCH_ADVISORIES,
+  NODE_FORGE_PATCH_KEY,
   integrateDependencyAuditManifest,
 } from "../../src/templates/tooling/dependency-audit.js";
 
@@ -111,6 +114,18 @@ describe("standalone generated dependency security", () => {
         );
       }
     }
+    const expoPolicy = dependencySecurityPolicy(true, false, true);
+    expect(expoPolicy.auditScriptContent).toBe(dependencyAuditScriptContent(true, false, true));
+    expect(expoPolicy.patchedAdvisories).toEqual([
+      ...IMAGE_SIZE_PATCH_ADVISORIES.map((id) => ({ package: "image-size", id })),
+      ...BRACES_PATCH_ADVISORIES.map((id) => ({ package: "braces", id })),
+      ...NODE_FORGE_PATCH_ADVISORIES.map((id) => ({ package: "node-forge", id })),
+    ]);
+    expect(expoPolicy.protectedPackageVersions).toEqual({
+      "image-size": "1.2.1",
+      braces: "3.0.3",
+      "node-forge": NODE_FORGE_PATCH_KEY.slice("node-forge@".length),
+    });
   });
 
   test("install entrypoints use one runner and retain read-only audit leaves", () => {

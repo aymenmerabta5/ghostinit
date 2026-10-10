@@ -5,6 +5,12 @@ import {
   OPENNEXT_AWS_WINDOWS_PATCH_PATH,
 } from "../root/cloudflare.js";
 import {
+  BRACES_PATCH_CONTENT,
+  BRACES_PATCH_KEY,
+  BRACES_PATCH_PATH,
+  NODE_FORGE_PATCH_CONTENT,
+  NODE_FORGE_PATCH_KEY,
+  NODE_FORGE_PATCH_PATH,
   dependencyAuditScriptContent,
   IMAGE_SIZE_PATCH_KEY,
   IMAGE_SIZE_PATCH_PATH,
@@ -36,20 +42,42 @@ export {
   IMAGE_SIZE_PATCH_CONTENT,
   IMAGE_SIZE_PATCH_SHA256,
   IMAGE_SIZE_PATCH_ADVISORIES,
+  BRACES_PATCH_KEY,
+  BRACES_PATCH_PATH,
+  BRACES_PATCH_CONTENT,
+  BRACES_PATCH_SHA256,
+  BRACES_PATCH_ADVISORIES,
+  NODE_FORGE_PATCH_KEY,
+  NODE_FORGE_PATCH_PATH,
+  NODE_FORGE_PATCH_CONTENT,
+  NODE_FORGE_PATCH_SHA256,
+  NODE_FORGE_PATCH_ADVISORIES,
 } from "./dependency-audit-policy.js";
 
 export function dependencyAuditFiles(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
+  hasExpoToolchainPatches = false,
 ): TemplateFile[] {
   return [
-    ...dependencySecurityFiles(hasImageSizePatch, hasOpenNextPatch),
+    ...dependencySecurityFiles(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
     file(
       "scripts/audit-dependencies.ts",
-      dependencyAuditScriptContent(hasImageSizePatch, hasOpenNextPatch),
+      dependencyAuditScriptContent(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
     ),
-    file(".gitattributes", generatedGitattributesContent(hasImageSizePatch || hasOpenNextPatch)),
+    file(
+      ".gitattributes",
+      generatedGitattributesContent(
+        hasImageSizePatch || hasOpenNextPatch || hasExpoToolchainPatches,
+      ),
+    ),
     ...(hasImageSizePatch ? [file(IMAGE_SIZE_PATCH_PATH, IMAGE_SIZE_PATCH_CONTENT)] : []),
+    ...(hasExpoToolchainPatches
+      ? [
+          file(BRACES_PATCH_PATH, BRACES_PATCH_CONTENT),
+          file(NODE_FORGE_PATCH_PATH, NODE_FORGE_PATCH_CONTENT),
+        ]
+      : []),
   ];
 }
 
@@ -57,6 +85,7 @@ export function integrateDependencyAuditManifest(
   packageFile: TemplateFile,
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
+  hasExpoToolchainPatches = false,
 ): TemplateFile {
   if (packageFile.path !== "package.json") {
     throw new Error("Dependency audit integration requires the root package.json");
@@ -102,6 +131,13 @@ export function integrateDependencyAuditManifest(
     manifest.patchedDependencies = {
       ...manifest.patchedDependencies,
       [IMAGE_SIZE_PATCH_KEY]: IMAGE_SIZE_PATCH_PATH,
+    };
+  }
+  if (hasExpoToolchainPatches) {
+    manifest.patchedDependencies = {
+      ...manifest.patchedDependencies,
+      [BRACES_PATCH_KEY]: BRACES_PATCH_PATH,
+      [NODE_FORGE_PATCH_KEY]: NODE_FORGE_PATCH_PATH,
     };
   }
   if (hasOpenNextPatch) {

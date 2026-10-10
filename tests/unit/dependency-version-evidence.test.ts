@@ -130,9 +130,12 @@ describe("dependency version audit evidence", () => {
 
   test("requires an explicit hold for every non-eligible pin and never waives package age", () => {
     expect(evidence.schemaVersion).toBe(3);
+    const expectedCutoffAt = new Date(
+      Date.parse(evidence.auditedAt) - versions.supplyChain.minimumReleaseAgeSeconds * 1000,
+    ).toISOString();
     expect(evidence.supplyChain).toEqual({
       minimumReleaseAgeSeconds: versions.supplyChain.minimumReleaseAgeSeconds,
-      cutoffAt: "2026-08-25T16:22:25.760Z",
+      cutoffAt: expectedCutoffAt,
       releaseAgeExceptions: [],
     });
     const cutoffMilliseconds = Date.parse(evidence.supplyChain.cutoffAt);
@@ -522,7 +525,7 @@ describe("dependency version audit evidence", () => {
     }
     expect(audited.get("runtime.node")).toMatchObject({
       pinned: "24.19.0",
-      eligibleLatest: "26.7.0",
+      eligibleLatest: "26.10.0",
       status: "compatibility-hold",
     });
     expect(audited.get("orpc.@orpc/client")).toMatchObject({

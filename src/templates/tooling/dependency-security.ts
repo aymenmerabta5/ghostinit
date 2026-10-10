@@ -82,8 +82,13 @@ main().catch((error) => {
 export function dependencySecurityFiles(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
+  hasExpoToolchainPatches = false,
 ): TemplateFile[] {
-  const policy = dependencySecurityPolicy(hasImageSizePatch, hasOpenNextPatch);
+  const policy = dependencySecurityPolicy(
+    hasImageSizePatch,
+    hasOpenNextPatch,
+    hasExpoToolchainPatches,
+  );
   return [
     file("scripts/security-dependencies.cjs", dependencySecurityLauncherContent(policy)),
     file(DEPENDENCY_SECURITY_INTEGRITY_PATH, dependencySecurityIntegrityContent()),

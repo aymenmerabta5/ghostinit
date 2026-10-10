@@ -119,6 +119,7 @@ export async function upgradeCommand(
           policy: dependencySecurityPolicy(
             resolved.apps.some((app) => app.target === "expo"),
             resolved.apps.some((app) => app.target === "nextjs" && app.deploy === "cloudflare"),
+            resolved.apps.some((app) => app.target === "expo"),
           ),
           logger: options.logger,
           leaseOwner: lock.owner,
