@@ -324,16 +324,17 @@ export const storage = {
  * Pinned transitive overrides emitted into generated manifests.
  *
  * eve 0.44.4 exact-pins undici 8.9.0, which carries HIGH advisories with no
- * eligible upgrade path for the direct range. The flat override pins every
- * undici copy to the reviewed 8.10.2 line: a patch-level move for eve's own
- * direct dependency, and the reviewed major-line floor for the just-bash and
- * provider-utils ranges that otherwise resolve vulnerable copies.
+ * eligible upgrade path for the direct range. The flat undici override pins
+ * every copy to the reviewed 8.10.2 line. http-cache-semantics floats on a
+ * caret range, so without a floor a fresh resolution silently unbinds the
+ * reviewed 4.2.0 patch; its override pins the reviewed release.
  * Deliberately outside `catalog`: these are override declarations, not
  * direct dependencies, and are audited as their own scopes. Flat (not
  * nested) overrides keep Bun on the v1/v2 lockfile the audit gates parse.
  */
 export const dependencyOverrides = {
   undici: "8.10.2",
+  "http-cache-semantics": "4.2.0",
 } as const;
 
 export const catalog = {

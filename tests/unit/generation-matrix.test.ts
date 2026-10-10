@@ -251,7 +251,6 @@ describe("generation matrix — structural invariants across every mode/framewor
           overrides?: Record<string, string>;
         };
         if (config.features?.includes("eve")) {
-          expect(manifest.overrides).toMatchObject(dependencyOverrides);
           expect(manifest.overrides?.["undici"]).toBe(dependencyOverrides["undici"]);
         } else {
           expect(manifest.overrides?.["undici"]).toBeUndefined();
@@ -261,6 +260,7 @@ describe("generation matrix — structural invariants across every mode/framewor
       it("pins the http-cache-semantics patch exactly when desktop is enabled", () => {
         const manifest = JSON.parse(byPath.get("package.json") ?? "{}") as {
           patchedDependencies?: Record<string, string>;
+          overrides?: Record<string, string>;
         };
         const files = new Map(byPath);
         if (config.apps?.includes("desktop")) {
@@ -268,9 +268,11 @@ describe("generation matrix — structural invariants across every mode/framewor
             "patches/http-cache-semantics@4.2.0.patch",
           );
           expect(files.has("patches/http-cache-semantics@4.2.0.patch")).toBe(true);
+          expect(manifest.overrides?.["http-cache-semantics"]).toBe("4.2.0");
         } else {
           expect(manifest.patchedDependencies?.["http-cache-semantics@4.2.0"]).toBeUndefined();
           expect(files.has("patches/http-cache-semantics@4.2.0.patch")).toBe(false);
+          expect(manifest.overrides?.["http-cache-semantics"]).toBeUndefined();
         }
       });
 

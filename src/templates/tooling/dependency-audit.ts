@@ -177,13 +177,19 @@ export function integrateDependencyAuditManifest(
   if (hasEveUndiciOverride) {
     manifest.overrides = {
       ...(manifest.overrides as Record<string, unknown> | undefined),
-      ...dependencyOverrides,
+      undici: dependencyOverrides.undici,
     };
   }
   if (hasElectronToolchainPatches) {
     manifest.patchedDependencies = {
       ...manifest.patchedDependencies,
       [HTTP_CACHE_SEMANTICS_PATCH_KEY]: HTTP_CACHE_SEMANTICS_PATCH_PATH,
+    };
+    // The caret range floats past the reviewed release and unbinds the patch,
+    // so desktop projects also floor the reviewed version.
+    manifest.overrides = {
+      ...(manifest.overrides as Record<string, unknown> | undefined),
+      "http-cache-semantics": dependencyOverrides["http-cache-semantics"],
     };
   }
   return { ...packageFile, content: `${JSON.stringify(manifest, null, 2)}\n` };

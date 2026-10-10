@@ -12,7 +12,7 @@ declare module "stripe" {
     type OtherString = string & Record<never, never>;
 
     interface StripeConfig {
-      apiVersion?: "2026-07-29.dahlia";
+      apiVersion?: "2026-08-26.dahlia";
     }
 
     interface RequestOptions {

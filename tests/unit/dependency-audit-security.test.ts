@@ -276,11 +276,14 @@ describe("reviewed image-size advisory containment", () => {
       const byPath = new Map(files.map((file) => [file.path, file.content]));
       const manifest = JSON.parse(byPath.get("package.json") ?? "{}") as {
         patchedDependencies?: Record<string, string>;
+        overrides?: Record<string, string>;
       };
       expect(manifest.patchedDependencies?.[HTTP_CACHE_SEMANTICS_PATCH_KEY]).toBe(
         HTTP_CACHE_SEMANTICS_PATCH_PATH,
       );
       expect(byPath.get(HTTP_CACHE_SEMANTICS_PATCH_PATH)).toBe(HTTP_CACHE_SEMANTICS_PATCH_CONTENT);
+      expect(manifest.overrides?.["http-cache-semantics"]).toBe("4.2.0");
+      expect(manifest.overrides?.["undici"]).toBeUndefined();
       expect(manifest.patchedDependencies?.[IMAGE_SIZE_PATCH_KEY]).toBeUndefined();
       expect(byPath.has(IMAGE_SIZE_PATCH_PATH)).toBe(false);
       expect(manifest.patchedDependencies?.[BRACES_PATCH_KEY]).toBeUndefined();

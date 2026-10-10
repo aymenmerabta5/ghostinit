@@ -8,7 +8,7 @@ describe("Stripe webhook generated type contracts", () => {
         const content = webhookContent("stripe", framework, mode, "postgres").content;
         const billingTypes = mode === "monorepo" ? "@repo/billing" : "@/server/billing";
 
-        expect(content).toContain('apiVersion: "2026-07-29.dahlia"');
+        expect(content).toContain('apiVersion: "2026-08-26.dahlia"');
         expect(content).toContain(`import type { SubscriptionStatus } from "${billingTypes}";`);
         expect(content).toContain(
           "function stripeProviderSubscriptionStatus(status: Stripe.Subscription.Status): SubscriptionStatus",
@@ -78,7 +78,7 @@ describe("Stripe webhook generated type contracts", () => {
         const content = webhookContent("stripe", framework, mode, "convex").content;
         const billingTypes = mode === "monorepo" ? "@repo/billing" : "@/server/billing";
 
-        expect(content).toContain("2026-07-29.dahlia");
+        expect(content).toContain("2026-08-26.dahlia");
         expect(content).toContain(`import type { SubscriptionStatus } from "${billingTypes}";`);
         expect(content).toContain(
           "function stripeProviderSubscriptionStatus(status: Stripe.Subscription.Status): SubscriptionStatus",

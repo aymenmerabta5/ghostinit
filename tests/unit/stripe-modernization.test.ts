@@ -23,17 +23,17 @@ describe("Stripe 22 Bun-compatible integration", () => {
       const client = files.find(({ path }) => path.endsWith("providers/stripe/client.ts"))?.content;
       const provider = files.find(({ path }) => path.endsWith("providers/stripe.ts"))?.content;
 
-      expect(apiVersion).toContain('STRIPE_API_VERSION = "2026-07-29.dahlia"');
+      expect(apiVersion).toContain('STRIPE_API_VERSION = "2026-08-26.dahlia"');
       expect(client).toContain('from "./api-version"');
       expect(client).toContain("apiVersion: STRIPE_API_VERSION");
-      expect(provider).toContain("Stripe Node v22.6.2 / API 2026-07-29.dahlia");
+      expect(provider).toContain("Stripe Node v22.6.2 / API 2026-08-26.dahlia");
     }
 
     const hostTypes = readFileSync(
       resolve(import.meta.dir, "../../src/templates/billing/providers/stripe/host-only.d.ts"),
       "utf8",
     );
-    expect(hostTypes).toContain('apiVersion?: "2026-07-29.dahlia"');
+    expect(hostTypes).toContain('apiVersion?: "2026-08-26.dahlia"');
     expect(hostTypes).toContain("constructEventAsync(");
     expect(hostTypes).toContain("): Promise<Stripe.Event>;");
     expect(hostTypes).not.toMatch(/\bconstructEvent\(/);
@@ -44,7 +44,7 @@ describe("Stripe 22 Bun-compatible integration", () => {
       for (const framework of ["next", "tanstack"] as const) {
         for (const database of ["postgres", "convex"] as const) {
           const content = webhookContent("stripe", framework, mode, database).content;
-          expect(content).toContain('apiVersion: "2026-07-29.dahlia"');
+          expect(content).toContain('apiVersion: "2026-08-26.dahlia"');
           expect(content).toContain(
             "await stripe.webhooks.constructEventAsync(buf, sig, stripeWebhookSecret)",
           );

@@ -59,7 +59,7 @@ describe("billing webhooks preserve raw bytes and deduplicate deliveries", () =>
       expect(c).toContain("body.getReader()");
       expect(c).not.toContain(".arrayBuffer(");
       expect(c).toContain("STRIPE_WEBHOOK_SECRET");
-      expect(c).toContain("2026-07-29.dahlia");
+      expect(c).toContain("2026-08-26.dahlia");
     });
 
     it("stripe monorepo idempotent via webhook_events unique provider+providerEventId check processed return 200 already processed, switch checkout.session.completed -> update checkout status completed create subscription, invoice.paid lifecycle broader vs payment_succeeded narrower, customer.subscription.updated/deleted, insert webhook_events processed true onConflictDoNothing return ok 200", () => {

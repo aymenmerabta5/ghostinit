@@ -1,18 +1,18 @@
 {
   "schemaVersion": 3,
-  "auditedAt": "2026-10-10T19:44:28.198Z",
+  "auditedAt": "2026-10-10T21:38:37.872Z",
   "asOf": "2026-10-10",
   "registry": "https://registry.npmjs.org",
   "bun": "1.4.0",
   "supplyChain": {
     "minimumReleaseAgeSeconds": 604800,
-    "cutoffAt": "2026-10-03T19:44:28.198Z",
+    "cutoffAt": "2026-10-03T21:38:37.872Z",
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 172,
-    "uniquePackages": 142,
-    "latestScopes": 112,
+    "auditedScopes": 173,
+    "uniquePackages": 143,
+    "latestScopes": 113,
     "compatibilityHeldScopes": 60,
     "uniqueCompatibilityHolds": 51,
     "auditedLockfiles": 4,
@@ -7445,6 +7445,22 @@
       "registryLatestPublishedAt": "2026-09-30T15:39:58.489Z",
       "eligibleLatest": "8.23.1",
       "eligibleLatestPublishedAt": "2026-09-30T15:39:58.489Z",
+      "status": "latest"
+    },
+    {
+      "scope": "dependencyOverrides.http-cache-semantics",
+      "group": "dependencyOverrides",
+      "key": "http-cache-semantics",
+      "package": "http-cache-semantics",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "pinned": "4.2.0",
+      "pinnedPublishedAt": "2025-05-09T13:38:11.855Z",
+      "registryLatest": "4.3.0",
+      "registryLatestPublishedAt": "2026-10-04T02:56:05.593Z",
+      "eligibleLatest": "4.2.0",
+      "eligibleLatestPublishedAt": "2025-05-09T13:38:11.855Z",
       "status": "latest"
     },
     {
