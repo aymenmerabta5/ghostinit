@@ -56,7 +56,7 @@ export const POSTGRES_IDENTITY_CAPABILITY = {
   limitations: [
     "The renderer is pinned to the audited Better Auth package schema; rerun the conformance tests whenever a pinned auth package changes.",
     "Trusted-device grants are Better Auth verification records plus signed cookies, not a standalone table.",
-    "@better-auth/passkey 1.6.30 verifies ceremonies with requireUserVerification=false; the generated surface does not claim biometric or hardware user-verification enforcement.",
+    "@better-auth/passkey 1.6.33 verifies ceremonies with requireUserVerification=false; the generated surface does not claim biometric or hardware user-verification enforcement.",
   ],
 } as const satisfies DataTargetCapability;
 

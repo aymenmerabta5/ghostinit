@@ -86,7 +86,7 @@ describe("billing provider — polar (MoR 4% metering license keys) — Context7
     const { billing } = await import("../../packages/versions");
     expect(billing["@polar-sh/sdk"]).toBe("0.49.0");
     expect(billing["@polar-sh/nextjs"]).toBe("0.9.6");
-    expect(billing.stripe).toBe("22.5.0");
+    expect(billing.stripe).toBe("22.6.2");
     expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
     expect(billing["@paddle/paddle-node-sdk"]).toBe("3.10.0");
     expect(billing["@paddle/paddle-js"]).toBe("1.6.5");

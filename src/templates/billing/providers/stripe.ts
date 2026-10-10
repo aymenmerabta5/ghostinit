@@ -2,7 +2,7 @@
  * Stripe provider barrel — composes split modules for <300 compliance.
  * Original monolith 433 lines now <200 barrel + submodules.
  *
- * Stripe Node v22.5.0 / API 2026-07-29.dahlia.
+ * Stripe Node v22.6.2 / API 2026-07-29.dahlia.
  * Stripe(SECRET, {apiVersion:'2026-07-29.dahlia'}) checkout.sessions.create line_items mode subscription
  *   automatic_tax success_url cancel_url expand subscription expand[]=subscription
  * billingPortal.sessions.create customer return_url flow_data subscription_update deep-link

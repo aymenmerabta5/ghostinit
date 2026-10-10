@@ -1,6 +1,6 @@
 /**
  * Stripe client init — server-only.
- * Stripe Node v22.5.0 Dahlia API version.
+ * Stripe Node v22.6.2 Dahlia API version.
  */
 import Stripe from "stripe";
 import { STRIPE_API_VERSION } from "./api-version.js";

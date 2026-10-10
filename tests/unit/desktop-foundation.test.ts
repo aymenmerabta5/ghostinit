@@ -225,7 +225,7 @@ describe("generated desktop capability foundation", () => {
   });
 
   test("pins the Electron 44 ESM runtime and electron-store 11 contract in both modes", () => {
-    expect(electronVersions.electron).toBe("44.0.0");
+    expect(electronVersions.electron).toBe("44.5.1");
     expect(electronVersions["electron-store"]).toBe("11.0.2");
     for (const mode of ["monorepo", "single"] as const) {
       const files = desktopFiles({ mode, apps: ["desktop"] });
@@ -245,7 +245,7 @@ describe("generated desktop capability foundation", () => {
       expect(manifest.engines?.bun, mode).toBe(runtime.bun);
       expect(manifest.packageManager, mode).toBe(`bun@${runtime.bun}`);
       expect(manifest.dependencies?.["electron-store"], mode).toBe("11.0.2");
-      expect(manifest.devDependencies?.electron, mode).toBe("44.0.0");
+      expect(manifest.devDependencies?.electron, mode).toBe("44.5.1");
     }
   });
 

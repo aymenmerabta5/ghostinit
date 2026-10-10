@@ -19,16 +19,16 @@ TypeScript checking, targeted Bun tests, and explicit runtime probes.
 | ---------------- | ------- |
 | Bun              | `runtime.bun` |
 | `bun-types`      | `runtime.bun` |
-| `drizzle-orm`    | 0.45.2  |
-| `drizzle-kit`    | 0.31.10 |
-| `pg`             | 8.23.0  |
-| `better-auth`    | 1.6.30  |
-| `@orpc/server`   | 1.15.0  |
-| `@orpc/contract` | 1.15.0  |
-| `@orpc/client`   | 1.15.0  |
-| `@orpc/openapi`  | 1.15.0  |
-| `@orpc/zod`      | 1.15.0  |
-| `zod`            | 4.4.3   |
+| `drizzle-orm`    | 0.45.3  |
+| `drizzle-kit`    | 0.31.11 |
+| `pg`             | 8.23.1  |
+| `better-auth`    | 1.6.33  |
+| `@orpc/server`   | 1.15.4  |
+| `@orpc/contract` | 1.15.4  |
+| `@orpc/client`   | 1.15.4  |
+| `@orpc/openapi`  | 1.15.4  |
+| `@orpc/zod`      | 1.15.4  |
+| `zod`            | 4.6.5   |
 | `@types/pg`      | 8.23.1  |
 | TypeScript       | 7.0.2   |
 
@@ -102,7 +102,7 @@ runtime probes, so the old output does not verify the current tree.
 
 ## Dependency and Runtime Notes
 
-- Better Auth 1.6.30 exposes the built-in
+- Better Auth 1.6.33 exposes the built-in
   `better-auth/adapters/drizzle` entry point used here.
 - `@orpc/zod` is pinned explicitly for `ZodToJsonSchemaConverter`.
 - No peer-dependency override or legacy install mode is part of the fixture.

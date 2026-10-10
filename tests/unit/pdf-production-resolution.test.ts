@@ -73,8 +73,8 @@ describe("PDF production dependency resolution", () => {
   });
 
   test("pins age-eligible renderer and pdfkit releases", () => {
-    expect(pdfVersions["@react-pdf/renderer"]).toBe("4.8.1");
-    expect(pdfVersions.pdfkit).toBe("0.20.1");
+    expect(pdfVersions["@react-pdf/renderer"]).toBe("4.9.0");
+    expect(pdfVersions.pdfkit).toBe("0.20.2");
   });
 
   for (const mode of ["monorepo", "single"] as const) {

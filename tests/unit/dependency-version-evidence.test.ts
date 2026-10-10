@@ -488,31 +488,31 @@ describe("dependency version audit evidence", () => {
       oxlint: versions.tooling.oxlint,
       oxfmt: versions.tooling.oxfmt,
     }).toEqual({
-      next: "16.3.3",
-      electron: "44.0.0",
-      s3: "3.1117.0",
-      shadcn: "4.19.0",
-      lucide: "1.34.0",
-      eve: "0.44.4",
-      ai: "7.0.79",
-      nitro: "3.0.260610-beta",
-      oxlint: "1.80.0",
-      oxfmt: "0.65.0",
+      next: "16.3.8",
+      electron: "44.5.1",
+      s3: "3.1146.0",
+      shadcn: "4.21.1",
+      lucide: "1.51.0",
+      eve: "0.70.3",
+      ai: "7.0.127",
+      nitro: "3.0.260903-beta",
+      oxlint: "1.86.0",
+      oxfmt: "0.71.0",
     });
 
     const audited = new Map(evidence.pins.map((pin) => [pin.scope, pin]));
     for (const [scope, pinned] of [
-      ["nextStack.next", "16.3.3"],
-      ["electron.electron", "44.0.0"],
-      ["storage.@aws-sdk/client-s3", "3.1117.0"],
-      ["ui.shadcn", "4.19.0"],
-      ["ui.lucide-react", "1.34.0"],
-      ["eve.eve", "0.44.4"],
-      ["eve.ai", "7.0.79"],
-      ["tooling.oxlint", "1.80.0"],
-      ["tooling.oxfmt", "0.65.0"],
-      ["host.devDependencies.oxlint", "1.80.0"],
-      ["host.dependencies.oxfmt", "0.65.0"],
+      ["nextStack.next", "16.3.8"],
+      ["electron.electron", "44.5.1"],
+      ["storage.@aws-sdk/client-s3", "3.1146.0"],
+      ["ui.shadcn", "4.21.1"],
+      ["ui.lucide-react", "1.51.0"],
+      ["eve.eve", "0.70.3"],
+      ["eve.ai", "7.0.127"],
+      ["tooling.oxlint", "1.86.0"],
+      ["tooling.oxfmt", "0.71.0"],
+      ["host.devDependencies.oxlint", "1.86.0"],
+      ["host.dependencies.oxfmt", "0.71.0"],
     ] as const) {
       expect(audited.get(scope), scope).toMatchObject({
         pinned,
@@ -526,12 +526,12 @@ describe("dependency version audit evidence", () => {
       status: "compatibility-hold",
     });
     expect(audited.get("orpc.@orpc/client")).toMatchObject({
-      pinned: "1.15.0",
+      pinned: "1.15.4",
       eligibleLatest: "2.0.0",
       status: "compatibility-hold",
     });
     expect(audited.get("tanstackStart.nitro")).toMatchObject({
-      pinned: "3.0.260610-beta",
+      pinned: "3.0.260903-beta",
       eligibleLatest: "3.0.0",
       status: "compatibility-hold",
     });

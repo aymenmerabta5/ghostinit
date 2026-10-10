@@ -123,7 +123,7 @@ describe("Paddle provider generation contract", () => {
 
   it("uses the audited age-eligible billing provider versions", async () => {
     const { billing } = await import("../../packages/versions");
-    expect(billing.stripe).toBe("22.5.0");
+    expect(billing.stripe).toBe("22.6.2");
     expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
     expect(billing["@paddle/paddle-node-sdk"]).toBe("3.10.0");
     expect(billing["@paddle/paddle-js"]).toBe("1.6.5");

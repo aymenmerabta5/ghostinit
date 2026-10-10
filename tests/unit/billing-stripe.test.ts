@@ -136,9 +136,9 @@ describe("billing provider — stripe", () => {
     expect(stripe.includes("STRIPE_WEBHOOK_SECRET") || stripe.includes("webhookSecret")).toBe(true);
   });
 
-  it("version pinned in packages/versions.ts is Stripe 22.5.0", async () => {
+  it("version pinned in packages/versions.ts is Stripe 22.6.2", async () => {
     const { billing } = await import("../../packages/versions");
     expect(billing.stripe).toBeDefined();
-    expect(billing.stripe).toBe("22.5.0");
+    expect(billing.stripe).toBe("22.6.2");
   });
 });

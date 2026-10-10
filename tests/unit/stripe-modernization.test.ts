@@ -10,7 +10,7 @@ import { webhookContent } from "../../src/templates/billing/webhooks/providers/i
 
 describe("Stripe 22 Bun-compatible integration", () => {
   it("keeps the exact SDK release and Dahlia API literal coupled", () => {
-    expect(billing.stripe).toBe("22.5.0");
+    expect(billing.stripe).toBe("22.6.2");
 
     for (const mode of ["monorepo", "single"] as const) {
       const files = billingFiles({
@@ -26,7 +26,7 @@ describe("Stripe 22 Bun-compatible integration", () => {
       expect(apiVersion).toContain('STRIPE_API_VERSION = "2026-07-29.dahlia"');
       expect(client).toContain('from "./api-version"');
       expect(client).toContain("apiVersion: STRIPE_API_VERSION");
-      expect(provider).toContain("Stripe Node v22.5.0 / API 2026-07-29.dahlia");
+      expect(provider).toContain("Stripe Node v22.6.2 / API 2026-07-29.dahlia");
     }
 
     const hostTypes = readFileSync(

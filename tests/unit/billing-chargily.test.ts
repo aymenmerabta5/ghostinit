@@ -289,7 +289,7 @@ describe("billing provider — chargily (Algeria EDAHABIA/CIB checkout-only serv
   it("version pinned @chargily/chargily-pay 2.1.0 in packages/versions.ts", async () => {
     const { billing } = await import("../../packages/versions");
     expect(billing["@chargily/chargily-pay"]).toBe("2.1.0");
-    expect(billing.stripe).toBe("22.5.0");
+    expect(billing.stripe).toBe("22.6.2");
     expect(billing["@paddle/paddle-node-sdk"]).toBe("3.10.0");
     expect(billing["@paddle/paddle-js"]).toBe("1.6.5");
     expect(billing["@polar-sh/sdk"]).toBe("0.49.0");

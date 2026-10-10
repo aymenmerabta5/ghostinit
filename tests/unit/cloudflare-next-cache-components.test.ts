@@ -72,7 +72,7 @@ describe("Cloudflare Next Cache Components compatibility", () => {
           if (deploy === "cloudflare") {
             expect(source).toContain("request-bound Suspense in workerd");
             const guide = read(plan, "docs/CLOUDFLARE_DEPLOYMENT.md");
-            expect(guide).toContain("Next.js 16.3.3 with OpenNext Cloudflare 1.20.2");
+            expect(guide).toContain("Next.js 16.3.8 with OpenNext Cloudflare 1.20.8");
             expect(guide).toContain("OpenNext generally supports SSR, PPR, and composable caching");
             expect(guide).toContain("application `--cache redis` capability");
           } else {
