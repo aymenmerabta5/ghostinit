@@ -262,7 +262,12 @@ describe("single-mode Redis cache generation", () => {
 
       test(`${framework}/${app} removes the cache implementation and dependency when disabled`, () => {
         const files = render(config("single", framework, app, "none"));
-        expect(files.some((entry) => entry.path.includes("cache"))).toBe(false);
+        // Reviewed dependency patches live under patches/ and are not the
+        // cache implementation (for example, the http-cache-semantics audit
+        // patch sorts under a "cache" path segment).
+        expect(
+          files.some((entry) => entry.path.includes("cache") && !entry.path.startsWith("patches/")),
+        ).toBe(false);
         const manifest = JSON.parse(read(files, "package.json")) as {
           dependencies: Record<string, string>;
         };

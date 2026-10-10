@@ -1,0 +1,18 @@
+{
+  "package": "node-forge",
+  "version": "1.4.0",
+  "tarball": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz",
+  "integrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==",
+  "publishedAt": "2026-03-24T21:44:34.668Z",
+  "auditedAt": "2026-10-10T17:28:30.598Z",
+  "patchPath": "tests/fixtures/compatibility/expo-uniwind-rnr/patches/node-forge@1.4.0.patch",
+  "patchSha256": "2cf4ae4201a9e12d8086535ca64419d7dd237d31d78badb2f081419a747500fa",
+  "files": [
+    {
+      "path": "lib/rsa.js",
+      "fixture": "rsa.js.fixture",
+      "originalSha256": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+      "patchedSha256": "8010ab4231d66004e1c190af1ddeb28d4185f6e45d08df4a45436c7676aa07da"
+    }
+  ]
+}

@@ -79,6 +79,7 @@ type JsonToken =
 const HAS_IMAGE_SIZE_PATCH = true;
 const HAS_OPENNEXT_PATCH = false;
 const HAS_EXPO_TOOLCHAIN_PATCHES = true;
+const HAS_ELECTRON_TOOLCHAIN_PATCHES = false;
 const PATCH_KEY = "image-size@1.2.1";
 const PATCH_PATH = "patches/image-size@1.2.1.patch";
 const PATCH_SHA256 = "7805ea36efb396516b71b6965774b03c7df465bdda1489b937dc19d3bde8a7d8";
@@ -105,6 +106,12 @@ const NODE_FORGE_PATCH_SHA256 = "2cf4ae4201a9e12d8086535ca64419d7dd237d31d78badb
 const PATCHED_NODE_FORGE_FILES = new Map<string, string>([
   ["lib/rsa.js", "8010ab4231d66004e1c190af1ddeb28d4185f6e45d08df4a45436c7676aa07da"],
 ]);
+const HTTP_CACHE_SEMANTICS_PATCH_KEY = "http-cache-semantics@4.2.0";
+const HTTP_CACHE_SEMANTICS_PATCH_PATH = "patches/http-cache-semantics@4.2.0.patch";
+const HTTP_CACHE_SEMANTICS_PATCH_SHA256 = "da0f0c3f67d4f57af1368ae196c2755a97daf6c743dd983b789d9e78844af24c";
+const PATCHED_HTTP_CACHE_SEMANTICS_FILES = new Map<string, string>([
+  ["index.js", "ede1cc404a492fa348eb9d97a3007a0d72aa717bd22cd86a56bd0824c19729ca"],
+]);
 const EXPECTED_BUN_VERSION = "1.4.0";
 const MINIMUM_RELEASE_AGE_SECONDS = 604800;
 const PUBLIC_REGISTRY = "https://registry.npmjs.org";
@@ -126,7 +133,12 @@ const REVIEWED_ADVISORIES = new Map<string, string>([
   ["GHSA-5p2g-fcmc-qvqq", "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq"],
   ["GHSA-vfj7-8cjw-p6xm", "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"],
   ["GHSA-86w9-cpqp-85rv", "https://github.com/advisories/GHSA-86w9-cpqp-85rv"],
+  ["GHSA-ch52-4w7c-c8xp", "https://github.com/advisories/GHSA-ch52-4w7c-c8xp"],
 ]);
+// Tracks which reviewed patches resolve into the committed lock. Installed
+// verification skips only patches with no locked resolution; a locked but
+// missing installation still fails closed.
+const REVIEWED_PATCH_PRESENCE = new Map<string, boolean>();
 const severityRank = new Map<string, number>([
   ["unknown", 0],
   ["low", 1],
@@ -930,6 +942,10 @@ function verifyReviewedPatchLock(
   lock: BunLock,
   registryPackages: readonly LockedRegistryPackage[],
 ): void {
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "image-size")
+    .map(({ name, version }) => name + "@" + version);
+  REVIEWED_PATCH_PRESENCE.set("image-size", lockResolutions.length > 0);
   if (manifest.patchedDependencies?.[PATCH_KEY] !== PATCH_PATH) {
     fail("package.json does not bind the reviewed image-size patch");
   }
@@ -937,23 +953,28 @@ function verifyReviewedPatchLock(
   if (sha256(root, patch, "reviewed image-size patch") !== PATCH_SHA256) {
     fail("the reviewed image-size patch is missing or its SHA-256 changed");
   }
+  if (lockResolutions.length === 0) {
+    // Bun drops patch bindings for packages absent from the resolved graph
+    // (for example, Metro releases that do not depend on image-size), so a
+    // missing resolution cannot satisfy a lock binding. An absent package has
+    // no installed exposure and reports no advisories; verification resumes
+    // strictly the moment any resolution appears.
+    return;
+  }
   if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[PATCH_KEY] !== PATCH_PATH) {
     fail("bun.lock does not bind the reviewed image-size patch");
   }
-  const lockResolutions = registryPackages
-    .filter(({ name }) => name === "image-size")
-    .map(({ name, version }) => name + "@" + version);
-  if (
-    lockResolutions.length === 0 ||
-    lockResolutions.some((resolution) => resolution !== PATCH_KEY)
-  ) {
+  if (lockResolutions.some((resolution) => resolution !== PATCH_KEY)) {
     fail("bun.lock contains an unreviewed or missing image-size resolution");
   }
 }
 
 function verifyReviewedPatchInstalled(root: string, manifest: PackageManifest): void {
   const packages = installedPackages(root, manifest, "image-size");
-  if (packages.length === 0) fail("image-size@1.2.1 is not installed where Bun can verify it");
+  if (packages.length === 0) {
+    if (REVIEWED_PATCH_PRESENCE.get("image-size") === false) return;
+    fail("image-size@1.2.1 is not installed where Bun can verify it");
+  }
   for (const packageRoot of packages) {
     const installed = readJsonRecord(
       root,
@@ -1016,6 +1037,10 @@ function verifyBracesPatchLock(
   lock: BunLock,
   registryPackages: readonly LockedRegistryPackage[],
 ): void {
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "braces")
+    .map(({ name, version }) => name + "@" + version);
+  REVIEWED_PATCH_PRESENCE.set("braces", lockResolutions.length > 0);
   if (manifest.patchedDependencies?.[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
     fail("package.json does not bind the reviewed braces patch");
   }
@@ -1023,23 +1048,25 @@ function verifyBracesPatchLock(
   if (sha256(root, patch, "reviewed braces patch") !== BRACES_PATCH_SHA256) {
     fail("the reviewed braces patch is missing or its SHA-256 changed");
   }
+  if (lockResolutions.length === 0) {
+    // Same absent-package rule as the image-size binding: no locked
+    // resolution means no installed exposure and no reported advisories.
+    return;
+  }
   if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[BRACES_PATCH_KEY] !== BRACES_PATCH_PATH) {
     fail("bun.lock does not bind the reviewed braces patch");
   }
-  const lockResolutions = registryPackages
-    .filter(({ name }) => name === "braces")
-    .map(({ name, version }) => name + "@" + version);
-  if (
-    lockResolutions.length === 0 ||
-    lockResolutions.some((resolution) => resolution !== BRACES_PATCH_KEY)
-  ) {
+  if (lockResolutions.some((resolution) => resolution !== BRACES_PATCH_KEY)) {
     fail("bun.lock contains an unreviewed or missing braces resolution");
   }
 }
 
 function verifyBracesPatchInstalled(root: string, manifest: PackageManifest): void {
   const packages = installedPackages(root, manifest, "braces");
-  if (packages.length === 0) fail("braces@3.0.3 is not installed where Bun can verify it");
+  if (packages.length === 0) {
+    if (REVIEWED_PATCH_PRESENCE.get("braces") === false) return;
+    fail("braces@3.0.3 is not installed where Bun can verify it");
+  }
   for (const packageRoot of packages) {
     const installed = readJsonRecord(
       root,
@@ -1064,6 +1091,10 @@ function verifyNodeForgePatchLock(
   lock: BunLock,
   registryPackages: readonly LockedRegistryPackage[],
 ): void {
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "node-forge")
+    .map(({ name, version }) => name + "@" + version);
+  REVIEWED_PATCH_PRESENCE.set("node-forge", lockResolutions.length > 0);
   if (manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
     fail("package.json does not bind the reviewed node-forge patch");
   }
@@ -1071,23 +1102,25 @@ function verifyNodeForgePatchLock(
   if (sha256(root, patch, "reviewed node-forge patch") !== NODE_FORGE_PATCH_SHA256) {
     fail("the reviewed node-forge patch is missing or its SHA-256 changed");
   }
+  if (lockResolutions.length === 0) {
+    // Same absent-package rule as the image-size binding: no locked
+    // resolution means no installed exposure and no reported advisories.
+    return;
+  }
   if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[NODE_FORGE_PATCH_KEY] !== NODE_FORGE_PATCH_PATH) {
     fail("bun.lock does not bind the reviewed node-forge patch");
   }
-  const lockResolutions = registryPackages
-    .filter(({ name }) => name === "node-forge")
-    .map(({ name, version }) => name + "@" + version);
-  if (
-    lockResolutions.length === 0 ||
-    lockResolutions.some((resolution) => resolution !== NODE_FORGE_PATCH_KEY)
-  ) {
+  if (lockResolutions.some((resolution) => resolution !== NODE_FORGE_PATCH_KEY)) {
     fail("bun.lock contains an unreviewed or missing node-forge resolution");
   }
 }
 
 function verifyNodeForgePatchInstalled(root: string, manifest: PackageManifest): void {
   const packages = installedPackages(root, manifest, "node-forge");
-  if (packages.length === 0) fail("node-forge@1.4.0 is not installed where Bun can verify it");
+  if (packages.length === 0) {
+    if (REVIEWED_PATCH_PRESENCE.get("node-forge") === false) return;
+    fail("node-forge@1.4.0 is not installed where Bun can verify it");
+  }
   for (const packageRoot of packages) {
     const installed = readJsonRecord(
       root,
@@ -1106,6 +1139,60 @@ function verifyNodeForgePatchInstalled(root: string, manifest: PackageManifest):
   }
 }
 
+function verifyHttpCacheSemanticsPatchLock(
+  root: string,
+  manifest: PackageManifest,
+  lock: BunLock,
+  registryPackages: readonly LockedRegistryPackage[],
+): void {
+  const lockResolutions = registryPackages
+    .filter(({ name }) => name === "http-cache-semantics")
+    .map(({ name, version }) => name + "@" + version);
+  REVIEWED_PATCH_PRESENCE.set("http-cache-semantics", lockResolutions.length > 0);
+  if (manifest.patchedDependencies?.[HTTP_CACHE_SEMANTICS_PATCH_KEY] !== HTTP_CACHE_SEMANTICS_PATCH_PATH) {
+    fail("package.json does not bind the reviewed http-cache-semantics patch");
+  }
+  const patch = join(root, HTTP_CACHE_SEMANTICS_PATCH_PATH);
+  if (sha256(root, patch, "reviewed http-cache-semantics patch") !== HTTP_CACHE_SEMANTICS_PATCH_SHA256) {
+    fail("the reviewed http-cache-semantics patch is missing or its SHA-256 changed");
+  }
+  if (lockResolutions.length === 0) {
+    // Same absent-package rule as the image-size binding: no locked
+    // resolution means no installed exposure and no reported advisories.
+    return;
+  }
+  if (!isRecord(lock.patchedDependencies) || lock.patchedDependencies[HTTP_CACHE_SEMANTICS_PATCH_KEY] !== HTTP_CACHE_SEMANTICS_PATCH_PATH) {
+    fail("bun.lock does not bind the reviewed http-cache-semantics patch");
+  }
+  if (lockResolutions.some((resolution) => resolution !== HTTP_CACHE_SEMANTICS_PATCH_KEY)) {
+    fail("bun.lock contains an unreviewed or missing http-cache-semantics resolution");
+  }
+}
+
+function verifyHttpCacheSemanticsPatchInstalled(root: string, manifest: PackageManifest): void {
+  const packages = installedPackages(root, manifest, "http-cache-semantics");
+  if (packages.length === 0) {
+    if (REVIEWED_PATCH_PRESENCE.get("http-cache-semantics") === false) return;
+    fail("http-cache-semantics@4.2.0 is not installed where Bun can verify it");
+  }
+  for (const packageRoot of packages) {
+    const installed = readJsonRecord(
+      root,
+      join(packageRoot, "package.json"),
+      "installed http-cache-semantics package manifest",
+    ) as InstalledPackageManifest;
+    if (installed.name !== "http-cache-semantics" || installed.version !== HTTP_CACHE_SEMANTICS_PATCH_KEY.slice("http-cache-semantics@".length)) {
+      fail("the reviewed patch resolved an unexpected http-cache-semantics package");
+    }
+    for (const [relativePath, digest] of PATCHED_HTTP_CACHE_SEMANTICS_FILES) {
+      const target = join(packageRoot, relativePath);
+      if (sha256(root, target, "installed http-cache-semantics file " + relativePath) !== digest) {
+        fail("the installed http-cache-semantics patch was not applied exactly: " + relativePath);
+      }
+    }
+  }
+}
+
 async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<PackageManifest> {
   verifyPublicRegistryConfiguration(root);
   const manifest = readJsonRecord(root, join(root, "package.json"), "package.json") as PackageManifest;
@@ -1117,6 +1204,7 @@ async function verifyLockOnly(root: string, refreshEvidence: boolean): Promise<P
   if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchLock(root, manifest, lock, registryPackages);
   if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchLock(root, manifest, lock, registryPackages);
   if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchLock(root, manifest, lock, registryPackages);
+  if (HAS_ELECTRON_TOOLCHAIN_PATCHES) verifyHttpCacheSemanticsPatchLock(root, manifest, lock, registryPackages);
   if (refreshEvidence) {
     const auditedAt = new Date().toISOString();
     const releases = await fetchReleaseEvidence(registryPackages, auditedAt);
@@ -1228,6 +1316,7 @@ if (HAS_IMAGE_SIZE_PATCH) verifyReviewedPatchInstalled(root, manifest);
 if (HAS_OPENNEXT_PATCH) verifyOpenNextPatchInstalled(root, manifest);
 if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyBracesPatchInstalled(root, manifest);
 if (HAS_EXPO_TOOLCHAIN_PATCHES) verifyNodeForgePatchInstalled(root, manifest);
+if (HAS_ELECTRON_TOOLCHAIN_PATCHES) verifyHttpCacheSemanticsPatchInstalled(root, manifest);
 const parsedReport = await bunAuditReport(root);
 const unexpected: string[] = [];
 let reviewed = 0;
@@ -1249,8 +1338,10 @@ for (const [packageName, advisories] of Object.entries(parsedReport)) {
     const isReviewedExpoToolchainPatch =
       HAS_EXPO_TOOLCHAIN_PATCHES &&
       (packageName === "braces" || packageName === "node-forge");
+    const isReviewedElectronToolchainPatch =
+      HAS_ELECTRON_TOOLCHAIN_PATCHES && packageName === "http-cache-semantics";
     if (
-      (isReviewedImageSizePatch || isReviewedExpoToolchainPatch) &&
+      (isReviewedImageSizePatch || isReviewedExpoToolchainPatch || isReviewedElectronToolchainPatch) &&
       REVIEWED_ADVISORIES.get(id) === entry.url
     ) {
       reviewed += 1;

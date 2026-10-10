@@ -496,9 +496,9 @@ describe("dependency version audit evidence", () => {
       s3: "3.1146.0",
       shadcn: "4.21.1",
       lucide: "1.51.0",
-      eve: "0.70.3",
-      ai: "7.0.127",
-      nitro: "3.0.260903-beta",
+      eve: "0.44.4",
+      ai: "7.0.79",
+      nitro: "3.0.260610-beta",
       oxlint: "1.86.0",
       oxfmt: "0.71.0",
     });
@@ -510,8 +510,6 @@ describe("dependency version audit evidence", () => {
       ["storage.@aws-sdk/client-s3", "3.1146.0"],
       ["ui.shadcn", "4.21.1"],
       ["ui.lucide-react", "1.51.0"],
-      ["eve.eve", "0.70.3"],
-      ["eve.ai", "7.0.127"],
       ["tooling.oxlint", "1.86.0"],
       ["tooling.oxfmt", "0.71.0"],
       ["host.devDependencies.oxlint", "1.86.0"],
@@ -534,8 +532,20 @@ describe("dependency version audit evidence", () => {
       status: "compatibility-hold",
     });
     expect(audited.get("tanstackStart.nitro")).toMatchObject({
-      pinned: "3.0.260903-beta",
+      pinned: "3.0.260610-beta",
       eligibleLatest: "3.0.0",
+      status: "compatibility-hold",
+    });
+    expect(audited.get("eve.eve")).toMatchObject({
+      pinned: "0.44.4",
+      status: "compatibility-hold",
+    });
+    expect(audited.get("eve.ai")).toMatchObject({
+      pinned: "7.0.79",
+      status: "compatibility-hold",
+    });
+    expect(audited.get("eve.just-bash")).toMatchObject({
+      pinned: "3.4.2",
       status: "compatibility-hold",
     });
   });

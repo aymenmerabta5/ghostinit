@@ -1,5 +1,6 @@
 import { file, type TemplateFile } from "../shared.js";
 import { generatedGitattributesContent } from "../gitignore.js";
+import { dependencyOverrides } from "../versions.js";
 import {
   OPENNEXT_AWS_WINDOWS_PATCH_KEY,
   OPENNEXT_AWS_WINDOWS_PATCH_PATH,
@@ -8,6 +9,9 @@ import {
   BRACES_PATCH_CONTENT,
   BRACES_PATCH_KEY,
   BRACES_PATCH_PATH,
+  HTTP_CACHE_SEMANTICS_PATCH_CONTENT,
+  HTTP_CACHE_SEMANTICS_PATCH_KEY,
+  HTTP_CACHE_SEMANTICS_PATCH_PATH,
   NODE_FORGE_PATCH_CONTENT,
   NODE_FORGE_PATCH_KEY,
   NODE_FORGE_PATCH_PATH,
@@ -52,23 +56,42 @@ export {
   NODE_FORGE_PATCH_CONTENT,
   NODE_FORGE_PATCH_SHA256,
   NODE_FORGE_PATCH_ADVISORIES,
+  HTTP_CACHE_SEMANTICS_PATCH_KEY,
+  HTTP_CACHE_SEMANTICS_PATCH_PATH,
+  HTTP_CACHE_SEMANTICS_PATCH_CONTENT,
+  HTTP_CACHE_SEMANTICS_PATCH_SHA256,
+  HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES,
 } from "./dependency-audit-policy.js";
 
 export function dependencyAuditFiles(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
   hasExpoToolchainPatches = false,
+  hasElectronToolchainPatches = false,
 ): TemplateFile[] {
   return [
-    ...dependencySecurityFiles(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
+    ...dependencySecurityFiles(
+      hasImageSizePatch,
+      hasOpenNextPatch,
+      hasExpoToolchainPatches,
+      hasElectronToolchainPatches,
+    ),
     file(
       "scripts/audit-dependencies.ts",
-      dependencyAuditScriptContent(hasImageSizePatch, hasOpenNextPatch, hasExpoToolchainPatches),
+      dependencyAuditScriptContent(
+        hasImageSizePatch,
+        hasOpenNextPatch,
+        hasExpoToolchainPatches,
+        hasElectronToolchainPatches,
+      ),
     ),
     file(
       ".gitattributes",
       generatedGitattributesContent(
-        hasImageSizePatch || hasOpenNextPatch || hasExpoToolchainPatches,
+        hasImageSizePatch ||
+          hasOpenNextPatch ||
+          hasExpoToolchainPatches ||
+          hasElectronToolchainPatches,
       ),
     ),
     ...(hasImageSizePatch ? [file(IMAGE_SIZE_PATCH_PATH, IMAGE_SIZE_PATCH_CONTENT)] : []),
@@ -78,6 +101,9 @@ export function dependencyAuditFiles(
           file(NODE_FORGE_PATCH_PATH, NODE_FORGE_PATCH_CONTENT),
         ]
       : []),
+    ...(hasElectronToolchainPatches
+      ? [file(HTTP_CACHE_SEMANTICS_PATCH_PATH, HTTP_CACHE_SEMANTICS_PATCH_CONTENT)]
+      : []),
   ];
 }
 
@@ -86,6 +112,8 @@ export function integrateDependencyAuditManifest(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
   hasExpoToolchainPatches = false,
+  hasEveUndiciOverride = false,
+  hasElectronToolchainPatches = false,
 ): TemplateFile {
   if (packageFile.path !== "package.json") {
     throw new Error("Dependency audit integration requires the root package.json");
@@ -144,6 +172,18 @@ export function integrateDependencyAuditManifest(
     manifest.patchedDependencies = {
       ...manifest.patchedDependencies,
       [OPENNEXT_AWS_WINDOWS_PATCH_KEY]: OPENNEXT_AWS_WINDOWS_PATCH_PATH,
+    };
+  }
+  if (hasEveUndiciOverride) {
+    manifest.overrides = {
+      ...(manifest.overrides as Record<string, unknown> | undefined),
+      ...dependencyOverrides,
+    };
+  }
+  if (hasElectronToolchainPatches) {
+    manifest.patchedDependencies = {
+      ...manifest.patchedDependencies,
+      [HTTP_CACHE_SEMANTICS_PATCH_KEY]: HTTP_CACHE_SEMANTICS_PATCH_PATH,
     };
   }
   return { ...packageFile, content: `${JSON.stringify(manifest, null, 2)}\n` };

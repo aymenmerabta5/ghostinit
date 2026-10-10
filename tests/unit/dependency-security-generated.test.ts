@@ -27,7 +27,9 @@ import {
   IMAGE_SIZE_PATCH_ADVISORIES,
   BRACES_PATCH_ADVISORIES,
   NODE_FORGE_PATCH_ADVISORIES,
+  HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES,
   NODE_FORGE_PATCH_KEY,
+  HTTP_CACHE_SEMANTICS_PATCH_KEY,
   integrateDependencyAuditManifest,
 } from "../../src/templates/tooling/dependency-audit.js";
 
@@ -125,6 +127,19 @@ describe("standalone generated dependency security", () => {
       "image-size": "1.2.1",
       braces: "3.0.3",
       "node-forge": NODE_FORGE_PATCH_KEY.slice("node-forge@".length),
+    });
+    const electronPolicy = dependencySecurityPolicy(false, false, false, true);
+    expect(electronPolicy.auditScriptContent).toBe(
+      dependencyAuditScriptContent(false, false, false, true),
+    );
+    expect(electronPolicy.patchedAdvisories).toEqual(
+      HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES.map((id) => ({
+        package: "http-cache-semantics",
+        id,
+      })),
+    );
+    expect(electronPolicy.protectedPackageVersions).toEqual({
+      "http-cache-semantics": HTTP_CACHE_SEMANTICS_PATCH_KEY.slice("http-cache-semantics@".length),
     });
   });
 

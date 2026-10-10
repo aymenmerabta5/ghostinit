@@ -42,6 +42,11 @@ import {
   BRACES_PATCH_KEY,
   BRACES_PATCH_PATH,
   BRACES_PATCH_SHA256,
+  HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES,
+  HTTP_CACHE_SEMANTICS_PATCH_CONTENT,
+  HTTP_CACHE_SEMANTICS_PATCH_KEY,
+  HTTP_CACHE_SEMANTICS_PATCH_PATH,
+  HTTP_CACHE_SEMANTICS_PATCH_SHA256,
   NODE_FORGE_PATCH_ADVISORIES,
   NODE_FORGE_PATCH_CONTENT,
   NODE_FORGE_PATCH_KEY,
@@ -65,6 +70,7 @@ const reviewedInstalledDigests = [
 const reviewedAdvisories = [
   "GHSA-5p2g-fcmc-qvqq",
   "GHSA-86w9-cpqp-85rv",
+  "GHSA-ch52-4w7c-c8xp",
   "GHSA-vfj7-8cjw-p6xm",
   "GHSA-w3rx-r6r6-pgpr",
 ] as const;
@@ -179,6 +185,7 @@ describe("reviewed image-size advisory containment", () => {
   });
 
   test("pins the reviewed braces and node-forge patch bytes and installed-file digests", () => {
+    const auditFixtureRoot = resolve(root, "tests/fixtures/dependency-audit");
     for (const [key, path, content, sha, files] of [
       [
         BRACES_PATCH_KEY,
@@ -205,18 +212,86 @@ describe("reviewed image-size advisory containment", () => {
       expect(fixturePatch).not.toContain("\r");
       const audit = dependencyAuditScriptContent(true, false, true);
       for (const [, digest] of files) expect(audit).toContain(digest);
-      for (const [file] of files) {
+      // Installed-file bytes are asserted from install-independent fixtures so
+      // this test passes before any fixture node_modules tree exists.
+      const packageName = key.slice(0, key.indexOf("@"));
+      const packageVersion = key.slice(key.indexOf("@") + 1);
+      const provenance = JSON.parse(
+        readFileSync(
+          resolve(auditFixtureRoot, `${packageName}-${packageVersion}`, "provenance.json"),
+          "utf8",
+        ),
+      ) as { files: Array<{ path: string; patchedSha256: string }> };
+      for (const [file, digest] of files) {
+        const fixtureName = `${file.slice(file.lastIndexOf("/") + 1)}.fixture`;
         const bytes = readFileSync(
-          resolve(fixtureRoot, "node_modules", key.slice(0, key.indexOf("@")), file),
+          resolve(auditFixtureRoot, `${packageName}-${packageVersion}`, fixtureName),
         );
-        expect(createHash("sha256").update(bytes).digest("hex")).toBe(
-          files.find(([name]) => name === file)?.[1],
-        );
+        expect(createHash("sha256").update(bytes).digest("hex")).toBe(digest);
+        expect(
+          provenance.files.find((entry) => entry.path === file)?.patchedSha256,
+          `${packageName}-${packageVersion}:${file}`,
+        ).toBe(digest);
       }
     }
     expect([...BRACES_PATCH_ADVISORIES]).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
     expect([...NODE_FORGE_PATCH_ADVISORIES]).toEqual(["GHSA-86w9-cpqp-85rv"]);
   });
+
+  test("pins the reviewed http-cache-semantics patch bytes", () => {
+    expect(createHash("sha256").update(HTTP_CACHE_SEMANTICS_PATCH_CONTENT).digest("hex")).toBe(
+      HTTP_CACHE_SEMANTICS_PATCH_SHA256,
+    );
+    expect(HTTP_CACHE_SEMANTICS_PATCH_SHA256).toBe(
+      "da0f0c3f67d4f57af1368ae196c2755a97daf6c743dd983b789d9e78844af24c",
+    );
+    expect(HTTP_CACHE_SEMANTICS_PATCH_CONTENT).not.toContain("\r");
+    // The backport carries upstream's Vary hardening and status propagation.
+    expect(HTTP_CACHE_SEMANTICS_PATCH_CONTENT).toContain("if (name === '*') {");
+    expect(HTTP_CACHE_SEMANTICS_PATCH_CONTENT).toContain("status: this._status,");
+    expect([...HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES]).toEqual(["GHSA-ch52-4w7c-c8xp"]);
+    const audit = dependencyAuditScriptContent(false, false, false, true);
+    expect(audit).toContain("ede1cc404a492fa348eb9d97a3007a0d72aa717bd22cd86a56bd0824c19729ca");
+    expect(audit).toContain(
+      "if (HAS_ELECTRON_TOOLCHAIN_PATCHES) verifyHttpCacheSemanticsPatchInstalled(root, manifest);",
+    );
+  });
+
+  for (const mode of ["monorepo", "single"] as const) {
+    test(`${mode} desktop emits the http-cache-semantics patch without mobile patches`, () => {
+      const files = generateProjectFiles(
+        projectConfigSchema.parse({
+          name: `${mode}-desktop`,
+          runtime: "bun",
+          version: "0.1.0",
+          mode,
+          billing: [],
+          features: [],
+          database: "postgres",
+          framework: "nextjs",
+          apps: ["web", "desktop"],
+        }),
+        { dryRun: true },
+      );
+      const byPath = new Map(files.map((file) => [file.path, file.content]));
+      const manifest = JSON.parse(byPath.get("package.json") ?? "{}") as {
+        patchedDependencies?: Record<string, string>;
+      };
+      expect(manifest.patchedDependencies?.[HTTP_CACHE_SEMANTICS_PATCH_KEY]).toBe(
+        HTTP_CACHE_SEMANTICS_PATCH_PATH,
+      );
+      expect(byPath.get(HTTP_CACHE_SEMANTICS_PATCH_PATH)).toBe(HTTP_CACHE_SEMANTICS_PATCH_CONTENT);
+      expect(manifest.patchedDependencies?.[IMAGE_SIZE_PATCH_KEY]).toBeUndefined();
+      expect(byPath.has(IMAGE_SIZE_PATCH_PATH)).toBe(false);
+      expect(manifest.patchedDependencies?.[BRACES_PATCH_KEY]).toBeUndefined();
+      expect(byPath.has(BRACES_PATCH_PATH)).toBe(false);
+      expect(manifest.patchedDependencies?.[NODE_FORGE_PATCH_KEY]).toBeUndefined();
+      expect(byPath.has(NODE_FORGE_PATCH_PATH)).toBe(false);
+      expect(byPath.get("scripts/audit-dependencies.ts")).toBe(
+        dependencyAuditScriptContent(false, false, false, true),
+      );
+    });
+  }
 
   test("accepts both Bun 1.4 text-lock versions and rejects unreviewed versions", () => {
     const fixtureV1 = Bun.JSONC.parse(readFileSync(resolve(fixtureRoot, "bun.lock"), "utf8")) as {
@@ -281,6 +356,8 @@ describe("reviewed image-size advisory containment", () => {
           expect(byPath.has(NODE_FORGE_PATCH_PATH)).toBe(false);
           expect(byPath.get(".gitattributes")).toBe(generatedGitattributesContent(false));
         }
+        expect(manifest.patchedDependencies?.[HTTP_CACHE_SEMANTICS_PATCH_KEY]).toBeUndefined();
+        expect(byPath.has(HTTP_CACHE_SEMANTICS_PATCH_PATH)).toBe(false);
       });
     }
   }
@@ -336,7 +413,7 @@ describe("reviewed image-size advisory containment", () => {
     const accepted = runFixtureAuditWithMockedBunAudit(mockedAdvisoryResult(reviewedReport));
     expect(accepted.status, `${accepted.stdout}\n${accepted.stderr}`).toBe(0);
     expect(`${accepted.stdout}\n${accepted.stderr}`).toContain(
-      "Dependency audit passed with 4 exactly patched advisories",
+      "Dependency audit passed with 5 exactly patched advisories",
     );
 
     const unreviewed = runFixtureAuditWithMockedBunAudit(

@@ -120,6 +120,7 @@ export async function upgradeCommand(
             resolved.apps.some((app) => app.target === "expo"),
             resolved.apps.some((app) => app.target === "nextjs" && app.deploy === "cloudflare"),
             resolved.apps.some((app) => app.target === "expo"),
+            resolved.apps.some((app) => app.target === "electron"),
           ),
           logger: options.logger,
           leaseOwner: lock.owner,

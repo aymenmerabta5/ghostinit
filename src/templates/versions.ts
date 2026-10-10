@@ -54,4 +54,5 @@ export {
   uniwind,
   realtime,
   storage,
+  dependencyOverrides,
 } from "../../packages/versions/src/index.js";

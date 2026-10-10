@@ -83,11 +83,13 @@ export function dependencySecurityFiles(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
   hasExpoToolchainPatches = false,
+  hasElectronToolchainPatches = false,
 ): TemplateFile[] {
   const policy = dependencySecurityPolicy(
     hasImageSizePatch,
     hasOpenNextPatch,
     hasExpoToolchainPatches,
+    hasElectronToolchainPatches,
   );
   return [
     file("scripts/security-dependencies.cjs", dependencySecurityLauncherContent(policy)),

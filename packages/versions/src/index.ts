@@ -128,7 +128,7 @@ export const tanstackStart = {
   // config/runtime compatibility tests.
   vite: "7.3.6",
   "@vitejs/plugin-react": "5.2.0",
-  nitro: "3.0.260903-beta",
+  nitro: "3.0.260610-beta",
   "@tailwindcss/vite": "4.3.3",
   "vite-tsconfig-paths": "6.1.1",
 } as const;
@@ -195,9 +195,12 @@ export const testing = {
 } as const;
 
 export const eve = {
-  eve: "0.70.3",
-  ai: "7.0.127",
-  "just-bash": "3.6.0",
+  // Validated 0.44 line: the generated agent/sandbox surface targets this
+  // API (SandboxDefinition, justbash/vercel factories). Later 0.7x minors
+  // restructured the sandbox exports; migrate deliberately, not by bump.
+  eve: "0.44.4",
+  ai: "7.0.79",
+  "just-bash": "3.4.2",
   "@vercel/connect": "1.0.0",
 } as const;
 
@@ -315,6 +318,22 @@ export const realtime = {
 
 export const storage = {
   "@aws-sdk/client-s3": "3.1146.0",
+} as const;
+
+/**
+ * Pinned transitive overrides emitted into generated manifests.
+ *
+ * eve 0.44.4 exact-pins undici 8.9.0, which carries HIGH advisories with no
+ * eligible upgrade path for the direct range. The flat override pins every
+ * undici copy to the reviewed 8.10.2 line: a patch-level move for eve's own
+ * direct dependency, and the reviewed major-line floor for the just-bash and
+ * provider-utils ranges that otherwise resolve vulnerable copies.
+ * Deliberately outside `catalog`: these are override declarations, not
+ * direct dependencies, and are audited as their own scopes. Flat (not
+ * nested) overrides keep Bun on the v1/v2 lockfile the audit gates parse.
+ */
+export const dependencyOverrides = {
+  undici: "8.10.2",
 } as const;
 
 export const catalog = {

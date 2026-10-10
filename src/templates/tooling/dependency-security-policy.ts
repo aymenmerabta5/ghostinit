@@ -4,6 +4,8 @@ import { OPENNEXT_AWS_WINDOWS_PATCH_VERSION } from "../root/cloudflare.js";
 import {
   BRACES_PATCH_ADVISORIES,
   BRACES_PATCH_KEY,
+  HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES,
+  HTTP_CACHE_SEMANTICS_PATCH_KEY,
   NODE_FORGE_PATCH_ADVISORIES,
   NODE_FORGE_PATCH_KEY,
   dependencyAuditScriptContent,
@@ -16,6 +18,7 @@ export function dependencySecurityPolicy(
   hasImageSizePatch: boolean,
   hasOpenNextPatch = false,
   hasExpoToolchainPatches = false,
+  hasElectronToolchainPatches = false,
 ): DependencySecurityPolicy {
   return {
     expectedBunVersion: runtime.bun,
@@ -24,6 +27,7 @@ export function dependencySecurityPolicy(
       hasImageSizePatch,
       hasOpenNextPatch,
       hasExpoToolchainPatches,
+      hasElectronToolchainPatches,
     ),
     patchedAdvisories: [
       ...(hasImageSizePatch
@@ -35,6 +39,12 @@ export function dependencySecurityPolicy(
       ...(hasExpoToolchainPatches
         ? NODE_FORGE_PATCH_ADVISORIES.map((id) => ({ package: "node-forge", id }))
         : []),
+      ...(hasElectronToolchainPatches
+        ? HTTP_CACHE_SEMANTICS_PATCH_ADVISORIES.map((id) => ({
+            package: "http-cache-semantics",
+            id,
+          }))
+        : []),
     ],
     protectedPackageVersions: {
       ...(hasImageSizePatch
@@ -45,6 +55,13 @@ export function dependencySecurityPolicy(
         ? {
             braces: BRACES_PATCH_KEY.slice("braces@".length),
             "node-forge": NODE_FORGE_PATCH_KEY.slice("node-forge@".length),
+          }
+        : {}),
+      ...(hasElectronToolchainPatches
+        ? {
+            "http-cache-semantics": HTTP_CACHE_SEMANTICS_PATCH_KEY.slice(
+              "http-cache-semantics@".length,
+            ),
           }
         : {}),
     },

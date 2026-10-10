@@ -1,22 +1,22 @@
 {
   "schemaVersion": 3,
-  "auditedAt": "2026-10-10T17:28:30.598Z",
+  "auditedAt": "2026-10-10T19:44:28.198Z",
   "asOf": "2026-10-10",
   "registry": "https://registry.npmjs.org",
   "bun": "1.4.0",
   "supplyChain": {
     "minimumReleaseAgeSeconds": 604800,
-    "cutoffAt": "2026-10-03T17:28:30.598Z",
+    "cutoffAt": "2026-10-03T19:44:28.198Z",
     "releaseAgeExceptions": []
   },
   "summary": {
-    "auditedScopes": 170,
-    "uniquePackages": 141,
-    "latestScopes": 116,
-    "compatibilityHeldScopes": 54,
-    "uniqueCompatibilityHolds": 47,
+    "auditedScopes": 172,
+    "uniquePackages": 142,
+    "latestScopes": 112,
+    "compatibilityHeldScopes": 60,
+    "uniqueCompatibilityHolds": 51,
     "auditedLockfiles": 4,
-    "lockedPackageVersions": 1055,
+    "lockedPackageVersions": 1056,
     "missingPins": 0,
     "unreviewedPins": 0
   },
@@ -239,6 +239,18 @@
       ]
     },
     {
+      "package": "ai",
+      "pinned": "7.0.79",
+      "reasonCode": "eve-validated-api",
+      "detail": "Generated Eve applications are validated against the AI SDK 7.0.79 line contemporary with Eve 0.44.",
+      "evidence": [
+        "https://registry.npmjs.org/ai"
+      ],
+      "scopes": [
+        "eve.ai"
+      ]
+    },
+    {
       "package": "babel-preset-expo",
       "pinned": "57.0.8",
       "reasonCode": "expo-sdk-57",
@@ -298,6 +310,19 @@
       ],
       "scopes": [
         "cloudflare.dotenv"
+      ]
+    },
+    {
+      "package": "eve",
+      "pinned": "0.44.4",
+      "reasonCode": "eve-validated-api",
+      "detail": "Generated agent and sandbox surfaces target the Eve 0.44 API (SandboxDefinition, justbash/vercel factories); later 0.7x minors restructured those exports.",
+      "evidence": [
+        "https://registry.npmjs.org/eve"
+      ],
+      "scopes": [
+        "eve.eve",
+        "host.devDependencies.eve"
       ]
     },
     {
@@ -481,8 +506,20 @@
       ]
     },
     {
+      "package": "just-bash",
+      "pinned": "3.4.2",
+      "reasonCode": "eve-validated-api",
+      "detail": "Generated Eve applications install the just-bash 3.4.2 sandbox engine contemporary with Eve 0.44; 3.6.0 adds an exact-pinned guarded-fetch chain with no eligible upgrade path.",
+      "evidence": [
+        "https://registry.npmjs.org/just-bash"
+      ],
+      "scopes": [
+        "eve.just-bash"
+      ]
+    },
+    {
       "package": "nitro",
-      "pinned": "3.0.260903-beta",
+      "pinned": "3.0.260610-beta",
       "reasonCode": "expo-sdk-57",
       "detail": "The generated TanStack runtime is validated against Nitro 3.0.260903-beta for maintained Vite 7 and WebSocket support; stable 3.0.0 uses the obsolete integration surface.",
       "evidence": [
@@ -610,6 +647,19 @@
       ],
       "scopes": [
         "billing.stripe"
+      ]
+    },
+    {
+      "package": "undici",
+      "pinned": "8.10.2",
+      "reasonCode": "security-override-minor-line",
+      "detail": "Reviewed flat override pinning every undici copy to the 8.10.2 line; eve 0.44.4 exact-pins vulnerable 8.9.0 with no eligible upgrade path for the direct range.",
+      "evidence": [
+        "https://registry.npmjs.org/undici"
+      ],
+      "scopes": [
+        "dependencyOverrides.undici",
+        "host.overrides.undici"
       ]
     },
     {
@@ -4149,9 +4199,9 @@
     },
     {
       "package": "db0",
-      "version": "0.4.1",
-      "publishedAt": "2026-09-03T22:19:56.849Z",
-      "integrity": "sha512-6RBY/bSn42UrqATwsiULj2uYFyEykB3XeA/NLIVQeHNXlYV6D4Idxx3/aa6k5Y45Dwzx7sygeLotnqHWSeURYA=="
+      "version": "0.3.4",
+      "publishedAt": "2025-10-01T19:17:50.937Z",
+      "integrity": "sha512-RiXXi4WaNzPTHEOu8UPQKMooIbqOEyqA1t7Z6MsdxSCeb8iUC9ko3LcmsLmeUt2SM5bctfArZKkRQggKZz7JNw=="
     },
     {
       "package": "debug",
@@ -4299,9 +4349,9 @@
     },
     {
       "package": "env-runner",
-      "version": "0.2.3",
-      "publishedAt": "2026-09-14T18:49:09.350Z",
-      "integrity": "sha512-S8EFBKyznRwPVwayK187cYjvnpgC92xy+q0BIF++V965pfjMVVRbQ/HoTYGA/1EHmZ7E68k6Heq+4WnvVhOL5w=="
+      "version": "0.1.16",
+      "publishedAt": "2026-07-02T18:20:55.602Z",
+      "integrity": "sha512-2LRJM4P2KLX6J83QZZrMqvgCDt/D5ea7wPcI3yYiy5cG/9rX5QwdwZFx0D7ktWnjdRyZxYjttGGorb5nFqb1CA=="
     },
     {
       "package": "error-stack-parser",
@@ -4371,9 +4421,9 @@
     },
     {
       "package": "eve",
-      "version": "0.70.3",
-      "publishedAt": "2026-10-03T14:53:48.465Z",
-      "integrity": "sha512-IdIIDuGLXdYiwX8mVubu8GTOoHWsyN8m3lxePkDbXHyrqj8KppMQpYiOqAzY+St+OKPT24DicR1/HoAG90v+SA=="
+      "version": "0.44.4",
+      "publishedAt": "2026-08-24T22:34:09.967Z",
+      "integrity": "sha512-juaOffL+doGo8z1gfB5FrO750dZKMaY5G3Qm96N+bASs5nHBwhkGfqHKEyTFGZmXaxBWJpnDRnEgL4rAKtQPcw=="
     },
     {
       "package": "event-target-shim",
@@ -4677,9 +4727,9 @@
     },
     {
       "package": "h3",
-      "version": "2.0.1",
-      "publishedAt": "2026-10-03T16:29:24.505Z",
-      "integrity": "sha512-trUtZ82iNkfYi8An9M2kIM/SPlomO59pTRMt4zMBffuVPdwv5v1Bxs7uShxi7bOIAuZne6zq6TsD9hVYdNgo+A=="
+      "version": "2.0.1-rc.22",
+      "publishedAt": "2026-05-05T14:32:06.109Z",
+      "integrity": "sha512-Esv0DMIuPkCTSWCA0vO73vcTqwzH1wjSrAO1TXNu/K3up1sZHa9EKMapbmxCDYBeymC3fVTk4qxp7ogQWQ+KgA=="
     },
     {
       "package": "has-flag",
@@ -5535,9 +5585,9 @@
     },
     {
       "package": "nitro",
-      "version": "3.0.260903-beta",
-      "publishedAt": "2026-09-03T22:57:16.763Z",
-      "integrity": "sha512-54gANPi62O8rfMvepiJUVuIzEIinYfpeHbebywlLxvVTgIYXDwSvpaU9Id+0sJOBjBx0wC1/CVYXJkH7SY+l0g=="
+      "version": "3.0.260610-beta",
+      "publishedAt": "2026-06-10T22:00:37.119Z",
+      "integrity": "sha512-KPb4L5yaF/Rx/xoGMpgHRJvZhbhGiqbRKOwwPLCH9jKTKTsEUHLjnJas85AeCzaswqa8Wi52eQBtRsODC4PS0Q=="
     },
     {
       "package": "node-fetch",
@@ -5601,9 +5651,21 @@
     },
     {
       "package": "ocache",
-      "version": "0.3.0",
-      "publishedAt": "2026-08-18T15:03:00.536Z",
-      "integrity": "sha512-RS/9P0zeBb0gDJmadGERLH8lZNXK7xbufTDhclkXGvFGTsj0G4M5/cLk+mizcERH29mLXNnocfB5wjcK70wGJg=="
+      "version": "0.1.5",
+      "publishedAt": "2026-06-10T17:35:11.913Z",
+      "integrity": "sha512-kNNnkkVQup/QDvmTz8Q84wc2ntiyoVHDxa6eHWKt5qdGAmFRBIxy83rxgCYEjW0x06UJ9E3P6VgM2yY4rOBH4w=="
+    },
+    {
+      "package": "ofetch",
+      "version": "2.0.0-alpha.3",
+      "publishedAt": "2025-10-28T11:48:01.212Z",
+      "integrity": "sha512-zpYTCs2byOuft65vI3z43Dd6iSdFbOZZLb9/d21aCpx2rGastVU9dOCv0lu4ykc1Ur1anAYjDi3SUvR0vq50JA=="
+    },
+    {
+      "package": "ohash",
+      "version": "2.0.12",
+      "publishedAt": "2026-08-14T12:16:00.740Z",
+      "integrity": "sha512-65S/5gk9YSsaRjcyf7Nfa6h/d3E8/1gslpXfI4W7Dxn/oap8IKRuNT5VXkLQ1YFKIEg4apRY4Pj6aiwFzrDdmw=="
     },
     {
       "package": "on-finished",
@@ -6189,15 +6251,15 @@
     },
     {
       "package": "rou3",
-      "version": "0.9.2",
-      "publishedAt": "2026-08-11T09:45:43.362Z",
-      "integrity": "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="
+      "version": "0.8.1",
+      "publishedAt": "2026-03-09T09:17:46.665Z",
+      "integrity": "sha512-ePa+XGk00/3HuCqrEnK3LxJW7I0SdNg6EFzKUJG73hMAdDcOUC/i/aSz7LSDwLrGr33kal/rqOGydzwl6U7zBA=="
     },
     {
       "package": "rou3",
-      "version": "1.0.0",
-      "publishedAt": "2026-10-03T10:11:01.776Z",
-      "integrity": "sha512-ySeaQkSrua+ut9g+65I7FHqOFBaY8tV0FmccXItoq0q21se32Q3u4YiW7/RqXSosWgYJaaKwRHXy3BST9PeCNQ=="
+      "version": "0.9.2",
+      "publishedAt": "2026-08-11T09:45:43.362Z",
+      "integrity": "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="
     },
     {
       "package": "safe-buffer",
@@ -6399,9 +6461,9 @@
     },
     {
       "package": "srvx",
-      "version": "1.0.5",
-      "publishedAt": "2026-09-14T18:05:32.909Z",
-      "integrity": "sha512-KvSKRpgPG/oaq3cyT614OQ2bAa7DynuGamivCZeoZzIUULOdbQz6wUtnnVuC4+DCx2Zglzo8v5gBYmWIWYhDxA=="
+      "version": "0.11.22",
+      "publishedAt": "2026-07-11T18:28:41.733Z",
+      "integrity": "sha512-LqZxxBDMKuMAZzFzJnDCkFOrs9MZQZr0LvHiO/SuSZVdQaXD7xQ5UWTUxheJrQPve1qk9MG2B/yttUvJxw8egQ=="
     },
     {
       "package": "stackframe",
@@ -6681,12 +6743,6 @@
     },
     {
       "package": "undici",
-      "version": "7.29.1",
-      "publishedAt": "2026-09-04T14:25:11.648Z",
-      "integrity": "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q=="
-    },
-    {
-      "package": "undici",
       "version": "8.10.2",
       "publishedAt": "2026-09-04T14:00:54.766Z",
       "integrity": "sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ=="
@@ -6759,9 +6815,9 @@
     },
     {
       "package": "unstorage",
-      "version": "2.0.0-alpha.10",
-      "publishedAt": "2026-09-03T22:25:46.671Z",
-      "integrity": "sha512-6h1veZp8gnp4dGllf0tDijoXxDYymJu251IpKKkrSVH+QHL6tXFbwG85KM+CBHSgpkkgtPuIiZ9oLCLP5+1Evw=="
+      "version": "2.0.0-alpha.7",
+      "publishedAt": "2026-03-19T13:54:13.855Z",
+      "integrity": "sha512-ELPztchk2zgFJnakyodVY3vJWGW9jy//keJ32IOJVGUMyaPydwcA1FtVvWqT0TNRch9H+cMNEGllfVFfScImog=="
     },
     {
       "package": "update-browserslist-db",
@@ -7392,6 +7448,22 @@
       "status": "latest"
     },
     {
+      "scope": "dependencyOverrides.undici",
+      "group": "dependencyOverrides",
+      "key": "undici",
+      "package": "undici",
+      "source": "catalog",
+      "exists": true,
+      "currentDeprecated": null,
+      "pinned": "8.10.2",
+      "pinnedPublishedAt": "2026-09-04T14:00:54.766Z",
+      "registryLatest": "8.11.2",
+      "registryLatestPublishedAt": "2026-09-24T08:37:55.067Z",
+      "eligibleLatest": "8.11.2",
+      "eligibleLatestPublishedAt": "2026-09-24T08:37:55.067Z",
+      "status": "compatibility-hold"
+    },
+    {
       "scope": "electron.electron",
       "group": "electron",
       "key": "electron",
@@ -7527,13 +7599,13 @@
       "source": "catalog",
       "exists": true,
       "currentDeprecated": null,
-      "pinned": "7.0.127",
-      "pinnedPublishedAt": "2026-10-01T19:20:23.718Z",
+      "pinned": "7.0.79",
+      "pinnedPublishedAt": "2026-08-25T03:21:00.757Z",
       "registryLatest": "7.0.137",
       "registryLatestPublishedAt": "2026-10-09T14:54:45.739Z",
       "eligibleLatest": "7.0.127",
       "eligibleLatestPublishedAt": "2026-10-01T19:20:23.718Z",
-      "status": "latest"
+      "status": "compatibility-hold"
     },
     {
       "scope": "eve.eve",
@@ -7543,13 +7615,13 @@
       "source": "catalog",
       "exists": true,
       "currentDeprecated": null,
-      "pinned": "0.70.3",
-      "pinnedPublishedAt": "2026-10-03T14:53:48.465Z",
-      "registryLatest": "0.76.2",
-      "registryLatestPublishedAt": "2026-10-10T16:31:25.073Z",
-      "eligibleLatest": "0.70.3",
-      "eligibleLatestPublishedAt": "2026-10-03T14:53:48.465Z",
-      "status": "latest"
+      "pinned": "0.44.4",
+      "pinnedPublishedAt": "2026-08-24T22:34:09.967Z",
+      "registryLatest": "0.76.3",
+      "registryLatestPublishedAt": "2026-10-10T18:29:36.998Z",
+      "eligibleLatest": "0.71.0",
+      "eligibleLatestPublishedAt": "2026-10-03T17:59:20.793Z",
+      "status": "compatibility-hold"
     },
     {
       "scope": "eve.just-bash",
@@ -7559,13 +7631,13 @@
       "source": "catalog",
       "exists": true,
       "currentDeprecated": null,
-      "pinned": "3.6.0",
-      "pinnedPublishedAt": "2026-10-01T12:48:02.977Z",
+      "pinned": "3.4.2",
+      "pinnedPublishedAt": "2026-08-22T03:28:27.717Z",
       "registryLatest": "3.6.0",
       "registryLatestPublishedAt": "2026-10-01T12:48:02.977Z",
       "eligibleLatest": "3.6.0",
       "eligibleLatestPublishedAt": "2026-10-01T12:48:02.977Z",
-      "status": "latest"
+      "status": "compatibility-hold"
     },
     {
       "scope": "expo.@expo/metro-runtime",
@@ -8375,13 +8447,13 @@
       "source": "host",
       "exists": true,
       "currentDeprecated": null,
-      "pinned": "0.70.3",
-      "pinnedPublishedAt": "2026-10-03T14:53:48.465Z",
-      "registryLatest": "0.76.2",
-      "registryLatestPublishedAt": "2026-10-10T16:31:25.073Z",
-      "eligibleLatest": "0.70.3",
-      "eligibleLatestPublishedAt": "2026-10-03T14:53:48.465Z",
-      "status": "latest"
+      "pinned": "0.44.4",
+      "pinnedPublishedAt": "2026-08-24T22:34:09.967Z",
+      "registryLatest": "0.76.3",
+      "registryLatestPublishedAt": "2026-10-10T18:29:36.998Z",
+      "eligibleLatest": "0.71.0",
+      "eligibleLatestPublishedAt": "2026-10-03T17:59:20.793Z",
+      "status": "compatibility-hold"
     },
     {
       "scope": "host.devDependencies.oxlint",
@@ -8461,6 +8533,22 @@
       "registryLatestPublishedAt": "2026-10-09T18:46:47.657Z",
       "eligibleLatest": "26.6.4",
       "eligibleLatestPublishedAt": "2026-10-01T22:39:22.769Z",
+      "status": "compatibility-hold"
+    },
+    {
+      "scope": "host.overrides.undici",
+      "group": "host.overrides",
+      "key": "undici",
+      "package": "undici",
+      "source": "host",
+      "exists": true,
+      "currentDeprecated": null,
+      "pinned": "8.10.2",
+      "pinnedPublishedAt": "2026-09-04T14:00:54.766Z",
+      "registryLatest": "8.11.2",
+      "registryLatestPublishedAt": "2026-09-24T08:37:55.067Z",
+      "eligibleLatest": "8.11.2",
+      "eligibleLatestPublishedAt": "2026-09-24T08:37:55.067Z",
       "status": "compatibility-hold"
     },
     {
@@ -9175,8 +9263,8 @@
       "source": "catalog",
       "exists": true,
       "currentDeprecated": null,
-      "pinned": "3.0.260903-beta",
-      "pinnedPublishedAt": "2026-09-03T22:57:16.763Z",
+      "pinned": "3.0.260610-beta",
+      "pinnedPublishedAt": "2026-06-10T22:00:37.119Z",
       "registryLatest": "3.0.260903-beta",
       "registryLatestPublishedAt": "2026-09-03T22:57:16.763Z",
       "eligibleLatest": "3.0.0",

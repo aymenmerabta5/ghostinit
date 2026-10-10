@@ -1,0 +1,30 @@
+{
+  "package": "braces",
+  "version": "3.0.3",
+  "tarball": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+  "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+  "publishedAt": "2024-05-21T08:59:11.390Z",
+  "auditedAt": "2026-10-10T17:28:30.598Z",
+  "patchPath": "tests/fixtures/compatibility/expo-uniwind-rnr/patches/braces@3.0.3.patch",
+  "patchSha256": "98a40152d33700b668fb2dd619d3ed5bc37c985b88a163719735ca5c5fccc8fe",
+  "files": [
+    {
+      "path": "lib/compile.js",
+      "fixture": "compile.js.fixture",
+      "originalSha256": "dc98f22eee3d511785d92a00758d5f0d48efed5f5813bdecc2de430c529b5c9f",
+      "patchedSha256": "a71354e4a311c711e88b814ccf9f67055999a1740fe3280a16e3ae4e7944160d"
+    },
+    {
+      "path": "lib/expand.js",
+      "fixture": "expand.js.fixture",
+      "originalSha256": "41ccc196ebfa7b7781a634e721eb744e4e7bcb54cba427a7e3d6806a1b9e58f7",
+      "patchedSha256": "e7e8585cac782c5ec279597c590d104384822f6a7efe35c7099f533401095953"
+    },
+    {
+      "path": "lib/stringify.js",
+      "fixture": "stringify.js.fixture",
+      "originalSha256": "379f22d77bfa1478341ccd49c5e4267464aabcbba03558bab332aac23fc6f23a",
+      "patchedSha256": "0092609fb84653bbbef555721b57b6c067db87393fa1b1721584252301506dbf"
+    }
+  ]
+}
